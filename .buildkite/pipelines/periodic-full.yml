@@ -1,0 +1,2592 @@
+steps:
+  - group: bwc
+    steps:
+      - label: 7.0.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.0.0
+      - label: 7.0.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.0.1
+      - label: 7.1.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.1.0
+      - label: 7.1.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.1.1
+      - label: 7.2.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.2.0
+      - label: 7.2.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.2.1
+      - label: 7.3.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.3.0
+      - label: 7.3.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.3.1
+      - label: 7.3.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.3.2
+      - label: 7.4.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.4.0
+      - label: 7.4.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.4.1
+      - label: 7.4.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.4.2
+      - label: 7.5.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.5.0
+      - label: 7.5.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.5.1
+      - label: 7.5.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.5.2
+      - label: 7.6.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.6.0
+      - label: 7.6.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.6.1
+      - label: 7.6.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.6.2
+      - label: 7.7.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.7.0
+      - label: 7.7.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.7.1
+      - label: 7.8.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.8.0
+      - label: 7.8.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.8.1
+      - label: 7.9.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.9.0
+      - label: 7.9.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.9.1
+      - label: 7.9.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.9.2
+      - label: 7.9.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.9.3
+      - label: 7.10.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.10.0
+      - label: 7.10.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.10.1
+      - label: 7.10.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.10.2
+      - label: 7.11.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.11.0
+      - label: 7.11.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.11.1
+      - label: 7.11.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.11.2
+      - label: 7.12.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.12.0
+      - label: 7.12.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.12.1
+      - label: 7.13.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.0
+      - label: 7.13.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.1
+      - label: 7.13.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.2
+      - label: 7.13.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.3
+      - label: 7.13.4 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.4
+      - label: 7.14.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.14.0
+      - label: 7.14.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.14.1
+      - label: 7.14.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.14.2
+      - label: 7.15.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.15.0
+      - label: 7.15.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.15.1
+      - label: 7.15.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.15.2
+      - label: 7.16.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.16.0
+      - label: 7.16.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.16.1
+      - label: 7.16.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.16.2
+      - label: 7.16.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.16.3
+      - label: 7.17.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.0
+      - label: 7.17.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.1
+      - label: 7.17.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.2
+      - label: 7.17.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.3
+      - label: 7.17.4 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.4
+      - label: 7.17.5 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.5
+      - label: 7.17.6 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.6
+      - label: 7.17.7 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.7
+      - label: 7.17.8 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.8
+      - label: 7.17.9 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.9
+      - label: 7.17.10 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.10
+      - label: 7.17.11 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.11
+      - label: 7.17.12 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.12
+      - label: 8.0.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.0.0
+      - label: 8.0.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.0.1
+      - label: 8.1.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.1.0
+      - label: 8.1.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.1.1
+      - label: 8.1.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.1.2
+      - label: 8.1.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.1.3
+      - label: 8.2.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.2.0
+      - label: 8.2.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.2.1
+      - label: 8.2.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.2.2
+      - label: 8.2.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.2.3
+      - label: 8.3.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.3.0
+      - label: 8.3.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.3.1
+      - label: 8.3.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.3.2
+      - label: 8.3.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.3.3
+      - label: 8.4.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.4.0
+      - label: 8.4.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.4.1
+      - label: 8.4.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.4.2
+      - label: 8.4.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.4.3
+      - label: 8.5.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.5.0
+      - label: 8.5.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.5.1
+      - label: 8.5.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.5.2
+      - label: 8.5.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.5.3
+      - label: 8.6.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.6.0
+      - label: 8.6.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.6.1
+      - label: 8.6.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.6.2
+      - label: 8.7.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.7.0
+      - label: 8.7.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.7.1
+      - label: 8.8.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.8.0
+      - label: 8.8.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.8.1
+      - label: 8.8.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.8.2
+      - label: 8.8.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.8.3
+      - label: 8.9.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.9.0
+      - label: 8.10.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.0
+  - label: concurrent-search-tests
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true check
+    timeout_in_minutes: 180
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304
+  - label: ear
+    command: |-
+      #!/bin/bash
+      # Configure a dm-crypt volume backed by a file
+      set -e
+      dd if=/dev/zero of=dm-crypt.img bs=1 count=0 seek=80GB
+      dd if=/dev/urandom of=key.secret bs=2k count=1
+      LOOP=$$$$(losetup -f)
+      sudo losetup $$$$LOOP dm-crypt.img
+      sudo cryptsetup luksFormat -q --key-file key.secret "$$$$LOOP"
+      sudo cryptsetup open --key-file key.secret "$$$$LOOP" secret --verbose
+      sudo mkfs.ext2 /dev/mapper/secret
+      sudo mkdir /mnt/secret
+      # Change /mnt/secret with care (at least a test uses this path to detect when encryption at rest is used)
+      sudo mount /dev/mapper/secret /mnt/secret
+      sudo chown -R buildkite-agent /mnt/secret
+      cp -r "$$$$WORKSPACE" /mnt/secret
+      cd /mnt/secret/$$$$(basename "$$$$WORKSPACE")
+      touch .output.log
+      rm -Rf "$$$$WORKSPACE"
+      ln -s "$$$$PWD" "$$$$WORKSPACE"
+
+      .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+    timeout_in_minutes: 180
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304
+  - label: eql-correctness
+    command: |-
+      set +x
+      ##VAULT_TOKEN=$$$$(vault write -field=token auth/approle/login role_id=$$$$VAULT_ROLE_ID secret_id=$$$$VAULT_SECRET_ID)
+      export VAULT_TOKEN
+      export eql_test_credentials_file="$$$$(pwd)/x-pack/plugin/eql/qa/correctness/credentials.gcs.json"
+      vault read -field=credentials.gcs.json secret/ci/elastic-elasticsearch/migrated/eql_test_credentials > $$$${eql_test_credentials_file}
+      ##unset VAULT_TOKEN
+      set -x
+
+      .ci/scripts/run-gradle.sh :x-pack:plugin:eql:qa:correctness:check
+    timeout_in_minutes: 180
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
+  - label: example-plugins
+    command: |-
+      cd $$$$WORKSPACE/plugins/examples
+
+      $$$$WORKSPACE/.ci/scripts/run-gradle.sh build
+    timeout_in_minutes: 180
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
+  - group: java-fips-matrix
+    steps:
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-fips-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.fips.enabled=true $$$$$$$$GRADLE_TASK
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - openjdk17
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - bwcTestSnapshots
+              - checkRestCompat
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+  - group: java-matrix
+    steps:
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$$$$$$$GRADLE_TASK
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - graalvm-ce17
+              - openjdk17
+              - openjdk18
+              - openjdk19
+              - openjdk20
+              - openjdk21
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - bwcTestSnapshots
+              - checkRestCompat
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+  - group: packaging-tests-unix
+    steps:
+      - label: "{{matrix.image}} / packaging-tests-unix"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructivePackagingTest
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - centos-7
+              - debian-10
+              - debian-11
+              - opensuse-leap-15
+              - oraclelinux-7
+              - oraclelinux-8
+              - sles-12
+              - sles-15
+              - ubuntu-1804
+              - ubuntu-2004
+              - ubuntu-2204
+              - rocky-8
+              - rhel-7
+              - rhel-8
+              - rhel-9
+              - almalinux-8
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-16-32768
+        env: {}
+  - group: packaging-tests-upgrade
+    steps:
+      - label: "{{matrix.image}} / 7.0.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.0.0
+      - label: "{{matrix.image}} / 7.0.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.0.1
+      - label: "{{matrix.image}} / 7.1.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.1.0
+      - label: "{{matrix.image}} / 7.1.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.1.1
+      - label: "{{matrix.image}} / 7.2.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.2.0
+      - label: "{{matrix.image}} / 7.2.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.2.1
+      - label: "{{matrix.image}} / 7.3.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.3.0
+      - label: "{{matrix.image}} / 7.3.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.3.1
+      - label: "{{matrix.image}} / 7.3.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.3.2
+      - label: "{{matrix.image}} / 7.4.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.4.0
+      - label: "{{matrix.image}} / 7.4.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.4.1
+      - label: "{{matrix.image}} / 7.4.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.4.2
+      - label: "{{matrix.image}} / 7.5.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.5.0
+      - label: "{{matrix.image}} / 7.5.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.5.1
+      - label: "{{matrix.image}} / 7.5.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.5.2
+      - label: "{{matrix.image}} / 7.6.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.6.0
+      - label: "{{matrix.image}} / 7.6.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.6.1
+      - label: "{{matrix.image}} / 7.6.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.6.2
+      - label: "{{matrix.image}} / 7.7.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.7.0
+      - label: "{{matrix.image}} / 7.7.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.7.1
+      - label: "{{matrix.image}} / 7.8.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.8.0
+      - label: "{{matrix.image}} / 7.8.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.8.1
+      - label: "{{matrix.image}} / 7.9.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.9.0
+      - label: "{{matrix.image}} / 7.9.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.9.1
+      - label: "{{matrix.image}} / 7.9.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.9.2
+      - label: "{{matrix.image}} / 7.9.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.9.3
+      - label: "{{matrix.image}} / 7.10.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.10.0
+      - label: "{{matrix.image}} / 7.10.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.10.1
+      - label: "{{matrix.image}} / 7.10.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.10.2
+      - label: "{{matrix.image}} / 7.11.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.11.0
+      - label: "{{matrix.image}} / 7.11.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.11.1
+      - label: "{{matrix.image}} / 7.11.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.11.2
+      - label: "{{matrix.image}} / 7.12.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.12.0
+      - label: "{{matrix.image}} / 7.12.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.12.1
+      - label: "{{matrix.image}} / 7.13.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.0
+      - label: "{{matrix.image}} / 7.13.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.1
+      - label: "{{matrix.image}} / 7.13.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.2
+      - label: "{{matrix.image}} / 7.13.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.3
+      - label: "{{matrix.image}} / 7.13.4 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.4
+      - label: "{{matrix.image}} / 7.14.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.14.0
+      - label: "{{matrix.image}} / 7.14.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.14.1
+      - label: "{{matrix.image}} / 7.14.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.14.2
+      - label: "{{matrix.image}} / 7.15.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.15.0
+      - label: "{{matrix.image}} / 7.15.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.15.1
+      - label: "{{matrix.image}} / 7.15.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.15.2
+      - label: "{{matrix.image}} / 7.16.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.16.0
+      - label: "{{matrix.image}} / 7.16.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.16.1
+      - label: "{{matrix.image}} / 7.16.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.16.2
+      - label: "{{matrix.image}} / 7.16.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.16.3
+      - label: "{{matrix.image}} / 7.17.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.0
+      - label: "{{matrix.image}} / 7.17.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.1
+      - label: "{{matrix.image}} / 7.17.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.2
+      - label: "{{matrix.image}} / 7.17.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.3
+      - label: "{{matrix.image}} / 7.17.4 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.4
+      - label: "{{matrix.image}} / 7.17.5 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.5
+      - label: "{{matrix.image}} / 7.17.6 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.6
+      - label: "{{matrix.image}} / 7.17.7 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.7
+      - label: "{{matrix.image}} / 7.17.8 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.8
+      - label: "{{matrix.image}} / 7.17.9 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.9
+      - label: "{{matrix.image}} / 7.17.10 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.10
+      - label: "{{matrix.image}} / 7.17.11 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.11
+      - label: "{{matrix.image}} / 7.17.12 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.12
+      - label: "{{matrix.image}} / 8.0.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.0.0
+      - label: "{{matrix.image}} / 8.0.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.0.1
+      - label: "{{matrix.image}} / 8.1.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.1.0
+      - label: "{{matrix.image}} / 8.1.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.1.1
+      - label: "{{matrix.image}} / 8.1.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.1.2
+      - label: "{{matrix.image}} / 8.1.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.1.3
+      - label: "{{matrix.image}} / 8.2.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.2.0
+      - label: "{{matrix.image}} / 8.2.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.2.1
+      - label: "{{matrix.image}} / 8.2.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.2.2
+      - label: "{{matrix.image}} / 8.2.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.2.3
+      - label: "{{matrix.image}} / 8.3.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.3.0
+      - label: "{{matrix.image}} / 8.3.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.3.1
+      - label: "{{matrix.image}} / 8.3.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.3.2
+      - label: "{{matrix.image}} / 8.3.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.3.3
+      - label: "{{matrix.image}} / 8.4.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.4.0
+      - label: "{{matrix.image}} / 8.4.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.4.1
+      - label: "{{matrix.image}} / 8.4.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.4.2
+      - label: "{{matrix.image}} / 8.4.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.4.3
+      - label: "{{matrix.image}} / 8.5.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.5.0
+      - label: "{{matrix.image}} / 8.5.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.5.1
+      - label: "{{matrix.image}} / 8.5.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.5.2
+      - label: "{{matrix.image}} / 8.5.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.5.3
+      - label: "{{matrix.image}} / 8.6.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.6.0
+      - label: "{{matrix.image}} / 8.6.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.6.1
+      - label: "{{matrix.image}} / 8.6.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.6.2
+      - label: "{{matrix.image}} / 8.7.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.7.0
+      - label: "{{matrix.image}} / 8.7.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.7.1
+      - label: "{{matrix.image}} / 8.8.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.8.0
+      - label: "{{matrix.image}} / 8.8.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.8.1
+      - label: "{{matrix.image}} / 8.8.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.8.2
+      - label: "{{matrix.image}} / 8.8.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.8.3
+      - label: "{{matrix.image}} / 8.9.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.9.0
+      - label: "{{matrix.image}} / 8.10.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$$$BWC_VERSION
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.0
+  - group: platform-support-unix
+    steps:
+      - label: "{{matrix.image}} / platform-support-unix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - centos-7
+              - debian-10
+              - debian-11
+              - opensuse-leap-15
+              - oraclelinux-7
+              - oraclelinux-8
+              - sles-12
+              - sles-15
+              - ubuntu-1804
+              - ubuntu-2004
+              - ubuntu-2204
+              - rocky-8
+              - rhel-7
+              - rhel-8
+              - rhel-9
+              - almalinux-8
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-32-98304
+        env: {}
+  - label: release-tests
+    command: |-
+      set -e
+
+      # Fetch beats artifacts
+      export ES_VERSION=$$$$(grep 'elasticsearch' build-tools-internal/version.properties | awk '{print $$$$3}')
+      export BEATS_DIR=$$$$(pwd)/distribution/docker/build/artifacts/beats
+
+      mkdir -p $$$${BEATS_DIR}
+      curl --fail -o "$$$${BEATS_DIR}/metricbeat-$$$${ES_VERSION}-linux-x86_64.tar.gz" https://artifacts-snapshot.elastic.co/beats/$$$${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-$$$${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
+      curl --fail -o "$$$${BEATS_DIR}/metricbeat-$$$${ES_VERSION}-linux-arm64.tar.gz" https://artifacts-snapshot.elastic.co/beats/$$$${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-$$$${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz
+      curl --fail -o "$$$${BEATS_DIR}/filebeat-$$$${ES_VERSION}-linux-x86_64.tar.gz" https://artifacts-snapshot.elastic.co/beats/$$$${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-$$$${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
+      curl --fail -o "$$$${BEATS_DIR}/filebeat-$$$${ES_VERSION}-linux-arm64.tar.gz" https://artifacts-snapshot.elastic.co/beats/$$$${ES_VERSION}-SNAPSHOT/downloads/beats/filebeat/filebeat-$$$${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz
+
+      # Fetch ML artifacts
+      export ML_IVY_REPO=$$$$(mktemp -d)
+      mkdir -p $$$${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/$$$${ES_VERSION}
+      curl --fail -o "$$$${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/$$$${ES_VERSION}/ml-cpp-$$$${ES_VERSION}-deps.zip" https://artifacts-snapshot.elastic.co/ml-cpp/$$$${ES_VERSION}-SNAPSHOT/downloads/ml-cpp/ml-cpp-$$$${ES_VERSION}-SNAPSHOT-deps.zip
+      curl --fail -o "$$$${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/$$$${ES_VERSION}/ml-cpp-$$$${ES_VERSION}-nodeps.zip" https://artifacts-snapshot.elastic.co/ml-cpp/$$$${ES_VERSION}-SNAPSHOT/downloads/ml-cpp/ml-cpp-$$$${ES_VERSION}-SNAPSHOT-nodeps.zip
+
+      .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dbuild.snapshot=false -Dbuild.ml_cpp.repo=file://$$$${ML_IVY_REPO} \
+        -Dtests.jvm.argline=-Dbuild.snapshot=false -Dlicense.key=$$$${WORKSPACE}/x-pack/license-tools/src/test/resources/public.key -Dbuild.id=deadbeef build
+    timeout_in_minutes: 180
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304
+  - label: single-processor-node-tests
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true check
+    timeout_in_minutes: 180
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304

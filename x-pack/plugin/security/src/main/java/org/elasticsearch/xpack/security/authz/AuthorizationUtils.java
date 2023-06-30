@@ -25,6 +25,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.APM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
@@ -143,6 +144,7 @@ public final class AuthorizationUtils {
             case IDP_ORIGIN:
             case INGEST_ORIGIN:
             case PROFILING_ORIGIN:
+            case APM_ORIGIN:
             case STACK_ORIGIN:
             case SEARCHABLE_SNAPSHOTS_ORIGIN:
             case LOGSTASH_MANAGEMENT_ORIGIN:

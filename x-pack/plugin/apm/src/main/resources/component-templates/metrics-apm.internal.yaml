@@ -1,0 +1,14 @@
+---
+version: ${xpack.apm.template.version}
+template:
+  settings:
+    codec: best_compression
+    index:
+      default_pipeline: metrics-apm.internal
+  mappings:
+    _source:
+      mode: synthetic
+    properties:
+      data_stream.dataset:
+        type: constant_keyword
+        value: apm.internal

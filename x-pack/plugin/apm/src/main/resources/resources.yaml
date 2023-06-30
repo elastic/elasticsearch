@@ -1,0 +1,48 @@
+# "version" holds the version of the templates and ingest pipelines installed
+# by x-plugin-apm. This must be increased whenever an existing template or
+# pipeline is changed, in order for it to be updated on Elasticsearch upgrade.
+version: 1
+
+component-templates:
+  - apm
+  - apm-retention-10d
+  - apm-retention-90d
+  - apm-retention-180d
+  - apm-retention-390d
+  - logs-apm.error
+  - metrics-apm.app
+  - metrics-apm.internal
+  - metrics-apm.service_destination
+  - metrics-apm.service_summary
+  - metrics-apm.service_transaction
+  - metrics-apm.transaction
+  - traces-apm
+  - traces-apm.rum
+  - traces-apm.sampled
+
+index-templates:
+  - logs-apm.app
+  - logs-apm.error
+  - metrics-apm.app
+  - metrics-apm.internal
+  - metrics-apm.service_destination.1m
+  - metrics-apm.service_destination.10m
+  - metrics-apm.service_destination.60m
+  - metrics-apm.service_summary.1m
+  - metrics-apm.service_summary.10m
+  - metrics-apm.service_summary.60m
+  - metrics-apm.service_transaction.1m
+  - metrics-apm.service_transaction.10m
+  - metrics-apm.service_transaction.60m
+  - metrics-apm.transaction.1m
+  - metrics-apm.transaction.10m
+  - metrics-apm.transaction.60m
+  - traces-apm
+  - traces-apm.rum
+  - traces-apm.sampled
+
+ingest-pipelines:
+  - apm
+  - traces-apm
+  - metrics-apm
+  - metrics-apm.internal

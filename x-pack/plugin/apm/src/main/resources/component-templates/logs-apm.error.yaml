@@ -1,0 +1,23 @@
+---
+version: ${xpack.apm.template.version}
+template:
+  mappings:
+    properties:
+      error.custom:
+        type: flattened
+      error.exception.attributes:
+        type: flattened
+      error.exception.stacktrace:
+        type: flattened
+      error.grouping_name:
+        type: keyword
+        script: |
+          def logMessage = doc.error?.log?.message;
+          if (logMessage != null) {
+            emit(logMessage);
+            return;
+          }
+          def exception = doc.error?.exception;
+          if (exception != null && exception.length > 0) {
+            emit(exception[0].message);
+          }

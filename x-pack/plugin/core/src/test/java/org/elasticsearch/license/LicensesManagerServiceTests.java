@@ -42,6 +42,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
             .put(XPackSettings.GRAPH_ENABLED.getKey(), false)
             .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
             .put(XPackSettings.PROFILING_ENABLED.getKey(), false)
+            .put(XPackSettings.APM_ENABLED.getKey(), false)
             .build();
     }
 

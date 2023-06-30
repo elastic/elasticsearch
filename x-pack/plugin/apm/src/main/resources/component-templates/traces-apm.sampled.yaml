@@ -1,0 +1,16 @@
+---
+version: ${xpack.apm.template.version}
+template:
+  settings:
+    index:
+      default_pipeline: apm
+  lifecycle:
+    data_retention: 1h
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: traces
+      data_stream.dataset:
+        type: constant_keyword
+        value: apm.sampled

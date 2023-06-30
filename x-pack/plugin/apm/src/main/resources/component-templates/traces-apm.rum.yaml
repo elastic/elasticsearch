@@ -1,0 +1,26 @@
+---
+version: ${xpack.apm.template.version}
+template:
+  mappings:
+    properties:
+      data_stream.dataset:
+        type: constant_keyword
+        value: apm.rum
+      transaction.experience.cls:
+        type: scaled_float
+        scaling_factor: 1000
+      transaction.experience.fid:
+        type: scaled_float
+        scaling_factor: 1000
+      transaction.experience.tbt:
+        type: scaled_float
+        scaling_factor: 1000
+      transaction.experience.longtask.count:
+        type: scaled_float
+        scaling_factor: 1000
+      transaction.experience.longtask.max:
+        type: scaled_float
+        scaling_factor: 1000
+      transaction.experience.longtask.sum:
+        type: scaled_float
+        scaling_factor: 1000

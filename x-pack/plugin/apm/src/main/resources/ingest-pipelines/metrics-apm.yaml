@@ -1,0 +1,50 @@
+---
+version: ${xpack.apm.template.version}
+_meta:
+  managed: true
+description: Built-in ingest pipeline for metrics-apm.*-* data streams
+processors:
+  # Older versions of apm-server write a '_metric_descriptions' field,
+  # which describes metrics written at the top level of the source.
+  # Newer versions write metrics as 'metricset.samples', which carry
+  # both the metric description and value(s).
+- script:
+    if: ctx._metric_descriptions != null
+    source: |
+      Map dynamic_templates = new HashMap();
+      for (entry in ctx._metric_descriptions.entrySet()) {
+        String name = entry.getKey();
+        Map description = entry.getValue();
+        String metric_type = description.type;
+        if (metric_type == "histogram") {
+          dynamic_templates[name] = "histogram_metrics";
+        } else if (metric_type == "summary") {
+          dynamic_templates[name] = "summary_metrics";
+        } else {
+          dynamic_templates[name] = "double_metrics";
+        }
+      }
+      ctx._dynamic_templates = dynamic_templates;
+      ctx.remove("_metric_descriptions");
+- script:
+    if: ctx.metricset?.samples != null
+    source: |
+      Map dynamic_templates = new HashMap();
+      for (sample in ctx.metricset.samples) {
+        String name = sample.name;
+        String metric_type = sample.type;
+        if (metric_type == "histogram") {
+          dynamic_templates[name] = "histogram_metrics";
+          ctx.put(name, ["values": sample.values, "counts": sample.counts]);
+        } else if (metric_type == "summary") {
+          dynamic_templates[name] = "summary_metrics";
+          ctx.put(name, ["value_count": sample.value_count, "sum": sample.sum]);
+        } else {
+          dynamic_templates[name] = "double_metrics";
+          ctx.put(name, sample.value);
+        }
+      }
+      ctx._dynamic_templates = dynamic_templates;
+      ctx.metricset.remove("samples");
+- pipeline:
+    name: apm

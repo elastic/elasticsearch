@@ -1,0 +1,10 @@
+---
+version: ${xpack.apm.template.version}
+template:
+  settings:
+    codec: best_compression
+    index:
+      default_pipeline: metrics-apm
+  mappings:
+    _source:
+      mode: synthetic

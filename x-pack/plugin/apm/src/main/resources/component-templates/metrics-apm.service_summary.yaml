@@ -1,0 +1,26 @@
+---
+version: ${xpack.apm.template.version}
+template:
+  settings:
+    codec: best_compression
+    index:
+      default_pipeline: metrics-apm
+  mappings:
+    _source:
+      mode: synthetic
+    properties:
+      metricset.name:
+        type: constant_keyword
+        value: service_summary
+      metricset.interval:
+        type: constant_keyword
+      transaction.duration.histogram:
+        type: histogram
+      transaction.duration.summary:
+        type: aggregate_metric_double
+        metrics: [sum, value_count]
+        default_metric: sum
+      event.success_count:
+        type: aggregate_metric_double
+        metrics: [sum, value_count]
+        default_metric: sum

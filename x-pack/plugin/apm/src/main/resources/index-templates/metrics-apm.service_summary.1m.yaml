@@ -1,0 +1,20 @@
+---
+version: ${xpack.apm.template.version}
+index_patterns: [metrics-apm.service_summary.1m-*]
+priority: 150
+data_stream: {}
+composed_of:
+- metrics-mappings
+- apm
+- apm-retention-90d
+- metrics-apm.service_summary
+- apm@custom
+- metrics-apm.service_summary@custom
+- ecs@dynamic_templates
+ignore_missing_component_templates:
+- apm@custom
+- metrics-apm.service_summary@custom
+allow_auto_create: true
+_meta:
+  description: Index template for metrics-apm.service_summary.1m-*
+  managed: true

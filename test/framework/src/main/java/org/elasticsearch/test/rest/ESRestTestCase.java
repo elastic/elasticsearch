@@ -1828,6 +1828,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith("profiling-")) {
             return true;
         }
+        if (name.equals("apm")
+            || name.startsWith("apm-")
+            || name.startsWith("traces-apm")
+            || name.startsWith("metrics-apm")
+            || name.startsWith("logs-apm")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":

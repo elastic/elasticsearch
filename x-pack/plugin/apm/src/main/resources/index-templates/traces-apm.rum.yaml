@@ -1,0 +1,22 @@
+---
+version: ${xpack.apm.template.version}
+index_patterns: ["traces-apm.rum-*"]
+priority: 150
+data_stream: {}
+composed_of:
+- apm
+- apm-retention-90d
+- traces-apm
+- traces-apm.rum
+- apm@custom
+- traces-apm@custom
+- traces-apm.rum@custom
+- ecs@dynamic_templates
+ignore_missing_component_templates:
+- traces-apm.rum@custom
+- traces-apm@custom
+- apm@custom
+allow_auto_create: true
+_meta:
+  description: Index template for traces-apm.rum-*
+  managed: true

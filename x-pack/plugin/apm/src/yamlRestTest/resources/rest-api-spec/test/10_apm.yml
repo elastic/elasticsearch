@@ -1,0 +1,182 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Test traces-apm* template installation":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      indices.get_index_template:
+        name: traces-apm*
+  - length: {index_templates: 3}
+  - contains: {index_templates: {name: traces-apm}}
+  - contains: {index_templates: {name: traces-apm.rum}}
+  - contains: {index_templates: {name: traces-apm.sampled}}
+
+---
+"Test metrics-apm* template installation":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      indices.get_index_template:
+        name: metrics-apm*
+  - length: {index_templates: 14}
+  - contains: {index_templates: {name: metrics-apm.app}}
+  - contains: {index_templates: {name: metrics-apm.internal}}
+  - contains: {index_templates: {name: metrics-apm.service_destination.1m}}
+  - contains: {index_templates: {name: metrics-apm.service_destination.10m}}
+  - contains: {index_templates: {name: metrics-apm.service_destination.60m}}
+  - contains: {index_templates: {name: metrics-apm.service_summary.1m}}
+  - contains: {index_templates: {name: metrics-apm.service_summary.10m}}
+  - contains: {index_templates: {name: metrics-apm.service_summary.60m}}
+  - contains: {index_templates: {name: metrics-apm.service_transaction.1m}}
+  - contains: {index_templates: {name: metrics-apm.service_transaction.10m}}
+  - contains: {index_templates: {name: metrics-apm.service_transaction.60m}}
+  - contains: {index_templates: {name: metrics-apm.transaction.1m}}
+  - contains: {index_templates: {name: metrics-apm.transaction.10m}}
+  - contains: {index_templates: {name: metrics-apm.transaction.60m}}
+
+---
+"Test logs-apm* template installation":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      indices.get_index_template:
+        name: logs-apm*
+  - length: {index_templates: 2}
+  - contains: {index_templates: {name: logs-apm.app}}
+  - contains: {index_templates: {name: logs-apm.error}}
+
+---
+"Test traces-apm-* data stream indexing":
+  - do:
+      index:
+        index: traces-apm-testing
+        refresh: true
+        body:
+          "@timestamp": "2017-06-22"
+          data_stream.type: traces
+          data_stream.dataset: apm
+          data_stream.namespace: testing
+          event:
+            outcome: success
+            duration: 123000
+  - do:
+      indices.get_data_stream:
+        name: traces-apm-testing
+  - do:
+      search:
+        index: traces-apm-testing
+        body:
+          fields: ["*"]
+  - length: {hits.hits: 1}
+  - match: {hits.hits.0.fields.event\.success_count: [1]}
+  - match: {hits.hits.0.fields.span\.duration\.us: [123]}
+
+---
+"Test metrics-apm.internal-* data stream rerouting":
+  - do:
+      bulk:
+        index: metrics-apm.internal-testing
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": "2017-06-22"
+            data_stream.type: metrics
+            data_stream.dataset: apm.internal
+            data_stream.namespace: testing
+            metricset:
+              name: transaction
+          - create: {}
+          - "@timestamp": "2017-06-22"
+            data_stream.type: metrics
+            data_stream.dataset: apm.internal
+            data_stream.namespace: testing
+            metricset:
+              name: service_destination
+          - create: {}
+          - "@timestamp": "2017-06-22"
+            data_stream.type: metrics
+            data_stream.dataset: apm.internal
+            data_stream.namespace: testing
+            metricset:
+              name: app_config # should not be rerouted
+  - do:
+      indices.get_data_stream:
+        name: metrics-apm.transaction.1m-testing
+  - do:
+      indices.get_data_stream:
+        name: metrics-apm.service_destination.1m-testing
+  - do:
+      indices.get_data_stream:
+        name: metrics-apm.internal-testing
+  - do:
+      search:
+        index: metrics-apm*
+  - length: {hits.hits: 3}
+  - match: {hits.hits.0._source.data_stream.dataset: "apm.internal"}
+  - match: {hits.hits.1._source.data_stream.dataset: "apm.service_destination.1m"}
+  - match: {hits.hits.1._source.metricset.interval: "1m"}
+  - match: {hits.hits.2._source.data_stream.dataset: "apm.transaction.1m"}
+  - match: {hits.hits.2._source.metricset.interval: "1m"}
+
+---
+"Test metrics-apm.app-* dynamic mapping":
+  - do:
+      bulk:
+        index: metrics-apm.app.svc1-testing
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": "2017-06-22"
+            data_stream.type: metrics
+            data_stream.dataset: apm.app.svc1
+            data_stream.namespace: testing
+            metricset:
+              name: app
+              samples:
+                - name: double_metric
+                  type: gauge
+                  value: 123
+                - name: summary_metric
+                  type: summary
+                  value_count: 123
+                  sum: 456.789
+                - name: histogram_metric
+                  type: histogram
+                  counts: [1, 2, 3]
+                  values: [1.5, 2.5, 3.5]
+  - set:
+      items.0.create._index: index
+  - do:
+      indices.get_field_mapping:
+        index: metrics-apm.app.svc1-testing
+        fields: [double_metric, summary_metric, histogram_metric]
+  - match:
+      $body:
+        $index:
+          mappings:
+            double_metric:
+              full_name: double_metric
+              mapping:
+                double_metric:
+                  type: float
+                  index: false
+            summary_metric:
+              full_name: summary_metric
+              mapping:
+                summary_metric:
+                  type: aggregate_metric_double
+                  metrics : [sum, value_count]
+                  default_metric: value_count
+            histogram_metric:
+              full_name: histogram_metric
+              mapping:
+                histogram_metric:
+                  type: histogram

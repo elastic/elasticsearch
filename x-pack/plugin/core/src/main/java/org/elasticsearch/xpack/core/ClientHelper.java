@@ -192,6 +192,7 @@ public final class ClientHelper {
     public static final String LOGSTASH_MANAGEMENT_ORIGIN = "logstash_management";
     public static final String FLEET_ORIGIN = "fleet";
     public static final String ENT_SEARCH_ORIGIN = "enterprise_search";
+    public static final String APM_ORIGIN = "apm";
 
     private ClientHelper() {}
 

@@ -1,0 +1,20 @@
+---
+version: ${xpack.apm.template.version}
+index_patterns: ["logs-apm.error-*"]
+priority: 150
+data_stream: {}
+composed_of:
+- logs-mappings
+- apm
+- apm-retention-10d
+- logs-apm.error
+- apm@custom
+- logs-apm.error@custom
+- ecs@dynamic_templates
+ignore_missing_component_templates:
+- logs-apm.error@custom
+- apm@custom
+allow_auto_create: true
+_meta:
+  description: Index template for logs-apm.error-*
+  managed: true

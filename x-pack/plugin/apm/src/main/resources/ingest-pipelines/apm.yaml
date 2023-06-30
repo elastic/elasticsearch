@@ -1,0 +1,26 @@
+---
+version: ${xpack.apm.template.version}
+_meta:
+  managed: true
+description: |
+  Built-in ingest pipeline for all APM data streams.
+processors:
+- rename:
+    field: process.ppid
+    target_field: process.parent.pid
+    ignore_failure: true
+    ignore_missing: true
+- geoip:
+    database_file: GeoLite2-City.mmdb
+    field: client.ip
+    target_field: client.geo
+    download_database_on_pipeline_creation: false
+    ignore_missing: true
+    on_failure:
+    - remove:
+        field: client.ip
+- user_agent:
+    field: user_agent.original
+    target_field: user_agent
+    ignore_failure: true
+    ignore_missing: true

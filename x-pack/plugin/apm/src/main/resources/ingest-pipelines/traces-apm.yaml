@@ -1,0 +1,38 @@
+---
+version: ${xpack.apm.template.version}
+_meta:
+  managed: true
+description: Built-in ingest pipeline for traces-apm-* data streams
+processors:
+- rename:
+    # Older versions of apm-server write 'transaction.duration.us' or
+    # 'span.duration.us'. Newer versions write 'event.duration', which
+    # should be rewritten. Whatever the case, write 'span.duration.us',
+    # which will be aliased as 'transaction.duration.us'.
+    field: transaction.duration.us
+    target_field: span.duration.us
+    ignore_missing: true
+- script:
+    if: 'ctx.span?.duration == null'
+    source: |
+      def eventDuration = ctx.event?.duration ?: 0;
+      def span = ctx.span;
+      if (span == null) {
+        span = [:];
+        ctx.span = span;
+      }
+      span.duration = ["us": (long)(eventDuration/1000)];
+- remove:
+    field: ["event.duration"]
+    ignore_failure: true
+    ignore_missing: true
+- set:
+    if: ctx.event?.outcome == 'success'
+    field: event.success_count
+    value: 1
+- set:
+    if: ctx.event?.outcome == 'failure'
+    field: event.success_count
+    value: 0
+- pipeline:
+    name: apm

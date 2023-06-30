@@ -7,21 +7,22 @@
 
 package org.elasticsearch.xpack.core.template;
 
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Describes an ingest pipeline to be loaded from a resource file for use with an {@link IndexTemplateRegistry}.
  */
 public class IngestPipelineConfig {
     private final String id;
-    private final String resource;
     private final int version;
-    private final String versionProperty;
+    private final Supplier<PutPipelineRequest> requestSupplier;
 
     /**
      * A list of this pipeline's dependencies, for example- such referred to through a pipeline processor.
@@ -35,11 +36,14 @@ public class IngestPipelineConfig {
     }
 
     public IngestPipelineConfig(String id, String resource, int version, String versionProperty, List<String> dependencies) {
+        this(id, version, dependencies, newResourceSupplier(id, resource, version, versionProperty));
+    }
+
+    public IngestPipelineConfig(String id, int version, List<String> dependencies, Supplier<PutPipelineRequest> requestSupplier) {
         this.id = Objects.requireNonNull(id);
-        this.resource = Objects.requireNonNull(resource);
         this.version = version;
-        this.versionProperty = Objects.requireNonNull(versionProperty);
         this.dependencies = dependencies;
+        this.requestSupplier = Objects.requireNonNull(requestSupplier);
     }
 
     public String getId() {
@@ -50,15 +54,21 @@ public class IngestPipelineConfig {
         return version;
     }
 
-    public String getVersionProperty() {
-        return versionProperty;
-    }
-
     public List<String> getPipelineDependencies() {
         return dependencies;
     }
 
-    public BytesReference loadConfig() {
-        return new BytesArray(TemplateUtils.loadTemplate(resource, String.valueOf(version), versionProperty));
+    public PutPipelineRequest getPutPipelineRequest() {
+        return requestSupplier.get();
+    }
+
+    private static Supplier<PutPipelineRequest> newResourceSupplier(String id, String resource, int version, String versionProperty) {
+        Objects.requireNonNull(resource);
+        Objects.requireNonNull(versionProperty);
+        return () -> new PutPipelineRequest(
+            id,
+            new BytesArray(TemplateUtils.loadTemplate(resource, String.valueOf(version), versionProperty)),
+            XContentType.JSON
+        );
     }
 }

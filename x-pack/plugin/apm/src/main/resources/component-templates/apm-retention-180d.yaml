@@ -1,0 +1,5 @@
+---
+version: ${xpack.apm.template.version}
+template:
+  lifecycle:
+    data_retention: "180d"

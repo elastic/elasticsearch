@@ -19,3 +19,6 @@ x-pack/plugin/monitoring/src/main/java/org/elasticsearch/xpack/monitoring/Monito
 # Fleet
 x-pack/plugin/fleet/src/main/java/org/elasticsearch/xpack/fleet @elastic/fleet
 x-pack/plugin/core/src/main/resources/fleet-* @elastic/fleet
+
+# APM
+x-pack/plugin/apm @elastic/apm-server

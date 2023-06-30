@@ -1,0 +1,18 @@
+---
+version: ${xpack.apm.template.version}
+index_patterns: ["traces-apm.sampled-*"]
+priority: 150
+data_stream: {}
+composed_of:
+- apm
+- traces-apm.sampled
+- apm@custom
+- traces-apm.sampled@custom
+- ecs@dynamic_templates
+ignore_missing_component_templates:
+- traces-apm.sampled@custom
+- apm@custom
+allow_auto_create: true
+_meta:
+  description: Index template for traces-apm.sampled-*
+  managed: true

@@ -1,0 +1,22 @@
+---
+version: ${xpack.apm.template.version}
+description: |
+  Built-in ingest pipeline for metrics-apm.internal-* data streams
+_meta:
+  managed: true
+processors:
+  # Older versions of apm-server write various metrics to this data stream,
+  # while newer versions break them into separate datasets. Reroute based
+  # on the 'metricset.name' field.
+- set:
+    if: "ctx.metricset?.name == 'transaction' || ctx.metricset?.name == 'service_destination'"
+    field: metricset.interval
+    value: 1m
+- reroute:
+    if: "ctx.metricset?.name == 'transaction'"
+    dataset: apm.transaction.1m
+- reroute:
+    if: "ctx.metricset?.name == 'service_destination'"
+    dataset: apm.service_destination.1m
+- pipeline:
+    name: metrics-apm

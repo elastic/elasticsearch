@@ -11,6 +11,7 @@ package org.elasticsearch.action.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -94,7 +95,20 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
                 final ActionListener<ItemResponse> itemResponseListener = ActionListener.notifyOnce(new ActionListener<>() {
                     @Override
                     public void onResponse(ItemResponse itemResponse) {
-                        onItemResponse(item, itemResponse);
+                        try {
+                            onItemResponse(item, itemResponse);
+                        } catch (Exception e) {
+                            logger.error(
+                                () -> Strings.format(
+                                    "unexpected exception handling [%s] for item [%s] in [%s]",
+                                    itemResponse,
+                                    item,
+                                    CancellableFanOut.this
+                                ),
+                                e
+                            );
+                            assert false : e;
+                        }
                     }
 
                     @Override
@@ -103,7 +117,7 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
                             // Completed on cancellation so it is released promptly, but there's no need to handle the exception.
                             return;
                         }
-                        onItemFailure(item, e);
+                        onItemFailure(item, e); // must not throw, enforced by the ActionListener#notifyOnce wrapper
                     }
 
                     @Override
@@ -122,7 +136,7 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
                 }
 
                 // Process the item, capturing a ref to make sure the outer listener is completed after this item is processed.
-                sendItemRequest(item, ActionListener.releaseAfter(itemResponseListener, refs.acquire()));
+                ActionListener.run(ActionListener.releaseAfter(itemResponseListener, refs.acquire()), l -> sendItemRequest(item, l));
             }
         } catch (Exception e) {
             // NB the listener may have been completed already (by exiting this try block) so this exception may not be sent to the caller,
@@ -143,7 +157,8 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
     protected abstract void sendItemRequest(Item item, ActionListener<ItemResponse> listener);
 
     /**
-     * Handle a successful response for an item. May be called concurrently for multiple items. Not called if the task is cancelled.
+     * Handle a successful response for an item. May be called concurrently for multiple items. Not called if the task is cancelled. Must
+     * not throw any exceptions.
      * <p>
      * Note that it's easy to accidentally capture another reference to this class when implementing this method, and that will prevent the
      * early release of any accumulated results. Beware of lambdas, and test carefully.
@@ -151,7 +166,8 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
     protected abstract void onItemResponse(Item item, ItemResponse itemResponse);
 
     /**
-     * Handle a failure for an item. May be called concurrently for multiple items. Not called if the task is cancelled.
+     * Handle a failure for an item. May be called concurrently for multiple items. Not called if the task is cancelled. Must not throw any
+     * exceptions.
      * <p>
      * Note that it's easy to accidentally capture another reference to this class when implementing this method, and that will prevent the
      * early release of any accumulated results. Beware of lambdas, and test carefully.

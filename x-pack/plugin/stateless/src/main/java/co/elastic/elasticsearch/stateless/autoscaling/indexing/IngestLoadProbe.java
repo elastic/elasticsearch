@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.function.Function;
@@ -26,19 +28,26 @@ import java.util.function.Function;
  */
 public class IngestLoadProbe {
 
-    // TODO: ES-6250 makes this a cluster setting
     /**
      * MAX_TIME_TO_CLEAR_QUEUE is a threshold that defines the length of time that the current number of threads could take to clear up
      * the queued work. In other words, the amount of work that is considered manageable using the current number of threads.
      * For example, MAX_TIME_TO_CLEAR_QUEUE = 30sec means, 30 seconds worth of tasks in the queue is considered
      * manageable with the current number of threads available.
      */
-    public static final TimeValue MAX_TIME_TO_CLEAR_QUEUE = TimeValue.timeValueSeconds(30);
+    public static final TimeValue DEFAULT_MAX_TIME_TO_CLEAR_QUEUE = TimeValue.timeValueSeconds(30);
+    public static final Setting<TimeValue> MAX_TIME_TO_CLEAR_QUEUE = Setting.timeSetting(
+        "serverless.autoscaling.indexing.sampler.max_time_to_clear_queue",
+        DEFAULT_MAX_TIME_TO_CLEAR_QUEUE,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
 
     private final Function<String, ExecutorStats> executorStatsProvider;
+    private volatile TimeValue maxTimeToClearQueue;
 
-    public IngestLoadProbe(Function<String, ExecutorStats> executorStatsProvider) {
+    public IngestLoadProbe(ClusterSettings clusterSettings, Function<String, ExecutorStats> executorStatsProvider) {
         this.executorStatsProvider = executorStatsProvider;
+        clusterSettings.initializeAndWatch(MAX_TIME_TO_CLEAR_QUEUE, this::setMaxTimeToClearQueue);
     }
 
     /**
@@ -56,7 +65,7 @@ public class IngestLoadProbe {
                 executorStats.averageLoad(),
                 executorStats.averageTaskExecutionEWMA(),
                 executorStats.currentQueueSize(),
-                MAX_TIME_TO_CLEAR_QUEUE
+                maxTimeToClearQueue
             );
         }
         return totalIngestionLoad;
@@ -75,5 +84,9 @@ public class IngestLoadProbe {
         double totalThreadsNeeded = currentQueueSize / tasksManageablePerThreadWithinMaxTime;
         assert totalThreadsNeeded >= 0.0;
         return averageWriteLoad + totalThreadsNeeded;
+    }
+
+    public void setMaxTimeToClearQueue(TimeValue maxTimeToClearQueue) {
+        this.maxTimeToClearQueue = maxTimeToClearQueue;
     }
 }

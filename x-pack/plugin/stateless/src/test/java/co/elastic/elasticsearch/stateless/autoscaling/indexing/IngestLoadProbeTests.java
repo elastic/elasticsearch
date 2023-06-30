@@ -17,6 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -50,7 +53,10 @@ public class IngestLoadProbeTests extends ESTestCase {
 
     public void testGetIngestionLoad() {
         Map<String, ExecutorStats> statsPerExecutor = new HashMap<>();
-        var ingestLoadProbe = new IngestLoadProbe(statsPerExecutor::get);
+        var ingestLoadProbe = new IngestLoadProbe(
+            new ClusterSettings(Settings.EMPTY, Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, MAX_TIME_TO_CLEAR_QUEUE)),
+            statsPerExecutor::get
+        );
 
         statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, timeValueMillis(200).nanos(), 0));
         statsPerExecutor.put(Names.SYSTEM_WRITE, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0));
@@ -60,7 +66,7 @@ public class IngestLoadProbeTests extends ESTestCase {
         statsPerExecutor.clear();
         // With 200ms per task each thread can do 5 tasks per second
         var queueEmpty = randomBoolean();
-        int queueSize = queueEmpty ? 0 : 5 * (int) MAX_TIME_TO_CLEAR_QUEUE.seconds();
+        int queueSize = queueEmpty ? 0 : 5 * (int) MAX_TIME_TO_CLEAR_QUEUE.getDefault(Settings.EMPTY).seconds();
         statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, timeValueMillis(200).nanos(), queueSize));
         statsPerExecutor.put(Names.SYSTEM_WRITE, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0));
         statsPerExecutor.put(Names.SYSTEM_CRITICAL_WRITE, new ExecutorStats(1.0, timeValueMillis(25).nanos(), 0));

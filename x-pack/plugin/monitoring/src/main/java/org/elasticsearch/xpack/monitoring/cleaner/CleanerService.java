@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
@@ -140,19 +140,16 @@ public class CleanerService extends AbstractLifecycleComponent {
      * {@code IndicesCleaner} runs and reschedules itself in order to automatically clean (delete) indices that are outside of the
      * {@link #getRetention() retention} period.
      */
-    class IndicesCleaner extends AbstractLifecycleRunnable {
+    class IndicesCleaner extends AbstractRunnable {
 
         private volatile Scheduler.Cancellable cancellable;
 
-        /**
-         * Enable automatic logging and stopping of the runnable based on the {@link #lifecycle}.
-         */
-        IndicesCleaner() {
-            super(lifecycle, logger);
-        }
-
         @Override
-        protected void doRunInLifecycle() throws Exception {
+        protected void doRun() {
+            if (lifecycle.stoppedOrClosed()) {
+                return;
+            }
+
             // fetch the retention, which is depends on a bunch of rules
             TimeValue retention = getRetention();
 
@@ -174,7 +171,11 @@ public class CleanerService extends AbstractLifecycleComponent {
          * Reschedule the cleaner if the service is not stopped.
          */
         @Override
-        protected void onAfterInLifecycle() {
+        public void onAfter() {
+            if (lifecycle.stoppedOrClosed()) {
+                return;
+            }
+
             ZonedDateTime start = ZonedDateTime.now(Clock.systemUTC());
             TimeValue delay = executionScheduler.nextExecutionDelay(start);
 

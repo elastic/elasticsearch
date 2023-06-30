@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -25,6 +26,9 @@ import org.elasticsearch.compute.data.Vector;
  * This class is generated. Do not edit it.
  */
 public final class PercentileDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
+  private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
+      new IntermediateStateDesc("aggstate", ElementType.UNKNOWN)  );
+
   private final QuantileStates.GroupingState state;
 
   private final List<Integer> channels;
@@ -44,6 +48,15 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
   public static PercentileDoubleGroupingAggregatorFunction create(List<Integer> channels,
       BigArrays bigArrays, double percentile) {
     return new PercentileDoubleGroupingAggregatorFunction(channels, PercentileDoubleAggregator.initGrouping(bigArrays, percentile), bigArrays, percentile);
+  }
+
+  public static List<IntermediateStateDesc> intermediateStateDesc() {
+    return INTERMEDIATE_STATE_DESC;
+  }
+
+  @Override
+  public int intermediateBlockCount() {
+    return INTERMEDIATE_STATE_DESC.size();
   }
 
   @Override

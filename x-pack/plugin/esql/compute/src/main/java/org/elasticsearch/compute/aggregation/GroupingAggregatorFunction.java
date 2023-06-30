@@ -42,4 +42,7 @@ public interface GroupingAggregatorFunction extends Releasable {
      *                 the results. Always ascending.
      */
     void evaluateFinal(Block[] blocks, int offset, IntVector selected);
+
+    /** The number of blocks used by intermediate state. */
+    int intermediateBlockCount();
 }

@@ -11,6 +11,7 @@ import com.squareup.javapoet.JavaFile;
 
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
+import org.elasticsearch.compute.ann.IntermediateState;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -80,12 +81,19 @@ public class AggregatorProcessor implements Processor {
         for (TypeElement aggClass : annotatedClasses) {
             AggregatorImplementer implementer = null;
             if (aggClass.getAnnotation(Aggregator.class) != null) {
-                implementer = new AggregatorImplementer(env.getElementUtils(), aggClass);
+                IntermediateState[] intermediateState = aggClass.getAnnotation(Aggregator.class).value();
+                implementer = new AggregatorImplementer(env.getElementUtils(), aggClass, intermediateState);
                 write(aggClass, "aggregator", implementer.sourceFile(), env);
             }
             GroupingAggregatorImplementer groupingAggregatorImplementer = null;
             if (aggClass.getAnnotation(Aggregator.class) != null) {
-                groupingAggregatorImplementer = new GroupingAggregatorImplementer(env.getElementUtils(), aggClass);
+                assert aggClass.getAnnotation(GroupingAggregator.class) != null;
+                IntermediateState[] intermediateState = aggClass.getAnnotation(GroupingAggregator.class).value();
+                if (intermediateState.length == 0) {
+                    intermediateState = aggClass.getAnnotation(Aggregator.class).value();
+                }
+
+                groupingAggregatorImplementer = new GroupingAggregatorImplementer(env.getElementUtils(), aggClass, intermediateState);
                 write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);
             }
             if (implementer != null && groupingAggregatorImplementer != null) {

@@ -10,12 +10,14 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
+import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 
-@Aggregator
+@Aggregator({ @IntermediateState(name = "aggstate", type = "UNKNOWN") })
 @GroupingAggregator
 class PercentileIntAggregator {
+
     public static QuantileStates.SingleState initSingle(double percentile) {
         return new QuantileStates.SingleState(percentile);
     }

@@ -10,13 +10,15 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
+import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 
-@Aggregator
+@Aggregator({ @IntermediateState(name = "aggstate", type = "UNKNOWN") })
 @GroupingAggregator
 public class CountDistinctIntAggregator {
+
     public static HllStates.SingleState initSingle(BigArrays bigArrays, int precision) {
         return new HllStates.SingleState(bigArrays, precision);
     }

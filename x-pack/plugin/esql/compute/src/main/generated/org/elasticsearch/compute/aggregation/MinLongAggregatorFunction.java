@@ -9,20 +9,23 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MinLongAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class MinLongAggregatorFunction implements AggregatorFunction {
+  private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
+      new IntermediateStateDesc("min", ElementType.LONG),
+      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
+
   private final LongState state;
 
   private final List<Integer> channels;
@@ -34,6 +37,15 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
 
   public static MinLongAggregatorFunction create(List<Integer> channels) {
     return new MinLongAggregatorFunction(channels, new LongState(MinLongAggregator.init()));
+  }
+
+  public static List<IntermediateStateDesc> intermediateStateDesc() {
+    return INTERMEDIATE_STATE_DESC;
+  }
+
+  @Override
+  public int intermediateBlockCount() {
+    return INTERMEDIATE_STATE_DESC.size();
   }
 
   @Override
@@ -74,29 +86,18 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addIntermediateInput(Page page) {
-    Block block = page.getBlock(channels.get(0));
-    Vector vector = block.asVector();
-    if (vector == null || vector instanceof AggregatorStateVector == false) {
-      throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
-    }
-    @SuppressWarnings("unchecked") AggregatorStateVector<LongState> blobVector = (AggregatorStateVector<LongState>) vector;
-    // TODO exchange big arrays directly without funny serialization - no more copying
-    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    LongState tmpState = new LongState(MinLongAggregator.init());
-    for (int i = 0; i < block.getPositionCount(); i++) {
-      blobVector.get(i, tmpState);
-      state.longValue(MinLongAggregator.combine(state.longValue(), tmpState.longValue()));
-    }
-    state.seen(state.seen() || tmpState.seen());
-    tmpState.close();
+    assert channels.size() == intermediateBlockCount();
+    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    LongVector min = page.<LongBlock>getBlock(channels.get(0)).asVector();
+    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    assert min.getPositionCount() == 1;
+    assert min.getPositionCount() == seen.getPositionCount();
+    MinLongAggregator.combineIntermediate(state, min, seen);
   }
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset) {
-    AggregatorStateVector.Builder<AggregatorStateVector<LongState>, LongState> builder =
-        AggregatorStateVector.builderOfAggregatorState(LongState.class, state.getEstimatedSize());
-    builder.add(state, IntVector.range(0, 1));
-    blocks[offset] = builder.build().asBlock();
+    MinLongAggregator.evaluateIntermediate(state, blocks, offset);
   }
 
   @Override

@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
+import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -21,7 +22,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Objects;
 
-@Aggregator
+@Aggregator({ @IntermediateState(name = "aggstate", type = "UNKNOWN") })
 @GroupingAggregator
 public class CountDistinctBooleanAggregator {
     private static final byte BIT_FALSE = 0b01;

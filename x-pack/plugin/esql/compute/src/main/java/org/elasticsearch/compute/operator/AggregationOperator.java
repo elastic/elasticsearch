@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -90,10 +91,13 @@ public class AggregationOperator implements Operator {
             return null;
         }
 
-        Block[] blocks = new Block[aggregators.size()];
+        int[] aggBlockCounts = aggregators.stream().mapToInt(Aggregator::evaluateBlockCount).toArray();
+        Block[] blocks = new Block[Arrays.stream(aggBlockCounts).sum()];
+        int offset = 0;
         for (int i = 0; i < aggregators.size(); i++) {
             var aggregator = aggregators.get(i);
-            aggregator.evaluate(blocks, i);
+            aggregator.evaluate(blocks, offset);
+            offset += aggBlockCounts[i];
         }
 
         Page page = new Page(blocks);

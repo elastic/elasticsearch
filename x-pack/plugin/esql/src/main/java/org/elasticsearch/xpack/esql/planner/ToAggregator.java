@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.operator.EvalOperator;
 
 import java.util.List;
 
 /**
- * Expressions that have a mapping to an {@link EvalOperator.ExpressionEvaluator}.
+ * Expressions that have a mapping to an {@link AggregatorFunctionSupplier}.
  */
 public interface ToAggregator {
     AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels);

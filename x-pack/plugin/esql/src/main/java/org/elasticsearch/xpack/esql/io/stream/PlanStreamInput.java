@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.AggregateMapper;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -74,8 +75,10 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
 
     DataType dataTypeFromTypeName(String typeName) throws IOException {
         DataType dataType;
-        if (typeName.equalsIgnoreCase("_doc")) {
+        if (typeName.equalsIgnoreCase(EsQueryExec.DOC_DATA_TYPE.name())) {
             dataType = EsQueryExec.DOC_DATA_TYPE;
+        } else if (typeName.equalsIgnoreCase(AggregateMapper.AGG_STATE_TYPE.name())) {
+            dataType = AggregateMapper.AGG_STATE_TYPE;
         } else {
             dataType = EsqlDataTypes.fromTypeName(typeName);
         }

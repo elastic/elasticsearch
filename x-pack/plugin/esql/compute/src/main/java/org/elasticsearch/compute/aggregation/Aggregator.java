@@ -31,6 +31,11 @@ public class Aggregator implements Releasable {
         this.mode = mode;
     }
 
+    /** The number of Blocks required for evaluation. */
+    public int evaluateBlockCount() {
+        return mode.isOutputPartial() ? aggregatorFunction.intermediateBlockCount() : 1;
+    }
+
     public void processPage(Page page) {
         if (mode.isInputPartial()) {
             aggregatorFunction.addIntermediateInput(page);

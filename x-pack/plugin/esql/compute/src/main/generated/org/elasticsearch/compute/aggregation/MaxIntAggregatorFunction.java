@@ -12,6 +12,7 @@ import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -22,6 +23,9 @@ import org.elasticsearch.compute.data.Vector;
  * This class is generated. Do not edit it.
  */
 public final class MaxIntAggregatorFunction implements AggregatorFunction {
+  private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
+      new IntermediateStateDesc("aggstate", ElementType.UNKNOWN)  );
+
   private final IntState state;
 
   private final List<Integer> channels;
@@ -33,6 +37,15 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
 
   public static MaxIntAggregatorFunction create(List<Integer> channels) {
     return new MaxIntAggregatorFunction(channels, new IntState(MaxIntAggregator.init()));
+  }
+
+  public static List<IntermediateStateDesc> intermediateStateDesc() {
+    return INTERMEDIATE_STATE_DESC;
+  }
+
+  @Override
+  public int intermediateBlockCount() {
+    return INTERMEDIATE_STATE_DESC.size();
   }
 
   @Override

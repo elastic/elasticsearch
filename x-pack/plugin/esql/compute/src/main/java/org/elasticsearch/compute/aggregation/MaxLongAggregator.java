@@ -9,10 +9,12 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
+import org.elasticsearch.compute.ann.IntermediateState;
 
-@Aggregator
+@Aggregator({ @IntermediateState(name = "aggstate", type = "UNKNOWN") })
 @GroupingAggregator
 class MaxLongAggregator {
+
     public static long init() {
         return Long.MIN_VALUE;
     }

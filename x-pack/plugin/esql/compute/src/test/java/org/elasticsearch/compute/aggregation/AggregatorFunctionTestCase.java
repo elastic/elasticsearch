@@ -35,11 +35,18 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase {
     protected abstract AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels);
+
+    protected final int aggregatorIntermediateBlockCount() {
+        try (var agg = aggregatorFunction(nonBreakingBigArrays(), List.of()).aggregator()) {
+            return agg.intermediateBlockCount();
+        }
+    }
 
     protected abstract String expectedDescriptionOfAggregator();
 
@@ -47,8 +54,9 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+        List<Integer> channels = mode.isInputPartial() ? range(0, aggregatorIntermediateBlockCount()).boxed().toList() : List.of(0);
         return new AggregationOperator.AggregationOperatorFactory(
-            List.of(aggregatorFunction(bigArrays, List.of(0)).aggregatorFactory(mode)),
+            List.of(aggregatorFunction(bigArrays, channels).aggregatorFactory(mode)),
             mode
         );
     }

@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -253,12 +254,14 @@ public class OrdinalsGroupingOperator implements Operator {
                     pq.pop();
                 }
             }
-            final Block[] blocks = new Block[aggregators.size() + 1];
+            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
+            Block[] blocks = new Block[1 + Arrays.stream(aggBlockCounts).sum()];
             blocks[0] = blockBuilder.build();
-            blockBuilder = null;
             IntVector selected = IntVector.range(0, blocks[0].getPositionCount());
+            int offset = 1;
             for (int i = 0; i < aggregators.size(); i++) {
-                aggregators.get(i).evaluate(blocks, i + 1, selected);
+                aggregators.get(i).evaluate(blocks, offset, selected);
+                offset += aggBlockCounts[i];
             }
             return new Page(blocks);
         } finally {

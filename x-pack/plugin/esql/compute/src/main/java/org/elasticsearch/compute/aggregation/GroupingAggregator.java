@@ -35,6 +35,11 @@ public class GroupingAggregator implements Releasable {
         this.mode = mode;
     }
 
+    /** The number of Blocks required for evaluation. */
+    public int evaluateBlockCount() {
+        return mode.isOutputPartial() ? aggregatorFunction.intermediateBlockCount() : 1;
+    }
+
     public void processPage(LongBlock groupIdBlock, Page page) {
         final LongVector groupIdVector = groupIdBlock.asVector();
         if (mode.isInputPartial()) {

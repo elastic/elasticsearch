@@ -10,8 +10,10 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongGroupingAggregatorFunctionTests;
+import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
@@ -23,6 +25,7 @@ import org.elasticsearch.core.Tuple;
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -35,12 +38,21 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
-        int maxChannel = mode.isInputPartial() ? 2 : 1;
+        List<Integer> sumChannels, maxChannels;
+        if (mode.isInputPartial()) {
+            int sumChannelCount = SumLongAggregatorFunction.intermediateStateDesc().size();
+            int maxChannelCount = MaxLongAggregatorFunction.intermediateStateDesc().size();
+            sumChannels = range(1, 1 + sumChannelCount).boxed().toList();
+            maxChannels = range(1 + sumChannelCount, 1 + sumChannelCount + maxChannelCount).boxed().toList();
+        } else {
+            sumChannels = maxChannels = List.of(1);
+        }
+
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
             List.of(
-                new SumLongAggregatorFunctionSupplier(bigArrays, List.of(1)).groupingAggregatorFactory(mode),
-                new MaxLongAggregatorFunctionSupplier(bigArrays, List.of(maxChannel)).groupingAggregatorFactory(mode)
+                new SumLongAggregatorFunctionSupplier(bigArrays, sumChannels).groupingAggregatorFactory(mode),
+                new MaxLongAggregatorFunctionSupplier(bigArrays, maxChannels).groupingAggregatorFactory(mode)
             ),
             bigArrays
         );

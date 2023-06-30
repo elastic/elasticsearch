@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -110,13 +111,15 @@ public class HashAggregationOperator implements Operator {
 
         Block[] keys = blockHash.getKeys();
         IntVector selected = blockHash.nonEmpty();
-        Block[] blocks = new Block[keys.length + aggregators.size()];
+
+        int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
+        Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
         System.arraycopy(keys, 0, blocks, 0, keys.length);
         int offset = keys.length;
         for (int i = 0; i < aggregators.size(); i++) {
             var aggregator = aggregators.get(i);
             aggregator.evaluate(blocks, offset, selected);
-            offset++;
+            offset += aggBlockCounts[i];
         }
 
         Page page = new Page(blocks);

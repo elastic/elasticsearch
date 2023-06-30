@@ -10,21 +10,27 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link SumDoubleAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class SumDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
+  private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
+      new IntermediateStateDesc("value", ElementType.DOUBLE),
+      new IntermediateStateDesc("delta", ElementType.DOUBLE),
+      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
+
   private final SumDoubleAggregator.GroupingSumState state;
 
   private final List<Integer> channels;
@@ -41,6 +47,15 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
   public static SumDoubleGroupingAggregatorFunction create(List<Integer> channels,
       BigArrays bigArrays) {
     return new SumDoubleGroupingAggregatorFunction(channels, SumDoubleAggregator.initGrouping(bigArrays), bigArrays);
+  }
+
+  public static List<IntermediateStateDesc> intermediateStateDesc() {
+    return INTERMEDIATE_STATE_DESC;
+  }
+
+  @Override
+  public int intermediateBlockCount() {
+    return INTERMEDIATE_STATE_DESC.size();
   }
 
   @Override
@@ -160,21 +175,13 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void addIntermediateInput(LongVector groupIdVector, Page page) {
-    Block block = page.getBlock(channels.get(0));
-    Vector vector = block.asVector();
-    if (vector == null || vector instanceof AggregatorStateVector == false) {
-      throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
-    }
-    @SuppressWarnings("unchecked") AggregatorStateVector<SumDoubleAggregator.GroupingSumState> blobVector = (AggregatorStateVector<SumDoubleAggregator.GroupingSumState>) vector;
-    // TODO exchange big arrays directly without funny serialization - no more copying
-    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    SumDoubleAggregator.GroupingSumState inState = SumDoubleAggregator.initGrouping(bigArrays);
-    blobVector.get(0, inState);
-    for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
-      int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      SumDoubleAggregator.combineStates(state, groupId, inState, position);
-    }
-    inState.close();
+    assert channels.size() == intermediateBlockCount();
+    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    DoubleVector value = page.<DoubleBlock>getBlock(channels.get(0)).asVector();
+    DoubleVector delta = page.<DoubleBlock>getBlock(channels.get(1)).asVector();
+    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(2)).asVector();
+    assert value.getPositionCount() == delta.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
+    SumDoubleAggregator.combineIntermediate(groupIdVector, state, value, delta, seen);
   }
 
   @Override
@@ -188,10 +195,7 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    AggregatorStateVector.Builder<AggregatorStateVector<SumDoubleAggregator.GroupingSumState>, SumDoubleAggregator.GroupingSumState> builder =
-        AggregatorStateVector.builderOfAggregatorState(SumDoubleAggregator.GroupingSumState.class, state.getEstimatedSize());
-    builder.add(state, selected);
-    blocks[offset] = builder.build().asBlock();
+    SumDoubleAggregator.evaluateIntermediate(state, blocks, offset, selected);
   }
 
   @Override

@@ -13,7 +13,9 @@ import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.is;
 
@@ -105,15 +107,15 @@ public class BlockSerializationTests extends SerializationTestCase {
         var params = new Object[] {};
         var function = SumLongAggregatorFunction.create(List.of(0));
         function.addRawInput(page);
-        Block[] blocks = new Block[1];
+        Block[] blocks = new Block[function.intermediateBlockCount()];
         function.evaluateIntermediate(blocks, 0);
-        Block origBlock = blocks[0];
 
-        Block deserBlock = serializeDeserializeBlock(origBlock);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
+        Block[] deserBlocks = Arrays.stream(blocks).map(this::uncheckedSerializeDeserializeBlock).toArray(Block[]::new);
+        IntStream.range(0, blocks.length).forEach(i -> EqualsHashCodeTestUtils.checkEqualsAndHashCode(blocks[i], unused -> deserBlocks[i]));
 
-        var finalAggregator = SumLongAggregatorFunction.create(List.of(0));
-        finalAggregator.addIntermediateInput(new Page(deserBlock));
+        var inputChannels = IntStream.range(0, SumLongAggregatorFunction.intermediateStateDesc().size()).boxed().toList();
+        var finalAggregator = SumLongAggregatorFunction.create(inputChannels);
+        finalAggregator.addIntermediateInput(new Page(deserBlocks));
         Block[] finalBlocks = new Block[1];
         finalAggregator.evaluateFinal(finalBlocks, 0);
         var finalBlock = (LongBlock) finalBlocks[0];

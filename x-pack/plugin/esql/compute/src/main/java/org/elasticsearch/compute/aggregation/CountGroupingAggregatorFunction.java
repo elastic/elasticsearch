@@ -29,9 +29,18 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         return new CountGroupingAggregatorFunction(inputChannels, new LongArrayState(bigArrays, 0));
     }
 
+    public static List<IntermediateStateDesc> intermediateStateDesc() {
+        return IntermediateStateDesc.AGG_STATE;
+    }
+
     private CountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state) {
         this.channels = channels;
         this.state = state;
+    }
+
+    @Override
+    public int intermediateBlockCount() {
+        return intermediateStateDesc().size();
     }
 
     @Override

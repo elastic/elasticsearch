@@ -22,4 +22,7 @@ public interface AggregatorFunction extends Releasable {
     void evaluateIntermediate(Block[] blocks, int offset);
 
     void evaluateFinal(Block[] blocks, int offset);
+
+    /** The number of blocks used by intermediate state. */
+    int intermediateBlockCount();
 }

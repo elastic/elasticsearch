@@ -37,6 +37,8 @@ import java.util.function.Consumer;
 
 abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
+    private final AggregateMapper aggregateMapper = new AggregateMapper();
+
     @Override
     public final PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,
@@ -53,13 +55,18 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
             List<Aggregator.Factory> aggregatorFactories = new ArrayList<>();
 
             // append channels to the layout
-            layout.appendChannels(aggregates);
+            if (mode == AggregateExec.Mode.FINAL) {
+                layout.appendChannels(aggregates);
+            } else {
+                layout.appendChannels(aggregateMapper.mapNonGrouping(aggregates));
+            }
             // create the agg factories
             aggregatesToFactory(
                 aggregates,
                 mode,
                 source,
                 context.bigArrays(),
+                false, // non-grouping
                 s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode))
             );
 
@@ -112,17 +119,23 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 groupSpecs.add(new GroupSpec(source.layout.getChannel(groupAttribute.id()), groupAttribute));
             }
 
-            for (var agg : aggregates) {
-                if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction) {
-                    layout.appendChannel(alias.id());
+            if (mode == AggregateExec.Mode.FINAL) {
+                for (var agg : aggregates) {
+                    if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction) {
+                        layout.appendChannel(alias.id());
+                    }
                 }
+            } else {
+                layout.appendChannels(aggregateMapper.mapGrouping(aggregates));
             }
+
             // create the agg factories
             aggregatesToFactory(
                 aggregates,
                 mode,
                 source,
                 context.bigArrays(),
+                true, // grouping
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode))
             );
 
@@ -156,6 +169,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         AggregateExec.Mode mode,
         PhysicalOperation source,
         BigArrays bigArrays,
+        boolean grouping,
         Consumer<AggFunctionSupplierContext> consumer
     ) {
         for (NamedExpression ne : aggregates) {
@@ -163,15 +177,19 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 var child = alias.child();
                 if (child instanceof AggregateFunction aggregateFunction) {
                     AggregatorMode aggMode = null;
-                    NamedExpression sourceAttr = null;
+                    List<? extends NamedExpression> sourceAttr;
 
                     if (mode == AggregateExec.Mode.PARTIAL) {
                         aggMode = AggregatorMode.INITIAL;
                         // TODO: this needs to be made more reliable - use casting to blow up when dealing with expressions (e+1)
-                        sourceAttr = Expressions.attribute(aggregateFunction.field());
+                        sourceAttr = List.of(Expressions.attribute(aggregateFunction.field()));
                     } else if (mode == AggregateExec.Mode.FINAL) {
                         aggMode = AggregatorMode.FINAL;
-                        sourceAttr = alias;
+                        if (grouping) {
+                            sourceAttr = aggregateMapper.mapGrouping(aggregateFunction);
+                        } else {
+                            sourceAttr = aggregateMapper.mapNonGrouping(aggregateFunction);
+                        }
                     } else {
                         throw new UnsupportedOperationException();
                     }
@@ -181,8 +199,8 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                         params[i] = aggParams.get(i).fold();
                     }
 
-                    List<Integer> inputChannels = List.of(source.layout.getChannel(sourceAttr.id()));
-                    assert inputChannels.size() > 0 && inputChannels.stream().allMatch(i -> i >= 0);
+                    List<Integer> inputChannels = sourceAttr.stream().map(NamedExpression::id).map(source.layout::getChannel).toList();
+                    assert inputChannels != null && inputChannels.size() > 0 && inputChannels.stream().allMatch(i -> i >= 0);
                     if (aggregateFunction instanceof ToAggregator agg) {
                         consumer.accept(new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannels), aggMode));
                     } else {

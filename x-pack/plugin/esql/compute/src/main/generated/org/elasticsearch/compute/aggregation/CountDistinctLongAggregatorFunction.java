@@ -12,6 +12,7 @@ import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -23,6 +24,9 @@ import org.elasticsearch.compute.data.Vector;
  * This class is generated. Do not edit it.
  */
 public final class CountDistinctLongAggregatorFunction implements AggregatorFunction {
+  private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
+      new IntermediateStateDesc("aggstate", ElementType.UNKNOWN)  );
+
   private final HllStates.SingleState state;
 
   private final List<Integer> channels;
@@ -42,6 +46,15 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
   public static CountDistinctLongAggregatorFunction create(List<Integer> channels,
       BigArrays bigArrays, int precision) {
     return new CountDistinctLongAggregatorFunction(channels, CountDistinctLongAggregator.initSingle(bigArrays, precision), bigArrays, precision);
+  }
+
+  public static List<IntermediateStateDesc> intermediateStateDesc() {
+    return INTERMEDIATE_STATE_DESC;
+  }
+
+  @Override
+  public int intermediateBlockCount() {
+    return INTERMEDIATE_STATE_DESC.size();
   }
 
   @Override

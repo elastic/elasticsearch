@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 abstract class SerializationTestCase extends ESTestCase {
 
@@ -35,6 +36,14 @@ abstract class SerializationTestCase extends ESTestCase {
             out.writeNamedWriteable(origBlock);
             StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
             return (T) in.readNamedWriteable(Block.class);
+        }
+    }
+
+    <T extends Block> T uncheckedSerializeDeserializeBlock(T origBlock) {
+        try {
+            return serializeDeserializeBlock(origBlock);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

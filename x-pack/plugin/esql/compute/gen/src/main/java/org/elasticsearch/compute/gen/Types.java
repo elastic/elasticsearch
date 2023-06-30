@@ -77,6 +77,10 @@ public class Types {
     static final ClassName AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunction");
     static final ClassName AGGREGATOR_FUNCTION_SUPPLIER = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunctionSupplier");
     static final ClassName GROUPING_AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "GroupingAggregatorFunction");
+
+    static final ClassName INTERMEDIATE_STATE_DESC = ClassName.get(AGGREGATION_PACKAGE, "IntermediateStateDesc");
+    static final TypeName LIST_AGG_FUNC_DESC = ParameterizedTypeName.get(ClassName.get(List.class), INTERMEDIATE_STATE_DESC);
+
     static final ClassName EXPRESSION_EVALUATOR = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator");
     static final ClassName ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
         "org.elasticsearch.xpack.esql.expression.function.scalar.multivalue",
@@ -114,6 +118,25 @@ public class Types {
         throw new IllegalArgumentException("unknown block type for [" + elementType + "]");
     }
 
+    static ClassName blockType(String elementType) {
+        if (elementType.equalsIgnoreCase(TypeName.BOOLEAN.toString())) {
+            return BOOLEAN_BLOCK;
+        }
+        if (elementType.equalsIgnoreCase(BYTES_REF.toString())) {
+            return BYTES_REF_BLOCK;
+        }
+        if (elementType.equalsIgnoreCase(TypeName.INT.toString())) {
+            return INT_BLOCK;
+        }
+        if (elementType.equalsIgnoreCase(TypeName.LONG.toString())) {
+            return LONG_BLOCK;
+        }
+        if (elementType.equalsIgnoreCase(TypeName.DOUBLE.toString())) {
+            return DOUBLE_BLOCK;
+        }
+        throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
+    }
+
     static ClassName vectorType(TypeName elementType) {
         if (elementType.equals(TypeName.BOOLEAN)) {
             return BOOLEAN_VECTOR;
@@ -128,6 +151,25 @@ public class Types {
             return LONG_VECTOR;
         }
         if (elementType.equals(TypeName.DOUBLE)) {
+            return DOUBLE_VECTOR;
+        }
+        throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
+    }
+
+    static ClassName vectorType(String elementType) {
+        if (elementType.equalsIgnoreCase(TypeName.BOOLEAN.toString())) {
+            return BOOLEAN_VECTOR;
+        }
+        if (elementType.equalsIgnoreCase(BYTES_REF.toString())) {
+            return BYTES_REF_VECTOR;
+        }
+        if (elementType.equalsIgnoreCase(TypeName.INT.toString())) {
+            return INT_VECTOR;
+        }
+        if (elementType.equalsIgnoreCase(TypeName.LONG.toString())) {
+            return LONG_VECTOR;
+        }
+        if (elementType.equalsIgnoreCase(TypeName.DOUBLE.toString())) {
             return DOUBLE_VECTOR;
         }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");

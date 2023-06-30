@@ -38,6 +38,10 @@ public class CountAggregatorFunction implements AggregatorFunction {
         };
     }
 
+    public static List<IntermediateStateDesc> intermediateStateDesc() {
+        return IntermediateStateDesc.AGG_STATE;
+    }
+
     private final LongState state;
     private final List<Integer> channels;
 
@@ -48,6 +52,11 @@ public class CountAggregatorFunction implements AggregatorFunction {
     private CountAggregatorFunction(List<Integer> channels, LongState state) {
         this.channels = channels;
         this.state = state;
+    }
+
+    @Override
+    public int intermediateBlockCount() {
+        return intermediateStateDesc().size();
     }
 
     @Override

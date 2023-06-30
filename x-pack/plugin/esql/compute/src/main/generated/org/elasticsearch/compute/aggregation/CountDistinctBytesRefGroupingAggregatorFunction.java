@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -26,6 +27,9 @@ import org.elasticsearch.compute.data.Vector;
  * This class is generated. Do not edit it.
  */
 public final class CountDistinctBytesRefGroupingAggregatorFunction implements GroupingAggregatorFunction {
+  private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
+      new IntermediateStateDesc("aggstate", ElementType.UNKNOWN)  );
+
   private final HllStates.GroupingState state;
 
   private final List<Integer> channels;
@@ -45,6 +49,15 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
   public static CountDistinctBytesRefGroupingAggregatorFunction create(List<Integer> channels,
       BigArrays bigArrays, int precision) {
     return new CountDistinctBytesRefGroupingAggregatorFunction(channels, CountDistinctBytesRefAggregator.initGrouping(bigArrays, precision), bigArrays, precision);
+  }
+
+  public static List<IntermediateStateDesc> intermediateStateDesc() {
+    return INTERMEDIATE_STATE_DESC;
+  }
+
+  @Override
+  public int intermediateBlockCount() {
+    return INTERMEDIATE_STATE_DESC.size();
   }
 
   @Override

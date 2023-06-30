@@ -12,18 +12,25 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
+import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantBooleanVector;
+import org.elasticsearch.compute.data.ConstantDoubleVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
-import java.util.Objects;
-
-@Aggregator
+@Aggregator(
+    {
+        @IntermediateState(name = "value", type = "DOUBLE"),
+        @IntermediateState(name = "delta", type = "DOUBLE"),
+        @IntermediateState(name = "seen", type = "BOOLEAN") }
+)
 @GroupingAggregator
 class SumDoubleAggregator {
 
@@ -35,8 +42,26 @@ class SumDoubleAggregator {
         current.add(v);
     }
 
+    public static void combine(SumState current, double value, double delta) {
+        current.add(value, delta);
+    }
+
     public static void combineStates(SumState current, SumState state) {
         current.add(state.value(), state.delta());
+    }
+
+    public static void combineIntermediate(SumState state, DoubleVector values, DoubleVector deltas, BooleanVector seen) {
+        if (seen.getBoolean(0)) {
+            combine(state, values.getDouble(0), deltas.getDouble(0));
+            state.seen(true);
+        }
+    }
+
+    public static void evaluateIntermediate(SumState state, Block[] blocks, int offset) {
+        assert blocks.length >= offset + 3;
+        blocks[offset + 0] = new ConstantDoubleVector(state.value(), 1).asBlock();
+        blocks[offset + 1] = new ConstantDoubleVector(state.delta(), 1).asBlock();
+        blocks[offset + 2] = new ConstantBooleanVector(state.seen, 1).asBlock();
     }
 
     public static Block evaluateFinal(SumState state) {
@@ -60,6 +85,53 @@ class SumDoubleAggregator {
         }
     }
 
+    public static void combine(GroupingSumState current, int groupId, double value, double delta, boolean seen) {
+        if (seen) {
+            current.add(value, delta, groupId);
+        } else {
+            current.putNull(groupId);
+        }
+    }
+
+    public static void combineIntermediate(
+        LongVector groupIdVector,
+        GroupingSumState state,
+        DoubleVector values,
+        DoubleVector deltas,
+        BooleanVector seen
+    ) {
+        for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
+            int groupId = Math.toIntExact(groupIdVector.getLong(position));
+            if (seen.getBoolean(position)) {
+                state.add(values.getDouble(position), deltas.getDouble(position), groupId);
+            } else {
+                state.putNull(groupId);
+            }
+        }
+    }
+
+    public static void evaluateIntermediate(GroupingSumState state, Block[] blocks, int offset, IntVector selected) {
+        assert blocks.length >= offset + 3;
+        var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+        var deltaBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+        var nullsBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+        for (int i = 0; i < selected.getPositionCount(); i++) {
+            int group = selected.getInt(i);
+            valuesBuilder.appendDouble(state.values.get(group));
+            deltaBuilder.appendDouble(state.deltas.get(group));
+            if (state.seen != null) {
+                nullsBuilder.appendBoolean(state.seen.get(group));
+            }
+        }
+        blocks[offset + 0] = valuesBuilder.build();
+        blocks[offset + 1] = deltaBuilder.build();
+        if (state.seen != null) {
+            blocks[offset + 2] = nullsBuilder.build();
+        } else {
+            blocks[offset + 2] = new ConstantBooleanVector(true, selected.getPositionCount()).asBlock();
+        }
+    }
+
     public static Block evaluateFinal(GroupingSumState state, IntVector selected) {
         DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
@@ -74,7 +146,6 @@ class SumDoubleAggregator {
 
     static class SumState extends CompensatedSum implements AggregatorState<SumState> {
 
-        private final SumStateSerializer serializer;
         private boolean seen;
 
         SumState() {
@@ -83,12 +154,11 @@ class SumDoubleAggregator {
 
         SumState(double value, double delta) {
             super(value, delta);
-            this.serializer = new SumStateSerializer();
         }
 
         @Override
         public long getEstimatedSize() {
-            return SumStateSerializer.BYTES_SIZE;
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -96,7 +166,7 @@ class SumDoubleAggregator {
 
         @Override
         public AggregatorStateSerializer<SumState> serializer() {
-            return serializer;
+            throw new UnsupportedOperationException();
         }
 
         public boolean seen() {
@@ -105,39 +175,6 @@ class SumDoubleAggregator {
 
         public void seen(boolean seen) {
             this.seen = seen;
-        }
-    }
-
-    static class SumStateSerializer implements AggregatorStateSerializer<SumState> {
-
-        // record Shape (double value, double delta, boolean seen) {}
-        static final int BYTES_SIZE = Double.BYTES + Double.BYTES + 1;
-
-        @Override
-        public int size() {
-            return BYTES_SIZE;
-        }
-
-        private static final VarHandle doubleHandle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.BIG_ENDIAN);
-
-        @Override
-        public int serialize(SumState value, byte[] ba, int offset, IntVector selected) {
-            assert selected.getPositionCount() == 1;
-            assert selected.getInt(0) == 0;
-            doubleHandle.set(ba, offset, value.value());
-            doubleHandle.set(ba, offset + Double.BYTES, value.delta());
-            ba[offset + Double.BYTES + Double.BYTES] = (byte) (value.seen ? 1 : 0);
-            return size(); // number of bytes written
-        }
-
-        // sets the state in value
-        @Override
-        public void deserialize(SumState value, byte[] ba, int offset) {
-            Objects.requireNonNull(value);
-            double kvalue = (double) doubleHandle.get(ba, offset);
-            double kdelta = (double) doubleHandle.get(ba, offset + Double.BYTES);
-            value.seen = ba[offset + Double.BYTES + Double.BYTES] == (byte) 1;
-            value.reset(kvalue, kdelta);
         }
     }
 
@@ -151,8 +188,7 @@ class SumDoubleAggregator {
         // total number of groups; <= values.length
         int largestGroupId;
 
-        private final GroupingSumStateSerializer serializer;
-        private BitArray nonNulls;
+        private BitArray seen;
 
         GroupingSumState(BigArrays bigArrays) {
             this.bigArrays = bigArrays;
@@ -166,7 +202,6 @@ class SumDoubleAggregator {
                     close();
                 }
             }
-            this.serializer = new GroupingSumStateSerializer();
         }
 
         void add(double valueToAdd, int groupId) {
@@ -193,8 +228,8 @@ class SumDoubleAggregator {
             double updatedValue = value + correctedSum;
             deltas.set(groupId, correctedSum - (updatedValue - value));
             values.set(groupId, updatedValue);
-            if (nonNulls != null) {
-                nonNulls.set(groupId);
+            if (seen != null) {
+                seen.set(groupId);
             }
         }
 
@@ -203,18 +238,18 @@ class SumDoubleAggregator {
                 ensureCapacity(groupId);
                 largestGroupId = groupId;
             }
-            if (nonNulls == null) {
-                nonNulls = new BitArray(groupId + 1, bigArrays);
+            if (seen == null) {
+                seen = new BitArray(groupId + 1, bigArrays);
                 for (int i = 0; i < groupId; i++) {
-                    nonNulls.set(i);
+                    seen.set(i);
                 }
             } else {
-                nonNulls.ensureCapacity(groupId + 1);
+                seen.ensureCapacity(groupId + 1);
             }
         }
 
         boolean hasValue(int index) {
-            return nonNulls == null || nonNulls.get(index);
+            return seen == null || seen.get(index);
         }
 
         private void ensureCapacity(int groupId) {
@@ -227,62 +262,17 @@ class SumDoubleAggregator {
 
         @Override
         public long getEstimatedSize() {
-            return Long.BYTES + (largestGroupId + 1) * BYTES_SIZE + LongArrayState.estimateSerializeSize(nonNulls);
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public AggregatorStateSerializer<GroupingSumState> serializer() {
-            return serializer;
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public void close() {
-            Releasables.close(values, deltas, nonNulls);
-        }
-    }
-
-    static class GroupingSumStateSerializer implements AggregatorStateSerializer<GroupingSumState> {
-
-        // record Shape (double value, double delta) {}
-        static final int BYTES_SIZE = Double.BYTES + Double.BYTES;
-
-        @Override
-        public int size() {
-            return BYTES_SIZE;
-        }
-
-        private static final VarHandle doubleHandle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.BIG_ENDIAN);
-        private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
-
-        @Override
-        public int serialize(GroupingSumState state, byte[] ba, int offset, IntVector selected) {
-            longHandle.set(ba, offset, selected.getPositionCount());
-            offset += Long.BYTES;
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int group = selected.getInt(i);
-                doubleHandle.set(ba, offset, state.values.get(group));
-                doubleHandle.set(ba, offset + 8, state.deltas.get(group));
-                offset += BYTES_SIZE;
-            }
-            return 8 + (BYTES_SIZE * selected.getPositionCount()) + LongArrayState.serializeBitArray(state.nonNulls, ba, offset);
-        }
-
-        // sets the state in value
-        @Override
-        public void deserialize(GroupingSumState state, byte[] ba, int offset) {
-            Objects.requireNonNull(state);
-            int positions = (int) (long) longHandle.get(ba, offset);
-            // TODO replace deserialization with direct passing - no more non_recycling_instance then
-            state.values = BigArrays.NON_RECYCLING_INSTANCE.grow(state.values, positions);
-            state.deltas = BigArrays.NON_RECYCLING_INSTANCE.grow(state.deltas, positions);
-            offset += 8;
-            for (int i = 0; i < positions; i++) {
-                state.values.set(i, (double) doubleHandle.get(ba, offset));
-                state.deltas.set(i, (double) doubleHandle.get(ba, offset + 8));
-                offset += BYTES_SIZE;
-            }
-            state.largestGroupId = positions - 1;
-            state.nonNulls = LongArrayState.deseralizeBitArray(state.bigArrays, ba, offset);
+            Releasables.close(values, deltas, seen);
         }
     }
 }

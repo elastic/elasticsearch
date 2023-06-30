@@ -10,14 +10,17 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionTests;
+import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -32,11 +35,20 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
-        int maxChannel = mode.isInputPartial() ? 1 : 0;
+        List<Integer> sumChannels, maxChannels;
+        if (mode.isInputPartial()) {
+            int sumInterChannelCount = SumLongAggregatorFunction.intermediateStateDesc().size();
+            int maxInterChannelCount = MaxLongAggregatorFunction.intermediateStateDesc().size();
+            sumChannels = IntStream.range(0, sumInterChannelCount).boxed().toList();
+            maxChannels = IntStream.range(sumInterChannelCount, sumInterChannelCount + maxInterChannelCount).boxed().toList();
+        } else {
+            sumChannels = maxChannels = List.of(0);
+        }
+
         return new AggregationOperator.AggregationOperatorFactory(
             List.of(
-                new SumLongAggregatorFunctionSupplier(bigArrays, List.of(0)).aggregatorFactory(mode),
-                new MaxLongAggregatorFunctionSupplier(bigArrays, List.of(maxChannel)).aggregatorFactory(mode)
+                new SumLongAggregatorFunctionSupplier(bigArrays, sumChannels).aggregatorFactory(mode),
+                new MaxLongAggregatorFunctionSupplier(bigArrays, maxChannels).aggregatorFactory(mode)
             ),
             mode
         );

@@ -51,7 +51,7 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
         return newTimer;
     }
 
-    public QueryProfiler addQueryProfiler(ProfileCollectorManager collectorManager) {
+    public QueryProfiler addQueryProfiler(ProfileCollectorManager<?> collectorManager) {
         QueryProfiler queryProfiler = new QueryProfiler();
         queryProfiler.setCollectorManager(collectorManager::getCollectorTree);
         knnQueryProfilers.add(queryProfiler);

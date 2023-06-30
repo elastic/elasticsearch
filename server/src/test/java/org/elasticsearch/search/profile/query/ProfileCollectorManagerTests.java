@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -46,26 +45,28 @@ public class ProfileCollectorManagerTests extends ESTestCase {
      */
     public void testBasic() throws IOException {
         final SetOnce<Boolean> reduceCalled = new SetOnce<>();
-        ProfileCollectorManager pcm = new ProfileCollectorManager(new CollectorManager<>() {
+        ProfileCollectorManager<Integer> pcm = new ProfileCollectorManager<>(new CollectorManager<TestCollector, Integer>() {
 
             private int counter = 0;
 
             @Override
-            public Collector newCollector() {
+            public TestCollector newCollector() {
                 return new TestCollector(counter++);
             }
 
             @Override
-            public Void reduce(Collection<Collector> collectors) {
+            public Integer reduce(Collection<TestCollector> collectors) {
                 reduceCalled.set(true);
-                return null;
+                return counter;
             }
         }, CollectorResult.REASON_SEARCH_TOP_HITS);
-        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+        int runs = randomIntBetween(5, 10);
+        for (int i = 0; i < runs; i++) {
             InternalProfileCollector internalProfileCollector = pcm.newCollector();
             assertEquals(i, ((TestCollector) internalProfileCollector.getWrappedCollector()).id);
         }
-        pcm.reduce(Collections.emptyList());
+        Integer returnValue = pcm.reduce(Collections.emptyList());
+        assertEquals(runs, returnValue.intValue());
         assertTrue(reduceCalled.get());
     }
 
@@ -94,7 +95,7 @@ public class ProfileCollectorManagerTests extends ESTestCase {
             assertEquals(numDocs, topDocs.totalHits.value);
 
             String profileReason = "profiler_reason";
-            ProfileCollectorManager profileCollectorManager = new ProfileCollectorManager(topDocsManager, profileReason);
+            ProfileCollectorManager<TopDocs> profileCollectorManager = new ProfileCollectorManager<>(topDocsManager, profileReason);
 
             searcher.search(new MatchAllDocsQuery(), profileCollectorManager);
 

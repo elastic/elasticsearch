@@ -15,11 +15,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigUpdate;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
 import java.io.IOException;
@@ -64,7 +62,6 @@ public class InferenceRescorer implements Rescorer {
         rescoreContext.setRescoredDocs(topNDocIDs);
         ScoreDoc[] hitsToRescore = topNFirstPass.scoreDocs;
         Arrays.sort(hitsToRescore, Comparator.comparingInt(a -> a.doc));
-        SearchLookup sourceLookup = ltrRescoreContext.executionContext.lookup();
         int hitUpto = 0;
         int readerUpto = -1;
         int endDoc = 0;
@@ -72,8 +69,9 @@ public class InferenceRescorer implements Rescorer {
         List<LeafReaderContext> leaves = ltrRescoreContext.executionContext.searcher().getIndexReader().leaves();
         LeafReaderContext currentSegment = null;
         boolean changedSegment = true;
+        List<FeatureExtractor> featureExtractors = ltrRescoreContext.buildFeatureExtractors();
         List<Map<String, Object>> docFeatures = new ArrayList<>(topNDocIDs.size());
-        int featureSize = ltrRescoreContext.valueFetcherList.size();
+        int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
         while (hitUpto < hitsToRescore.length) {
             final ScoreDoc hit = hitsToRescore[hitUpto];
             final int docID = hit.doc;
@@ -87,16 +85,15 @@ public class InferenceRescorer implements Rescorer {
             if (changedSegment) {
                 // We advanced to another segment and update our document value fetchers
                 docBase = currentSegment.docBase;
-                for (InferenceRescorerContext.FieldValueFetcher vf : ltrRescoreContext.valueFetcherList) {
-                    vf.valueFetcher().setNextReader(currentSegment);
+                for (FeatureExtractor featureExtractor : featureExtractors) {
+                    featureExtractor.setNextReader(currentSegment);
                 }
                 changedSegment = false;
             }
             int targetDoc = docID - docBase;
             Map<String, Object> features = Maps.newMapWithExpectedSize(featureSize);
-            Source source = sourceLookup.getSource(currentSegment, targetDoc);
-            for (InferenceRescorerContext.FieldValueFetcher vf : ltrRescoreContext.valueFetcherList) {
-                features.put(vf.fieldName(), vf.valueFetcher().fetchValues(source, targetDoc, new ArrayList<>()).get(0));
+            for (FeatureExtractor featureExtractor : featureExtractors) {
+                featureExtractor.addFeatures(features, targetDoc);
             }
             docFeatures.add(features);
             hitUpto++;
@@ -104,7 +101,7 @@ public class InferenceRescorer implements Rescorer {
         for (int i = 0; i < hitsToRescore.length; i++) {
             Map<String, Object> features = docFeatures.get(i);
             try {
-                hitsToRescore[i].score = ((Number) definition.infer(features, RegressionConfigUpdate.EMPTY_PARAMS).predictedValue())
+                hitsToRescore[i].score = ((Number) definition.infer(features, LearnToRankConfigUpdate.EMPTY_PARAMS).predictedValue())
                     .floatValue();
             } catch (Exception ex) {
                 logger.warn("Failure rescoring doc...", ex);

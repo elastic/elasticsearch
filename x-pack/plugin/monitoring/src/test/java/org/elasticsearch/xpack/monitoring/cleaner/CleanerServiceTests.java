@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.cleaner;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -26,6 +27,7 @@ import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -138,6 +140,36 @@ public class CleanerServiceTests extends ESTestCase {
             service.stop();
         }
         assertThat(latch.getCount(), equalTo(0L));
+    }
+
+    public void testLifecycle() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var mockLicenseState = mock(XPackLicenseState.class);
+
+        CleanerService service = new CleanerService(
+            Settings.EMPTY,
+            clusterSettings,
+            mockLicenseState,
+            threadPool,
+            new TestExecutionScheduler(1_000)
+        );
+
+        final var cleanupCount = new AtomicInteger();
+        service.add(ignored -> cleanupCount.incrementAndGet());
+
+        service.start();
+        while (cleanupCount.get() < 10) {
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
+
+        service.stop();
+        if (randomBoolean()) {
+            service.close();
+        }
+        deterministicTaskQueue.runAllTasks(); // ensures the scheduling stops
+        assertEquals(10, cleanupCount.get());
     }
 
     class TestListener implements CleanerService.Listener {

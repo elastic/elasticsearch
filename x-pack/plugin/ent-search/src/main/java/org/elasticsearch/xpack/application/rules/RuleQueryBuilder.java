@@ -68,7 +68,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_9_0; // TODO Update to 8.10.0
+        return TransportVersion.V_8_500_024;
     }
 
     public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, List<String> rulesetIds) {

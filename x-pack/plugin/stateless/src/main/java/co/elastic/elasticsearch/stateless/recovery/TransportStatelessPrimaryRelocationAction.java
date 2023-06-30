@@ -62,8 +62,8 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
 
     private static final Logger logger = LogManager.getLogger(TransportStatelessPrimaryRelocationAction.class);
 
-    private static final String START_RELOCATION_ACTION_NAME = INSTANCE.name() + "/start";
-    private static final String PRIMARY_CONTEXT_HANDOFF_ACTION_NAME = INSTANCE.name() + "/primary_context_handoff";
+    public static final String START_RELOCATION_ACTION_NAME = INSTANCE.name() + "/start";
+    public static final String PRIMARY_CONTEXT_HANDOFF_ACTION_NAME = INSTANCE.name() + "/primary_context_handoff";
 
     private final TransportService transportService;
     private final IndicesService indicesService;
@@ -131,7 +131,6 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
             request.targetNode().descriptionWithoutAttributes()
         );
 
-        // TODO what if shard is not present locally?
         final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final var indexShard = indexService.getShard(request.shardId().id());
         assert indexShard.getEngineOrNull() instanceof IndexEngine;
@@ -146,7 +145,6 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
         preFlushStep.addListener(listener.delegateFailureAndWrap((listener0, preFlushResult) -> {
             logger.trace("[{}] acquiring all primary operation permits", request.shardId());
             indexShard.relocated(request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
-                // TODO a failure after here should fail both shard copies
                 logger.trace("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
 
                 final var flushStep = new SubscribableListener<Engine.FlushResult>();

@@ -18,7 +18,9 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -27,12 +29,18 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -44,9 +52,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TestTransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
@@ -54,6 +64,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -236,6 +248,140 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             primaryTerms[i] = indexMetadata.primaryTerm(i);
         }
         return primaryTerms;
+    }
+
+    public void testRelocateNonexistentIndexShard() throws Exception {
+        final var numShards = 1;
+        final var indexNodes = startIndexNodes(2);
+
+        final String indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettingsWithRandomFastRefresh(numShards, 0).put("index.routing.allocation.require._name", indexNodes.get(0)).build()
+        );
+        ensureGreen(indexName);
+
+        indexDocs(indexName, between(1, 100));
+        refresh(indexName);
+
+        final var transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNodes.get(0));
+        final var delayedRequestFuture = new PlainActionFuture<Runnable>();
+        final var delayedRequestFutureOnce = ActionListener.assertOnce(delayedRequestFuture);
+        transportService.addRequestHandlingBehavior(
+            TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME,
+            (handler, request, channel, task) -> delayedRequestFutureOnce.onResponse(
+                () -> ActionListener.run(new ChannelActionListener<>(channel), l -> handler.messageReceived(request, channel, task))
+            )
+        );
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodes.get(1)), indexName);
+
+        assertNotNull(delayedRequestFuture.get(10, TimeUnit.SECONDS));
+        transportService.clearInboundRules();
+
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var masterServiceBarrier = new CyclicBarrier(2);
+        masterClusterService.submitUnbatchedStateUpdateTask("blocking", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                safeAwait(masterServiceBarrier);
+                safeAwait(masterServiceBarrier);
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+        safeAwait(masterServiceBarrier); // wait for master service to be blocked, so the shard cannot be reallocated after failure
+
+        final var index = masterClusterService.state().metadata().index(indexName).getIndex();
+        final var indicesService = internalCluster().getInstance(IndicesService.class, indexNodes.get(0));
+        final var indexShard = indicesService.indexService(index).getShard(0);
+        indexShard.failShard("test", new ElasticsearchException("test"));
+        assertBusy(() -> assertNull(indicesService.getShardOrNull(indexShard.shardId())));
+
+        delayedRequestFuture.get().run(); // release relocation request which will fail because the shard is no longer there
+        safeAwait(masterServiceBarrier); // release master service to restart allocation process
+
+        ensureGreen(indexName);
+    }
+
+    public void testRetryIndexShardRelocation() throws Exception {
+        final var numShards = 1;
+        final var indexNodes = startIndexNodes(2);
+
+        final String indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettingsWithRandomFastRefresh(numShards, 0).put("index.routing.allocation.require._name", indexNodes.get(0)).build()
+        );
+        ensureGreen(indexName);
+
+        indexDocs(indexName, between(1, 100));
+        refresh(indexName);
+
+        final var transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNodes.get(0));
+        final var allAttemptsFuture = new PlainActionFuture<Void>();
+        final var attemptListener = new CountDownActionListener(
+            MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY),
+            allAttemptsFuture
+        );
+        transportService.addRequestHandlingBehavior(
+            TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME,
+            (handler, request, channel, task) -> ActionListener.completeWith(attemptListener, () -> {
+                channel.sendResponse(new ElasticsearchException("simulated"));
+                return null;
+            })
+        );
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodes.get(1)), indexName);
+        allAttemptsFuture.get(10, TimeUnit.SECONDS);
+
+        ensureGreen(indexName);
+        assertEquals(Set.of(indexNodes.get(0)), internalCluster().nodesInclude(indexName));
+
+        internalCluster().stopNode(indexNodes.get(0));
+        ensureGreen(indexName);
+        assertEquals(Set.of(indexNodes.get(1)), internalCluster().nodesInclude(indexName));
+    }
+
+    public void testFailureAfterPrimaryContextHandoff() throws Exception {
+        final var numShards = 1;
+        final var indexNodes = startIndexNodes(2);
+
+        final String indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettingsWithRandomFastRefresh(numShards, 0).put("index.routing.allocation.require._name", indexNodes.get(0)).build()
+        );
+        ensureGreen(indexName);
+
+        indexDocs(indexName, between(1, 100));
+        refresh(indexName);
+
+        final var transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNodes.get(0));
+        final var allAttemptsFuture = new PlainActionFuture<Void>();
+        final var attemptListener = new CountDownActionListener(1, allAttemptsFuture); // to assert that there's only one attempt
+        transportService.addRequestHandlingBehavior(
+            TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME,
+            (handler, request, channel, task) -> ActionListener.run(
+                new ChannelActionListener<>(channel).<TransportResponse>delegateFailure((l, r) -> {
+                    attemptListener.onResponse(null);
+                    l.onFailure(new ElasticsearchException("simulated"));
+                }),
+                l -> handler.messageReceived(request, new TestTransportChannel(l), task)
+            )
+        );
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodes.get(1)), indexName);
+        allAttemptsFuture.get(10, TimeUnit.SECONDS);
+
+        // the failure happens after the primary context handoff, so it causes both copies to fail, and then the primary initializes from
+        // scratch on the correct node
+        ensureGreen(indexName);
+        assertEquals(Set.of(indexNodes.get(1)), internalCluster().nodesInclude(indexName));
     }
 
     public void testRecoverIndexingShard() throws Exception {

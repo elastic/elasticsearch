@@ -125,6 +125,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq(Map.of(shardId1, size, shardId2, size)), any()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/486")
     public void testPublishPeriodicallyEvenIfNoChanges() throws Exception {
 
         var shardId = new ShardId("index-1", "_na_", 0);

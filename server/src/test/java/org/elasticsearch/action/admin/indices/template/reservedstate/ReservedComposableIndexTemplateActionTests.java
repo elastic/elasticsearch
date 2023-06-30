@@ -876,9 +876,9 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             )
             .build();
 
-        ClusterService cs = mock(ClusterService.class);
+        ClusterService mockedClusterService = mock(ClusterService.class);
         MetadataIndexTemplateService mockedTemplateService = new MetadataIndexTemplateService(
-            cs,
+            mockedClusterService,
             mock(MetadataCreateIndexService.class),
             indicesService,
             indexScopedSettings,
@@ -888,7 +888,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         );
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).metadata(metadata).build();
-        doReturn(state).when(cs).state();
+        doReturn(state).when(mockedClusterService).state();
 
         // we should see the weird composable name prefixed 'validate_template'
         assertThat(state.metadata().templatesV2(), allOf(aMapWithSize(1), hasKey(reservedComposableIndexName(conflictingTemplateName))));

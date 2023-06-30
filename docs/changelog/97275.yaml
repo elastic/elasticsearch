@@ -1,0 +1,5 @@
+pr: 97275
+summary: When estimating memory usage account for the number of allocations
+area: Machine Learning
+type: bug
+issues: []

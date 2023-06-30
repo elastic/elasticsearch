@@ -142,7 +142,7 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
         ) {
             // Serialize in old version
             out.writeMap(testInstance.metadata());
-            out.writeInt((int) out.getChecksum());
+            out.writeLong(out.getChecksum());
             out.flush();
 
             try (StreamInput in = output.bytes().streamInput()) {

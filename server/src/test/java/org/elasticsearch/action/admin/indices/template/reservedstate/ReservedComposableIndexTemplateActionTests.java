@@ -64,7 +64,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 
 /**
  * A unit test class that tests {@link ReservedComposableIndexTemplateAction}
@@ -877,9 +876,9 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             )
             .build();
 
-        ClusterService mockedClusterService = spy(clusterService);
+        ClusterService cs = mock(ClusterService.class);
         MetadataIndexTemplateService mockedTemplateService = new MetadataIndexTemplateService(
-            mockedClusterService,
+            cs,
             mock(MetadataCreateIndexService.class),
             indicesService,
             indexScopedSettings,
@@ -889,7 +888,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         );
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).metadata(metadata).build();
-        doReturn(state).when(mockedClusterService).state();
+        doReturn(state).when(cs).state();
 
         // we should see the weird composable name prefixed 'validate_template'
         assertThat(state.metadata().templatesV2(), allOf(aMapWithSize(1), hasKey(reservedComposableIndexName(conflictingTemplateName))));

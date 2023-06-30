@@ -212,11 +212,7 @@ public class ShardSizesCollector implements ClusterStateListener {
 
             @Override
             public void onFailure(Exception e) {
-                if (e.getMessage().startsWith(ShardSizesPublisher.VERSION_CHECK_MESSAGE_PREFIX) == false) {
-                    logger.warn("Failed to publish node shard sizes", e);
-                } else {
-                    logger.debug("Failed to publish node shard sizes", e);
-                }
+                logger.warn("Failed to publish node shard sizes", e);
                 pendingPublication.retry(allShardSizes);
             }
         });

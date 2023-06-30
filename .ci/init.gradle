@@ -92,7 +92,7 @@ if (USE_ARTIFACTORY) {
 
 gradle.settingsEvaluated { settings ->
   settings.pluginManager.withPlugin("com.gradle.enterprise") {
-    gradleEnterprise {
+    settings.gradleEnterprise {
       server = 'https://gradle-enterprise.elastic.co'
     }
   }

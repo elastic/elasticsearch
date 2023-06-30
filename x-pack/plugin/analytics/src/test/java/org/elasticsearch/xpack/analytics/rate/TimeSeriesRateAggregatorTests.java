@@ -86,23 +86,31 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             InternalDateHistogram hb = r.getBucketByKey("{dim=1}").getAggregations().get("date");
             {
                 Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
+                assertThat(hb.getBuckets().get(1).getDocCount(), equalTo(2L));
                 assertThat(rate.getValue(), closeTo((/* reset: 60 -> 14 */ 60 + 14 - 60) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
             {
                 Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
+                assertThat(hb.getBuckets().get(0).getDocCount(), equalTo(3L));
                 assertThat(rate.getValue(), closeTo((37 - 15) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
             hb = r.getBucketByKey("{dim=2}").getAggregations().get("date");
             {
                 Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
+                assertThat(hb.getBuckets().get(0).getDocCount(), equalTo(3L));
                 assertThat(rate.getValue(), closeTo((150 - 74) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
             {
                 Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
+                assertThat(hb.getBuckets().get(1).getDocCount(), equalTo(2L));
                 assertThat(rate.getValue(), closeTo((/* reset: 90 -> 40 */ 90 + 40 - 90) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
             {
                 Rate rate = hb.getBuckets().get(2).getAggregations().get("counter_field");
+                assertThat(rate.getValue(), equalTo(Double.NaN));
+            }
+            {
+                Rate rate = hb.getBuckets().get(3).getAggregations().get("counter_field");
                 assertThat(rate.getValue(), equalTo(Double.NaN));
             }
         };
@@ -115,30 +123,37 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             ---------
 
             { doc: 1, dim: 1, timestamp: 2000, value: 15 }
-            { doc: 2, dim: 1, timestamp: 3000, value: 37 }
-            { doc: 3, dim: 1, timestamp: 4000, value: 60 }
-            { doc: 4, dim: 1, timestamp: 5000, value: 14 } *** counter reset ***
+            { doc: 2, dim: 1, timestamp: 2500, value: 30 }
+            { doc: 3, dim: 1, timestamp: 3000, value: 37 }
+            { doc: 4, dim: 1, timestamp: 4000, value: 60 }
+            { doc: 5, dim: 1, timestamp: 5000, value: 14 } *** counter reset ***
 
-            { doc: 5, dim: 2, timestamp: 2000, value: 74 }
-            { doc: 6, dim: 2, timestamp: 3000, value: 150 }
-            { doc: 7, dim: 2, timestamp: 4000, value: 50 } *** counter reset ***
-            { doc: 8, dim: 2, timestamp: 5000, value: 90 }
-            { doc: 9, dim: 2, timestamp: 6000, value: 40 } *** counter reset ***
+            { doc: 6, dim: 2, timestamp: 2000, value: 74 }
+            { doc: 7, dim: 2, timestamp: 2500, value: 90 }
+            { doc: 8, dim: 2, timestamp: 3000, value: 150 }
+            { doc: 9, dim: 2, timestamp: 4000, value: 50 } *** counter reset ***
+            { doc: 10, dim: 2, timestamp: 5000, value: 90 }
+            { doc: 11, dim: 2, timestamp: 6000, value: 40 } *** counter reset ***
+            { doc: 12, dim: 2, timestamp: 8000, value: 220 }
 
             Date histogram (fixed_interval = 2 seconds)
             -------------------------------------------
 
             dim: 1
-            * bucket 0: { doc: 1, doc: 2 } -> rate: (37 - 15) / 1000
-            * bucket 1: { doc: 3, doc: 4 } -> rate: (60 + 14 - 60) / 1000
+            * bucket 0: { doc: 1, doc: 2, doc: 3 } -> rate: (37 - 15) / 1000
+            * bucket 1: { doc: 4, doc: 5 } -> rate: (60 + 14 - 60) / 1000
 
             dim: 2
-            * bucket 0: { doc: 1, doc: 2 } -> rate: (150 - 74) / 1000
-            * bucket 1: { doc: 3, doc: 4 } -> rate: (90 + 40 - 90) / 1000
-            * bucket 2: { doc: 5 } -> rate: NaN
+            * bucket 0: { doc: 6, doc: 7, doc: 8 } -> rate: (150 - 74) / 1000
+            * bucket 1: { doc: 9, doc: 10 } -> rate: (90 + 40 - 90) / 1000
+            * bucket 2: { doc: 11 } -> rate: NaN (single document)
+            * bucket 3: { doc: 12 } -> rate: NaN (single document)
              */
             iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
+            iw.addDocuments(docs(2500, "1", 30));
             iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
+            iw.addDocuments(docs(2500, "2", 90));
+            iw.addDocuments(docs(8000, "2", 220));
         }, verifier, aggTestConfig);
     }
 

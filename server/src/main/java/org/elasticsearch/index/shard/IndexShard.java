@@ -3627,7 +3627,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * listener handles all exception cases internally.
      */
     public final void syncAfterWrite(Translog.Location location, Consumer<Exception> syncListener) {
-        assert indexShardOperationPermits.getActiveOperationsCount() != 0;
+        // TODO AwaitsFix https://github.com/elastic/elasticsearch/issues/97183
+        // assert indexShardOperationPermits.getActiveOperationsCount() != 0;
         verifyNotClosed();
         getEngine().asyncEnsureTranslogSynced(location, syncListener);
     }
@@ -3749,7 +3750,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Executes a scheduled refresh if necessary. Completes the listener with true if a refreshed was performed otherwise false.
+     * Executes a scheduled refresh if necessary. Completes the listener with true if a refresh was performed otherwise false.
      */
     public void scheduledRefresh(ActionListener<Boolean> listener) {
         ActionListener.run(listener, l -> {

@@ -147,7 +147,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                             }
                         };
                     }
-                }, searchExecutionContext.lookup(), 7f, "test", 0, IndexVersion.CURRENT)), equalTo(2));
+                }, searchExecutionContext.lookup(), 7f, "test", 0, IndexVersion.current())), equalTo(2));
             }
         }
     }

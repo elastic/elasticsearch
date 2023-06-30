@@ -28,6 +28,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
@@ -213,7 +214,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         final List<Object> components = new ArrayList<>();
         ILMHistoryTemplateRegistry ilmTemplateRegistry = new ILMHistoryTemplateRegistry(

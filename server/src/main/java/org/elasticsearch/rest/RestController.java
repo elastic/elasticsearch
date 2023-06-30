@@ -96,15 +96,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final UsageService usageService;
     private final Tracer tracer;
     // If true, the ServerlessScope annotations will be enforced
-    private final boolean serverlessEnabled;
+    private final ServerlessApiProtections apiProtections;
 
     public RestController(
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer,
-        boolean serverlessEnabled
+        Tracer tracer
     ) {
         this.usageService = usageService;
         this.tracer = tracer;
@@ -115,7 +114,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
-        this.serverlessEnabled = serverlessEnabled;
+        this.apiProtections = new ServerlessApiProtections(false);
+    }
+
+    public ServerlessApiProtections getApiProtections() {
+        return apiProtections;
     }
 
     /**
@@ -374,7 +377,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         RestChannel responseChannel = channel;
-        if (serverlessEnabled) {
+        if (apiProtections.isEnabled()) {
             Scope scope = handler.getServerlessScope();
             if (scope == null) {
                 handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);

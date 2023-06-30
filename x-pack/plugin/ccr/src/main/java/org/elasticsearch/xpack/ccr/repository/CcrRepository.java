@@ -45,6 +45,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
@@ -197,7 +198,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         List.copyOf(indicesMap.keySet()),
                         List.copyOf(responseMetadata.dataStreams().keySet()),
                         List.of(),
-                        response.getNodes().getMaxNodeVersion(),
+                        response.getNodes().getMaxNodeVersion().indexVersion,
                         SnapshotState.SUCCESS
                     );
                 }))
@@ -276,7 +277,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     final long nowMillis = threadPool.absoluteTimeInMillis();
                     snapshotsDetails.put(
                         indexName,
-                        new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, Version.CURRENT, nowMillis, nowMillis, "")
+                        new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, IndexVersion.current(), nowMillis, nowMillis, "")
                     );
                     indexSnapshots.put(new IndexId(indexName, remoteIndices.get(indexName).getIndex().getUUID()), List.of(snapshotId));
                 }

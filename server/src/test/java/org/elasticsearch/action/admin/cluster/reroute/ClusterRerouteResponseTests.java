@@ -122,8 +122,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                               "voting_only"
                             ],
                             "version": "%s",
-                            "minIndexVersion": "%s",
-                            "maxIndexVersion": "%s"
+                            "min_index_version": %s,
+                            "max_index_version": %s
                           }
                         },
                         "transport_versions": [
@@ -198,7 +198,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                 clusterState.getNodes().get("node0").getEphemeralId(),
                 Version.CURRENT,
                 IndexVersion.MINIMUM_COMPATIBLE,
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 Version.CURRENT.id
             ),
             """

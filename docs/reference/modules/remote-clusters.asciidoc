@@ -10,10 +10,12 @@ _leader_ index is replicated to one or more read-only _follower_ indices on your
 configure disaster recovery, bring data closer to your users, or establish a 
 centralized reporting cluster to process reports locally.
 
-<<modules-cross-cluster-search,{ccs-cap}>> enables you to run a search request 
-against one or more remote clusters. This capability provides each region
-with a global view of all clusters, allowing you to send a search request from
-a local cluster and return results from all connected remote clusters. 
+<<modules-cross-cluster-search,{ccs-cap}>> enables you to run a search request
+against one or more remote clusters. This capability provides each region with a
+global view of all clusters, allowing you to send a search request from a local
+cluster and return results from all connected remote clusters. For full {ccs}
+capabilities, the local and remote cluster must be on the same
+{subscriptions}[subscription level].
 
 Enabling and configuring security is important on both local and remote
 clusters. When connecting a local cluster to remote clusters, an {es} superuser

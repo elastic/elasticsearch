@@ -874,7 +874,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 Objects.requireNonNullElse(minNonClientNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(maxNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
-                Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.CURRENT),
+                Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.current()),
                 Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersion.MINIMUM_COMPATIBLE),
                 dataNodes.values()
                     .stream()

@@ -32,11 +32,13 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -82,11 +84,15 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        NodeJoinExecutor.ensureIndexCompatibility(Version.CURRENT, metadata);
+        NodeJoinExecutor.ensureIndexCompatibility(IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata);
 
         expectThrows(
             IllegalStateException.class,
-            () -> NodeJoinExecutor.ensureIndexCompatibility(VersionUtils.getPreviousVersion(Version.CURRENT), metadata)
+            () -> NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersionUtils.getPreviousVersion(IndexVersion.current()),
+                metadata
+            )
         );
     }
 
@@ -100,7 +106,10 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        expectThrows(IllegalStateException.class, () -> NodeJoinExecutor.ensureIndexCompatibility(Version.CURRENT, metadata));
+        expectThrows(
+            IllegalStateException.class,
+            () -> NodeJoinExecutor.ensureIndexCompatibility(IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata)
+        );
     }
 
     public void testPreventJoinClusterWithUnsupportedNodeVersions() {
@@ -180,7 +189,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        NodeJoinExecutor.ensureIndexCompatibility(Version.CURRENT, metadata);
+        NodeJoinExecutor.ensureIndexCompatibility(IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata);
     }
 
     public static Settings.Builder randomCompatibleVersionSettings() {

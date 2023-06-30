@@ -24,7 +24,7 @@ public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersi
     public static final VersionInformation CURRENT = new VersionInformation(
         Version.CURRENT,
         IndexVersion.MINIMUM_COMPATIBLE,
-        IndexVersion.CURRENT
+        IndexVersion.current()
     );
 
     public static VersionInformation inferVersions(Version nodeVersion) {

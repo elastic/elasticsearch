@@ -15,9 +15,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigUpdate;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
 import java.io.IOException;
@@ -69,7 +69,7 @@ public class InferenceRescorer implements Rescorer {
         List<LeafReaderContext> leaves = ltrRescoreContext.executionContext.searcher().getIndexReader().leaves();
         LeafReaderContext currentSegment = null;
         boolean changedSegment = true;
-        List<FeatureExtractor> featureExtractors = ltrRescoreContext.buildFeatureExtractors();
+        List<FeatureExtractor> featureExtractors = ltrRescoreContext.buildFeatureExtractors(searcher);
         List<Map<String, Object>> docFeatures = new ArrayList<>(topNDocIDs.size());
         int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
         while (hitUpto < hitsToRescore.length) {
@@ -95,13 +95,14 @@ public class InferenceRescorer implements Rescorer {
             for (FeatureExtractor featureExtractor : featureExtractors) {
                 featureExtractor.addFeatures(features, targetDoc);
             }
+            logger.debug(() -> Strings.format("doc [%d] has features [%s]", targetDoc, features));
             docFeatures.add(features);
             hitUpto++;
         }
         for (int i = 0; i < hitsToRescore.length; i++) {
             Map<String, Object> features = docFeatures.get(i);
             try {
-                hitsToRescore[i].score = ((Number) definition.infer(features, LearnToRankConfigUpdate.EMPTY_PARAMS).predictedValue())
+                hitsToRescore[i].score = ((Number) definition.inferLtr(features, ltrRescoreContext.inferenceConfig).predictedValue())
                     .floatValue();
             } catch (Exception ex) {
                 logger.warn("Failure rescoring doc...", ex);

@@ -115,6 +115,7 @@ public final class Messages {
     public static final String INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION =
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
     public static final String INFERENCE_CONFIG_QUERY_BAD_FORMAT = "Inference config query is not parsable";
+    public static final String INFERENCE_CONFIG_INCORRECT_TYPE = "Inference config of type [{0}] is invalid, must be of type [{1}]";
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
     public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata {0}";
     public static final String VOCABULARY_NOT_FOUND = "Could not find vocabulary document [{1}] for trained model [{0}]";

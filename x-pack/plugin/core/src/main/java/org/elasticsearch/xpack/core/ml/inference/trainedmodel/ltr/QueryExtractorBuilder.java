@@ -9,31 +9,25 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_CONFIG_QUERY_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.requireNonNull;
 
 public record QueryExtractorBuilder(String featureName, QueryProvider query) implements LearnToRankFeatureExtractorBuilder {
 
-    public static final ParseField NAME = new ParseField("named_query");
+    public static final ParseField NAME = new ParseField("query_extractor");
     public static final ParseField FEATURE_NAME = new ParseField("feature_name");
     public static final ParseField QUERY = new ParseField("query");
 
@@ -48,11 +42,7 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query) imp
     );
     static {
         PARSER.declareString(constructorArg(), FEATURE_NAME);
-        PARSER.declareObject(
-            constructorArg(),
-            (p, c) -> QueryProvider.fromXContent(p, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT),
-            QUERY
-        );
+        PARSER.declareObject(constructorArg(), (p, c) -> QueryProvider.fromXContent(p, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT), QUERY);
         LENIENT_PARSER.declareString(constructorArg(), FEATURE_NAME);
         LENIENT_PARSER.declareObject(
             constructorArg(),

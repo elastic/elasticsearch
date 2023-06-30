@@ -11,14 +11,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DisiPriorityQueue;
 import org.apache.lucene.search.DisiWrapper;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,21 +26,10 @@ public class QueryFeatureExtractor implements FeatureExtractor {
     private final List<Scorer> scorers;
     private DisjunctionDISI rankerIterator;
 
-    public QueryFeatureExtractor(List<String> featureNames, List<ParsedQuery> queries, SearchExecutionContext executionContext)
-        throws IOException {
+    public QueryFeatureExtractor(List<String> featureNames, List<Weight> weights) {
         this.featureNames = featureNames;
-        this.weights = new ArrayList<>(namedQueries.size());
-        this.scorers = new ArrayList<>(namedQueries.size());
-        for (QueryExtractorBuilder namedQueryExtractorBuilder : namedQueryExtractorBuilders) {
-            Query namedQuery = namedQueries.get(namedQueryExtractorBuilder.queryName());
-            if (namedQuery != null) {
-                weights.add(
-                    executionContext.searcher().rewrite(namedQuery).createWeight(executionContext.searcher(), ScoreMode.COMPLETE, 1f)
-                );
-            } else {
-                weights.add(null);
-            }
-        }
+        this.weights = weights;
+        this.scorers = new ArrayList<>(weights.size());
     }
 
     @Override
@@ -71,17 +54,17 @@ public class QueryFeatureExtractor implements FeatureExtractor {
     @Override
     public void addFeatures(Map<String, Object> featureMap, int docId) throws IOException {
         rankerIterator.advance(docId);
-        for (int i = 0; i < namedQueryExtractorBuilders.size(); i++) {
+        for (int i = 0; i < featureNames.size(); i++) {
             Scorer scorer = scorers.get(i);
             if (scorer != null) {
-                featureMap.put(namedQueryExtractorBuilders.get(i).featureName(), scorer.score());
+                featureMap.put(featureNames.get(i), scorer.score());
             }
         }
     }
 
     @Override
     public List<String> featureNames() {
-        return namedQueryExtractorBuilders.stream().map(QueryExtractorBuilder::featureName).toList();
+        return featureNames;
     }
 
     /**

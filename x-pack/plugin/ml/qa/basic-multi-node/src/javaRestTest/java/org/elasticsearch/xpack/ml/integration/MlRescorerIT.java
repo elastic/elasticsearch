@@ -28,91 +28,151 @@ public class MlRescorerIT extends ESRestTestCase {
 
     @Before
     public void setupModelAndData() throws IOException {
-        putRegressionModel(MODEL_ID, """
-            {
-                        "description": "super complex model for tests",
-                        "input": {"field_names": ["cost", "product"]},
-                        "inference_config": {
-                          "learn_to_rank": {
-                          }
-                        },
-                        "definition": {
-                          "preprocessors" : [{
-                            "one_hot_encoding": {
-                              "field": "product",
-                              "hot_map": {
-                                "TV": "type_tv",
-                                "VCR": "type_vcr",
-                                "Laptop": "type_laptop"
+        putRegressionModel(
+            MODEL_ID,
+            """
+                {
+                            "description": "super complex model for tests",
+                            "input": {"field_names": ["cost", "product"]},
+                            "inference_config": {
+                              "learn_to_rank": {
+                                "feature_extractors": [{"query_extractor": {"feature_name": "two", "query": {"script_score": {"query": {"match_all":{}}, "script": {"source": "return 2.0;"}}}}}]
+                              }
+                            },
+                            "definition": {
+                              "preprocessors" : [{
+                                "one_hot_encoding": {
+                                  "field": "product",
+                                  "hot_map": {
+                                    "TV": "type_tv",
+                                    "VCR": "type_vcr",
+                                    "Laptop": "type_laptop"
+                                  }
+                                }
+                              }],
+                              "trained_model": {
+                                "ensemble": {
+                                  "feature_names": ["cost", "type_tv", "type_vcr", "type_laptop", "two", "product_bm25"],
+                                  "target_type": "regression",
+                                  "trained_models": [
+                                  {
+                                    "tree": {
+                                      "feature_names": [
+                                        "cost"
+                                      ],
+                                      "tree_structure": [
+                                      {
+                                        "node_index": 0,
+                                        "split_feature": 0,
+                                        "split_gain": 12,
+                                        "threshold": 400,
+                                        "decision_type": "lte",
+                                        "default_left": true,
+                                        "left_child": 1,
+                                        "right_child": 2
+                                      },
+                                      {
+                                        "node_index": 1,
+                                        "leaf_value": 5.0
+                                      },
+                                      {
+                                        "node_index": 2,
+                                        "leaf_value": 2.0
+                                      }
+                                      ],
+                                      "target_type": "regression"
+                                    }
+                                  },
+                                  {
+                                    "tree": {
+                                      "feature_names": [
+                                        "type_tv"
+                                      ],
+                                      "tree_structure": [
+                                      {
+                                        "node_index": 0,
+                                        "split_feature": 0,
+                                        "split_gain": 12,
+                                        "threshold": 1,
+                                        "decision_type": "lt",
+                                        "default_left": true,
+                                        "left_child": 1,
+                                        "right_child": 2
+                                      },
+                                      {
+                                        "node_index": 1,
+                                        "leaf_value": 1.0
+                                      },
+                                      {
+                                        "node_index": 2,
+                                        "leaf_value": 12.0
+                                      }
+                                      ],
+                                      "target_type": "regression"
+                                    }
+                                  },
+                                   {
+                                    "tree": {
+                                      "feature_names": [
+                                        "two"
+                                      ],
+                                      "tree_structure": [
+                                      {
+                                        "node_index": 0,
+                                        "split_feature": 0,
+                                        "split_gain": 12,
+                                        "threshold": 1,
+                                        "decision_type": "lt",
+                                        "default_left": true,
+                                        "left_child": 1,
+                                        "right_child": 2
+                                      },
+                                      {
+                                        "node_index": 1,
+                                        "leaf_value": 1.0
+                                      },
+                                      {
+                                        "node_index": 2,
+                                        "leaf_value": 2.0
+                                      }
+                                      ],
+                                      "target_type": "regression"
+                                    }
+                                  },
+                                   {
+                                    "tree": {
+                                      "feature_names": [
+                                        "product_bm25"
+                                      ],
+                                      "tree_structure": [
+                                      {
+                                        "node_index": 0,
+                                        "split_feature": 0,
+                                        "split_gain": 12,
+                                        "threshold": 1,
+                                        "decision_type": "lt",
+                                        "default_left": true,
+                                        "left_child": 1,
+                                        "right_child": 2
+                                      },
+                                      {
+                                        "node_index": 1,
+                                        "leaf_value": 1.0
+                                      },
+                                      {
+                                        "node_index": 2,
+                                        "leaf_value": 4.0
+                                      }
+                                      ],
+                                      "target_type": "regression"
+                                    }
+                                  }
+                                  ]
+                                }
                               }
                             }
-                          }],
-                          "trained_model": {
-                            "ensemble": {
-                              "feature_names": ["cost", "type_tv", "type_vcr", "type_laptop"],
-                              "target_type": "regression",
-                              "trained_models": [
-                              {
-                                "tree": {
-                                  "feature_names": [
-                                    "cost"
-                                  ],
-                                  "tree_structure": [
-                                  {
-                                    "node_index": 0,
-                                    "split_feature": 0,
-                                    "split_gain": 12,
-                                    "threshold": 400,
-                                    "decision_type": "lte",
-                                    "default_left": true,
-                                    "left_child": 1,
-                                    "right_child": 2
-                                  },
-                                  {
-                                    "node_index": 1,
-                                    "leaf_value": 5.0
-                                  },
-                                  {
-                                    "node_index": 2,
-                                    "leaf_value": 2.0
-                                  }
-                                  ],
-                                  "target_type": "regression"
-                                }
-                              },
-                              {
-                                "tree": {
-                                  "feature_names": [
-                                    "type_tv"
-                                  ],
-                                  "tree_structure": [
-                                  {
-                                    "node_index": 0,
-                                    "split_feature": 0,
-                                    "split_gain": 12,
-                                    "threshold": 1,
-                                    "decision_type": "lt",
-                                    "default_left": true,
-                                    "left_child": 1,
-                                    "right_child": 2
-                                  },
-                                  {
-                                    "node_index": 1,
-                                    "leaf_value": 1.0
-                                  },
-                                  {
-                                    "node_index": 2,
-                                    "leaf_value": 12.0
-                                  }
-                                  ],
-                                  "target_type": "regression"
-                                }
-                              }
-                              ]
-                            }
-                          }
-                        }
-                      }""");
+                          }"""
+        );
         createIndex(INDEX_NAME, Settings.builder().put("number_of_shards", randomIntBetween(1, 3)).build(), """
             "properties":{
              "product":{"type": "keyword"},
@@ -142,27 +202,47 @@ public class MlRescorerIT extends ESRestTestCase {
             }""");
 
         Map<String, Object> response = responseAsMap(searchResponse);
-        assertThat((List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0));
+        assertThat((List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(20.0, 20.0));
     }
 
     @SuppressWarnings("unchecked")
     public void testLtrSimpleDFS() throws Exception {
-        Response searchResponse = searchDfs("""
-            {
-            "query": {
-              "match": { "product": { "query": "TV"}}
-            },
-            "rescore": {
-                    "window_size": 10,
-                    "inference": {
-                        "model_id": "basic-ltr-model"
-                        }
-                }
+        Response searchResponse = searchDfs(
+            """
+                {
+                "query": {
+                  "match": { "product": { "query": "TV"}}
+                },
+                "rescore": {
+                        "window_size": 10,
+                        "inference": {
+                            "model_id": "basic-ltr-model",
+                            "inference_config": {"learn_to_rank": {"feature_extractors":[{"query_extractor": {"feature_name": "product_bm25", "query": {"term": {"product": "TV"}}}}]}}
+                            }
+                    }
 
-            }""");
+                }"""
+        );
 
         Map<String, Object> response = responseAsMap(searchResponse);
-        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0));
+        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(20.0, 20.0));
+
+        searchResponse = searchDfs(
+            """
+                {
+                "rescore": {
+                        "window_size": 10,
+                        "inference": {
+                            "model_id": "basic-ltr-model",
+                            "inference_config": {"learn_to_rank": {"feature_extractors":[{"query_extractor": {"feature_name": "product_bm25", "query": {"term": {"product": "TV"}}}}]}}
+                            }
+                    }
+
+                }"""
+        );
+
+        response = responseAsMap(searchResponse);
+        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(20.0, 20.0));
     }
 
     @SuppressWarnings("unchecked")
@@ -219,7 +299,7 @@ public class MlRescorerIT extends ESRestTestCase {
             }""", false);
 
         Map<String, Object> response = responseAsMap(searchResponse);
-        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0));
+        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(20.0, 20.0));
 
         searchResponse = searchCanMatch("""
             { "query": {
@@ -235,7 +315,7 @@ public class MlRescorerIT extends ESRestTestCase {
             }""", true);
 
         response = responseAsMap(searchResponse);
-        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(17.0, 17.0));
+        assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(20.0, 20.0));
     }
 
     private void indexData(String data) throws IOException {

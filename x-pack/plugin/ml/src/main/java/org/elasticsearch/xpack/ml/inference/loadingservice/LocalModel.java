@@ -203,15 +203,15 @@ public class LocalModel implements Closeable {
         statsAccumulator.incInference();
         currentInferenceCount.increment();
 
-        // Needs to happen before collapse as defaultFieldMap might resolve fields to their appropriate name
+        // We should never have nested maps in a LTR context as we retrieve values from source value extractor, queries, or doc_values
+        assert fields.values().stream().noneMatch(o -> o instanceof Map<?, ?>);
+        // might resolve fields to their appropriate name
         LocalModel.mapFieldsIfNecessary(fields, defaultFieldMap);
-        // TODO: Could we just require that input fields aren't nested objects?
-        Map<String, Object> flattenedFields = MapHelper.dotCollapse(fields, fieldNames);
         boolean shouldPersistStats = ((currentInferenceCount.sum() + 1) % persistenceQuotient == 0);
-        if (flattenedFields.isEmpty()) {
+        if (fields.isEmpty()) {
             statsAccumulator.incMissingFields();
         }
-        InferenceResults inferenceResults = trainedModelDefinition.infer(flattenedFields, config);
+        InferenceResults inferenceResults = trainedModelDefinition.infer(fields, config);
         if (shouldPersistStats) {
             persistStats(false);
         }

@@ -12,7 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -45,12 +47,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
             randomBoolean() ? null : randomIntBetween(0, 10),
             randomBoolean()
                 ? null
-                : Stream.generate(
-                    () -> randomFrom(
-                        new TestValueExtractor(randomAlphaOfLength(10)),
-                        QueryExtractorBuilderTests.randomInstance()
-                    )
-            ).limit(randomInt(5)).collect(Collectors.toList())
+                : Stream.generate(QueryExtractorBuilderTests::randomInstance).limit(randomInt(5)).collect(Collectors.toList())
         );
     }
 
@@ -135,7 +132,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
         return new NamedWriteableRegistry(namedWriteables);
     }
 
-    static class TestValueExtractor implements LearnToRankFeatureExtractorBuilder {
+    private static class TestValueExtractor implements LearnToRankFeatureExtractorBuilder {
         public static final ParseField NAME = new ParseField("test");
         private final String featureName;
 
@@ -190,7 +187,11 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
         }
 
         @Override
-        public void validate() throws Exception {
+        public void validate() throws Exception {}
+
+        @Override
+        public ParsedQuery parsedQuery(SearchExecutionContext context) {
+            return null;
         }
 
         @Override

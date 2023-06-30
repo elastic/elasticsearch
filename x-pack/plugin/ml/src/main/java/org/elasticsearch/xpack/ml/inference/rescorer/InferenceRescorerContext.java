@@ -9,16 +9,13 @@ package org.elasticsearch.xpack.ml.inference.rescorer;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
@@ -26,7 +23,6 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class InferenceRescorerContext extends RescoreContext {
 
@@ -66,16 +62,14 @@ public class InferenceRescorerContext extends RescoreContext {
         List<String> queryFeatureNames = new ArrayList<>();
         for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : inferenceConfig.getFeatureExtractorBuilders()) {
             if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
-                Query query = searcher.rewrite(executionContext.toQuery(queryExtractorBuilder.query().getParsedQuery()).query());
-                executionContext.searcher().rewrite(query).createWeight()
-                weights.add(executionContext.toQuery(queryExtractorBuilder.query().getParsedQuery()).query());
+                Query query = executionContext.toQuery(queryExtractorBuilder.query().getParsedQuery()).query();
+                Weight weight = searcher.rewrite(query).createWeight(searcher, ScoreMode.COMPLETE, 1f);
+                weights.add(weight);
                 queryFeatureNames.add(queryExtractorBuilder.featureName());
             }
         }
-        if (parsedQueries.isEmpty() == false) {
-            featureExtractors.add(
-                new QueryFeatureExtractor(queryFeatureNames, parsedQueries, executionContext)
-            );
+        if (weights.isEmpty() == false) {
+            featureExtractors.add(new QueryFeatureExtractor(queryFeatureNames, weights));
         }
 
         return featureExtractors;
@@ -83,7 +77,9 @@ public class InferenceRescorerContext extends RescoreContext {
 
     @Override
     public List<ParsedQuery> getParsedQueries() {
-        assert this.inferenceConfig != null;
+        if (this.inferenceConfig == null) {
+            return List.of();
+        }
         List<ParsedQuery> parsedQueries = new ArrayList<>();
         for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : inferenceConfig.getFeatureExtractorBuilders()) {
             if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {

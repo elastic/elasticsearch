@@ -15,7 +15,11 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
-public interface LearnToRankFeatureExtractorBuilder extends NamedXContentObject, NamedWriteable, Rewriteable<LearnToRankFeatureExtractorBuilder> {
+public interface LearnToRankFeatureExtractorBuilder
+    extends
+        NamedXContentObject,
+        NamedWriteable,
+        Rewriteable<LearnToRankFeatureExtractorBuilder> {
 
     ParseField FEATURE_NAME = new ParseField("feature_name");
 

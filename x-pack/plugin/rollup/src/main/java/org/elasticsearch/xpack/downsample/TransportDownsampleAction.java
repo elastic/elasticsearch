@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -68,7 +69,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -533,28 +533,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         if (meta.isEmpty() == false) {
             String interval = meta.get(config.getIntervalType());
             if (interval != null) {
-                DateHistogramInterval sourceIndexInterval = new DateHistogramInterval(interval);
-                DateHistogramInterval targetIndexInterval = config.getInterval();
-                long sourceMillis = sourceIndexInterval.estimateMillis();
-                long targetMillis = targetIndexInterval.estimateMillis();
-                if (sourceMillis >= targetMillis) {
-                    // Downsampling interval must be greater than source interval
-                    e.addValidationError(
-                        "Source index is a downsampled index. Downsampling interval ["
-                            + targetIndexInterval
-                            + "] must be greater than the source index interval ["
-                            + sourceIndexInterval
-                            + "]"
-                    );
-                } else if (targetMillis % sourceMillis != 0) {
-                    // Downsampling interval must be a multiple of the source interval
-                    e.addValidationError(
-                        "Source index is a downsampled index. Downsampling interval ["
-                            + targetIndexInterval
-                            + "] must be a multiple of the source index interval ["
-                            + sourceIndexInterval
-                            + "]"
-                    );
+                try {
+                    DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval));
+                    DownsampleConfig.validateSourceAndTargetIntervals(sourceConfig, config);
+                } catch (IllegalArgumentException exception) {
+                    e.addValidationError("Source index is a downsampled index. " + exception.getMessage());
                 }
             }
 
@@ -566,14 +549,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                         + config.getTimeZone()
                         + "] cannot be different than the source index timezone ["
                         + sourceTimezone
-                        + "]"
+                        + "]."
                 );
             }
 
             if (e.validationErrors().isEmpty() == false) {
                 throw e;
             }
-
         }
     }
 

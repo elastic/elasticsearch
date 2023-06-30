@@ -57,6 +57,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     private static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
+    /**
+     * Defines the set of allowed match criteria, so that we can validate that rule query requests are sending in allowed/supported data.
+     */
     static final Set<String> ALLOWED_MATCH_CRITERIA = Set.of("query_string");
 
     /**

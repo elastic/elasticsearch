@@ -173,6 +173,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             builder.value(rulesetId);
         }
         builder.endArray();
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

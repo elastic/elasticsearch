@@ -54,7 +54,7 @@ public record CompoundTranslogHeader(Map<ShardId, TranslogMetadata> metadata) {
                 VERSION_WITH_TRANSPORT_VERSION,
                 CURRENT_VERSION
             );
-            return readHeader(name, input);
+            return readHeader(name, input, false);
         } else {
             return readHeaderOld(name, magic, input);
         }
@@ -65,15 +65,15 @@ public record CompoundTranslogHeader(Map<ShardId, TranslogMetadata> metadata) {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeInt(firstBytes);
             Streams.copy(input, output, false);
-            return readHeader(name, new BufferedChecksumStreamInput(output.bytes().streamInput(), TRANSLOG_REPLICATOR_CODEC));
+            return readHeader(name, new BufferedChecksumStreamInput(output.bytes().streamInput(), TRANSLOG_REPLICATOR_CODEC), true);
         }
     }
 
-    private static CompoundTranslogHeader readHeader(String name, BufferedChecksumStreamInput input) throws IOException {
+    private static CompoundTranslogHeader readHeader(String name, BufferedChecksumStreamInput input, boolean oldHeader) throws IOException {
         Map<ShardId, TranslogMetadata> metadata = input.readMap(ShardId::new, TranslogMetadata::new);
         // Verify checksum of compound file
         long expectedChecksum = input.getChecksum();
-        long readChecksum = Integer.toUnsignedLong(input.readInt());
+        long readChecksum = (oldHeader) ? input.readLong() : Integer.toUnsignedLong(input.readInt());
         if (readChecksum != expectedChecksum) {
             throw new TranslogCorruptedException(
                 name,

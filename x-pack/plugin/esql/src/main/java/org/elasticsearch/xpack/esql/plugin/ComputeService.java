@@ -147,7 +147,6 @@ public class ComputeService {
                 // run compute on the coordinator
                 runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, refs.acquire()));
                 // link with exchange sinks
-                // link with exchange sinks
                 if (targetNodes.isEmpty()) {
                     sourceHandler.addRemoteSink(RemoteSink.EMPTY, 1);
                 } else {

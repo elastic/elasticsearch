@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
@@ -90,7 +89,6 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
             var keepCollecting = new Holder<>(TRUE);
             var attributes = new LinkedHashSet<Attribute>();
             var aliases = new HashMap<Attribute, Expression>();
-            var fields = new LinkedHashSet<FieldAttribute>();
 
             return plan.transformDown(UnaryExec.class, p -> {
                 // no need for project all
@@ -107,10 +105,6 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                         } else {
                             if (aliases.containsKey(attr) == false) {
                                 attributes.add(attr);
-                                // track required (materialized) fields
-                                if (ne instanceof FieldAttribute fa) {
-                                    fields.add(fa);
-                                }
                             }
                         }
                     });

@@ -99,9 +99,8 @@ public class Mapper {
         if (p instanceof UnaryPlan ua) {
             var child = map(ua.child());
             PhysicalPlan plan = null;
-            // in case of a fragment, grow it with streaming operators
-            if (child instanceof FragmentExec fragment
-                && ((p instanceof Aggregate || p instanceof TopN || p instanceof Limit || p instanceof OrderBy) == false)) {
+            // in case of a fragment, push to it any current streaming operator
+            if (child instanceof FragmentExec && isPipelineBreaker(p) == false) {
                 plan = new FragmentExec(p);
             } else {
                 plan = map(ua, child);
@@ -110,6 +109,10 @@ public class Mapper {
         }
 
         throw new UnsupportedOperationException(p.nodeName());
+    }
+
+    private static boolean isPipelineBreaker(LogicalPlan p) {
+        return p instanceof Aggregate || p instanceof TopN || p instanceof Limit || p instanceof OrderBy;
     }
 
     private PhysicalPlan map(UnaryPlan p, PhysicalPlan child) {
@@ -148,6 +151,10 @@ public class Mapper {
             );
         }
 
+        if (p instanceof MvExpand mvExpand) {
+            return new MvExpandExec(mvExpand.source(), map(mvExpand.child()), mvExpand.target());
+        }
+
         //
         // Pipeline breakers
         //
@@ -161,10 +168,6 @@ public class Mapper {
 
         if (p instanceof TopN topN) {
             return map(topN, child);
-        }
-
-        if (p instanceof MvExpand mvExpand) {
-            return new MvExpandExec(mvExpand.source(), map(mvExpand.child()), mvExpand.target());
         }
 
         if (p instanceof Aggregate aggregate) {

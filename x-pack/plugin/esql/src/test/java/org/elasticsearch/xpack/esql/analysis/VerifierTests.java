@@ -145,6 +145,38 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testMetadataFieldUnsupportedPrimitiveType() {
+        assertEquals("1:18: unsupported metadata field [_tier]", error("from test | eval metadata(\"_tier\")"));
+    }
+
+    public void testMetadataFieldUnsupportedCustomType() {
+        assertEquals("1:18: unsupported metadata field [_feature]", error("from test | eval metadata(\"_feature\")"));
+    }
+
+    public void testMetadataFieldNotFoundNonExistent() {
+        assertEquals("1:18: unsupported metadata field [_doesnot_compute]", error("from test | eval metadata(\"_doesnot_compute\")"));
+    }
+
+    public void testMetadataFieldNotFoundNoIndex() {
+        assertEquals(
+            "1:18: metadata fields not available without an index source; found [_index]",
+            error("row a = 1 | eval metadata(\"_index\")")
+        );
+    }
+
+    public void testMetadataFieldNotFoundNormalField() {
+        assertEquals("1:18: unsupported metadata field [emp_no]", error("from test | eval metadata(\"emp_no\")"));
+    }
+
+    public void testNoMetadataFieldImplicitelyDefined() {
+        assertEquals("1:51: Unknown column [_version]", error("from test | where metadata(\"_version\") > 0 | keep _version"));
+    }
+
+    private String error(String query) {
+        return error(query, defaultAnalyzer);
+
+    }
+
     private String error(String query, Object... params) {
         return error(query, defaultAnalyzer, params);
     }

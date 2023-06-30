@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.metadata.Metadata;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
@@ -95,7 +96,6 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Length.class, Length::new, "length"),
                 def(Substring.class, Substring::new, "substring"),
                 def(Concat.class, Concat::new, "concat"),
-                def(Length.class, Length::new, "length"),
                 def(StartsWith.class, StartsWith::new, "starts_with") },
             // date
             new FunctionDefinition[] {
@@ -107,6 +107,8 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             new FunctionDefinition[] { def(Case.class, Case::new, "case"), def(IsNull.class, IsNull::new, "is_null"), },
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
+            // metadata
+            new FunctionDefinition[] { def(Metadata.class, Metadata::new, "metadata") },
             // conversion functions
             new FunctionDefinition[] {
                 def(ToBoolean.class, ToBoolean::new, "to_boolean", "to_bool"),

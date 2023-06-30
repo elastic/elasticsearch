@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
@@ -41,7 +43,6 @@ import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
-import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -125,7 +126,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         @Override
         public PhysicalPlan apply(PhysicalPlan plan) {
-            var lastFieldExtractorParent = new Holder<UnaryExec>();
             // apply the plan locally, adding a field extractor right before data is loaded
             // by going bottom-up
             plan = plan.transformUp(UnaryExec.class, p -> {
@@ -152,7 +152,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     // collect source attributes and add the extractor
                     var extractor = new FieldExtractExec(p.source(), p.child(), List.copyOf(missing));
                     p = p.replaceChild(extractor);
-                    lastFieldExtractorParent.set(p);
                 }
 
                 return p;
@@ -166,9 +165,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             var input = p.inputSet();
 
             // collect field attributes used inside expressions
-            p.forEachExpression(FieldAttribute.class, f -> {
-                if (input.contains(f) == false) {
-                    missing.add(f);
+            p.forEachExpression(TypedAttribute.class, f -> {
+                if (f instanceof FieldAttribute || f instanceof MetadataAttribute) {
+                    if (input.contains(f) == false) {
+                        missing.add(f);
+                    }
                 }
             });
             return missing;

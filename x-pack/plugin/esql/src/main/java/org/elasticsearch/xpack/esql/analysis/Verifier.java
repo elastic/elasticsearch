@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -116,7 +117,10 @@ public class Verifier {
                     if (exp instanceof AggregateFunction aggFunc) {
                         aggFunc.arguments().forEach(a -> {
                             // TODO: allow an expression?
-                            if ((a instanceof FieldAttribute || a instanceof ReferenceAttribute || a instanceof Literal) == false) {
+                            if ((a instanceof FieldAttribute
+                                || a instanceof MetadataAttribute
+                                || a instanceof ReferenceAttribute
+                                || a instanceof Literal) == false) {
                                 failures.add(
                                     fail(
                                         e,

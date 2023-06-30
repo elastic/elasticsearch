@@ -12,7 +12,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.esql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.scalar.metadata.Metadata;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -89,8 +91,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveFunctions(),
             new RemoveDuplicateProjections()
         );
+        var rewrite = new Batch<>("Resolve Metadata", Limiter.ONCE, new ResolveMetadata());
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
-        rules = List.of(resolution, finish);
+        rules = List.of(resolution, rewrite, finish);
     }
 
     private final Verifier verifier;
@@ -561,6 +564,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 UnresolvedFunction.class,
                 uf -> resolveFunction(uf, context.configuration(), context.functionRegistry())
             );
+        }
+    }
+
+    private static class ResolveMetadata extends BaseAnalyzerRule {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan doRule(LogicalPlan plan) {
+            boolean hasRelation = plan.anyMatch(EsRelation.class::isInstance);
+            return plan.transformExpressionsDown(Metadata.class, m -> {
+                var attribute = hasRelation ? MetadataAttribute.create(m.metadataFieldName(), m.source()) : null;
+                return attribute != null
+                    ? attribute
+                    : new UnresolvedAttribute(
+                        m.source(),
+                        m.metadataFieldName(),
+                        null,
+                        hasRelation
+                            ? "unsupported metadata field [" + m.metadataFieldName() + "]"
+                            : "metadata fields not available without an index source; found [" + m.metadataFieldName() + "]"
+                    );
+            });
         }
     }
 

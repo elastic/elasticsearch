@@ -1204,7 +1204,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlan optimizedPlan(String query) {
-        return logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        return plan(query);
     }
 
     private LogicalPlan plan(String query) {

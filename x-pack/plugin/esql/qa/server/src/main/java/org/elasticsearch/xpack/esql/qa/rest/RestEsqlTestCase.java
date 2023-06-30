@@ -265,6 +265,32 @@ public class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testMetadataFieldsOnMultipleIndices() throws IOException {
+        var request = new Request("POST", "/" + testIndexName() + "-1/_doc/1");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity("{\"a\": 1}");
+        assertEquals(201, client().performRequest(request).getStatusLine().getStatusCode());
+        request = new Request("POST", "/" + testIndexName() + "-1/_doc/1");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity("{\"a\": 2}");
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+        request = new Request("POST", "/" + testIndexName() + "-2/_doc");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity("{\"a\": 3}");
+        assertEquals(201, client().performRequest(request).getStatusLine().getStatusCode());
+
+        var query = fromIndex() + "* | eval _i = metadata(\"_index\"), _v = metadata(\"_version\") | sort a";
+        Map<String, Object> result = runEsql(new RequestObjectBuilder().query(query).build());
+        var columns = List.of(
+            Map.of("name", "a", "type", "long"),
+            Map.of("name", "_i", "type", "keyword"),
+            Map.of("name", "_v", "type", "long")
+        );
+        var values = List.of(List.of(2, testIndexName() + "-1", 2), List.of(3, testIndexName() + "-2", 1));
+
+        assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+    }
+
     private static String expectedTextBody(String format, int count, @Nullable Character csvDelimiter) {
         StringBuilder sb = new StringBuilder();
         switch (format) {

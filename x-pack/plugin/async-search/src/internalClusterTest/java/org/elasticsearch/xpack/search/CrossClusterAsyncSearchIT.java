@@ -321,15 +321,11 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 assertTrue(taskInfo.description(), taskInfo.cancelled());
             }
 
-            try {
-                getAsyncSearch(response.getId());
-                fail("getAsyncSearch should throw ResourceNotFoundException after deletion");
-            } catch (Exception e) {
-                assertNotNull(
-                    "after deletion, getAsyncSearch should throw an Exception with ResourceNotFoundException in the causal chain",
-                    ExceptionsHelper.unwrap(e, ResourceNotFoundException.class)
-                );
-            }
+            ExecutionException e = expectThrows(ExecutionException.class, () -> getAsyncSearch(response.getId()));
+            assertNotNull(e);
+            assertNotNull(e.getCause());
+            Throwable t = ExceptionsHelper.unwrap(e, ResourceNotFoundException.class);
+            assertNotNull("after deletion, getAsyncSearch should throw an Exception with ResourceNotFoundException in the causal chain", t);
 
             AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
             assertTrue(statusResponse.isPartial());

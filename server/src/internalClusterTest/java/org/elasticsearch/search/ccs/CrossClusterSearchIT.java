@@ -298,14 +298,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             }
         });
 
-        try {
-            queryFuture.result();
-            fail("Exception should have been thrown since the search task was cancelled before the search completed");
-        } catch (Exception e) {
-            // should have been stopped due to TaskCancelledException
-            Throwable t = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
-            assertNotNull(t);
-        }
+        RuntimeException e = expectThrows(RuntimeException.class, () -> queryFuture.result());
+        assertNotNull(e);
+        assertNotNull(e.getCause());
+        Throwable t = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+        assertNotNull(t);
     }
 
     /**

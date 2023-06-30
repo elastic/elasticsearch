@@ -98,6 +98,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
         boolean caseInsensitive,
         SearchExecutionContext context
     ) {
+        return prefixQuery(prefix, caseInsensitive, context);
+    }
+
+    public final Query prefixQuery(String prefix, boolean caseInsensitive, QueryRewriteContext context) {
         String pattern = prefix + "*";
         if (matches(pattern, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();

@@ -103,7 +103,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             {
                 Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
                 assertThat(hb.getBuckets().get(1).getDocCount(), equalTo(2L));
-                assertThat(rate.getValue(), closeTo((/* reset: 90 -> 40 */ 90 + 40 - 90) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
+                assertThat(rate.getValue(), closeTo((90 - 50) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
             {
                 Rate rate = hb.getBuckets().get(2).getAggregations().get("counter_field");
@@ -125,15 +125,19 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             { doc: 1, dim: 1, timestamp: 2000, value: 15 }
             { doc: 2, dim: 1, timestamp: 2500, value: 30 }
             { doc: 3, dim: 1, timestamp: 3000, value: 37 }
+
             { doc: 4, dim: 1, timestamp: 4000, value: 60 }
             { doc: 5, dim: 1, timestamp: 5000, value: 14 } *** counter reset ***
 
             { doc: 6, dim: 2, timestamp: 2000, value: 74 }
             { doc: 7, dim: 2, timestamp: 2500, value: 90 }
             { doc: 8, dim: 2, timestamp: 3000, value: 150 }
+
             { doc: 9, dim: 2, timestamp: 4000, value: 50 } *** counter reset ***
             { doc: 10, dim: 2, timestamp: 5000, value: 90 }
+
             { doc: 11, dim: 2, timestamp: 6000, value: 40 } *** counter reset ***
+
             { doc: 12, dim: 2, timestamp: 8000, value: 220 }
 
             Date histogram (fixed_interval = 2 seconds)
@@ -145,7 +149,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
             dim: 2
             * bucket 0: { doc: 6, doc: 7, doc: 8 } -> rate: (150 - 74) / 1000
-            * bucket 1: { doc: 9, doc: 10 } -> rate: (90 + 40 - 90) / 1000
+            * bucket 1: { doc: 9, doc: 10 } -> rate: (90 - 50) / 1000
             * bucket 2: { doc: 11 } -> rate: NaN (single document)
             * bucket 3: { doc: 12 } -> rate: NaN (single document)
              */

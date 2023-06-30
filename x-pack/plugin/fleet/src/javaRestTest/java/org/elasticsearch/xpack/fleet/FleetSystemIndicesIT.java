@@ -79,9 +79,11 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     public void testCreationOfFleetFiles() throws Exception {
-        Request request = new Request("PUT", ".fleet-fileds-fromhost-meta-agent");
+        Request request = new Request("POST", ".fleet-fileds-fromhost-meta-agent/_doc");
+        request.setJsonEntity("{\"@timestamp\": 0}");
+
         Response response = client().performRequest(request);
-        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertEquals(201, response.getStatusLine().getStatusCode());
 
         request = new Request("GET", ".fleet-fileds-fromhost-meta-agent/_mapping");
         response = client().performRequest(request);
@@ -91,9 +93,10 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     public void testCreationOfFleetFileData() throws Exception {
-        Request request = new Request("PUT", ".fleet-fileds-fromhost-data-agent");
+        Request request = new Request("POST", ".fleet-fileds-fromhost-data-agent/_doc");
+        request.setJsonEntity("{\"@timestamp\": 0}");
         Response response = client().performRequest(request);
-        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertEquals(201, response.getStatusLine().getStatusCode());
 
         request = new Request("GET", ".fleet-fileds-fromhost-data-agent/_mapping");
         response = client().performRequest(request);
@@ -104,9 +107,10 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     public void testCreationOfFleetFileDelivery() throws Exception {
-        Request request = new Request("PUT", ".fleet-fileds-tohost-meta-agent");
+        Request request = new Request("POST", ".fleet-fileds-tohost-meta-agent/_doc");
+        request.setJsonEntity("{\"@timestamp\": 0}");
         Response response = client().performRequest(request);
-        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertEquals(201, response.getStatusLine().getStatusCode());
 
         request = new Request("GET", ".fleet-fileds-tohost-meta-agent/_mapping");
         response = client().performRequest(request);
@@ -116,9 +120,10 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     public void testCreationOfFleetFileDeliveryData() throws Exception {
-        Request request = new Request("PUT", ".fleet-fileds-tohost-data-agent");
+        Request request = new Request("POST", ".fleet-fileds-tohost-data-agent/_doc");
+        request.setJsonEntity("{\"@timestamp\": 0}");
         Response response = client().performRequest(request);
-        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertEquals(201, response.getStatusLine().getStatusCode());
 
         request = new Request("GET", ".fleet-fileds-tohost-data-agent/_mapping");
         response = client().performRequest(request);

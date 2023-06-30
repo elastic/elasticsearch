@@ -24,6 +24,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BasicBlockTests extends ESTestCase {
 
@@ -548,7 +550,7 @@ public class BasicBlockTests extends ESTestCase {
             }
         }
         assertThat(block.nullValuesCount(), is(nullCount));
-        assertNull(block.asVector());
+        assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
     }
 
     public void testSingleValueSparseLong() {
@@ -580,7 +582,7 @@ public class BasicBlockTests extends ESTestCase {
             }
         }
         assertThat(block.nullValuesCount(), is(nullCount));
-        assertNull(block.asVector());
+        assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
     }
 
     public void testSingleValueSparseDouble() {
@@ -612,7 +614,7 @@ public class BasicBlockTests extends ESTestCase {
             }
         }
         assertThat(block.nullValuesCount(), is(nullCount));
-        assertNull(block.asVector());
+        assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
     }
 
     public void testSingleValueSparseBoolean() {
@@ -644,7 +646,7 @@ public class BasicBlockTests extends ESTestCase {
             }
         }
         assertThat(block.nullValuesCount(), is(nullCount));
-        assertNull(block.asVector());
+        assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
     }
 
     public void testToStringSmall() {

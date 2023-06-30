@@ -26,6 +26,6 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: custom-32-98304
           diskSizeGb: 350
+          machineType: custom-32-98304
         env: {}

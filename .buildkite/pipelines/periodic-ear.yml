@@ -26,5 +26,5 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      buildDirectory: /dev/shm/bk
+      diskSizeGb: 350
       machineType: custom-32-98304

@@ -14,5 +14,5 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

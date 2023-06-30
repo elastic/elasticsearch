@@ -5,8 +5,8 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
   - wait: null
   - label: part1
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart1
@@ -14,24 +14,24 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
   - label: part2
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart2
     timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
   - label: part3
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart3
     timeout_in_minutes: 180
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
   - group: bwc-snapshots
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
@@ -47,8 +47,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
-          buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - label: rest-compat
@@ -57,8 +57,8 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
   - wait: null
   - label: dra-snapshot
     command: |-
@@ -118,8 +118,8 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
   - wait: null
   - label: update-last-good-commit
     command: /usr/bin/true
@@ -127,5 +127,5 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      buildDirectory: /dev/shm/bk
+      diskSizeGb: 350
       machineType: n1-standard-1

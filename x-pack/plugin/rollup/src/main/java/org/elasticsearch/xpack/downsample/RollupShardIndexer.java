@@ -61,7 +61,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.groupingBy;
@@ -204,7 +203,6 @@ class RollupShardIndexer {
 
     private BulkProcessor2 createBulkProcessor() {
         final BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
-            private final Map<Long, Long> bulkStartTimes = new ConcurrentHashMap<>();
 
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
@@ -217,12 +215,10 @@ class RollupShardIndexer {
                         request.numberOfActions()
                     )
                 );
-                bulkStartTimes.put(executionId, client.threadPool().relativeTimeInMillis());
             }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                long bulkDurationMillis = client.threadPool().relativeTimeInMillis() - bulkStartTimes.get(executionId);
                 long bulkIngestTookMillis = response.getIngestTookInMillis() >= 0 ? response.getIngestTookInMillis() : 0;
                 long bulkTookMillis = response.getTook().getMillis();
                 task.addNumIndexed(request.numberOfActions());
@@ -230,14 +226,13 @@ class RollupShardIndexer {
                     new RollupAfterBulkInfo(
                         client.threadPool().absoluteTimeInMillis(),
                         executionId,
-                        bulkDurationMillis,
                         bulkIngestTookMillis,
                         bulkTookMillis,
                         response.hasFailures(),
                         response.status().getStatus()
                     )
                 );
-                task.updateRollupBulkInfo(bulkDurationMillis, bulkIngestTookMillis, bulkTookMillis);
+                task.updateRollupBulkInfo(bulkIngestTookMillis, bulkTookMillis);
 
                 if (response.hasFailures()) {
                     List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();

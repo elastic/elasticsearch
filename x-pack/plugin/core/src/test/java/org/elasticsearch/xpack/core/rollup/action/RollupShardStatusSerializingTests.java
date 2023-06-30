@@ -67,15 +67,12 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
 
     private RollupBulkInfo createTestRollupBulkInfo() {
         return new RollupBulkInfo(
-            randomNonNegativeByte(),
             randomNonNegativeLong(),
-            randomNonNegativeByte(),
             randomNonNegativeLong(),
-            randomNonNegativeByte(),
             randomNonNegativeLong(),
-            randomNonNegativeByte(),
             randomNonNegativeLong(),
-            randomNonNegativeByte(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -96,7 +93,6 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
         return new RollupAfterBulkInfo(
             System.currentTimeMillis(),
             randomLongBetween(1_000, 5_000),
-            randomNonNegativeLong(),
             randomLongBetween(1_000, 5_000),
             randomLongBetween(1_000, 5_000),
             randomBoolean(),

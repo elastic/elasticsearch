@@ -206,8 +206,8 @@ public class RollupShardTask extends CancellableTask {
         this.docsProcessed = docsProcessed;
     }
 
-    public void updateRollupBulkInfo(long bulkDurationMillis, long bulkIngestTookMillis, long bulkTookMillis) {
-        this.rollupBulkStats.update(bulkDurationMillis, bulkIngestTookMillis, bulkTookMillis);
+    public void updateRollupBulkInfo(long bulkIngestTookMillis, long bulkTookMillis) {
+        this.rollupBulkStats.update(bulkIngestTookMillis, bulkTookMillis);
     }
 
     public RollupBulkInfo getRollupBulkInfo() {

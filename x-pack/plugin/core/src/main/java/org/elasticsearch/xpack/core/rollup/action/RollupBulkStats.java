@@ -11,9 +11,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class RollupBulkStats {
     private final AtomicLong totalBulkCount = new AtomicLong(0);
-    private final AtomicLong bulkDurationSumMillis = new AtomicLong(0);
-    private final AtomicLong maxBulkDurationMillis = new AtomicLong(-1);
-    private final AtomicLong minBulkDurationMillis = new AtomicLong(-1);
     private final AtomicLong bulkIngestSumMillis = new AtomicLong(0);
     private final AtomicLong maxBulkIngestMillis = new AtomicLong(-1);
     private final AtomicLong minBulkIngestMillis = new AtomicLong(-1);
@@ -21,12 +18,8 @@ public class RollupBulkStats {
     private final AtomicLong maxBulkTookMillis = new AtomicLong(-1);
     private final AtomicLong minBulkTookMillis = new AtomicLong(-1);
 
-    public void update(long bulkDurationMillis, long bulkIngestMillis, long bulkTookMillis) {
+    public void update(long bulkIngestMillis, long bulkTookMillis) {
         this.totalBulkCount.incrementAndGet();
-
-        this.bulkDurationSumMillis.addAndGet(bulkDurationMillis);
-        this.maxBulkDurationMillis.updateAndGet(existingValue -> max(bulkDurationMillis, existingValue));
-        this.minBulkDurationMillis.updateAndGet(existingValue -> min(bulkDurationMillis, existingValue));
 
         this.bulkIngestSumMillis.addAndGet(bulkIngestMillis);
         this.maxBulkIngestMillis.updateAndGet(existingValue -> max(bulkIngestMillis, existingValue));
@@ -51,9 +44,6 @@ public class RollupBulkStats {
     public RollupBulkInfo getRollupBulkInfo() {
         return new RollupBulkInfo(
             this.totalBulkCount.get(),
-            this.bulkDurationSumMillis.get(),
-            Math.max(0, this.maxBulkDurationMillis.get()),
-            Math.max(0, this.minBulkDurationMillis.get()),
             this.bulkIngestSumMillis.get(),
             Math.max(0, this.maxBulkIngestMillis.get()),
             Math.max(0, this.minBulkIngestMillis.get()),

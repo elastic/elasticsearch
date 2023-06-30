@@ -24,9 +24,6 @@ import java.io.IOException;
  */
 public record RollupBulkInfo(
     long totalBulkCount,
-    long bulkDurationSumMillis,
-    long maxBulkDurationMillis,
-    long minBulkDurationMillis,
     long bulkIngestSumMillis,
     long maxBulkIngestMillis,
     long minBulkIngestMillis,
@@ -38,9 +35,6 @@ public record RollupBulkInfo(
     public static final String NAME = "rollup_bulk_info";
 
     private static final ParseField TOTAL_BULK_COUNT = new ParseField("total_bulk_count");
-    private static final ParseField BULK_DURATION_SUM_MILLIS = new ParseField("bulk_duration_sum_millis");
-    private static final ParseField MAX_BULK_DURATION_MILLIS = new ParseField("max_bulk_duration_millis");
-    private static final ParseField MIN_BULK_DURATION_MILLIS = new ParseField("min_bulk_duration_millis");
     private static final ParseField BULK_INGEST_SUM_MILLIS = new ParseField("bulk_ingest_sum_millis");
     private static final ParseField MAX_BULK_INGEST_MILLIS = new ParseField("max_bulk_ingest_millis");
     private static final ParseField MIN_BULK_INGEST_MILLIS = new ParseField("min_bulk_ingest_millis");
@@ -59,17 +53,11 @@ public record RollupBulkInfo(
                 (Long) args[3],
                 (Long) args[4],
                 (Long) args[5],
-                (Long) args[6],
-                (Long) args[7],
-                (Long) args[8],
-                (Long) args[9]
+                (Long) args[6]
             )
         );
 
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_BULK_COUNT);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BULK_DURATION_SUM_MILLIS);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAX_BULK_DURATION_MILLIS);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MIN_BULK_DURATION_MILLIS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BULK_INGEST_SUM_MILLIS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAX_BULK_INGEST_MILLIS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), MIN_BULK_INGEST_MILLIS);
@@ -79,18 +67,7 @@ public record RollupBulkInfo(
     }
 
     public RollupBulkInfo(final StreamInput in) throws IOException {
-        this(
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong()
-        );
+        this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
     }
 
     public static RollupBulkInfo fromXContext(XContentParser parser) throws IOException {
@@ -101,9 +78,6 @@ public record RollupBulkInfo(
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(TOTAL_BULK_COUNT.getPreferredName(), totalBulkCount);
-        builder.field(BULK_DURATION_SUM_MILLIS.getPreferredName(), bulkDurationSumMillis);
-        builder.field(MAX_BULK_DURATION_MILLIS.getPreferredName(), maxBulkDurationMillis);
-        builder.field(MIN_BULK_DURATION_MILLIS.getPreferredName(), minBulkDurationMillis);
         builder.field(BULK_INGEST_SUM_MILLIS.getPreferredName(), bulkIngestSumMillis);
         builder.field(MAX_BULK_INGEST_MILLIS.getPreferredName(), maxBulkIngestMillis);
         builder.field(MIN_BULK_INGEST_MILLIS.getPreferredName(), minBulkIngestMillis);
@@ -121,9 +95,6 @@ public record RollupBulkInfo(
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(totalBulkCount);
-        out.writeVLong(bulkDurationSumMillis);
-        out.writeVLong(maxBulkDurationMillis);
-        out.writeVLong(minBulkDurationMillis);
         out.writeVLong(bulkIngestSumMillis);
         out.writeVLong(maxBulkIngestMillis);
         out.writeVLong(minBulkIngestMillis);

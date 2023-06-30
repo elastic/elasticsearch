@@ -25,7 +25,6 @@ import java.io.IOException;
 public record RollupAfterBulkInfo(
     long currentTimeMillis,
     long executionId,
-    long lastBulkDurationInMillis,
     long lastIngestTookInMillis,
     long lastTookInMillis,
     boolean hasFailures,
@@ -36,7 +35,6 @@ public record RollupAfterBulkInfo(
 
     private static final ParseField CURRENT_TIME_IN_MILLIS = new ParseField("current_time_in_millis");
     private static final ParseField EXECUTION_ID = new ParseField("execution_id");
-    private static final ParseField LAST_BULK_DURATION_IN_MILLIS = new ParseField("last_bulk_duration_in_millis");
     private static final ParseField LAST_INGEST_TOOK_IN_MILLIS = new ParseField("last_ingest_took_in_millis");
     private static final ParseField LAST_TOOK_IN_MILLIS = new ParseField("last_took_in_millis");
     private static final ParseField HAS_FAILURES = new ParseField("has_failures");
@@ -51,15 +49,13 @@ public record RollupAfterBulkInfo(
                 (Long) args[1],
                 (Long) args[2],
                 (Long) args[3],
-                (Long) args[4],
-                (Boolean) args[5],
-                (Integer) args[6]
+                (Boolean) args[4],
+                (Integer) args[5]
             )
         );
 
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), CURRENT_TIME_IN_MILLIS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXECUTION_ID);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_BULK_DURATION_IN_MILLIS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_INGEST_TOOK_IN_MILLIS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_TOOK_IN_MILLIS);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), HAS_FAILURES);
@@ -67,7 +63,7 @@ public record RollupAfterBulkInfo(
     }
 
     public RollupAfterBulkInfo(final StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readBoolean(), in.readVInt());
+        this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readBoolean(), in.readVInt());
     }
 
     @Override
@@ -79,7 +75,6 @@ public record RollupAfterBulkInfo(
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(currentTimeMillis);
         out.writeVLong(executionId);
-        out.writeVLong(lastBulkDurationInMillis);
         out.writeVLong(lastIngestTookInMillis);
         out.writeVLong(lastTookInMillis);
         out.writeBoolean(hasFailures);
@@ -91,7 +86,6 @@ public record RollupAfterBulkInfo(
         builder.startObject(NAME);
         builder.field(CURRENT_TIME_IN_MILLIS.getPreferredName(), currentTimeMillis);
         builder.field(EXECUTION_ID.getPreferredName(), executionId);
-        builder.field(LAST_BULK_DURATION_IN_MILLIS.getPreferredName(), lastBulkDurationInMillis);
         builder.field(LAST_INGEST_TOOK_IN_MILLIS.getPreferredName(), lastIngestTookInMillis);
         builder.field(LAST_TOOK_IN_MILLIS.getPreferredName(), lastTookInMillis);
         builder.field(HAS_FAILURES.getPreferredName(), hasFailures);

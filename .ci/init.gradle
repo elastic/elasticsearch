@@ -90,10 +90,10 @@ if (USE_ARTIFACTORY) {
   }
 }
 
-projectsLoaded {
-  rootProject {
-    project.pluginManager.withPlugin('com.gradle.build-scan') {
-      buildScan.server = 'https://gradle-enterprise.elastic.co'
+gradle.settingsEvaluated { settings ->
+  settings.pluginManager.withPlugin("com.gradle.enterprise") {
+    buildScan {
+      server = 'https://gradle-enterprise.elastic.co'
     }
   }
 }

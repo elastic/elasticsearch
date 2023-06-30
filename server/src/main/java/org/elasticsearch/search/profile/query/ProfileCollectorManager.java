@@ -50,13 +50,8 @@ public final class ProfileCollectorManager<T> implements CollectorManager<Intern
             .collect(Collectors.toList());
 
         long totalTime = resultsPerProfiler.stream().map(CollectorResult::getTime).reduce(0L, Long::sum);
-        String collectorName;
-        if (resultsPerProfiler.size() == 0) {
-            // in case no new collector was ever requested, create a new one just to get the name.
-            collectorName = newCollector().getName();
-        } else {
-            collectorName = resultsPerProfiler.get(0).getName();
-        }
+        assert resultsPerProfiler.size() > 0 : "newCollector() should at least be called once";
+        String collectorName = resultsPerProfiler.get(0).getName();
         this.collectorTree = new CollectorResult(collectorName, reason, totalTime, Collections.emptyList());
         return returnValue;
     }

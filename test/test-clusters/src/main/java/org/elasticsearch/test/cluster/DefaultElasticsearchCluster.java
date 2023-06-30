@@ -17,7 +17,7 @@ import java.util.function.Supplier;
 public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends ClusterHandle> implements ElasticsearchCluster {
     private final Supplier<S> specProvider;
     private final ClusterFactory<S, H> clusterFactory;
-    private H handle;
+    protected H handle;
 
     public DefaultElasticsearchCluster(Supplier<S> specProvider, ClusterFactory<S, H> clusterFactory) {
         this.specProvider = specProvider;
@@ -119,7 +119,7 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
         handle.upgradeToVersion(version);
     }
 
-    private void checkHandle() {
+    protected void checkHandle() {
         if (handle == null) {
             throw new IllegalStateException("Cluster handle has not been initialized. Did you forget the @ClassRule annotation?");
         }

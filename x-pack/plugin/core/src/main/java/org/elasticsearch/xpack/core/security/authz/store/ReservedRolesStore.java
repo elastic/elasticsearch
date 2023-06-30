@@ -966,6 +966,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build() },
+                // For cloud_defend usageCollection
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-cloud_defend.*", "metrics-cloud_defend.*")
+                    .privileges("read", "view_index_metadata")
+                    .build(),
             null,
             new ConfigurableClusterPrivilege[] {
                 new ManageApplicationPrivileges(Set.of("kibana-*")),

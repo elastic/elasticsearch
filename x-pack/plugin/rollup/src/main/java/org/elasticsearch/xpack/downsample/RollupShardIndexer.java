@@ -210,7 +210,7 @@ class RollupShardIndexer {
                 task.addNumSent(request.numberOfActions());
                 task.setBeforeBulkInfo(
                     new RollupBeforeBulkInfo(
-                        client.threadPool().relativeTimeInMillis(),
+                        client.threadPool().absoluteTimeInMillis(),
                         executionId,
                         request.estimatedSizeInBytes(),
                         request.numberOfActions()
@@ -227,7 +227,7 @@ class RollupShardIndexer {
                 task.addNumIndexed(request.numberOfActions());
                 task.setAfterBulkInfo(
                     new RollupAfterBulkInfo(
-                        client.threadPool().relativeTimeInMillis(),
+                        client.threadPool().absoluteTimeInMillis(),
                         executionId,
                         bulkDurationMillis,
                         bulkIngestTookMillis,

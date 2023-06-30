@@ -9,8 +9,12 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,8 +25,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -85,7 +91,75 @@ public class TransportFollowStatsAction extends TransportTasksAction<
                 throw new ResourceNotFoundException("No shard follow tasks for follower indices [{}]", resources);
             }
         }
-        super.doExecute(task, request, listener);
+        super.doExecute(task, request, new ActionListener<FollowStatsAction.StatsResponses>() {
+            @Override
+            public void onResponse(FollowStatsAction.StatsResponses statsResponses) {
+
+                statsResponses.getStatsResponses().forEach(stats -> {
+
+                    try {
+                        String leaderIdx = stats.status().leaderIndex();
+                        String followerIdx = stats.status().followerIndex();
+                        String remoteCluster = stats.status().getRemoteCluster();
+
+                        SearchRequest countRequest1 = new SearchRequest(followerIdx);
+                        countRequest1.source(new SearchSourceBuilder().size(0).trackTotalHits(true));
+
+                        transportService.sendRequest(
+                            transportService.getLocalNodeConnection(),
+                            SearchAction.NAME,
+                            countRequest1,
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(new ActionListener<>() {
+                                @Override
+                                public void onResponse(SearchResponse response) {
+                                    System.out.println(">>>>>>>>>>> Leader index doc count >>>>>>>>>>>>>>");
+                                    System.out.println(response.getHits().getTotalHits().value);
+                                }
+                                @Override
+                                public void onFailure(Exception e) {
+                                    e.printStackTrace(System.err);
+                                }
+                            }, SearchResponse::new)
+                        );
+
+                        SearchRequest countRequest2 = new SearchRequest(leaderIdx);
+                        countRequest2.source(new SearchSourceBuilder().size(0).trackTotalHits(true));
+
+                        transportService.sendRequest(
+                            transportService.getRemoteClusterService().getConnection(remoteCluster),
+                            SearchAction.NAME,
+                            countRequest2,
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(new ActionListener<>() {
+                                @Override
+                                public void onResponse(SearchResponse response) {
+                                    System.out.println(">>>>>>>>>>> Follower index doc count >>>>>>>>>>>>>>");
+                                    System.out.println(response.getHits().getTotalHits().value);
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    e.printStackTrace(System.err);
+                                }
+                            }, SearchResponse::new)
+                        );
+
+                    } catch (Exception e) {
+                        e.printStackTrace(System.err);
+                    }
+
+                });
+
+
+
+                listener.onResponse(statsResponses);
+            }
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     @Override

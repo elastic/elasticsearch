@@ -92,7 +92,11 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
                     taskResponsesByIndex.entrySet().iterator(),
                     indexEntry -> Iterators.concat(
                         Iterators.<ToXContent>single(
-                            (builder, params) -> builder.startObject().field("index", indexEntry.getKey()).startArray("shards")
+                            (builder, params) -> builder
+                                .startObject()
+                                .field("index", indexEntry.getKey())
+                                .field("leader_follower_doc_count_diff", 0)
+                                .startArray("shards")
                         ),
                         indexEntry.getValue().values().iterator(),
                         Iterators.single((builder, params) -> builder.endArray().endObject())

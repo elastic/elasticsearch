@@ -298,7 +298,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         // ingest
         var ingestLoadPublisher = new IngestLoadPublisher(client, clusterService, threadPool);
         var writeLoadSampler = AverageWriteLoadSampler.create(threadPool, settings);
-        var ingestLoadProbe = new IngestLoadProbe(writeLoadSampler::getExecutorStats);
+        var ingestLoadProbe = new IngestLoadProbe(clusterService.getClusterSettings(), writeLoadSampler::getExecutorStats);
         var ingestLoadSampler = IngestLoadSampler.create(
             threadPool,
             writeLoadSampler,
@@ -382,6 +382,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             IngestMetricsService.ACCURATE_LOAD_WINDOW,
             IngestMetricsService.INACCURATE_LOAD_WINDOW,
+            IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
             ShardSizesCollector.PUSH_INTERVAL_SETTING,
             ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING,
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING

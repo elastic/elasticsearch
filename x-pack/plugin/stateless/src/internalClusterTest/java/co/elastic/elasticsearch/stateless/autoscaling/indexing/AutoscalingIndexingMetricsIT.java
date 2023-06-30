@@ -20,12 +20,14 @@ package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -74,5 +76,19 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().get(0).load(), greaterThan(0.0));
         });
+    }
+
+    public void testMaxTimeToClearQueueDynamicSetting() {
+        startMasterAndIndexNode();
+        admin().cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Map.of(IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey(), TimeValue.timeValueSeconds(1)))
+            .get();
+        var getSettingsResponse = clusterAdmin().execute(ClusterGetSettingsAction.INSTANCE, new ClusterGetSettingsAction.Request())
+            .actionGet();
+        assertThat(
+            getSettingsResponse.settings().get(IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey()),
+            equalTo(TimeValue.timeValueSeconds(1).getStringRep())
+        );
     }
 }

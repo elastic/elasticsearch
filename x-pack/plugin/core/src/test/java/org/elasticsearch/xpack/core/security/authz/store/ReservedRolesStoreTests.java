@@ -1222,7 +1222,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-cloud_defend.file-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-cloud_defend.process-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-cloud_defend.alerts-" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            "metrics-cloud_defend.metrics-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "metrics-cloud_defend.metrics-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((indexName) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));

@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.sandbox.search.ProfilerCollectorResult;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
@@ -29,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 public class ProfileCollectorManagerTests extends ESTestCase {
 
@@ -50,7 +48,7 @@ public class ProfileCollectorManagerTests extends ESTestCase {
         final SetOnce<Boolean> reduceCalled = new SetOnce<>();
         ProfileCollectorManager pcm = new ProfileCollectorManager(new CollectorManager<>() {
 
-            private static int counter = 0;
+            private int counter = 0;
 
             @Override
             public Collector newCollector() {
@@ -100,22 +98,11 @@ public class ProfileCollectorManagerTests extends ESTestCase {
 
             searcher.search(new MatchAllDocsQuery(), profileCollectorManager);
 
-            CollectorResult parent = profileCollectorManager.getCollectorTree();
-            assertEquals(numSlices == 1 ? "SimpleTopScoreDocCollector" : "SimpleTopScoreDocCollector_Manager", parent.getName());
-            assertEquals("profiler_reason", parent.getReason());
-            long parentTime = parent.getTime();
-            List<ProfilerCollectorResult> delegateCollectorResults = parent.getProfiledChildren();
-            assertEquals(numSlices == 1 ? 0 : numSlices, delegateCollectorResults.size());
-            if (numSlices > 1) {
-                long childrenTotalTime = 0L;
-                for (ProfilerCollectorResult pcr : delegateCollectorResults) {
-                    assertEquals("SimpleTopScoreDocCollector", pcr.getName());
-                    assertEquals(profileReason, pcr.getReason());
-                    assertTrue(pcr.getTime() > 0);
-                    childrenTotalTime += pcr.getTime();
-                }
-                assertEquals(parentTime, childrenTotalTime);
-            }
+            CollectorResult result = profileCollectorManager.getCollectorTree();
+            assertEquals("profiler_reason", result.getReason());
+            assertEquals("SimpleTopScoreDocCollector", result.getName());
+            assertTrue(result.getTime() > 0);
+
             reader.close();
         }
         directory.close();

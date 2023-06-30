@@ -13,6 +13,7 @@ import org.apache.lucene.search.CollectorManager;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,26 +49,21 @@ public final class ProfileCollectorManager implements CollectorManager<InternalP
             .map(ipc -> ipc.getCollectorTree())
             .collect(Collectors.toList());
 
-        // if we have just one collector result, just use that as the root of the collector tree
-        if (resultsPerProfiler.size() == 1) {
-            this.collectorTree = resultsPerProfiler.get(0);
+        long totalTime = resultsPerProfiler.stream().map(CollectorResult::getTime).reduce(0L, Long::sum);
+        String collectorName;
+        if (resultsPerProfiler.size() == 0) {
+            // in case no new collector was ever requested, create a new one just to get the name.
+            collectorName = newCollector().getName();
+        } else {
+            collectorName = resultsPerProfiler.get(0).getName();
         }
-        // otherwise we use a "parent" result with the different collectors of this manager as children and the time set to the sum
-        if (resultsPerProfiler.size() > 1) {
-            long totalTime = resultsPerProfiler.stream().map(CollectorResult::getTime).reduce(0L, Long::sum);
-            this.collectorTree = new CollectorResult(
-                resultsPerProfiler.get(0).getName() + "_Manager",
-                reason,
-                totalTime,
-                resultsPerProfiler
-            );
-        }
+        this.collectorTree = new CollectorResult(collectorName, reason, totalTime, Collections.emptyList());
         return null;
     }
 
     public CollectorResult getCollectorTree() {
         if (this.collectorTree == null) {
-            throw new IllegalStateException("A collectorTree hasn't been set yet, call reduce() before attempting to retrieve it");
+            throw new IllegalStateException("A collectorTree hasn't been set yet. Call reduce() before attempting to retrieve it");
         }
         return this.collectorTree;
     }

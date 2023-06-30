@@ -86,21 +86,21 @@ public class DfsPhaseTests extends ESTestCase {
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);
 
             int k = 10;
+            // run without profiling enabled
             DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, null, searcher);
             assertEquals(k, dfsKnnResults.scoreDocs().length);
 
+            // run with profiling enabled
             Profilers profilers = new Profilers(searcher);
             dfsKnnResults = DfsPhase.singleKnnSearch(query, k, profilers, searcher);
+            assertEquals(k, dfsKnnResults.scoreDocs().length);
             SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = profilers.getDfsProfiler().buildDfsPhaseResults();
             List<QueryProfileShardResult> queryProfileShardResult = searchProfileDfsPhaseResult.getQueryProfileShardResult();
             assertNotNull(queryProfileShardResult);
             CollectorResult collectorResult = queryProfileShardResult.get(0).getCollectorResult();
-            if (collectorResult.getCollectorResults().size() > 0) {
-                assertEquals("SimpleTopScoreDocCollector_Manager", (collectorResult.getName()));
-            } else {
-                assertEquals("SimpleTopScoreDocCollector", (collectorResult.getName()));
-            }
+            assertEquals("SimpleTopScoreDocCollector", (collectorResult.getName()));
             assertEquals("search_top_hits", (collectorResult.getReason()));
+            assertTrue(collectorResult.getTime() > 0);
             List<CollectorResult> children = collectorResult.getCollectorResults();
             if (children.size() > 0) {
                 long totalTime = 0L;

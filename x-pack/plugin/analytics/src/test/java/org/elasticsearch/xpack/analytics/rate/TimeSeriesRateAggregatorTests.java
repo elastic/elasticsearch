@@ -85,7 +85,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             InternalDateHistogram hb = r.getBucketByKey("{dim=1}").getAggregations().get("date");
             {
                 Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
-                assertThat(rate.getValue(), closeTo((60 - 37 + 14) / 2000.0 * MILLIS_IN_SECOND, 0.00001));
+                assertThat(rate.getValue(), closeTo((/* reset: 60 -> 14 */ 60 + 14 - 60) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
             {
                 Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
@@ -98,7 +98,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             }
             {
                 Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
-                assertThat(rate.getValue(), closeTo(90 / 2000.0 * MILLIS_IN_SECOND, 0.00001));
+                assertThat(rate.getValue(), closeTo((/* reset: 90 -> 40 */ 90 + 40 - 90) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
         };
 

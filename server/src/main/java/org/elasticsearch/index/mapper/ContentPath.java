@@ -49,16 +49,12 @@ public final class ContentPath {
         return withinLeafObject;
     }
 
-    public static String pathAsText(String name) {
+    public String pathAsText(String name) {
         if (sb.length() > 0) {
             sb.append(DELIMITER).append(name);
-            return sb.toString();
+        } else {
+            sb.append(name);
         }
-        sb.setLength(0);
-        for (int i = 0; i < index; i++) {
-            sb.append(path[i]).append(DELIMITER);
-        }
-        sb.append(name);
         return sb.toString();
     }
 

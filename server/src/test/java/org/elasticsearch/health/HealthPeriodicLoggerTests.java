@@ -235,6 +235,8 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         HealthService testHealthService = this.getMockedHealthService();
         doAnswer(invocation -> {
+            ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+            listener.onResponse(getTestIndicatorResults());
             testListener.onResponse(getTestIndicatorResults());
             return null;
         }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());

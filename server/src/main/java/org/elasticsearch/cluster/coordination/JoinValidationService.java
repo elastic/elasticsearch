@@ -156,7 +156,7 @@ public class JoinValidationService {
             transportService.sendRequest(
                 discoveryNode,
                 JOIN_VALIDATE_ACTION_NAME,
-                new ValidateJoinRequest(clusterStateSupplier.get()),
+                new ValidateJoinRequest(getClusterState()),
                 REQUEST_OPTIONS,
                 new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
                     logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);
@@ -353,7 +353,7 @@ public class JoinValidationService {
         final var bytesStream = transportService.newNetworkBytesStream();
         var success = false;
         try {
-            final var clusterState = clusterStateSupplier.get();
+            final var clusterState = getClusterState();
             try (
                 var stream = new OutputStreamStreamOutput(
                     CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
@@ -381,5 +381,15 @@ public class JoinValidationService {
                 assert false;
             }
         }
+    }
+
+    private ClusterState getClusterState() {
+        final var clusterState = clusterStateSupplier.get();
+        if (clusterState == null) {
+            final String message = "join validation before cluster state set";
+            assert false : message;
+            throw new CoordinationStateRejectedException(message);
+        }
+        return clusterState;
     }
 }

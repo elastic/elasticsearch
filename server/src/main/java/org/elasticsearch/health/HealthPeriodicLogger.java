@@ -67,7 +67,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     // default visibility for testing purposes
     volatile boolean isHealthNode = false;
 
-    final AtomicBoolean currentlyRunning = new AtomicBoolean(false);
+    private final AtomicBoolean currentlyRunning = new AtomicBoolean(false);
 
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private volatile TimeValue pollInterval;

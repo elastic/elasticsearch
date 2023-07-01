@@ -218,26 +218,15 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         assertTrue(listenerCalled.get());
     }
 
-    public void testTryToLogHealthConcurrencyControl() throws Exception {
-        AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        AtomicBoolean failureCalled = new AtomicBoolean(false);
-        ActionListener<List<HealthIndicatorResult>> testListener = new ActionListener<List<HealthIndicatorResult>>() {
-            @Override
-            public void onResponse(List<HealthIndicatorResult> indicatorResults) {
-                listenerCalled.set(true);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failureCalled.set(true);
-            }
-        };
+    public void testTryToLogHealthConcurrencyControlWithResults() {
+        AtomicBoolean getHealthCalled = new AtomicBoolean(false);
 
         HealthService testHealthService = this.getMockedHealthService();
         doAnswer(invocation -> {
+            // get and call the results listener provided to getHealth
             ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
             listener.onResponse(getTestIndicatorResults());
-            testListener.onResponse(getTestIndicatorResults());
+            getHealthCalled.set(true);
             return null;
         }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
 
@@ -249,42 +238,93 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
-        // set to currently running, verify that listener isn't called
+        // run it once, verify getHealth is called
         {
-            spyHealthPeriodicLogger.currentlyRunning.set(true);
             spyHealthPeriodicLogger.triggered(event);
-
-            assertFalse(failureCalled.get());
-            assertFalse(listenerCalled.get());
-            assertBusy(() -> assertTrue(spyHealthPeriodicLogger.currentlyRunning.get()));
+            assertTrue(getHealthCalled.get());
         }
 
-        // set to not running, verify that listener is called
+        // run it again, verify getHealth is called, because we are calling the results listener
         {
-            failureCalled.set(false);
-            listenerCalled.set(false);
-            spyHealthPeriodicLogger.currentlyRunning.set(false);
+            getHealthCalled.set(false);
             spyHealthPeriodicLogger.triggered(event);
+            assertTrue(getHealthCalled.get());
+        }
+    }
 
-            assertFalse(failureCalled.get());
-            assertTrue(listenerCalled.get());
-            assertBusy(() -> assertFalse(spyHealthPeriodicLogger.currentlyRunning.get()));
+    public void testTryToLogHealthConcurrencyControl() {
+        AtomicBoolean getHealthCalled = new AtomicBoolean(false);
+
+        HealthService testHealthService = this.getMockedHealthService();
+        doAnswer(invocation -> {
+            // get but do not call the provided listener
+            ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+            assertNotNull(listener);
+
+            // note that we received the getHealth call
+            getHealthCalled.set(true);
+            return null;
+        }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+
+        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
+        testHealthPeriodicLogger.init();
+
+        HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
+        spyHealthPeriodicLogger.isHealthNode = true;
+
+        SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+
+        // call it once, and verify that getHealth is called
+        {
+            spyHealthPeriodicLogger.triggered(event);
+            assertTrue(getHealthCalled.get());
         }
 
-        // if an exception occurs verify that currently running is set false
+        // trigger it again, and verify that getHealth is not called
+        // it's not called because the results listener was never called by getHealth
+        // this is simulating a double invocation of getHealth, due perhaps to a lengthy getHealth call
         {
-            failureCalled.set(false);
-            listenerCalled.set(false);
-            spyHealthPeriodicLogger.currentlyRunning.set(false);
+            getHealthCalled.set(false);
+            spyHealthPeriodicLogger.triggered(event);
+            assertFalse(getHealthCalled.get());
+        }
+    }
 
+    public void testTryToLogHealthConcurrencyControlWithException() {
+        AtomicBoolean getHealthCalled = new AtomicBoolean(false);
+
+        HealthService testHealthService = this.getMockedHealthService();
+
+        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
+        testHealthPeriodicLogger.init();
+
+        HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
+        spyHealthPeriodicLogger.isHealthNode = true;
+
+        SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+
+        // run it once and trigger an exception during the getHealth call
+        {
+            getHealthCalled.set(false);
             doThrow(new ResourceNotFoundException("No preflight indicators")).when(testHealthService)
                 .getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
-
+            getHealthCalled.set(false);
             spyHealthPeriodicLogger.triggered(event);
+            assertFalse(getHealthCalled.get());
+        }
 
-            assertFalse(failureCalled.get());
-            assertFalse(listenerCalled.get());
-            assertBusy(() -> assertFalse(spyHealthPeriodicLogger.currentlyRunning.get()));
+        // run it again and have getHealth work. This tests that the RunOnce still sets the currentlyRunning variable.
+        {
+            getHealthCalled.set(false);
+            doAnswer(invocation -> {
+                ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+                listener.onResponse(getTestIndicatorResults());
+                getHealthCalled.set(true);
+                return null;
+            }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+            getHealthCalled.set(false);
+            spyHealthPeriodicLogger.triggered(event);
+            assertTrue(getHealthCalled.get());
         }
     }
 

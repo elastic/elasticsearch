@@ -358,14 +358,14 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             && filterClauses.size() == 0
             && shouldClauses.size() > 0
             && newBuilder.shouldClauses.stream().allMatch(b -> b instanceof MatchNoneQueryBuilder)) {
-            return new MatchNoneQueryBuilder();
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
 
         // lets do some early termination and prevent any kind of rewriting if we have a mandatory query that is a MatchNoneQueryBuilder
         if (newBuilder.mustClauses.stream().anyMatch(b -> b instanceof MatchNoneQueryBuilder)
             || newBuilder.filterClauses.stream().anyMatch(b -> b instanceof MatchNoneQueryBuilder)
             || newBuilder.mustNotClauses.stream().anyMatch(b -> b instanceof MatchAllQueryBuilder)) {
-            return new MatchNoneQueryBuilder();
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
 
         if (changed) {

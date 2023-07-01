@@ -126,8 +126,6 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -148,11 +146,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
     }
 
     public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet) {
-        this(nodeSettings, settingsSet, Collections.emptySet());
-    }
-
-    public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders) {
-        super(nodeSettings, settingsSet, settingUpgraders, Property.NodeScope);
+        super(nodeSettings, settingsSet, Property.NodeScope);
         addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 
@@ -582,7 +576,4 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME,
         TDigestExecutionHint.SETTING
     ).filter(Objects::nonNull).collect(Collectors.toSet());
-
-    static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
-
 }

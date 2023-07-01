@@ -120,12 +120,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     private static DataLifecycle randomLifecycle() {
-        return switch (randomIntBetween(0, 3)) {
-            case 0 -> DataLifecycleTests.IMPLICIT_INFINITE_RETENTION;
-            case 1 -> Template.NO_LIFECYCLE;
-            case 2 -> DataLifecycleTests.EXPLICIT_INFINITE_RETENTION;
-            default -> new DataLifecycle(randomMillisUpToYear9999());
-        };
+        return rarely() ? Template.NO_LIFECYCLE : DataLifecycleTests.randomLifecycle();
     }
 
     private static Map<String, Object> randomMeta() {

@@ -84,7 +84,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.ConsistentSettingsService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -476,14 +475,10 @@ public class Node implements Closeable {
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
 
-            final Set<SettingUpgrader<?>> settingsUpgraders = pluginsService.flatMap(Plugin::getSettingUpgraders)
-                .collect(Collectors.toSet());
-
             final SettingsModule settingsModule = new SettingsModule(
                 settings,
                 additionalSettings,
-                pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
-                settingsUpgraders
+                pluginsService.flatMap(Plugin::getSettingsFilter).toList()
             );
 
             // creating `NodeEnvironment` breaks the ability to rollback to 7.x on an 8.0 upgrade (`upgradeLegacyNodeFolders`) so do this
@@ -744,7 +739,8 @@ public class Node implements Closeable {
                     clusterModule.getIndexNameExpressionResolver(),
                     repositoriesServiceReference::get,
                     tracer,
-                    clusterModule.getAllocationService()
+                    clusterModule.getAllocationService(),
+                    indicesService
                 )
             ).toList();
 
@@ -1095,6 +1091,7 @@ public class Node implements Closeable {
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(
                             new PeerRecoveryTargetService(
+                                client,
                                 threadPool,
                                 transportService,
                                 recoverySettings,

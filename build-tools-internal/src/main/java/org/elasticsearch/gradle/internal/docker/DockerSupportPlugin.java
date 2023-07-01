@@ -32,13 +32,9 @@ public class DockerSupportPlugin implements Plugin<Project> {
 
         Provider<DockerSupportService> dockerSupportServiceProvider = project.getGradle()
             .getSharedServices()
-            .registerIfAbsent(
-                DOCKER_SUPPORT_SERVICE_NAME,
-                DockerSupportService.class,
-                spec -> spec.parameters(
-                    params -> { params.setExclusionsFile(new File(project.getRootDir(), DOCKER_ON_LINUX_EXCLUSIONS_FILE)); }
-                )
-            );
+            .registerIfAbsent(DOCKER_SUPPORT_SERVICE_NAME, DockerSupportService.class, spec -> spec.parameters(params -> {
+                params.setExclusionsFile(new File(project.getRootDir(), DOCKER_ON_LINUX_EXCLUSIONS_FILE));
+            }));
 
         // Ensure that if we are trying to run any DockerBuildTask tasks, we assert an available Docker installation exists
         project.getGradle().getTaskGraph().whenReady(graph -> {

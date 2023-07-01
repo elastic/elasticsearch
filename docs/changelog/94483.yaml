@@ -1,6 +1,0 @@
-pr: 94483
-summary: Fix metadata `_size` when it comes to stored fields extraction
-area: Search
-type: bug
-issues:
- - 94468

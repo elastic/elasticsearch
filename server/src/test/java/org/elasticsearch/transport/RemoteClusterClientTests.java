@@ -8,13 +8,13 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -43,6 +43,7 @@ public class RemoteClusterClientTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97080")
     public void testConnectAndExecuteRequest() throws Exception {
         Settings remoteSettings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster")
@@ -52,8 +53,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             MockTransportService remoteTransport = startTransport(
                 "remote_node",
                 Collections.emptyList(),
-                Version.CURRENT,
-                TransportVersion.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool,
                 remoteSettings
             )
@@ -68,8 +69,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     localSettings,
-                    Version.CURRENT,
-                    TransportVersion.CURRENT,
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
                     threadPool,
                     null
                 )
@@ -105,8 +106,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             MockTransportService remoteTransport = startTransport(
                 "remote_node",
                 Collections.emptyList(),
-                Version.CURRENT,
-                TransportVersion.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool,
                 remoteSettings
             )
@@ -119,8 +120,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     localSettings,
-                    Version.CURRENT,
-                    TransportVersion.CURRENT,
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
                     threadPool,
                     null
                 )
@@ -156,8 +157,8 @@ public class RemoteClusterClientTests extends ESTestCase {
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
-                Version.CURRENT,
-                TransportVersion.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool,
                 null
             )
@@ -179,8 +180,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             MockTransportService remoteTransport = startTransport(
                 "remote_node",
                 Collections.emptyList(),
-                Version.CURRENT,
-                TransportVersion.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool,
                 remoteSettings
             )
@@ -196,8 +197,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     localSettings,
-                    Version.CURRENT,
-                    TransportVersion.CURRENT,
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
                     threadPool,
                     null
                 )

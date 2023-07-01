@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
@@ -15,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -40,11 +43,19 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.MutableLicenseService;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -65,10 +76,9 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
+import org.elasticsearch.xpack.core.action.DataLifecycleUsageTransportAction;
 import org.elasticsearch.xpack.core.action.DataStreamInfoTransportAction;
 import org.elasticsearch.xpack.core.action.DataStreamUsageTransportAction;
-import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
-import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
@@ -79,7 +89,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
@@ -118,6 +127,7 @@ public class XPackPlugin extends XPackClientPlugin
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";
     public static final String XPACK_INSTALLED_NODE_ATTR = "xpack.installed";
+    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
@@ -154,18 +164,20 @@ public class XPackPlugin extends XPackClientPlugin
     // private final Environment env;
     protected final Licensing licensing;
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
-    private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
-    private static final SetOnce<ClusterStateLicenseService> licenseService = new SetOnce<>();
-    private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
+    // non-final to allow for testing
+    private static SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
+    private static SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
+    private static SetOnce<LicenseService> licenseService = new SetOnce<>();
 
     public XPackPlugin(final Settings settings) {
         super();
         // FIXME: The settings might be changed after this (e.g. from "additionalSettings" method in other plugins)
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
-
-        setLicenseState(new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong()));
+        licenseState = new SetOnce<>();
+        licenseService = new SetOnce<>();
+        epochMillisSupplier = new SetOnce<>();
 
         this.licensing = new Licensing(settings);
     }
@@ -179,7 +191,7 @@ public class XPackPlugin extends XPackClientPlugin
         return getSharedSslService();
     }
 
-    protected ClusterStateLicenseService getLicenseService() {
+    protected LicenseService getLicenseService() {
         return getSharedLicenseService();
     }
 
@@ -195,8 +207,8 @@ public class XPackPlugin extends XPackClientPlugin
         XPackPlugin.sslService.set(sslService);
     }
 
-    protected void setLicenseService(ClusterStateLicenseService clusterStateLicenseService) {
-        XPackPlugin.licenseService.set(clusterStateLicenseService);
+    protected void setLicenseService(LicenseService licenseService) {
+        XPackPlugin.licenseService.set(licenseService);
     }
 
     protected void setLicenseState(XPackLicenseState licenseState) {
@@ -215,7 +227,7 @@ public class XPackPlugin extends XPackClientPlugin
         return ssl;
     }
 
-    public static ClusterStateLicenseService getSharedLicenseService() {
+    public static LicenseService getSharedLicenseService() {
         return licenseService.get();
     }
 
@@ -307,18 +319,25 @@ public class XPackPlugin extends XPackClientPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
-        setLicenseService(new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState()));
+
+        LicenseService licenseService = getLicenseService();
+        if (licenseService == null) {
+            licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
+            setLicenseService(licenseService);
+        }
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
-        components.add(getLicenseService());
+        components.add(new PluginComponentBinding<>(MutableLicenseService.class, licenseService));
+        components.add(new PluginComponentBinding<>(LicenseService.class, licenseService));
         components.add(getLicenseState());
 
         return components;
@@ -330,14 +349,17 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, getInfoAction()));
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, getUsageAction()));
         actions.addAll(licensing.getActions());
-        actions.add(new ActionHandler<>(ReloadAnalyzerAction.INSTANCE, TransportReloadAnalyzersAction.class));
         actions.add(new ActionHandler<>(TermsEnumAction.INSTANCE, TransportTermsEnumAction.class));
         actions.add(new ActionHandler<>(DeleteAsyncResultAction.INSTANCE, TransportDeleteAsyncResultAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class));
+        if (DataLifecycle.isEnabled()) {
+            actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_LIFECYCLE, DataLifecycleUsageTransportAction.class));
+        }
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.HEALTH, HealthApiUsageTransportAction.class));
+        actions.add(new ActionHandler<>(XPackUsageFeatureAction.REMOTE_CLUSTERS, RemoteClusterUsageTransportAction.class));
         return actions;
     }
 
@@ -379,7 +401,6 @@ public class XPackPlugin extends XPackClientPlugin
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestXPackInfoAction());
         handlers.add(new RestXPackUsageAction());
-        handlers.add(new RestReloadAnalyzersAction());
         handlers.add(new RestTermsEnumAction());
         handlers.addAll(
             licensing.getRestHandlers(
@@ -441,6 +462,14 @@ public class XPackPlugin extends XPackClientPlugin
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
+
+        // Don't register the license setting if there is an alternate implementation loaded as an extension.
+        // this relies on the order in which methods are called - loadExtensions, (this method) getSettings, then createComponents
+        if (getSharedLicenseService() == null) {
+            settings.add(LicenseSettings.SELF_GENERATED_LICENSE_TYPE);
+            settings.add(LicenseSettings.ALLOWED_LICENSE_TYPES_SETTING);
+        }
+
         return settings;
     }
 
@@ -472,5 +501,30 @@ public class XPackPlugin extends XPackClientPlugin
         reloader.setSSLService(sslService);
         setSslService(sslService);
         return sslService;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<MutableLicenseService> licenseServices = loader.loadExtensions(MutableLicenseService.class);
+        if (licenseServices.size() > 1) {
+            throw new IllegalStateException(MutableLicenseService.class + " may not have multiple implementations");
+        } else if (licenseServices.size() == 1) {
+            MutableLicenseService licenseService = licenseServices.get(0);
+            logger.debug("Loaded implementation [{}] for interface MutableLicenseService", licenseService.getClass().getCanonicalName());
+            setLicenseService(licenseService);
+            setLicenseState(
+                new XPackLicenseState(
+                    () -> getEpochMillisSupplier().getAsLong(),
+                    LicenseUtils.getXPackLicenseStatus(licenseService.getLicense(), getClock())
+                )
+            );
+        } else {
+            setLicenseState(
+                new XPackLicenseState(
+                    () -> getEpochMillisSupplier().getAsLong(),
+                    new XPackLicenseStatus(License.OperationMode.TRIAL, true, null)
+                )
+            );
+        }
     }
 }

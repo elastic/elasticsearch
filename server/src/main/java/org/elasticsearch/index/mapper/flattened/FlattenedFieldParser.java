@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -55,18 +56,20 @@ class FlattenedFieldParser {
         this.nullValue = nullValue;
     }
 
-    public List<IndexableField> parse(XContentParser parser) throws IOException {
+    public List<IndexableField> parse(final DocumentParserContext context) throws IOException {
+        XContentParser parser = context.parser();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         ContentPath path = new ContentPath();
         List<IndexableField> fields = new ArrayList<>();
 
-        parseObject(parser, path, fields);
+        parseObject(context, path, fields);
         return fields;
     }
 
-    private void parseObject(XContentParser parser, ContentPath path, List<IndexableField> fields) throws IOException {
+    private void parseObject(DocumentParserContext context, ContentPath path, List<IndexableField> fields) throws IOException {
         String currentName = null;
+        XContentParser parser = context.parser();
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_OBJECT) {
@@ -77,41 +80,44 @@ class FlattenedFieldParser {
                 currentName = parser.currentName();
             } else {
                 assert currentName != null;
-                parseFieldValue(token, parser, path, currentName, fields);
+                parseFieldValue(context, token, path, currentName, fields);
             }
         }
     }
 
-    private void parseArray(XContentParser parser, ContentPath path, String currentName, List<IndexableField> fields) throws IOException {
+    private void parseArray(DocumentParserContext context, ContentPath path, String currentName, List<IndexableField> fields)
+        throws IOException {
+        XContentParser parser = context.parser();
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_ARRAY) {
                 return;
             }
-            parseFieldValue(token, parser, path, currentName, fields);
+            parseFieldValue(context, token, path, currentName, fields);
         }
     }
 
     private void parseFieldValue(
+        DocumentParserContext context,
         XContentParser.Token token,
-        XContentParser parser,
         ContentPath path,
         String currentName,
         List<IndexableField> fields
     ) throws IOException {
+        XContentParser parser = context.parser();
         if (token == XContentParser.Token.START_OBJECT) {
             path.add(currentName);
             validateDepthLimit(path);
-            parseObject(parser, path, fields);
+            parseObject(context, path, fields);
             path.remove();
         } else if (token == XContentParser.Token.START_ARRAY) {
-            parseArray(parser, path, currentName, fields);
+            parseArray(context, path, currentName, fields);
         } else if (token.isValue()) {
             String value = parser.text();
-            addField(path, currentName, value, fields);
+            addField(context, path, currentName, value, fields);
         } else if (token == XContentParser.Token.VALUE_NULL) {
             if (nullValue != null) {
-                addField(path, currentName, nullValue, fields);
+                addField(context, path, currentName, nullValue, fields);
             }
         } else {
             // Note that we throw an exception here just to be safe. We don't actually expect to reach
@@ -120,7 +126,7 @@ class FlattenedFieldParser {
         }
     }
 
-    private void addField(ContentPath path, String currentName, String value, List<IndexableField> fields) {
+    private void addField(DocumentParserContext context, ContentPath path, String currentName, String value, List<IndexableField> fields) {
         if (value.length() > ignoreAbove) {
             return;
         }
@@ -159,6 +165,16 @@ class FlattenedFieldParser {
         if (fieldType.hasDocValues()) {
             fields.add(new SortedSetDocValuesField(rootFieldName, bytesValue));
             fields.add(new SortedSetDocValuesField(keyedFieldName, bytesKeyedValue));
+
+            if (fieldType.isDimension() == false) {
+                return;
+            }
+
+            final String keyedFieldName = FlattenedFieldParser.extractKey(bytesKeyedValue).utf8ToString();
+            if (fieldType.isDimension() && fieldType.dimensions().contains(keyedFieldName)) {
+                final BytesRef keyedFieldValue = FlattenedFieldParser.extractValue(bytesKeyedValue);
+                context.getDimensions().addString(rootFieldName + "." + keyedFieldName, keyedFieldValue);
+            }
         }
     }
 

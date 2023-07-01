@@ -22,8 +22,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.license.ClusterStateLicenseService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -112,7 +113,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         return XPackPlugin.getSharedLicenseState();
     }
 
-    protected ClusterStateLicenseService getLicenseService() {
+    protected LicenseService getLicenseService() {
         return XPackPlugin.getSharedLicenseService();
     }
 
@@ -130,10 +131,11 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());
+        final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool);
         final SSLService dynamicSSLService = getSslService().createDynamicSSLService();
         final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
 

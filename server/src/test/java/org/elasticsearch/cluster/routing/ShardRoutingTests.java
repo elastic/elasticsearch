@@ -8,11 +8,11 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardIdTests;
 import org.elasticsearch.repositories.IndexId;
@@ -106,9 +106,11 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                 : requireNonNullElseGet(instance.unassignedInfo(), () -> TestShardRouting.buildUnassignedInfo(newState)),
             instance.relocationFailureInfo(),
             switch (newState) {
-            case UNASSIGNED -> null;
-            case INITIALIZING, STARTED -> requireNonNullElseGet(instance.allocationId(), AllocationId::newInitializing);
-            case RELOCATING -> AllocationId.newRelocation(requireNonNullElseGet(instance.allocationId(), AllocationId::newInitializing));
+                case UNASSIGNED -> null;
+                case INITIALIZING, STARTED -> requireNonNullElseGet(instance.allocationId(), AllocationId::newInitializing);
+                case RELOCATING -> AllocationId.newRelocation(
+                    requireNonNullElseGet(instance.allocationId(), AllocationId::newInitializing)
+                );
             },
             instance.getExpectedShardSize(),
             instance.role()
@@ -343,7 +345,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             new RecoverySource.SnapshotRecoverySource(
                                 UUIDs.randomBase64UUID(),
                                 new Snapshot("test", new SnapshotId("s1", UUIDs.randomBase64UUID())),
-                                Version.CURRENT,
+                                IndexVersion.current(),
                                 new IndexId("test", UUIDs.randomBase64UUID(random()))
                             ),
                             otherRouting.unassignedInfo(),
@@ -447,17 +449,18 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
 
     public void testSummaryContainsImportantFields() {
         var shard = createTestInstance();
+        var summary = shard.shortSummary();
 
-        assertThat("index name", shard.shortSummary(), containsString('[' + shard.getIndexName() + ']'));
-        assertThat("shard id", shard.shortSummary(), containsString(shard.shardId().toString()));
-        assertThat("primary/replica", shard.shortSummary(), containsString(shard.primary() ? "[P]" : "[R]"));
-        assertThat("current node id", shard.shortSummary(), containsString("node[" + shard.currentNodeId() + ']'));
+        assertThat("index name", summary, containsString('[' + shard.getIndexName() + ']'));
+        assertThat("shard id", summary, containsString(shard.shardId().toString()));
+        assertThat("primary/replica", summary, containsString(shard.primary() ? "[P]" : "[R]"));
+        assertThat("current node id", summary, containsString("node[" + shard.currentNodeId() + ']'));
         if (shard.relocating()) {
-            assertThat("relocating node id", shard.shortSummary(), containsString("relocating [" + shard.relocatingNodeId() + ']'));
+            assertThat("relocating node id", summary, containsString("relocating [" + shard.relocatingNodeId() + ']'));
         }
-        assertThat("state", shard.shortSummary(), containsString("s[" + shard.state() + "]"));
+        assertThat("state", summary, containsString("s[" + shard.state() + "]"));
         if (shard.role() != ShardRouting.Role.DEFAULT) {
-            assertThat("role", shard.shortSummary(), containsString("[" + shard.role() + "]"));
+            assertThat("role", summary, containsString("[" + shard.role() + "]"));
         }
     }
 }

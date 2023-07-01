@@ -41,8 +41,6 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     public static final ParseField MODEL_TEXT = new ParseField("model_text");
     public static final ParseField MODEL_ID = new ParseField("model_id");
 
-    private static final String DEFAULT_MODEL_ID = "slim";
-
     private final String fieldName;
     private final String modelText;
     private final String modelId;
@@ -55,10 +53,13 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         if (modelText == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + MODEL_TEXT.getPreferredName() + " value");
         }
+        if (modelId == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires a " + MODEL_ID.getPreferredName() + " value");
+        }
 
         this.fieldName = fieldName;
         this.modelText = modelText;
-        this.modelId = modelId == null ? DEFAULT_MODEL_ID : modelId;
+        this.modelId = modelId;
     }
 
     public TextExpansionQueryBuilder(StreamInput in) throws IOException {
@@ -137,10 +138,10 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                     return;
                 }
 
-                if (inferenceResponse.getInferenceResults().get(0)instanceof TextExpansionResults textExpansionResults) {
+                if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
                     textExpansionResultsSupplier.set(textExpansionResults);
                     listener.onResponse(null);
-                } else if (inferenceResponse.getInferenceResults().get(0)instanceof WarningInferenceResults warning) {
+                } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
                     listener.onFailure(new IllegalStateException(warning.getWarning()));
                 } else {
                     listener.onFailure(
@@ -168,7 +169,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     ) throws IOException {
         var boolQuery = QueryBuilders.boolQuery();
         for (var weightedToken : textExpansionResults.getWeightedTokens()) {
-            boolQuery.should(QueryBuilders.termQuery(fieldName, Integer.toString(weightedToken.token())).boost(weightedToken.weight()));
+            boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);
         return boolQuery;

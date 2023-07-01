@@ -16,6 +16,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -79,8 +80,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -259,8 +260,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         int numConcurrent = randomIntBetween(1, 4);
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = new DiscoveryNode("node2", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode = DiscoveryNodeUtils.builder("node1").version(newVersion).build();
+        DiscoveryNode oldVersionNode = DiscoveryNodeUtils.builder("node2").version(oldVersion).build();
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(oldVersionNode));
 
@@ -359,8 +360,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger successfulOps = new AtomicInteger();
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = new DiscoveryNode("node2", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode = DiscoveryNodeUtils.builder("node1").version(newVersion).build();
+        DiscoveryNode oldVersionNode = DiscoveryNodeUtils.builder("node2").version(oldVersion).build();
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(oldVersionNode));
 
@@ -501,9 +502,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger successfulOps = new AtomicInteger();
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode newVersionNode2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = new DiscoveryNode("node3", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode1 = DiscoveryNodeUtils.builder("node1").version(newVersion).build();
+        DiscoveryNode newVersionNode2 = DiscoveryNodeUtils.builder("node2").version(newVersion).build();
+        DiscoveryNode oldVersionNode = DiscoveryNodeUtils.builder("node3").version(oldVersion).build();
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode1));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(newVersionNode2));
         lookup.put("node3", new SearchAsyncActionTests.MockConnection(oldVersionNode));

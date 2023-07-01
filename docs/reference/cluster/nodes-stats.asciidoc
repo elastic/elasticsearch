@@ -84,6 +84,9 @@ using metrics.
       Process statistics, memory consumption, cpu usage, open
       file descriptors.
 
+  `repositories`::
+      Statistics about snapshot repositories.
+
   `thread_pool`::
       Statistics about each thread pool, including current size, queue and
       rejected tasks.
@@ -1672,6 +1675,31 @@ Total number of classes unloaded since the JVM started.
 =======
 ======
 
+[[cluster-nodes-stats-api-response-body-repositories]]
+`repositories`::
+(object)
+Statistics about snapshot repositories.
++
+.Properties of `repositories`
+[%collapsible%open]
+======
+`<repository_name>`::
+(object)
+Contains repository throttling statistics for the node.
++
+.Properties of `<repository_name>`
+[%collapsible%open]
+=======
+`total_read_throttled_time_nanos`::
+(integer)
+Total number of nanos which node had to wait during recovery.
+
+`total_write_throttled_time_nanos`::
+(integer)
+Total number of nanos which node had to wait during snapshotting.
+=======
+======
+
 [[cluster-nodes-stats-api-response-body-threadpool]]
 `thread_pool`::
 (object)
@@ -2016,6 +2044,66 @@ last bucket if this bucket has no upper bound.
 The number of times a transport thread took a period of time within the bounds
 of this bucket to send a transport message.
 =======
+
+`actions`::
+(object)
+An action-by-action breakdown of the transport traffic handled by this node,
+showing the total amount of traffic and a histogram of message sizes for
+incoming requests and outgoing responses.
++
+.Properties of `actions.*.requests` and `actions.*.responses`
+[%collapsible]
+=======
+`count`::
+(integer)
+The total number of requests received, or responses sent, for the current
+action.
+
+`total_size`::
+(<<byte-units,byte value>>)
+The total size (as a human-readable string) of all requests received, or
+responses sent, for the current action.
+
+`total_size_in_bytes`::
+(integer)
+The total size in bytes of all requests received, or responses sent, for the
+current action.
+
+`histogram`::
+(array)
+A breakdown of the distribution of sizes of requests received, or responses
+sent, for the current action.
++
+.Properties of `histogram`
+[%collapsible]
+========
+`ge`::
+(<<byte-units,byte value>>)
+The inclusive lower bound of the bucket as a human-readable string. May be
+omitted on the first bucket if this bucket has no lower bound.
+
+`ge_bytes`::
+(integer)
+The inclusive lower bound of the bucket in bytes. May be omitted on the first
+bucket if this bucket has no lower bound.
+
+`lt`::
+(<<byte-units,byte value>>)
+The exclusive upper bound of the bucket as a human-readable string. May be
+omitted on the last bucket if this bucket has no upper bound.
+
+`lt_bytes`::
+(integer)
+The exclusive upper bound of the bucket in bytes. May be omitted on the last
+bucket if this bucket has no upper bound.
+
+`count`::
+(integer)
+The number of times a request was received, or a response sent, with a size
+within the bounds of this bucket.
+========
+=======
+
 ======
 
 [[cluster-nodes-stats-api-response-body-http]]
@@ -2054,11 +2142,11 @@ included in the response.
 
 `local_address`::
 (string)
-Local address for the HTTP client.
+Local address for the HTTP connection.
 
 `remote_address`::
 (string)
-Remote address for the HTTP client.
+Remote address for the HTTP connection.
 
 `last_uri`::
 (string)

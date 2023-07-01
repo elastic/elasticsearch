@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
@@ -31,11 +30,7 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
         final int indices = randomIntBetween(1, 5);
 
         for (int i = 0; i < indices; ++i) {
-            client().admin()
-                .indices()
-                .prepareCreate(indexNamePrefix + i)
-                .setSettings(Settings.builder().put("index.number_of_shards", shards).put("index.number_of_replicas", 1))
-                .get();
+            indicesAdmin().prepareCreate(indexNamePrefix + i).setSettings(indexSettings(shards, 1)).get();
         }
 
         final GetCheckpointAction.Request request = new GetCheckpointAction.Request(
@@ -60,7 +55,7 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
             }
         }
 
-        client().admin().indices().refresh(new RefreshRequest(indexNamePrefix + "*"));
+        indicesAdmin().refresh(new RefreshRequest(indexNamePrefix + "*"));
 
         final GetCheckpointAction.Response response2 = client().execute(GetCheckpointAction.INSTANCE, request).get();
         assertEquals(indices, response2.getCheckpoints().size());
@@ -80,7 +75,7 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
             checkpointSum
         );
 
-        final IndicesStatsResponse statsResponse = client().admin().indices().prepareStats(indexNamePrefix + "*").get();
+        final IndicesStatsResponse statsResponse = indicesAdmin().prepareStats(indexNamePrefix + "*").get();
 
         assertEquals(
             "Checkpoint API and indices stats don't match",

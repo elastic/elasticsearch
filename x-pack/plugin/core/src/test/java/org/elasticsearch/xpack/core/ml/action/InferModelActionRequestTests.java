@@ -68,7 +68,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
     @Override
     protected Request mutateInstance(Request instance) {
 
-        var modelId = instance.getModelId();
+        var modelId = instance.getId();
         var objectsToInfer = instance.getObjectsToInfer();
         var highPriority = instance.isHighPriority();
         var textInput = instance.getTextInput();
@@ -181,7 +181,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
 
         if (version.before(TransportVersion.V_8_3_0)) {
             return new Request(
-                instance.getModelId(),
+                instance.getId(),
                 adjustedUpdate,
                 instance.getObjectsToInfer(),
                 null,
@@ -190,7 +190,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             );
         } else if (version.before(TransportVersion.V_8_7_0)) {
             return new Request(
-                instance.getModelId(),
+                instance.getId(),
                 adjustedUpdate,
                 instance.getObjectsToInfer(),
                 null,
@@ -199,7 +199,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             );
         } else if (version.before(TransportVersion.V_8_8_0)) {
             var r = new Request(
-                instance.getModelId(),
+                instance.getId(),
                 adjustedUpdate,
                 instance.getObjectsToInfer(),
                 instance.getTextInput(),

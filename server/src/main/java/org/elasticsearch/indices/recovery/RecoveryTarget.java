@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -42,6 +42,7 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.repositories.IndexId;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -586,7 +587,19 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ) {
             StoreFileMetadata metadata = fileInfo.metadata();
             int readSnapshotFileBufferSize = snapshotFilesProvider.getReadSnapshotFileBufferSizeForRepo(repository);
-            multiFileWriter.writeFile(metadata, readSnapshotFileBufferSize, inputStream);
+            multiFileWriter.writeFile(metadata, readSnapshotFileBufferSize, new FilterInputStream(inputStream) {
+                @Override
+                public int read() throws IOException {
+                    cancellableThreads.checkForCancel();
+                    return super.read();
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    cancellableThreads.checkForCancel();
+                    return super.read(b, off, len);
+                }
+            });
             listener.onResponse(null);
         } catch (Exception e) {
             logger.debug(() -> format("Unable to recover snapshot file %s from repository %s", fileInfo, repository), e);

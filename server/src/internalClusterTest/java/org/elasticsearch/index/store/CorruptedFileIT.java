@@ -147,10 +147,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                indexSettings(1, 1).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                     // no checkindex - we corrupt shards on purpose
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                     // no translog based flush - it might change the .liv / segments.N files
@@ -166,8 +163,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
         indexRandom(true, builders);
         ensureGreen();
         // double flush to create safe commit in case of async durability
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
@@ -179,19 +176,16 @@ public class CorruptedFileIT extends ESIntegTestCase {
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
         setReplicaCount(2, "test");
-        ClusterHealthResponse health = client().admin()
-            .cluster()
-            .health(
-                new ClusterHealthRequest("test").waitForGreenStatus()
-                    .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
-                    .waitForNoRelocatingShards(true)
-            )
-            .actionGet();
+        ClusterHealthResponse health = clusterAdmin().health(
+            new ClusterHealthRequest("test").waitForGreenStatus()
+                .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
+                .waitForNoRelocatingShards(true)
+        ).actionGet();
         if (health.isTimedOut()) {
             logger.info(
                 "cluster state:\n{}\n{}",
-                client().admin().cluster().prepareState().get().getState(),
-                client().admin().cluster().preparePendingClusterTasks().get()
+                clusterAdmin().prepareState().get().getState(),
+                clusterAdmin().preparePendingClusterTasks().get()
             );
             assertThat("timed out waiting for green state", health.isTimedOut(), equalTo(false));
         }
@@ -241,7 +235,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             eventListener.setNewDelegate(listener);
         }
         try {
-            client().admin().indices().prepareDelete("test").get();
+            indicesAdmin().prepareDelete("test").get();
             latch.await();
             assertThat(exception, empty());
         } finally {
@@ -280,8 +274,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
         indexRandom(true, builders);
         ensureGreen();
         // double flush to create safe commit in case of async durability
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
@@ -290,25 +284,25 @@ public class CorruptedFileIT extends ESIntegTestCase {
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
         setReplicaCount(1, "test");
-        client().admin().cluster().prepareReroute().get();
+        clusterAdmin().prepareReroute().get();
 
         boolean didClusterTurnRed = waitUntil(() -> {
-            ClusterHealthStatus test = client().admin().cluster().health(new ClusterHealthRequest("test")).actionGet().getStatus();
+            ClusterHealthStatus test = clusterAdmin().health(new ClusterHealthRequest("test")).actionGet().getStatus();
             return test == ClusterHealthStatus.RED;
         }, 5, TimeUnit.MINUTES);// sometimes on slow nodes the replication / recovery is just dead slow
 
-        final ClusterHealthResponse response = client().admin().cluster().health(new ClusterHealthRequest("test")).get();
+        final ClusterHealthResponse response = clusterAdmin().health(new ClusterHealthRequest("test")).get();
 
         if (response.getStatus() != ClusterHealthStatus.RED) {
             logger.info("Cluster turned red in busy loop: {}", didClusterTurnRed);
             logger.info(
                 "cluster state:\n{}\n{}",
-                client().admin().cluster().prepareState().get().getState(),
-                client().admin().cluster().preparePendingClusterTasks().get()
+                clusterAdmin().prepareState().get().getState(),
+                clusterAdmin().preparePendingClusterTasks().get()
             );
         }
         assertThat(response.getStatus(), is(ClusterHealthStatus.RED));
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
             .activePrimaryShardsGrouped(new String[] { "test" }, false);
         for (ShardIterator iterator : shardIterators) {
@@ -347,10 +341,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         var unluckyNode = dataNodes.get(1);
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put("index.routing.allocation.include._name", primariesNode.getName())
+                indexSettings(1, 0).put("index.routing.allocation.include._name", primariesNode.getName())
                     .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
                     .put("index.allocation.max_retries", Integer.MAX_VALUE) // keep on retrying
             )
@@ -384,7 +375,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName()),
             "test"
         );
-        client().admin().cluster().prepareReroute().get();
+        clusterAdmin().prepareReroute().get();
         hasCorrupted.await();
         corrupt.set(false);
         ensureGreen();
@@ -404,9 +395,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 4)) // don't go crazy here it must recovery fast
+                indexSettings(between(1, 4), 0) // don't go crazy here it must recovery fast
                     // This does corrupt files on the replica, so we can't check:
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                     .put("index.routing.allocation.include._name", primariesNode.getName())
@@ -420,7 +409,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
@@ -510,7 +499,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 .put("index.routing.allocation.exclude._name", unluckyNode.getName()),
             "test"
         );
-        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        clusterAdmin().prepareReroute().setRetryFailed(true).get();
         ensureGreen("test");
         assertThatAllShards("test", shard -> {
             assertThat(shard.primaryShard().currentNodeId(), not(equalTo(unluckyNode.getId())));
@@ -525,7 +514,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     private void assertThatAllShards(String index, Consumer<IndexShardRoutingTable> verifier) {
-        var clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest().routingTable(true)).actionGet();
+        var clusterStateResponse = clusterAdmin().state(new ClusterStateRequest().routingTable(true)).actionGet();
         var indexRoutingTable = clusterStateResponse.getState().getRoutingTable().index(index);
         for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
             verifier.accept(indexRoutingTable.shard(shardId));
@@ -559,7 +548,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
@@ -570,9 +559,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         // it snapshots and that will write a new segments.X+1 file
         logger.info("-->  creating repository");
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("fs")
                 .setSettings(
                     Settings.builder()
@@ -582,9 +569,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 )
         );
         logger.info("--> snapshot");
-        final CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
             .setIndices("test")
             .get();
@@ -630,7 +615,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
@@ -646,7 +631,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         final Index index = resolveIndex("test");
 
-        final IndicesShardStoresResponse stores = client().admin().indices().prepareShardStores(index.getName()).get();
+        final IndicesShardStoresResponse stores = indicesAdmin().prepareShardStores(index.getName()).get();
 
         for (Map.Entry<Integer, List<IndicesShardStoresResponse.StoreStatus>> shards : stores.getStoreStatuses()
             .get(index.getName())
@@ -671,7 +656,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     private int numShards(String... index) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         GroupShardsIterator<?> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(index, false);
         return shardIterators.size();
     }
@@ -698,7 +683,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     private ShardRouting corruptRandomPrimaryFile(final boolean includePerCommitFiles) throws IOException {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         Index test = state.metadata().index("test").getIndex();
         GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
             .activePrimaryShardsGrouped(new String[] { "test" }, false);
@@ -709,7 +694,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertTrue(shardRouting.primary());
         assertTrue(shardRouting.assignedToNode());
         String nodeId = shardRouting.currentNodeId();
-        NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
+        NodesStatsResponse nodeStatses = clusterAdmin().prepareNodesStats(nodeId).setFs(true).get();
         Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
         for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {
             String path = info.getPath();
@@ -753,8 +738,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {
-        NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        NodesStatsResponse nodeStatses = clusterAdmin().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         final Index test = state.metadata().index("test").getIndex();
         assertThat(routing.toString(), nodeStatses.getNodes().size(), equalTo(1));
         List<Path> files = new ArrayList<>();
@@ -773,7 +758,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     private List<DiscoveryNode> getShuffledDataNodes() {
-        var response = client().admin().cluster().prepareNodesStats().get();
+        var response = clusterAdmin().prepareNodesStats().get();
         return response.getNodes()
             .stream()
             .map(BaseNodeResponse::getNode)

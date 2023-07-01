@@ -1,0 +1,114 @@
+---
+Test log message JSON-parsing pipeline:
+  - do:
+      ingest.put_pipeline:
+        # opting in to use the JSON parsing pipeline for message field
+        id: "logs@custom"
+        body:  >
+          {
+            "processors": [
+              {
+                "pipeline" : {
+                  "name": "logs@json-message",
+                  "description": "A pipeline that automatically parses JSON log events into top-level fields if they are such"
+                }
+              }
+            ]
+          }
+
+  - do:
+      indices.create_data_stream:
+        name: logs-generic-default
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index: logs-generic-default
+        refresh: true
+        body:
+          '@timestamp': '2023-05-10'
+          message: |-
+            {
+              "@timestamp":"2023-05-09T16:48:34.135Z",
+              "message":"json",
+              "log.level": "INFO",
+              "ecs.version": "1.6.0",
+              "service.name":"my-app",
+              "event.dataset":"my-app.RollingFile",
+              "process.thread.name":"main",
+              "log.logger":"root.pkg.MyApp"
+            }
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              message:
+                value: 'json'
+          fields:
+            - field: 'message'
+  - length: { hits.hits: 1 }
+    # root field parsed from JSON should win
+  - match: { hits.hits.0._source.@timestamp: '2023-05-09T16:48:34.135Z' }
+  - match: { hits.hits.0._source.message: 'json' }
+  - match: { hits.hits.0.fields.message.0: 'json' }
+    # successful access to subfields verifies that dot expansion is part of the pipeline
+  - match: { hits.hits.0._source.log.level: 'INFO' }
+  - match: { hits.hits.0._source.ecs.version: '1.6.0' }
+  - match: { hits.hits.0._source.service.name: 'my-app' }
+  - match: { hits.hits.0._source.event.dataset: 'my-app.RollingFile' }
+  - match: { hits.hits.0._source.process.thread.name: 'main' }
+  - match: { hits.hits.0._source.log.logger: 'root.pkg.MyApp' }
+    # _tmp_json_message should be removed by the pipeline
+  - match: { hits.hits.0._source._tmp_json_message: null }
+
+  # test malformed-JSON parsing - parsing error should be ignored and the document should be indexed with original message
+  - do:
+      index:
+        index: logs-generic-default
+        refresh: true
+        body:
+          '@timestamp': '2023-05-10'
+          test: 'malformed_json'
+          message: '{"@timestamp":"2023-05-09T16:48:34.135Z", "message":"malformed_json"}}'
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              test:
+                value: 'malformed_json'
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.@timestamp: '2023-05-10' }
+  - match: { hits.hits.0._source.message: '{"@timestamp":"2023-05-09T16:48:34.135Z", "message":"malformed_json"}}' }
+  - match: { hits.hits.0._source._tmp_json_message: null }
+
+  # test non-string message field
+  - do:
+      index:
+        index: logs-generic-default
+        refresh: true
+        body:
+          test: 'numeric_message'
+          message: 42
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              test:
+                value: 'numeric_message'
+          fields:
+            - field: 'message'
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.message: 42 }
+  - match: { hits.hits.0.fields.message.0: '42' }

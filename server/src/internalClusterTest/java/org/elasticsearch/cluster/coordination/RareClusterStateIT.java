@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -25,7 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -47,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -73,13 +71,11 @@ public class RareClusterStateIT extends ESIntegTestCase {
     public void testAssignmentWithJustAddedNodes() {
         internalCluster().startNode(Settings.builder().put(TransportSettings.CONNECT_TIMEOUT.getKey(), "1s"));
         final String index = "index";
-        prepareCreate(index).setSettings(
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-        ).get();
+        prepareCreate(index).setSettings(indexSettings(1, 0)).get();
         ensureGreen(index);
 
         // close to have some unassigned started shards shards..
-        client().admin().indices().prepareClose(index).get();
+        indicesAdmin().prepareClose(index).get();
 
         final String masterName = internalCluster().getMasterName();
         final ClusterService clusterService = internalCluster().clusterService(masterName);
@@ -90,8 +86,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(
-                    DiscoveryNodes.builder(currentState.nodes())
-                        .add(new DiscoveryNode("_non_existent", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT))
+                    DiscoveryNodes.builder(currentState.nodes()).add(DiscoveryNodeUtils.builder("_non_existent").roles(emptySet()).build())
                 );
 
                 // open index
@@ -185,7 +180,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
     public void testDeleteCreateInOneBulk() throws Exception {
         internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen("test");
 
@@ -197,7 +192,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         refresh();
         disruption.startDisrupting();
         logger.info("--> delete index");
-        executeAndCancelCommittedPublication(client().admin().indices().prepareDelete("test").setTimeout("0s")).get(10, TimeUnit.SECONDS);
+        executeAndCancelCommittedPublication(indicesAdmin().prepareDelete("test").setTimeout("0s")).get(10, TimeUnit.SECONDS);
         logger.info("--> and recreate it");
         executeAndCancelCommittedPublication(
             prepareCreate("test").setSettings(
@@ -229,7 +224,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // operation yet
 
         final List<String> nodeNames = internalCluster().startNodes(2);
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
         final String master = internalCluster().getMasterName();
         assertThat(nodeNames, hasItem(master));
@@ -243,18 +238,11 @@ public class RareClusterStateIT extends ESIntegTestCase {
         assertNotNull(otherNode);
 
         // Don't allocate the shard on the master node
-        assertAcked(
-            prepareCreate("index").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.routing.allocation.exclude._name", master)
-            ).get()
-        );
+        assertAcked(prepareCreate("index").setSettings(indexSettings(1, 0).put("index.routing.allocation.exclude._name", master)).get());
         ensureGreen();
 
         // Check routing tables
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         assertEquals(master, state.nodes().getMasterNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(1));
@@ -274,12 +262,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Add a new mapping...
         ActionFuture<AcknowledgedResponse> putMappingResponse = executeAndCancelCommittedPublication(
-            client().admin().indices().preparePutMapping("index").setSource("field", "type=long")
+            indicesAdmin().preparePutMapping("index").setSource("field", "type=long")
         );
 
         // ...and wait for mappings to be available on master
         assertBusy(() -> {
-            MappingMetadata typeMappings = client().admin().indices().prepareGetMappings("index").get().getMappings().get("index");
+            MappingMetadata typeMappings = indicesAdmin().prepareGetMappings("index").get().getMappings().get("index");
             assertNotNull(typeMappings);
             Object properties;
             try {
@@ -318,7 +306,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // are needed for a document are not available on the replica at the
         // time of indexing it
         final List<String> nodeNames = internalCluster().startNodes(2);
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
         final String master = internalCluster().getMasterName();
         assertThat(nodeNames, hasItem(master));
@@ -333,17 +321,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Force allocation of the primary on the master node by first only allocating on the master
         // and then allowing all nodes so that the replica gets allocated on the other node
-        prepareCreate("index").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.routing.allocation.include._name", master)
-        ).get();
+        prepareCreate("index").setSettings(indexSettings(1, 1).put("index.routing.allocation.include._name", master)).get();
         updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", ""), "index");
         ensureGreen();
 
         // Check routing tables
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         assertEquals(master, state.nodes().getMasterNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(2));
@@ -361,7 +344,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruption);
         disruption.startDisrupting();
         final ActionFuture<AcknowledgedResponse> putMappingResponse = executeAndCancelCommittedPublication(
-            client().admin().indices().preparePutMapping("index").setSource("field", "type=long")
+            indicesAdmin().preparePutMapping("index").setSource("field", "type=long")
         );
 
         final Index index = resolveIndex("index");

@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.internal.Client;
@@ -57,7 +58,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
@@ -304,7 +305,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        builder.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // Let cluster state api return quickly in order to speed up auto follow tests:
         builder.put(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
         if (leaderCluster) {
@@ -823,62 +824,43 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
     }
 
-    protected ActionListener<RestoreService.RestoreCompletionResponse> waitForRestore(
-        final ClusterService clusterService,
-        final ActionListener<RestoreInfo> listener
+    protected PlainActionFuture<RestoreInfo> startRestore(
+        ClusterService clusterService,
+        RestoreService restoreService,
+        RestoreSnapshotRequest restoreSnapshotRequest
     ) {
-        return new ActionListener<RestoreService.RestoreCompletionResponse>() {
+        final var future = new PlainActionFuture<RestoreInfo>();
+        restoreService.restoreSnapshot(restoreSnapshotRequest, future.delegateFailure((delegate, restoreCompletionResponse) -> {
+            assertNull(restoreCompletionResponse.getRestoreInfo());
+            // this would only be non-null if the restore was a no-op, but that would be a test bug
+            final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
+            final String uuid = restoreCompletionResponse.getUuid();
+            final ClusterStateListener clusterStateListener = new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent changedEvent) {
+                    final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), uuid);
+                    final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), uuid);
 
-            @Override
-            public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
-                if (restoreCompletionResponse.getRestoreInfo() == null) {
-                    final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
-                    final String uuid = restoreCompletionResponse.getUuid();
-
-                    final ClusterStateListener clusterStateListener = new ClusterStateListener() {
-
-                        @Override
-                        public void clusterChanged(ClusterChangedEvent changedEvent) {
-                            final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), uuid);
-                            final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), uuid);
-                            if (prevEntry == null) {
-                                /*
-                                 * When there is a master failure after a restore has been started, this listener might not be registered
-                                 * on the current master and as such it might miss some intermediary cluster states due to batching.
-                                 * Clean up the listener in that case and acknowledge completion of restore operation to client.
-                                 */
-                                clusterService.removeListener(this);
-                                listener.onResponse(null);
-                            } else if (newEntry == null) {
-                                clusterService.removeListener(this);
-                                Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
-                                RestoreInfo ri = new RestoreInfo(
-                                    prevEntry.snapshot().getSnapshotId().getName(),
-                                    prevEntry.indices(),
-                                    shards.size(),
-                                    shards.size() - RestoreService.failedShards(shards)
-                                );
-                                logger.debug("restore of [{}] completed", snapshot);
-                                listener.onResponse(ri);
-                            } else {
-                                // restore not completed yet, wait for next cluster state update
-                            }
-                        }
-
-                    };
-
-                    clusterService.addListener(clusterStateListener);
-                } else {
-                    listener.onResponse(restoreCompletionResponse.getRestoreInfo());
+                    assertNotNull(prevEntry);
+                    // prevEntry could be null if there was a master failover and (due to batching) we missed the cluster state update
+                    // that completed the restore, but that doesn't happen in these tests
+                    if (newEntry == null) {
+                        clusterService.removeListener(this);
+                        Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
+                        RestoreInfo ri = new RestoreInfo(
+                            prevEntry.snapshot().getSnapshotId().getName(),
+                            prevEntry.indices(),
+                            shards.size(),
+                            shards.size() - RestoreService.failedShards(shards)
+                        );
+                        logger.debug("restore of [{}] completed", snapshot);
+                        delegate.onResponse(ri);
+                    } // else restore not completed yet, wait for next cluster state update
                 }
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                listener.onFailure(t);
-            }
-
-        };
+            };
+            clusterService.addListener(clusterStateListener);
+        }));
+        return future;
     }
 
     static void removeCCRRelatedMetadataFromClusterState(ClusterService clusterService) throws Exception {

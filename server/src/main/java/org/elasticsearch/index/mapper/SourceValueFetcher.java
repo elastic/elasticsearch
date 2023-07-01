@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
 import java.util.ArrayDeque;
@@ -91,6 +92,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
             }
         }
         return values;
+    }
+
+    @Override
+    public StoredFieldsSpec storedFieldsSpec() {
+        return StoredFieldsSpec.NEEDS_SOURCE;
     }
 
     /**

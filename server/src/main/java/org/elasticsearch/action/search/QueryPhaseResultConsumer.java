@@ -20,11 +20,13 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankCoordinatorContext;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -57,6 +59,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final CircuitBreaker circuitBreaker;
     private final SearchProgressListener progressListener;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
+    private final RankCoordinatorContext rankCoordinatorContext;
 
     private final int topNSize;
     private final boolean hasTopDocs;
@@ -84,14 +87,19 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.executor = executor;
         this.circuitBreaker = circuitBreaker;
         this.progressListener = progressListener;
-        this.aggReduceContextBuilder = controller.getReduceContext(isCanceled, request);
         this.topNSize = getTopDocsSize(request);
         this.performFinalReduce = request.isFinalReduce();
         this.onPartialMergeFailure = onPartialMergeFailure;
 
         SearchSourceBuilder source = request.source();
-        this.hasTopDocs = source == null || source.size() != 0;
+        int size = source == null || source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
+        int from = source == null || source.from() == -1 ? SearchService.DEFAULT_FROM : source.from();
+        this.rankCoordinatorContext = source == null || source.rankBuilder() == null
+            ? null
+            : source.rankBuilder().buildRankCoordinatorContext(size, from);
+        this.hasTopDocs = (source == null || size != 0) && rankCoordinatorContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
+        this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
     }
@@ -135,6 +143,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             pendingMerges.numReducePhases,
             false,
             aggReduceContextBuilder,
+            rankCoordinatorContext,
             performFinalReduce
         );
         if (hasAggs

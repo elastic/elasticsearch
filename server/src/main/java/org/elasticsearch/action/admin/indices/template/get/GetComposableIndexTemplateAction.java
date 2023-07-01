@@ -12,10 +12,9 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -59,7 +58,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
                 includeDefaults = in.readBoolean();
             } else {
                 includeDefaults = false;
@@ -70,7 +69,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(name);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
                 out.writeBoolean(includeDefaults);
             }
         }
@@ -119,26 +118,26 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
 
         private final Map<String, ComposableIndexTemplate> indexTemplates;
-        private final RolloverConditions rolloverConditions;
+        private final RolloverConfiguration rolloverConfiguration;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            indexTemplates = in.readMap(StreamInput::readString, ComposableIndexTemplate::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-                rolloverConditions = in.readOptionalWriteable(RolloverConditions::new);
+            indexTemplates = in.readMap(ComposableIndexTemplate::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+                rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
             } else {
-                rolloverConditions = null;
+                rolloverConfiguration = null;
             }
         }
 
         public Response(Map<String, ComposableIndexTemplate> indexTemplates) {
             this.indexTemplates = indexTemplates;
-            this.rolloverConditions = null;
+            this.rolloverConfiguration = null;
         }
 
-        public Response(Map<String, ComposableIndexTemplate> indexTemplates, RolloverConditions rolloverConditions) {
+        public Response(Map<String, ComposableIndexTemplate> indexTemplates, RolloverConfiguration rolloverConfiguration) {
             this.indexTemplates = indexTemplates;
-            this.rolloverConditions = rolloverConditions;
+            this.rolloverConfiguration = rolloverConfiguration;
         }
 
         public Map<String, ComposableIndexTemplate> indexTemplates() {
@@ -148,8 +147,8 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(indexTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-                out.writeOptionalWriteable(rolloverConditions);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+                out.writeOptionalWriteable(rolloverConfiguration);
             }
         }
 
@@ -158,12 +157,12 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             GetComposableIndexTemplateAction.Response that = (GetComposableIndexTemplateAction.Response) o;
-            return Objects.equals(indexTemplates, that.indexTemplates) && Objects.equals(rolloverConditions, that.rolloverConditions);
+            return Objects.equals(indexTemplates, that.indexTemplates) && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexTemplates, rolloverConditions);
+            return Objects.hash(indexTemplates, rolloverConfiguration);
         }
 
         @Override
@@ -174,7 +173,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
                 builder.field(INDEX_TEMPLATE.getPreferredName());
-                indexTemplate.getValue().toXContent(builder, params, rolloverConditions);
+                indexTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();

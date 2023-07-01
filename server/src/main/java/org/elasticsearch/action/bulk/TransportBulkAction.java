@@ -11,7 +11,6 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -48,6 +47,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -175,17 +175,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
         final ActionListener<Response> listener
     ) {
-        return ActionListener.wrap(bulkItemResponses -> {
+        return listener.delegateFailureAndWrap((l, bulkItemResponses) -> {
             assert bulkItemResponses.getItems().length == 1 : "expected exactly one item in bulk response";
             final BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];
             if (bulkItemResponse.isFailed() == false) {
                 @SuppressWarnings("unchecked")
                 final Response response = (Response) bulkItemResponse.getResponse();
-                listener.onResponse(response);
+                l.onResponse(response);
             } else {
-                listener.onFailure(bulkItemResponse.getFailure().getCause());
+                l.onFailure(bulkItemResponse.getFailure().getCause());
             }
-        }, listener::onFailure);
+        });
     }
 
     @Override

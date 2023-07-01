@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
@@ -40,6 +41,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
 
         @Nullable
         private PutComposableIndexTemplateAction.Request indexTemplateRequest;
+        private boolean includeDefaults = false;
 
         public Request() {}
 
@@ -61,6 +63,9 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             super(in);
             templateName = in.readOptionalString();
             indexTemplateRequest = in.readOptionalWriteable(PutComposableIndexTemplateAction.Request::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+                includeDefaults = in.readBoolean();
+            }
         }
 
         @Override
@@ -68,6 +73,9 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             super.writeTo(out);
             out.writeOptionalString(templateName);
             out.writeOptionalWriteable(indexTemplateRequest);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+                out.writeBoolean(includeDefaults);
+            }
         }
 
         @Override
@@ -90,6 +98,10 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             return templateName;
         }
 
+        public boolean includeDefaults() {
+            return includeDefaults;
+        }
+
         @Nullable
         public PutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
             return indexTemplateRequest;
@@ -105,6 +117,11 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             return this;
         }
 
+        public Request includeDefaults(boolean includeDefaults) {
+            this.includeDefaults = includeDefaults;
+            return this;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -114,12 +131,14 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
                 return false;
             }
             Request that = (Request) o;
-            return templateName.equals(that.templateName) && Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
+            return templateName.equals(that.templateName)
+                && Objects.equals(indexTemplateRequest, that.indexTemplateRequest)
+                && includeDefaults == that.includeDefaults;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(templateName, indexTemplateRequest);
+            return Objects.hash(templateName, indexTemplateRequest, includeDefaults);
         }
     }
 }

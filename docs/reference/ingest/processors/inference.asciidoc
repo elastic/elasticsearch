@@ -15,11 +15,11 @@ ingested in the pipeline.
 .{infer-cap} Options
 [options="header"]
 |======
-| Name               | Required  | Default                        | Description
-| `model_id`         | yes       | -                              | (String) The ID or alias for the trained model.
-| `target_field`     | no        | `ml.inference.<processor_tag>` | (String) Field added to incoming documents to contain results objects.
-| `field_map`        | no        | If defined the model's default field map | (Object) Maps the document field names to the known field names of the model. This mapping takes precedence over any default mappings provided in the model configuration.
-| `inference_config` | no        | The default settings defined in the model  | (Object) Contains the inference type and its options.
+| Name                                  | Required  | Default                        | Description
+| `model_id` .                          | yes       | -                              | (String) The ID or alias for the trained model, or the ID of the deployment.
+| `target_field`                        | no        | `ml.inference.<processor_tag>` | (String) Field added to incoming documents to contain results objects.
+| `field_map`                           | no        | If defined the model's default field map | (Object) Maps the document field names to the known field names of the model. This mapping takes precedence over any default mappings provided in the model configuration.
+| `inference_config`                    | no        | The default settings defined in the model  | (Object) Contains the inference type and its options.
 include::common-options.asciidoc[]
 |======
 
@@ -28,7 +28,7 @@ include::common-options.asciidoc[]
 --------------------------------------------------
 {
   "inference": {
-    "model_id": "flight_delay_regression-1571767128603",
+    "model_id": "model_deployment_for_inference",
     "target_field": "FlightDelayMin_prediction_infer",
     "field_map": {
       "your_field": "my_field"
@@ -384,6 +384,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 [discrete]
 [[inference-processor-config-example]]
 ==== {infer-cap} processor examples
+
 [source,js]
 --------------------------------------------------
 "inference":{

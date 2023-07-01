@@ -14,6 +14,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -255,7 +257,7 @@ public class GatewayMetaState implements Closeable {
         assert transportService.getLocalNode() != null : "transport service is not yet started";
         return Function.<ClusterState>identity()
             .andThen(ClusterStateUpdaters::addStateNotRecoveredBlock)
-            .andThen(state -> ClusterStateUpdaters.setLocalNode(state, transportService.getLocalNode()))
+            .andThen(state -> ClusterStateUpdaters.setLocalNode(state, transportService.getLocalNode(), TransportVersion.current()))
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(clusterState);
@@ -276,10 +278,7 @@ public class GatewayMetaState implements Closeable {
         boolean changed = false;
         final Metadata.Builder upgradedMetadata = Metadata.builder(metadata);
         for (IndexMetadata indexMetadata : metadata) {
-            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(
-                indexMetadata,
-                Version.CURRENT.minimumIndexCompatibilityVersion()
-            );
+            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(indexMetadata, IndexVersion.MINIMUM_COMPATIBLE);
             changed |= indexMetadata != newMetadata;
             upgradedMetadata.put(newMetadata, false);
         }
@@ -502,6 +501,12 @@ public class GatewayMetaState implements Closeable {
             // this is true if there's only one data path on this master node, and the commit we just loaded was already written out
             // by this version of Elasticsearch. TODO TBD should we avoid indexing when possible?
             final PersistedClusterStateService.Writer writer = persistedClusterStateService.createWriter();
+            maybeWriteInitialState(currentTerm, lastAcceptedState, writer);
+            persistenceWriter.set(writer);
+        }
+
+        protected void maybeWriteInitialState(long currentTerm, ClusterState lastAcceptedState, PersistedClusterStateService.Writer writer)
+            throws IOException {
             try {
                 writer.writeFullStateAndCommit(currentTerm, lastAcceptedState);
             } catch (Exception e) {
@@ -512,7 +517,6 @@ public class GatewayMetaState implements Closeable {
                 }
                 throw e;
             }
-            persistenceWriter.set(writer);
         }
 
         @Override
@@ -527,15 +531,23 @@ public class GatewayMetaState implements Closeable {
 
         @Override
         public void setCurrentTerm(long currentTerm) {
+            writeCurrentTermToDisk(currentTerm);
+            this.currentTerm = currentTerm;
+        }
+
+        protected void writeCurrentTermToDisk(long currentTerm) {
             try {
                 if (writeNextStateFully) {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, lastAcceptedState);
                 } else {
                     writeNextStateFully = true; // in case of failure; this flag is cleared on success
+                    Metadata metadata = lastAcceptedState.metadata();
                     getWriterSafe().writeIncrementalTermUpdateAndCommit(
                         currentTerm,
                         lastAcceptedState.version(),
-                        lastAcceptedState.metadata().oldestIndexVersion()
+                        metadata.oldestIndexVersion(),
+                        metadata.clusterUUID(),
+                        metadata.clusterUUIDCommitted()
                     );
                 }
             } catch (IOException e) {
@@ -543,11 +555,15 @@ public class GatewayMetaState implements Closeable {
             }
 
             writeNextStateFully = false;
-            this.currentTerm = currentTerm;
         }
 
         @Override
         public void setLastAcceptedState(ClusterState clusterState) {
+            writeClusterStateToDisk(clusterState);
+            lastAcceptedState = clusterState;
+        }
+
+        protected void writeClusterStateToDisk(ClusterState clusterState) {
             try {
                 if (writeNextStateFully) {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, clusterState);
@@ -566,9 +582,7 @@ public class GatewayMetaState implements Closeable {
             } catch (IOException e) {
                 throw new ElasticsearchException(e);
             }
-
             writeNextStateFully = false;
-            lastAcceptedState = clusterState;
         }
 
         private PersistedClusterStateService.Writer getWriterSafe() {

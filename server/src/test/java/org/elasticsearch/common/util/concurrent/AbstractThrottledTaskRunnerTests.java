@@ -82,7 +82,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         final var threadBlocker = new CyclicBarrier(totalTasks);
         for (int i = 0; i < totalTasks; i++) {
             new Thread(() -> {
-                CyclicBarrierUtils.await(threadBlocker);
+                safeAwait(threadBlocker);
                 taskRunner.enqueueTask(new TestTask());
                 assertThat(taskRunner.runningTasks(), lessThanOrEqualTo(maxTasks));
             }).start();
@@ -201,9 +201,9 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
     private void assertNoRunningTasks(AbstractThrottledTaskRunner<?> taskRunner) {
         final var barrier = new CyclicBarrier(maxThreads + 1);
         for (int i = 0; i < maxThreads; i++) {
-            executor.execute(() -> CyclicBarrierUtils.await(barrier));
+            executor.execute(() -> safeAwait(barrier));
         }
-        CyclicBarrierUtils.await(barrier);
+        safeAwait(barrier);
         assertThat(taskRunner.runningTasks(), equalTo(0));
     }
 

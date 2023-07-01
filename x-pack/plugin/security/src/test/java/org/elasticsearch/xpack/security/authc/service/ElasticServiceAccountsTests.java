@@ -208,6 +208,20 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
         });
 
+        final IndexAbstraction profilingIndex = mockIndexAbstraction("profiling-" + randomAlphaOfLengthBetween(1, 20));
+        assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(profilingIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(profilingIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(profilingIndex), is(false));
+
         List.of("synthetics-" + randomAlphaOfLengthBetween(1, 20)).stream().map(this::mockIndexAbstraction).forEach(index -> {
             assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(index), is(true));
@@ -376,6 +390,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
         List.of(
             "search-" + randomAlphaOfLengthBetween(1, 20),
+            ".search-acl-filter-" + randomAlphaOfLengthBetween(1, 20),
             ".elastic-analytics-collections",
             ".ent-search-" + randomAlphaOfLengthBetween(1, 20),
             ".monitoring-ent-search-" + randomAlphaOfLengthBetween(1, 20),

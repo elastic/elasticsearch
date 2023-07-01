@@ -1,0 +1,20 @@
+[[delete-desired-balance]]
+=== Reset desired balance API
+++++
+<titleabbrev>Reset desired balance</titleabbrev>
+++++
+
+NOTE: {cloud-only}
+
+Resets the desired balance and starts a new computation from the current allocation.
+This API may be used if desired balance computation diverged from the current state
+and is trying to move too many shards.
+
+[[delete-desired-balance-request]]
+==== {api-request-title}
+
+[source,console]
+--------------------------------------------------
+DELETE /_internal/desired_balance
+--------------------------------------------------
+// TEST[skip:Can't reliably test desired balance]

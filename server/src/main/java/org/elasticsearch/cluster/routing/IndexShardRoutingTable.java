@@ -477,7 +477,7 @@ public class IndexShardRoutingTable {
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
         if (shardId.equals(that.shardId) == false) return false;
-        return Arrays.equals(shards, that.shards) != false;
+        return Arrays.equals(shards, that.shards);
     }
 
     @Override

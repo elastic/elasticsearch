@@ -1,0 +1,55 @@
+{
+  "indices.put_data_lifecycle":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams-put-lifecycle.html",
+      "description":"Updates the data lifecycle of the selected data streams."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path":"/_data_stream/{name}/_lifecycle",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "name":{
+              "type":"list",
+              "description":"A comma-separated list of data streams whose lifecycle will be updated; use `*` to set the lifecycle to all data streams"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default":"open",
+        "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+      },
+      "timeout":{
+        "type":"time",
+        "description":"Explicit timestamp for the document"
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Specify timeout for connection to master"
+      }
+    },
+    "body":{
+      "description":"The data lifecycle configuration that consist of the data retention",
+      "required":false
+    }
+  }
+}

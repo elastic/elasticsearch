@@ -16,16 +16,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
@@ -34,8 +32,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
@@ -44,7 +40,6 @@ import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.C
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityIntegTestCase {
 
@@ -104,7 +99,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
 
         try (var ignored = threadContext.stashContext()) {
-            final var internalUser = randomValueOtherThan(SystemUser.INSTANCE, AuthenticationTestHelper::randomInternalUser);
+            final var internalUser = randomValueOtherThan(InternalUsers.SYSTEM_USER, AuthenticationTestHelper::randomInternalUser);
             new CrossClusterAccessHeaders(
                 encodedCrossClusterAccessApiKey,
                 new CrossClusterAccessSubjectInfo(
@@ -122,34 +117,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
 
         try (var ignored = threadContext.stashContext()) {
-            new CrossClusterAccessHeaders(
-                encodedCrossClusterAccessApiKey,
-                AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
-                    new RoleDescriptorsIntersection(
-                        randomValueOtherThanMany(
-                            rd -> false == (rd.hasClusterPrivileges()
-                                || rd.hasApplicationPrivileges()
-                                || rd.hasConfigurableClusterPrivileges()
-                                || rd.hasRunAs()
-                                || rd.hasRemoteIndicesPrivileges()),
-                            () -> RoleDescriptorTests.randomRoleDescriptor()
-                        )
-                    )
-                )
-            ).writeToContext(threadContext);
-            authenticateAndAssertExpectedErrorMessage(
-                service,
-                msg -> assertThat(
-                    msg,
-                    containsString(
-                        "role descriptor for cross cluster access can only contain index privileges but other privileges found for subject"
-                    )
-                )
-            );
-        }
-
-        try (var ignored = threadContext.stashContext()) {
-            Authentication authentication = AuthenticationTestHelper.builder().apiKey().build();
+            Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
             new CrossClusterAccessHeaders(
                 encodedCrossClusterAccessApiKey,
                 new CrossClusterAccessSubjectInfo(authentication, RoleDescriptorsIntersection.EMPTY)
@@ -164,55 +132,17 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                             + authentication.getEffectiveSubject().getUser().principal()
                             + "] has type ["
                             + authentication.getEffectiveSubject().getType()
-                            + "] which is not supported for cross cluster access"
+                            + "] but nested cross cluster access is not supported"
                     )
                 )
             );
         }
     }
 
-    public void testSystemUserIsMappedToCrossClusterInternalRole() throws InterruptedException, IOException, ExecutionException {
-        final String nodeName = internalCluster().getRandomNodeName();
-        final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
-        final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
-            CrossClusterAccessAuthenticationService.class,
-            nodeName
-        );
-
-        try (var ignored = threadContext.stashContext()) {
-            new CrossClusterAccessHeaders(
-                getEncodedCrossClusterAccessApiKey(),
-                new CrossClusterAccessSubjectInfo(
-                    AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build(),
-                    new RoleDescriptorsIntersection(new RoleDescriptor("role", null, null, null, null, null, null, null))
-                )
-            ).writeToContext(threadContext);
-
-            final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-            service.authenticate(ClusterStateAction.NAME, new SearchRequest(), future);
-            final Authentication actualAuthentication = future.get();
-
-            assertNotNull(actualAuthentication);
-            final var innerAuthentication = (Authentication) actualAuthentication.getAuthenticatingSubject()
-                .getMetadata()
-                .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
-            assertThat(innerAuthentication.getEffectiveSubject().getUser(), is(SystemUser.INSTANCE));
-            @SuppressWarnings("unchecked")
-            List<CrossClusterAccessSubjectInfo.RoleDescriptorsBytes> rds = (List<
-                CrossClusterAccessSubjectInfo.RoleDescriptorsBytes>) actualAuthentication.getAuthenticatingSubject()
-                    .getMetadata()
-                    .get(AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY);
-            assertThat(rds.size(), equalTo(1));
-            assertThat(
-                rds.get(0).toRoleDescriptors(),
-                equalTo(Set.of(CrossClusterAccessAuthenticationService.CROSS_CLUSTER_INTERNAL_ROLE))
-            );
-        }
-    }
-
-    private String getEncodedCrossClusterAccessApiKey() {
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client().admin().cluster()).setName("cross_cluster_access_key")
-            .get();
+    private String getEncodedCrossClusterAccessApiKey() throws IOException {
+        final CreateCrossClusterApiKeyRequest request = CreateCrossClusterApiKeyRequest.withNameAndAccess("cross_cluster_access_key", """
+            {"search": [{"names": ["*"]}]}""");
+        final CreateApiKeyResponse response = client().execute(CreateCrossClusterApiKeyAction.INSTANCE, request).actionGet();
         return ApiKeyService.withApiKeyPrefix(
             Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8))
         );

@@ -1,4 +1,4 @@
-import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BwcVersions
@@ -33,6 +33,9 @@ BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ex
     if (unreleasedVersion) {
       // For unreleased snapshot versions, build them from source
       "oldJar${baseName}"(files(project(unreleasedVersion.gradleProjectPath).tasks.named(buildBwcTaskName(project.name))))
+    } else if(bwcVersion.onOrAfter('8.7.0') && project.name.endsWith("elasticsearch-logging")==false) {
+      //there was a package rename in 8.7.0, except for es-logging
+      "oldJar${baseName}"("org.elasticsearch.plugin:${project.name}:${bwcVersion}")
     } else {
       // For released versions, download it
       "oldJar${baseName}"("org.elasticsearch:${project.name}:${bwcVersion}")
@@ -45,8 +48,8 @@ BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ex
   }
 
   jarApiComparisonTask.configure {
-    onlyIf {
-      !Os.isFamily(Os.FAMILY_WINDOWS)
+    onlyIf("OS != windows") {
+      OS.current() != OS.WINDOWS
     }
   }
 }

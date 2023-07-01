@@ -29,6 +29,8 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -46,13 +48,16 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -62,17 +67,23 @@ import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverFiel
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
+import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -216,7 +227,23 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         user = new User("user", "role");
         userDashIndices = new User("dash", "dash");
         userNoIndices = new User("test", "test");
-        rolesStore = mock(CompositeRolesStore.class);
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        rolesStore = Mockito.spy(
+            new CompositeRolesStore(
+                settings,
+                mock(RoleProviders.class),
+                mock(NativePrivilegeStore.class),
+                new ThreadContext(settings),
+                MockLicenseState.createMock(),
+                fieldPermissionsCache,
+                mock(ApiKeyService.class),
+                mock(ServiceAccountService.class),
+                new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class)),
+                RESTRICTED_INDICES,
+                rds -> {},
+                new WorkflowService()
+            )
+        );
         String[] authorizedIndices = new String[] {
             "bar",
             "bar-closed",
@@ -321,7 +348,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 null
             )
         );
-        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[1];
@@ -352,23 +378,18 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             User user = ((Subject) i.getArguments()[0]).getUser();
             @SuppressWarnings("unchecked")
             ActionListener<Role> listener = (ActionListener<Role>) i.getArguments()[1];
-            if (XPackUser.is(user)) {
-                listener.onResponse(Role.buildFromRoleDescriptor(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES));
-                return Void.TYPE;
+            if (user instanceof InternalUser internalUser) {
+                if (internalUser.getLocalClusterRoleDescriptor().isPresent()) {
+                    listener.onResponse(
+                        Role.buildFromRoleDescriptor(
+                            internalUser.getLocalClusterRoleDescriptor().get(),
+                            fieldPermissionsCache,
+                            RESTRICTED_INDICES
+                        )
+                    );
+                    return Void.TYPE;
+                }
             }
-            if (XPackSecurityUser.is(user)) {
-                listener.onResponse(
-                    Role.buildFromRoleDescriptor(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES)
-                );
-                return Void.TYPE;
-            }
-            if (AsyncSearchUser.is(user)) {
-                listener.onResponse(
-                    Role.buildFromRoleDescriptor(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES)
-                );
-                return Void.TYPE;
-            }
-
             i.callRealMethod();
             return Void.TYPE;
         }).when(rolesStore).getRole(any(Subject.class), anyActionListener());
@@ -1560,14 +1581,17 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testXPackSecurityUserHasAccessToSecurityIndex() {
         SearchRequest request = new SearchRequest();
         {
-            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, SearchAction.NAME);
+            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(InternalUsers.XPACK_SECURITY_USER, SearchAction.NAME);
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
             assertThat(indices, hasItem(SECURITY_MAIN_ALIAS));
         }
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
             aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_MAIN_ALIAS));
-            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, IndicesAliasesAction.NAME);
+            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(
+                InternalUsers.XPACK_SECURITY_USER,
+                IndicesAliasesAction.NAME
+            );
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
             assertThat(indices, hasItem(SECURITY_MAIN_ALIAS));
         }
@@ -1575,7 +1599,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testXPackUserDoesNotHaveAccessToSecurityIndex() {
         SearchRequest request = new SearchRequest();
-        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackUser.INSTANCE, SearchAction.NAME);
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(InternalUsers.XPACK_USER, SearchAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         assertThat(indices, not(hasItem(SECURITY_MAIN_ALIAS)));
     }
@@ -2290,6 +2314,52 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(resolvedIndices.getLocal(), contains(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
     }
 
+    public void testResolveSearchShardRequestAgainstDataStream() {
+        {
+            final User user = new User("data-stream-tester1", "data_stream_test1");
+            final SearchShardsRequest request = new SearchShardsRequest(
+                new String[] { "logs-*" },
+                IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true),
+                null,
+                null,
+                null,
+                randomBoolean(),
+                null
+            );
+            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, SearchShardsAction.NAME, request);
+            final ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+                SearchShardsAction.NAME,
+                request,
+                metadata,
+                authorizedIndices
+            );
+            assertThat(resolvedIndices.getLocal(), contains("logs-foobar"));
+            assertThat(resolvedIndices.getRemote(), emptyIterable());
+        }
+        {
+            final User user = new User("data-stream-tester2", "data_stream_test2");
+            // Resolve *all* data streams:
+            final SearchShardsRequest request = new SearchShardsRequest(
+                new String[] { "logs-*" },
+                IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true),
+                null,
+                null,
+                null,
+                randomBoolean(),
+                null
+            );
+            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME, request);
+            final ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+                SearchShardsAction.NAME,
+                request,
+                metadata,
+                authorizedIndices
+            );
+            assertThat(resolvedIndices.getLocal(), containsInAnyOrder("logs-foo", "logs-foobar"));
+            assertThat(resolvedIndices.getRemote(), emptyIterable());
+        }
+    }
+
     private AuthorizedIndices buildAuthorizedIndices(User user, String action) {
         return buildAuthorizedIndices(user, action, TransportRequest.Empty.INSTANCE);
     }
@@ -2307,8 +2377,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public static IndexMetadata.Builder indexBuilder(String index) {
-        return IndexMetadata.builder(index)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        return IndexMetadata.builder(index).settings(indexSettings(1, 0));
     }
 
     private ResolvedIndices resolveIndices(TransportRequest request, AuthorizedIndices authorizedIndices) {

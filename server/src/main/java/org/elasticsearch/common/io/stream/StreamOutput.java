@@ -28,8 +28,10 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigInteger;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetTime;
+import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
@@ -59,7 +61,7 @@ import static java.util.Map.entry;
  */
 public abstract class StreamOutput extends OutputStream {
 
-    private TransportVersion version = TransportVersion.CURRENT;
+    private TransportVersion version = TransportVersion.current();
 
     /**
      * The transport version to serialize the data as.
@@ -767,6 +769,19 @@ public abstract class StreamOutput extends OutputStream {
             final OffsetTime offsetTime = (OffsetTime) v;
             o.writeString(offsetTime.getOffset().getId());
             o.writeLong(offsetTime.toLocalTime().toNanoOfDay());
+        }),
+        entry(Duration.class, (o, v) -> {
+            o.writeByte((byte) 28);
+            final Duration duration = (Duration) v;
+            o.writeLong(duration.getSeconds());
+            o.writeLong(duration.getNano());
+        }),
+        entry(Period.class, (o, v) -> {
+            o.writeByte((byte) 29);
+            final Period period = (Period) v;
+            o.writeInt(period.getYears());
+            o.writeInt(period.getMonths());
+            o.writeInt(period.getDays());
         })
     );
 

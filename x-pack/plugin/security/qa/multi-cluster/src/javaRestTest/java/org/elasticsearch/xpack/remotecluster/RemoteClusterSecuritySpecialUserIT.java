@@ -16,6 +16,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -23,6 +24,8 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -31,6 +34,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSecurityTestCase {
+
+    private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
+    private static final AtomicReference<TestClusterConfigProviders> CLIENT_AUTH_CONFIG_PROVIDERS = new AtomicReference<>(
+        EMPTY_CONFIG_PROVIDERS
+    );
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -41,9 +49,11 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
+            .setting("xpack.security.remote_cluster_server.ssl.certificate_authorities", "remote-cluster-client-ca.crt")
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
+            .apply(() -> CLIENT_AUTH_CONFIG_PROVIDERS.get().server())
             .build();
 
         queryCluster = ElasticsearchCluster.local()
@@ -54,22 +64,49 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .user(REMOTE_SEARCH_USER, PASS.toString(), "read_remote_shared_metrics")
+            .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
+                if (API_KEY_MAP_REF.get() == null) {
+                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
+                        {
+                            "search": [
+                              {
+                                "names": ["shared-*", "apm-1", ".security*"],
+                                "allow_restricted_indices": true
+                              }
+                            ]
+                        }""");
+                    API_KEY_MAP_REF.set(apiKeyMap);
+                }
+                return (String) API_KEY_MAP_REF.get().get("encoded");
+            })
+            .apply(() -> CLIENT_AUTH_CONFIG_PROVIDERS.get().client())
             .build();
+    }
+
+    // Randomly enable client authentication for remote cluster connection
+    public static void randomClientAuthenticationConfig() {
+        if (randomBoolean()) {
+            CLIENT_AUTH_CONFIG_PROVIDERS.set(
+                new TestClusterConfigProviders(
+                    cluster -> cluster.setting("xpack.security.remote_cluster_server.ssl.client_authentication", "required")
+                        .setting("xpack.security.remote_cluster_server.ssl.certificate_authorities", "remote-cluster-client-ca.crt"),
+                    cluster -> cluster.setting("xpack.security.remote_cluster_client.ssl.key", "remote-cluster-client.key")
+                        .setting("xpack.security.remote_cluster_client.ssl.certificate", "remote-cluster-client.crt")
+                        .keystore("xpack.security.remote_cluster_client.ssl.secure_key_passphrase", "remote-cluster-client-password")
+                )
+            );
+        }
     }
 
     @ClassRule
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
-    public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
+    public static TestRule clusterRule = RuleChain.outerRule(
+        new RunnableTestRuleAdapter(RemoteClusterSecuritySpecialUserIT::randomClientAuthenticationConfig)
+    ).around(fulfillingCluster).around(queryCluster);
 
     public void testAnonymousUserFromQueryClusterWorks() throws Exception {
-        final String crossClusterAccessApiKeyId = configureRemoteClustersWithApiKey("""
-            [
-               {
-                 "names": ["shared-*", "apm-1", ".security*"],
-                 "privileges": ["read", "read_cross_cluster"],
-                 "allow_restricted_indices": true
-               }
-             ]""");
+        configureRemoteCluster();
+        final String crossClusterAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
 
         // Fulfilling cluster
         {
@@ -88,7 +125,8 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 { "index": { "_index": "apm-2" } }
                 { "name": "apm-2" }
                 { "index": { "_index": "logs-apm.1" } }
-                { "name": "logs-apm.1" }\n"""));
+                { "name": "logs-apm.1" }
+                """));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 

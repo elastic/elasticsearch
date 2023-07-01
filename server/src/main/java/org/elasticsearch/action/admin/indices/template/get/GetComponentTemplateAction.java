@@ -12,10 +12,9 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -58,7 +57,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
                 includeDefaults = in.readBoolean();
             } else {
                 includeDefaults = false;
@@ -69,7 +68,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(name);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
                 out.writeBoolean(includeDefaults);
             }
         }
@@ -117,26 +116,26 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
 
         private final Map<String, ComponentTemplate> componentTemplates;
         @Nullable
-        private final RolloverConditions rolloverConditions;
+        private final RolloverConfiguration rolloverConfiguration;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            componentTemplates = in.readMap(StreamInput::readString, ComponentTemplate::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-                rolloverConditions = in.readOptionalWriteable(RolloverConditions::new);
+            componentTemplates = in.readMap(ComponentTemplate::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+                rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
             } else {
-                rolloverConditions = null;
+                rolloverConfiguration = null;
             }
         }
 
         public Response(Map<String, ComponentTemplate> componentTemplates) {
             this.componentTemplates = componentTemplates;
-            this.rolloverConditions = null;
+            this.rolloverConfiguration = null;
         }
 
-        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable RolloverConditions rolloverConditions) {
+        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable RolloverConfiguration rolloverConfiguration) {
             this.componentTemplates = componentTemplates;
-            this.rolloverConditions = rolloverConditions;
+            this.rolloverConfiguration = rolloverConfiguration;
         }
 
         public Map<String, ComponentTemplate> getComponentTemplates() {
@@ -146,8 +145,8 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(componentTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-                out.writeOptionalWriteable(rolloverConditions);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+                out.writeOptionalWriteable(rolloverConfiguration);
             }
         }
 
@@ -157,12 +156,12 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
             return Objects.equals(componentTemplates, that.componentTemplates)
-                && Objects.equals(rolloverConditions, that.rolloverConditions);
+                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(componentTemplates, rolloverConditions);
+            return Objects.hash(componentTemplates, rolloverConfiguration);
         }
 
         @Override
@@ -173,7 +172,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), componentTemplate.getKey());
                 builder.field(COMPONENT_TEMPLATE.getPreferredName());
-                componentTemplate.getValue().toXContent(builder, params, rolloverConditions);
+                componentTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();

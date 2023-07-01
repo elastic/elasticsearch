@@ -29,9 +29,14 @@
           "description": "describes a single issue",
           "additionalProperties": false,
           "required": [
+            "type",
             "issue"
           ],
           "properties": {
+            "type": {
+              "type": "string",
+              "description": "unique issue type"
+            },
             "issue": {
               "type": "string",
               "description": "single issue description"

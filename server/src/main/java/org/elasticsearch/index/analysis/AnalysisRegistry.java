@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -91,7 +92,7 @@ public final class AnalysisRegistry implements Closeable {
     private static Settings getSettingsFromIndexSettings(IndexSettings indexSettings, String groupName) {
         Settings settings = indexSettings.getSettings().getAsSettings(groupName);
         if (settings.isEmpty()) {
-            settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexSettings.getIndexVersionCreated()).build();
+            settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexSettings.getIndexVersionCreated().id()).build();
         }
         return settings;
     }
@@ -451,7 +452,9 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, ? extends AnalysisModule.AnalysisProvider<T>> providerMap,
         Map<String, ? extends AnalysisModule.AnalysisProvider<T>> defaultInstance
     ) throws IOException {
-        Settings defaultSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, settings.getIndexVersionCreated()).build();
+        Settings defaultSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, settings.getIndexVersionCreated().id())
+            .build();
         Map<String, T> factories = new HashMap<>();
         for (Map.Entry<String, Settings> entry : settingsMap.entrySet()) {
             String name = entry.getKey();
@@ -606,7 +609,9 @@ public final class AnalysisRegistry implements Closeable {
                     charFilterFactoryFactories,
                     tokenizerFactoryFactories
                 ),
-                (k, v) -> { throw new IllegalStateException("already registered analyzer with name: " + entry.getKey()); }
+                (k, v) -> {
+                    throw new IllegalStateException("already registered analyzer with name: " + entry.getKey());
+                }
             );
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
@@ -649,6 +654,10 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("no default analyzer configured");
         }
         defaultAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
+        assert Objects.equals(defaultAnalyzer.name(), DEFAULT_ANALYZER_NAME);
+        if (Objects.equals(defaultAnalyzer.name(), DEFAULT_ANALYZER_NAME) == false) {
+            throw new IllegalStateException("default analyzer must have the name [default] but was: [" + defaultAnalyzer.name() + "]");
+        }
 
         if (analyzers.containsKey("default_index")) {
             throw new IllegalArgumentException(
@@ -664,7 +673,7 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
+        return IndexAnalyzers.of(analyzers, normalizers, whitespaceNormalizers);
     }
 
     private static NamedAnalyzer produceAnalyzer(

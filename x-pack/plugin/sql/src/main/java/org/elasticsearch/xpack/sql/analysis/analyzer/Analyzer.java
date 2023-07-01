@@ -755,9 +755,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             if (plan instanceof Project p) {
-                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (p.child() instanceof Filter f) {
-                    // end::noformat
                     Expression condition = f.condition();
                     if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, p.projections());
@@ -769,9 +767,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (plan instanceof Aggregate a) {
-                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (a.child() instanceof Filter f) {
-                    // end::noformat
                     Expression condition = f.condition();
                     if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, a.aggregates());
@@ -926,9 +922,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(Filter f) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (f.child() instanceof Project p) {
-                // end::noformat
                 for (Expression n : p.projections()) {
                     if (n instanceof Alias) {
                         n = ((Alias) n).child();
@@ -969,9 +963,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(Filter f, AnalyzerContext context) {
             // HAVING = Filter followed by an Agg
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (f.child() instanceof Aggregate agg && agg.resolved()) {
-                // end::noformat
                 Set<NamedExpression> missing = null;
                 Expression condition = f.condition();
 
@@ -1146,9 +1138,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (plan.child() instanceof SubQueryAlias a) {
-                // end::noformat
                 return plan.transformExpressionsDown(FieldAttribute.class, f -> {
                     if (f.qualifier() != null && f.qualifier().equals(a.alias())) {
                         // Find the underlying concrete relation (EsIndex) and its name as the new qualifier

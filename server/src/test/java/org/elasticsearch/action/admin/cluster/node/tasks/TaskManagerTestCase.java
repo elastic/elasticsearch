@@ -9,7 +9,6 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
@@ -22,6 +21,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -154,8 +154,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 new ActionFilters(new HashSet<>()),
                 request,
                 nodeRequest,
-                ThreadPool.Names.GENERIC,
-                NodeResponse.class
+                ThreadPool.Names.GENERIC
             );
         }
 
@@ -176,7 +175,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
             final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction = address -> {
-                discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
+                discoveryNode.set(DiscoveryNodeUtils.create(name, address.publishAddress(), emptyMap(), emptySet()));
                 return discoveryNode.get();
             };
             TaskManager taskManager;
@@ -189,7 +188,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 settings,
                 new Netty4Transport(
                     settings,
-                    TransportVersion.CURRENT,
+                    TransportVersion.current(),
                     threadPool,
                     new NetworkService(Collections.emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,

@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -53,9 +54,8 @@ public class OriginSettingClientTests extends ESTestCase {
     }
 
     private <T> ActionListener<T> listenerThatAssertsOriginNotSet(ThreadContext threadContext) {
-        return ActionListener.wrap(
-            r -> { assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME)); },
-            e -> { fail("didn't expect to fail but: " + e); }
+        return ActionTestUtils.assertNoFailureListener(
+            r -> assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME))
         );
     }
 }

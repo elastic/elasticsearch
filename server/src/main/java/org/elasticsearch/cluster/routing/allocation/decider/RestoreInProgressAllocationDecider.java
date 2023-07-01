@@ -39,7 +39,7 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "not an API-level restore");
         }
 
-        final RestoreInProgress restoresInProgress = allocation.custom(RestoreInProgress.TYPE);
+        final RestoreInProgress restoresInProgress = allocation.getClusterState().custom(RestoreInProgress.TYPE);
 
         if (restoresInProgress != null) {
             RestoreInProgress.Entry restoreInProgress = restoresInProgress.get(source.restoreUUID());

@@ -45,6 +45,8 @@ public class TransformState implements Task.Status, PersistentTaskState {
     private NodeAttributes node;
 
     private final boolean shouldStopAtNextCheckpoint;
+    @Nullable
+    private final AuthorizationState authState;
 
     public static final ParseField TASK_STATE = new ParseField("task_state");
     public static final ParseField INDEXER_STATE = new ParseField("indexer_state");
@@ -57,6 +59,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
     public static final ParseField PROGRESS = new ParseField("progress");
     public static final ParseField NODE = new ParseField("node");
     public static final ParseField SHOULD_STOP_AT_NEXT_CHECKPOINT = new ParseField("should_stop_at_checkpoint");
+    public static final ParseField AUTH_STATE = new ParseField("auth_state");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<TransformState, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
@@ -75,6 +78,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
         TransformProgress progress = (TransformProgress) args[6];
         NodeAttributes node = (NodeAttributes) args[7];
         boolean shouldStopAtNextCheckpoint = args[8] == null ? false : (boolean) args[8];
+        AuthorizationState authState = (AuthorizationState) args[9];
 
         return new TransformState(
             taskState,
@@ -84,7 +88,8 @@ public class TransformState implements Task.Status, PersistentTaskState {
             reason,
             progress,
             node,
-            shouldStopAtNextCheckpoint
+            shouldStopAtNextCheckpoint,
+            authState
         );
     });
 
@@ -98,6 +103,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
         PARSER.declareField(optionalConstructorArg(), TransformProgress.PARSER::apply, PROGRESS, ValueType.OBJECT);
         PARSER.declareField(optionalConstructorArg(), NodeAttributes.PARSER::apply, NODE, ValueType.OBJECT);
         PARSER.declareBoolean(optionalConstructorArg(), SHOULD_STOP_AT_NEXT_CHECKPOINT);
+        PARSER.declareField(optionalConstructorArg(), AuthorizationState.PARSER::apply, AUTH_STATE, ValueType.OBJECT);
     }
 
     public TransformState(
@@ -108,7 +114,8 @@ public class TransformState implements Task.Status, PersistentTaskState {
         @Nullable String reason,
         @Nullable TransformProgress progress,
         @Nullable NodeAttributes node,
-        boolean shouldStopAtNextCheckpoint
+        boolean shouldStopAtNextCheckpoint,
+        @Nullable AuthorizationState authState
     ) {
         this.taskState = taskState;
         this.indexerState = indexerState;
@@ -118,29 +125,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
         this.progress = progress;
         this.node = node;
         this.shouldStopAtNextCheckpoint = shouldStopAtNextCheckpoint;
-    }
-
-    public TransformState(
-        TransformTaskState taskState,
-        IndexerState indexerState,
-        @Nullable TransformIndexerPosition position,
-        long checkpoint,
-        @Nullable String reason,
-        @Nullable TransformProgress progress,
-        @Nullable NodeAttributes node
-    ) {
-        this(taskState, indexerState, position, checkpoint, reason, progress, node, false);
-    }
-
-    public TransformState(
-        TransformTaskState taskState,
-        IndexerState indexerState,
-        @Nullable TransformIndexerPosition position,
-        long checkpoint,
-        @Nullable String reason,
-        @Nullable TransformProgress progress
-    ) {
-        this(taskState, indexerState, position, checkpoint, reason, progress, null);
+        this.authState = authState;
     }
 
     public TransformState(StreamInput in) throws IOException {
@@ -164,6 +149,11 @@ public class TransformState implements Task.Status, PersistentTaskState {
             shouldStopAtNextCheckpoint = in.readBoolean();
         } else {
             shouldStopAtNextCheckpoint = false;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            authState = in.readOptionalWriteable(AuthorizationState::new);
+        } else {
+            authState = null;
         }
     }
 
@@ -204,6 +194,10 @@ public class TransformState implements Task.Status, PersistentTaskState {
         return shouldStopAtNextCheckpoint;
     }
 
+    public AuthorizationState getAuthState() {
+        return authState;
+    }
+
     public static TransformState fromXContent(XContentParser parser) {
         try {
             return PARSER.parse(parser, null);
@@ -231,6 +225,9 @@ public class TransformState implements Task.Status, PersistentTaskState {
             builder.field(NODE.getPreferredName(), node);
         }
         builder.field(SHOULD_STOP_AT_NEXT_CHECKPOINT.getPreferredName(), shouldStopAtNextCheckpoint);
+        if (authState != null) {
+            builder.field(AUTH_STATE.getPreferredName(), authState);
+        }
         builder.endObject();
         return builder;
     }
@@ -258,6 +255,9 @@ public class TransformState implements Task.Status, PersistentTaskState {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             out.writeBoolean(shouldStopAtNextCheckpoint);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeOptionalWriteable(authState);
+        }
     }
 
     @Override
@@ -279,12 +279,13 @@ public class TransformState implements Task.Status, PersistentTaskState {
             && Objects.equals(this.reason, that.reason)
             && Objects.equals(this.progress, that.progress)
             && Objects.equals(this.shouldStopAtNextCheckpoint, that.shouldStopAtNextCheckpoint)
-            && Objects.equals(this.node, that.node);
+            && Objects.equals(this.node, that.node)
+            && Objects.equals(this.authState, that.authState);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskState, indexerState, position, checkpoint, reason, progress, node, shouldStopAtNextCheckpoint);
+        return Objects.hash(taskState, indexerState, position, checkpoint, reason, progress, node, shouldStopAtNextCheckpoint, authState);
     }
 
     @Override

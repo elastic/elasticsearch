@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -90,21 +89,17 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node2).setNewDelegate(listener);
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node3).setNewDelegate(listener);
 
-        client().admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            .get();
+        createIndex("test", 3, 1);
         ensureGreen("test");
         assertThat("beforeIndexAddedToCluster called only once", beforeAddedCount.get(), equalTo(1));
         assertThat("beforeIndexCreated called on each data node", allCreatedCount.get(), greaterThanOrEqualTo(3));
 
         try {
-            client().admin().indices().prepareCreate("failed").setSettings(Settings.builder().put("index.fail", true)).get();
+            indicesAdmin().prepareCreate("failed").setSettings(Settings.builder().put("index.fail", true)).get();
             fail("should have thrown an exception during creation");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
-            ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+            ClusterStateResponse resp = clusterAdmin().prepareState().get();
             assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
     }
@@ -115,11 +110,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
      */
     public void testIndexShardFailedOnRelocation() {
         String node1 = internalCluster().startNode();
-        client().admin()
-            .indices()
-            .prepareCreate("index1")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-            .get();
+        createIndex("index1", 1, 0);
         ensureGreen("index1");
         String node2 = internalCluster().startNode();
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node2)
@@ -129,9 +120,9 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
                     throw new RuntimeException("FAIL");
                 }
             });
-        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("index1", 0, node1, node2)).get();
+        clusterAdmin().prepareReroute().add(new MoveAllocationCommand("index1", 0, node1, node2)).get();
         ensureGreen("index1");
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         List<ShardRouting> shard = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         assertThat(shard, hasSize(1));
         assertThat(state.nodes().resolveNode(shard.get(0).currentNodeId()).getName(), Matchers.equalTo(node1));
@@ -139,11 +130,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
     public void testRelocationFailureNotRetriedForever() {
         String node1 = internalCluster().startNode();
-        client().admin()
-            .indices()
-            .prepareCreate("index1")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-            .get();
+        createIndex("index1", 1, 0);
         ensureGreen("index1");
         for (int i = 0; i < 2; i++) {
             internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, internalCluster().startNode())
@@ -167,25 +154,18 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
         // create an index that should fail
         try {
-            client().admin()
-                .indices()
-                .prepareCreate("failed")
+            indicesAdmin().prepareCreate("failed")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put("index.fail", true))
                 .get();
             fail("should have thrown an exception");
         } catch (ElasticsearchException e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
-            ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+            ClusterStateResponse resp = clusterAdmin().prepareState().get();
             assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
 
         // create an index
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 6).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        createIndex("test", 6, 0);
         ensureGreen();
         assertThat(stateChangeListenerNode1.creationSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
         assertThat(stateChangeListenerNode1.creationSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(0));
@@ -220,7 +200,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         assertShardStatesMatch(stateChangeListenerNode2, 3, CREATED, RECOVERING, POST_RECOVERY, STARTED);
 
         // close the index
-        assertAcked(client().admin().indices().prepareClose("test"));
+        assertAcked(indicesAdmin().prepareClose("test"));
 
         assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
         assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(1));

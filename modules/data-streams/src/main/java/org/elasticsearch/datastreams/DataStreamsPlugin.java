@@ -46,6 +46,7 @@ import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -117,7 +118,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         var service = new UpdateTimeSeriesRangeService(environment.settings(), threadPool, clusterService);
         this.service.set(service);

@@ -11,6 +11,8 @@ import de.thetaphi.forbiddenapis.cli.CliMain;
 
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.OS;
+import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.ArchiveOperations;
@@ -55,12 +57,13 @@ import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
+import static org.gradle.api.JavaVersion.VERSION_20;
+import static org.gradle.api.JavaVersion.VERSION_21;
+
 @CacheableTask
 public abstract class ThirdPartyAuditTask extends DefaultTask {
 
-    private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile(
-        "WARNING: Class '(.*)' cannot be loaded \\(.*\\)\\. Please fix the classpath!"
-    );
+    private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile("DEBUG: Class '(.*)' cannot be loaded \\(.*\\)\\.");
 
     private static final Pattern VIOLATION_PATTERN = Pattern.compile("\\s\\sin ([a-zA-Z0-9$.]+) \\(.*\\)");
     private static final int SIG_KILL_EXIT_VALUE = 137;
@@ -335,9 +338,13 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.classpath(getForbiddenAPIsClasspath(), classpath);
+            // Enable explicitly for each release as appropriate. Just JDK 20/21 for now, and just the vector module.
+            if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21)) {
+                spec.jvmArgs("--add-modules", "jdk.incubator.vector");
+            }
             spec.jvmArgs("-Xmx1g");
             spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
-            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--allowmissingclasses");
+            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--debug", "--allowmissingclasses");
             spec.setErrorOutput(errorOut);
             if (getLogger().isInfoEnabled() == false) {
                 spec.setStandardOutput(new NullOutputStream());
@@ -355,6 +362,18 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             throw new IllegalStateException("Forbidden APIs cli failed: " + forbiddenApisOutput);
         }
         return forbiddenApisOutput;
+    }
+
+    /** Returns true iff the build Java version is the same as the given version. */
+    private boolean isJavaVersion(JavaVersion version) {
+        if (BuildParams.getIsRuntimeJavaHomeSet()) {
+            if (version.equals(BuildParams.getRuntimeJavaVersion())) {
+                return true;
+            }
+        } else if (version.getMajorVersion().equals(VersionProperties.getBundledJdkMajorVersion())) {
+            return true;
+        }
+        return false;
     }
 
     private Set<String> runJdkJarHellCheck() throws IOException {

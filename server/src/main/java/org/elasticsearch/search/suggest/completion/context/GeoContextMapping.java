@@ -15,12 +15,12 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -176,7 +176,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         final Set<String> geohashes = new HashSet<>();
 
         if (fieldName != null) {
-            IndexableField[] fields = document.getFields(fieldName);
+            List<IndexableField> fields = document.getFields(fieldName);
             GeoPoint spare = new GeoPoint();
             for (IndexableField field : fields) {
                 if (field instanceof StringField) {
@@ -267,11 +267,11 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     }
 
     @Override
-    public void validateReferences(Version indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
+    public void validateReferences(IndexVersion indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
         if (fieldName != null) {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {
-                if (indexVersionCreated.before(Version.V_7_0_0)) {
+                if (indexVersionCreated.before(IndexVersion.V_7_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.MAPPINGS,
                         "geo_context_mapping",
@@ -287,7 +287,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     );
                 }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
-                if (indexVersionCreated.before(Version.V_7_0_0)) {
+                if (indexVersionCreated.before(IndexVersion.V_7_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.MAPPINGS,
                         "geo_context_mapping",

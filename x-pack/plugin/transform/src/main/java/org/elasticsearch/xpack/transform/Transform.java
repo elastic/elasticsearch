@@ -37,6 +37,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -240,7 +241,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(
             clusterService,
@@ -248,7 +250,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             client,
             xContentRegistry
         );
-        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService);
+        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService, includeNodeInfo());
         Clock clock = Clock.systemUTC();
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
@@ -436,5 +438,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public String getFeatureDescription() {
         return "Manages configuration and state for transforms";
+    }
+
+    public boolean includeNodeInfo() {
+        return true;
     }
 }

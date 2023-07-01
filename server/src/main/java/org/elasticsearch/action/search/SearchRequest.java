@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -86,6 +87,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private int batchedReduceSize = DEFAULT_BATCHED_REDUCE_SIZE;
 
     private int maxConcurrentShardRequests = 0;
+    public static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 5;
 
     private Integer preFilterShardSize;
 
@@ -267,7 +269,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             minCompatibleShardNode = null;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-            waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
+            waitForCheckpoints = in.readMap(StreamInput::readLongArray);
             waitForCheckpointsTimeout = in.readTimeValue();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
@@ -358,8 +360,62 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             }
         }
         if (source != null) {
+            if (source.subSearches().size() >= 2 && source.rankBuilder() == null) {
+                validationException = addValidationError("[sub_searches] requires [rank]", validationException);
+            }
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
+            }
+            if (source.rankBuilder() != null) {
+                int size = source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
+                if (size == 0) {
+                    validationException = addValidationError("[rank] requires [size] greater than [0]", validationException);
+                }
+                if (size > source.rankBuilder().windowSize()) {
+                    validationException = addValidationError(
+                        "[rank] requires [window_size: "
+                            + source.rankBuilder().windowSize()
+                            + "]"
+                            + " be greater than or equal to [size: "
+                            + size
+                            + "]",
+                        validationException
+                    );
+                }
+                int queryCount = source.subSearches().size() + source.knnSearch().size();
+                if (queryCount < 2) {
+                    validationException = addValidationError(
+                        "[rank] requires a minimum of [2] result sets using a combination of sub searches and/or knn searches",
+                        validationException
+                    );
+                }
+                if (scroll) {
+                    validationException = addValidationError("[rank] cannot be used in a scroll context", validationException);
+                }
+                if (source.rescores() != null && source.rescores().isEmpty() == false) {
+                    validationException = addValidationError("[rank] cannot be used with [rescore]", validationException);
+                }
+                if (source.sorts() != null && source.sorts().isEmpty() == false) {
+                    validationException = addValidationError("[rank] cannot be used with [sort]", validationException);
+                }
+                if (source.collapse() != null) {
+                    validationException = addValidationError("[rank] cannot be used with [collapse]", validationException);
+                }
+                if (source.suggest() != null && source.suggest().getSuggestions().isEmpty() == false) {
+                    validationException = addValidationError("[rank] cannot be used with [suggest]", validationException);
+                }
+                if (source.highlighter() != null) {
+                    validationException = addValidationError("[rank] cannot be used with [highlighter]", validationException);
+                }
+                if (source.pointInTimeBuilder() != null) {
+                    validationException = addValidationError("[rank] cannot be used with [point in time]", validationException);
+                }
+                if (source.profile()) {
+                    validationException = addValidationError("[rank] requires [profile] is [false]", validationException);
+                }
+                if (source.explain() != null && source.explain()) {
+                    validationException = addValidationError("[rank] requires [explain] is [false]", validationException);
+                }
             }
         }
         if (pointInTimeBuilder() != null) {
@@ -661,7 +717,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * cluster can be throttled with this number to reduce the cluster load. The default is {@code 5}
      */
     public int getMaxConcurrentShardRequests() {
-        return maxConcurrentShardRequests == 0 ? 5 : maxConcurrentShardRequests;
+        return maxConcurrentShardRequests == 0 ? DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : maxConcurrentShardRequests;
     }
 
     /**

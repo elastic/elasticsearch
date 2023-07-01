@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -40,6 +41,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
             .put(XPackSettings.GRAPH_ENABLED.getKey(), false)
             .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
+            .put(XPackSettings.PROFILING_ENABLED.getKey(), false)
             .build();
     }
 
@@ -54,40 +56,40 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testStoreAndGetLicenses() throws Exception {
-        ClusterStateLicenseService clusterStateLicenseService = getInstanceFromNode(ClusterStateLicenseService.class);
+        MutableLicenseService licenseService = getInstanceFromNode(MutableLicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueHours(1));
-        TestUtils.registerAndAckSignedLicenses(clusterStateLicenseService, goldLicense, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
         License silverLicense = TestUtils.generateSignedLicense("silver", TimeValue.timeValueHours(2));
-        TestUtils.registerAndAckSignedLicenses(clusterStateLicenseService, silverLicense, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, silverLicense, LicensesStatus.VALID);
         License platinumLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueHours(1));
-        TestUtils.registerAndAckSignedLicenses(clusterStateLicenseService, platinumLicense, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
         LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
         assertThat(licensesMetadata.getLicense(), equalTo(platinumLicense));
-        final License getLicenses = clusterStateLicenseService.getLicense();
+        final License getLicenses = licenseService.getLicense();
         assertThat(getLicenses, equalTo(platinumLicense));
     }
 
     // TODO: Add test/feature blocking the registration of basic license
 
     public void testEffectiveLicenses() throws Exception {
-        final ClusterStateLicenseService clusterStateLicenseService = getInstanceFromNode(ClusterStateLicenseService.class);
+        final ClusterStateLicenseService licenseService = (ClusterStateLicenseService) getInstanceFromNode(MutableLicenseService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueSeconds(5));
         // put gold license
-        TestUtils.registerAndAckSignedLicenses(clusterStateLicenseService, goldLicense, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
         LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
-        assertThat(ClusterStateLicenseService.getLicense(licensesMetadata), equalTo(goldLicense));
+        assertThat(licenseService.getLicenseFromLicensesMetadata(licensesMetadata), equalTo(goldLicense));
 
         License platinumLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueSeconds(3));
         // put platinum license
-        TestUtils.registerAndAckSignedLicenses(clusterStateLicenseService, platinumLicense, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
         licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
-        assertThat(ClusterStateLicenseService.getLicense(licensesMetadata), equalTo(platinumLicense));
+        assertThat(licenseService.getLicenseFromLicensesMetadata(licensesMetadata), equalTo(platinumLicense));
     }
 
     public void testInvalidLicenseStorage() throws Exception {
-        ClusterStateLicenseService clusterStateLicenseService = getInstanceFromNode(ClusterStateLicenseService.class);
+        MutableLicenseService licenseService = getInstanceFromNode(MutableLicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueMinutes(2));
 
@@ -98,7 +100,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
             .validate()
             .build();
 
-        TestUtils.registerAndAckSignedLicenses(clusterStateLicenseService, tamperedLicense, LicensesStatus.INVALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, tamperedLicense, LicensesStatus.INVALID);
 
         // ensure that the invalid license never made it to cluster state
         LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
@@ -106,25 +108,25 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveLicenses() throws Exception {
-        ClusterStateLicenseService clusterStateLicenseService = getInstanceFromNode(ClusterStateLicenseService.class);
+        MutableLicenseService licenseService = getInstanceFromNode(MutableLicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
         // generate signed licenses
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1));
-        TestUtils.registerAndAckSignedLicenses(clusterStateLicenseService, license, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, license, LicensesStatus.VALID);
         LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
         assertThat(licensesMetadata.getLicense(), not(LicensesMetadata.LICENSE_TOMBSTONE));
 
         // remove signed licenses
-        removeAndAckSignedLicenses(clusterStateLicenseService);
+        removeAndAckSignedLicenses(licenseService);
         licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
         assertTrue(License.LicenseType.isBasic(licensesMetadata.getLicense().type()));
     }
 
-    private void removeAndAckSignedLicenses(final ClusterStateLicenseService clusterStateLicenseService) {
+    private void removeAndAckSignedLicenses(final MutableLicenseService licenseService) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean(false);
-        clusterStateLicenseService.removeLicense(new ActionListener<PostStartBasicResponse>() {
+        licenseService.removeLicense(new ActionListener<PostStartBasicResponse>() {
             @Override
             public void onResponse(PostStartBasicResponse postStartBasicResponse) {
                 if (postStartBasicResponse.isAcknowledged()) {

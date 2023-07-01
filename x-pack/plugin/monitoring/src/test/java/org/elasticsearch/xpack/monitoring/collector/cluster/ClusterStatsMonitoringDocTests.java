@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.cluster.stats.MappingStats;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.VersionStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterSnapshotStats;
@@ -32,6 +31,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -42,6 +42,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -251,7 +253,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
                     randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
                     singleton(randomValueOtherThan(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()))),
-                    Version.CURRENT
+                    null
                 )
             );
         }
@@ -280,7 +282,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             transportAddress,
             singletonMap("attr", "value"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT,
+            null,
             "_external_id"
         );
 
@@ -371,7 +373,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final FsInfo mockFsInfo = mock(FsInfo.class);
         when(mockNodeStats.getFs()).thenReturn(mockFsInfo);
-        when(mockFsInfo.getTotal()).thenReturn(new FsInfo.Path("_fs_path", "_fs_mount", 100L, 49L, 51L));
+        when(mockFsInfo.iterator()).thenReturn(Iterators.single(new FsInfo.Path("_fs_path", "_fs_mount", 100L, 49L, 51L)));
 
         final OsStats mockOsStats = mock(OsStats.class);
         when(mockNodeStats.getOs()).thenReturn(mockOsStats);
@@ -407,7 +409,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final ShardStats mockShardStats = mock(ShardStats.class);
         when(mockShardStats.getShardRouting()).thenReturn(shardRouting);
-        when(mockShardStats.getStats()).thenReturn(new CommonStats(CommonStatsFlags.ALL));
+        CommonStats commonStats = mock(CommonStats.class);
+        when(commonStats.getFieldData()).thenReturn(new FieldDataStats(1, 0, null, new FieldDataStats.GlobalOrdinalsStats(1, null)));
+        when(mockShardStats.getStats()).thenReturn(commonStats);
 
         final ClusterStatsNodeResponse mockNodeResponse = mock(ClusterStatsNodeResponse.class);
         when(mockNodeResponse.clusterStatus()).thenReturn(ClusterHealthStatus.RED);
@@ -453,6 +457,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             mockNodeVersion,
             Version.CURRENT,
             Version.CURRENT,
+            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersion.current(),
             apmIndicesExist };
         final String expectedJson = Strings.format("""
             {
@@ -523,8 +529,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "reserved_in_bytes": 0
                   },
                   "fielddata": {
-                    "memory_size_in_bytes": 0,
-                    "evictions": 0
+                    "memory_size_in_bytes": 1,
+                    "evictions": 0,
+                    "global_ordinals":{"build_time_in_millis":1}
                   },
                   "query_cache": {
                     "memory_size_in_bytes": 0,
@@ -752,9 +759,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "roles": [
                       "master"
                     ],
-                    "version": "%s"
+                    "version": "%s",
+                    "min_index_version":%s,
+                    "max_index_version":%s
                   }
-                }
+                },
+                "transport_versions": []
               },
               "cluster_settings": {
                 "cluster": {
@@ -789,7 +799,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             singletonMap("attr", "value"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            null
         );
     }
 

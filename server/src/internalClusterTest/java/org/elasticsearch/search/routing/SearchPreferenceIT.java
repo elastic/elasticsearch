@@ -52,18 +52,14 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
     // see #2896
     public void testStopOneNodePreferenceWithRedState() throws IOException {
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put("index.number_of_shards", cluster().numDataNodes() + 2).put("index.number_of_replicas", 0)
-            )
-        );
+        assertAcked(prepareCreate("test").setSettings(indexSettings(cluster().numDataNodes() + 2, 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
         }
         refresh();
         internalCluster().stopRandomDataNode();
-        client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
+        clusterAdmin().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
         String[] preferences = new String[] {
             "_local",
             "_prefer_nodes:somenode",
@@ -110,7 +106,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     }
 
     public void testSimplePreference() {
-        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
+        indicesAdmin().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "value1").get();
@@ -160,7 +156,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         ArrayList<String> allNodeIds = new ArrayList<>();
         ArrayList<String> allNodeNames = new ArrayList<>();
         ArrayList<String> allNodeHosts = new ArrayList<>();
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().get();
         for (NodeStats node : nodeStats.getNodes()) {
             allNodeIds.add(node.getNode().getId());
             allNodeNames.add(node.getNode().getName());
@@ -258,7 +254,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 
-        assertAcked(client().admin().indices().prepareDelete("test2"));
+        assertAcked(indicesAdmin().prepareDelete("test2"));
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
     }

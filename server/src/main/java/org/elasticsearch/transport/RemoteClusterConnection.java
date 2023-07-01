@@ -57,11 +57,14 @@ final class RemoteClusterConnection implements Closeable {
      * @param settings the nodes settings object
      * @param clusterAlias the configured alias of the cluster to connect to
      * @param transportService the local nodes transport service
+     * @param credentialsProtected Whether the remote cluster is protected by a credentials, i.e. it has a credentials configured
+     *                             via secure setting. This means the remote cluster uses the new configurable access RCS model
+     *                             (as opposed to the basic model).
      */
-    RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService) {
+    RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService, boolean credentialsProtected) {
         this.transportService = transportService;
         this.clusterAlias = clusterAlias;
-        ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings);
+        ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings, credentialsProtected);
         this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, createConnectionManager(profile, transportService));
         this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
@@ -157,7 +160,7 @@ final class RemoteClusterConnection implements Closeable {
             // we can't proceed with a search on a cluster level.
             // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the
             // caller end since they provide the listener.
-            ensureConnected(ActionListener.wrap((x) -> runnable.run(), listener::onFailure));
+            ensureConnected(listener.delegateFailureAndWrap((l, x) -> runnable.run()));
         } catch (Exception ex) {
             listener.onFailure(ex);
         }

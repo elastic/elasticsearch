@@ -105,8 +105,16 @@ public class IpPrefixAutomatonUtil {
                         ipv6Automaton = concatenate(ipv6Automaton, Operations.repeat(Automata.makeChar(0)));
                     }
                 } else {
+                    // potentially partial block
+                    if (groupsAdded == 0 && ONLY_ZEROS.matcher(group).matches()) {
+                        // here we have a leading group with only "0" characters. If we would allow this to match
+                        // ipv6 addresses, this would include things like 0000::127.0.0.1 (and all other ipv4 addresses).
+                        // Allowing this would be counterintuitive, so "0*" prefixes should only expand
+                        // to ipv4 addresses like "0.1.2.3" and we return with an automaton not matching anything here
+                        return EMPTY_AUTOMATON;
+                    }
+                    // we need to create all possibilities of byte sequences this could match
                     groupsAdded++;
-                    // partial block, we need to create all possibilities of byte sequences this could match
                     ipv6Automaton = concatenate(ipv6Automaton, automatonFromIPv6Group(group));
                 }
             }
@@ -132,7 +140,7 @@ public class IpPrefixAutomatonUtil {
             }
             if (padded.length() == 1) {
                 int value = Integer.parseInt(padded, 16);
-                a = concatenate(a, Operations.union(Automata.makeChar(value), Automata.makeCharRange(value * 16, value * 16 + 15)));
+                a = concatenate(a, Automata.makeCharRange(value * 16, value * 16 + 15));
                 bytesAdded++;
             }
             if (bytesAdded != 2) {
@@ -146,6 +154,8 @@ public class IpPrefixAutomatonUtil {
     private static Pattern IPV4_GROUP_MATCHER = Pattern.compile(
         "^((?:0|[1-9][0-9]{0,2})\\.)?" + "((?:0|[1-9][0-9]{0,2})\\.)?" + "((?:0|[1-9][0-9]{0,2})\\.)?" + "((?:0|[1-9][0-9]{0,2}))?$"
     );
+
+    private static Pattern ONLY_ZEROS = Pattern.compile("^0+$");
 
     /**
      * Creates an {@link Automaton} that accepts all ipv4 address byte representation
@@ -180,7 +190,7 @@ public class IpPrefixAutomatonUtil {
                 } else {
                     // if present, this is the last group
                     int numberPrefix = Integer.parseInt(group);
-                    if (numberPrefix < 255) {
+                    if (numberPrefix <= 255) {
                         incompleteGroupAutomaton = INCOMPLETE_IP4_GROUP_AUTOMATON_LOOKUP.get(numberPrefix);
                         prefixBytes++;
                     } else {

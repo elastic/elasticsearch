@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
@@ -60,6 +61,7 @@ public class IndexNameExpressionResolver {
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
     public static final Version SYSTEM_INDEX_ENFORCEMENT_VERSION = Version.V_8_0_0;
+    public static final IndexVersion SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION = IndexVersion.V_8_0_0;
 
     private final ThreadContext threadContext;
     private final SystemIndices systemIndices;
@@ -701,19 +703,41 @@ public class IndexNameExpressionResolver {
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
-            Map<String, DataStreamAlias> dataStreamAliases = state.metadata().dataStreamAliases();
-            Stream<DataStreamAlias> stream;
-            if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
-                stream = dataStreamAliases.values()
-                    .stream()
-                    .filter(dataStreamAlias -> resolvedExpressions.contains(dataStreamAlias.getName()));
-            } else {
-                stream = resolvedExpressions.stream().map(dataStreamAliases::get).filter(Objects::nonNull);
+            if (skipIdentity == false && resolvedExpressions.contains(dataStream.getName())) {
+                // skip the filters when the request targets the data stream name
+                return null;
             }
-            return stream.filter(dataStreamAlias -> dataStreamAlias.getDataStreams().contains(dataStream.getName()))
-                .filter(requiredDataStreamAlias)
-                .map(DataStreamAlias::getName)
-                .toArray(String[]::new);
+            Map<String, DataStreamAlias> dataStreamAliases = state.metadata().dataStreamAliases();
+            List<DataStreamAlias> aliasesForDataStream;
+            if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
+                aliasesForDataStream = dataStreamAliases.values()
+                    .stream()
+                    .filter(dataStreamAlias -> resolvedExpressions.contains(dataStreamAlias.getName()))
+                    .filter(dataStreamAlias -> dataStreamAlias.getDataStreams().contains(dataStream.getName()))
+                    .toList();
+            } else {
+                aliasesForDataStream = resolvedExpressions.stream()
+                    .map(dataStreamAliases::get)
+                    .filter(dataStreamAlias -> dataStreamAlias != null && dataStreamAlias.getDataStreams().contains(dataStream.getName()))
+                    .toList();
+            }
+
+            List<String> requiredAliases = null;
+            for (DataStreamAlias dataStreamAlias : aliasesForDataStream) {
+                if (requiredDataStreamAlias.test(dataStreamAlias)) {
+                    if (requiredAliases == null) {
+                        requiredAliases = new ArrayList<>(aliasesForDataStream.size());
+                    }
+                    requiredAliases.add(dataStreamAlias.getName());
+                } else {
+                    // we have a non-required alias for this data stream so no need to check further
+                    return null;
+                }
+            }
+            if (requiredAliases == null) {
+                return null;
+            }
+            return requiredAliases.toArray(Strings.EMPTY_ARRAY);
         } else {
             final Map<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
             final AliasMetadata[] aliasCandidates;

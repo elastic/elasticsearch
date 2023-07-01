@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -46,19 +45,22 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.license.ClusterStateLicenseService;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -140,7 +142,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
-    private ClusterStateLicenseService clusterStateLicenseService;
+    private LicenseService licenseService;
     private LongSupplier epochMillisSupplier;
     protected List<Plugin> plugins = new ArrayList<>();
 
@@ -160,13 +162,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    protected ClusterStateLicenseService getLicenseService() {
-        return clusterStateLicenseService;
+    protected LicenseService getLicenseService() {
+        return licenseService;
     }
 
     @Override
-    protected void setLicenseService(ClusterStateLicenseService clusterStateLicenseService) {
-        this.clusterStateLicenseService = clusterStateLicenseService;
+    protected void setLicenseService(LicenseService licenseService) {
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -203,7 +205,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         List<Object> components = new ArrayList<>();
         components.addAll(
@@ -220,7 +223,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 expressionResolver,
                 repositoriesServiceSupplier,
                 tracer,
-                allocationService
+                allocationService,
+                indicesService
             )
         );
 
@@ -240,7 +244,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         expressionResolver,
                         repositoriesServiceSupplier,
                         tracer,
-                        allocationService
+                        allocationService,
+                        indicesService
                     )
                 )
             );
@@ -412,6 +417,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -428,6 +434,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         xContentRegistry,
                         networkService,
                         dispatcher,
+                        perRequestThreadContext,
                         clusterSettings,
                         tracer
                     )
@@ -587,8 +594,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public BiConsumer<Snapshot, Version> addPreRestoreVersionCheck() {
-        List<BiConsumer<Snapshot, Version>> checks = filterPlugins(RepositoryPlugin.class).stream()
+    public BiConsumer<Snapshot, IndexVersion> addPreRestoreVersionCheck() {
+        List<BiConsumer<Snapshot, IndexVersion>> checks = filterPlugins(RepositoryPlugin.class).stream()
             .map(RepositoryPlugin::addPreRestoreVersionCheck)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
@@ -732,16 +739,16 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
         GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> allListeners = new GroupedActionListener<>(
             systemPlugins.size(),
-            ActionListener.wrap(listenerResults -> {
+            finalListener.delegateFailureAndWrap((delegate, listenerResults) -> {
                 // If the clean-up produced only one result, use that to pass along. In most
                 // cases it should be 1-1 mapping of feature to response. Passing back success
                 // prevents us from writing validation tests on this API.
                 if (listenerResults != null && listenerResults.size() == 1) {
-                    finalListener.onResponse(listenerResults.stream().findFirst().get());
+                    delegate.onResponse(listenerResults.stream().findFirst().get());
                 } else {
-                    finalListener.onResponse(ResetFeatureStateStatus.success(getFeatureName()));
+                    delegate.onResponse(ResetFeatureStateStatus.success(getFeatureName()));
                 }
-            }, finalListener::onFailure)
+            })
         );
         systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, client, allListeners));
     }

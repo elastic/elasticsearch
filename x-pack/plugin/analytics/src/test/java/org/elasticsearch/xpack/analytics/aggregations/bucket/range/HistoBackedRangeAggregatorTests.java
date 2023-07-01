@@ -317,10 +317,9 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                 .subAggregation(new TopHitsAggregationBuilder("top_hits"));
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> { searchAndReduce(searcher, new AggTestConfig(aggBuilder, defaultFieldType(HISTO_FIELD_NAME))); }
-                );
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+                    searchAndReduce(searcher, new AggTestConfig(aggBuilder, defaultFieldType(HISTO_FIELD_NAME)));
+                });
                 assertEquals("Range aggregation on histogram fields does not support sub-aggregations", e.getMessage());
             }
         }

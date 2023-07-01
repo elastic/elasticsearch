@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
@@ -44,7 +44,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testDoExecute() throws Exception {
 
-        ClusterStateLicenseService clusterStateLicenseService = mock(ClusterStateLicenseService.class);
+        LicenseService licenseService = mock(LicenseService.class);
 
         NodeClient client = mock(NodeClient.class);
         Map<XPackInfoFeatureAction, FeatureSet> featureSets = new HashMap<>();
@@ -62,7 +62,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         TransportXPackInfoAction action = new TransportXPackInfoAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
-            clusterStateLicenseService,
+            licenseService,
             client
         ) {
             @Override
@@ -80,7 +80,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         when(license.operationMode()).thenReturn(mode);
         String uid = randomAlphaOfLength(30);
         when(license.uid()).thenReturn(uid);
-        when(clusterStateLicenseService.getLicense()).thenReturn(license);
+        when(licenseService.getLicense()).thenReturn(license);
 
         XPackInfoRequest request = new XPackInfoRequest();
         request.setVerbose(randomBoolean());

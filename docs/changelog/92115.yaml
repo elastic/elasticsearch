@@ -1,5 +1,0 @@
-pr: 92115
-summary: Enable bloom filter for `_id` field in tsdb indices
-area: TSDB
-type: enhancement
-issues: []

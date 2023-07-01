@@ -37,7 +37,9 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
     public enum Parser {
         DATE_TIME(DataTypes.DATETIME, ZonedDateTime::from, LocalDateTime::from),
         TIME(SqlDataTypes.TIME, OffsetTime::from, LocalTime::from),
-        DATE(SqlDataTypes.DATE, LocalDate::from, (TemporalAccessor ta) -> { throw new DateTimeException("InvalidDate"); });
+        DATE(SqlDataTypes.DATE, LocalDate::from, (TemporalAccessor ta) -> {
+            throw new DateTimeException("InvalidDate");
+        });
 
         private final BiFunction<String, String, TemporalAccessor> parser;
 

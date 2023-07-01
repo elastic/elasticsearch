@@ -35,8 +35,12 @@ configure(allprojects) {
             test.executable = "${BuildParams.runtimeJavaHome}/bin/java" +
                     (OS.current() == OS.WINDOWS ? '.exe' : '')
         } else {
-            test.dependsOn(project.jdks.provisioned_runtime)
-            test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
+            test.javaLauncher = javaToolchains.launcherFor {
+                languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
+                vendor = VersionProperties.bundledJdkVendor == "openjdk" ?
+                        JvmVendorSpec.ORACLE :
+                        JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
+            }
         }
     }
     project.plugins.withId("elasticsearch.testclusters") { testClustersPlugin ->
@@ -61,6 +65,7 @@ configure(allprojects) {
       project.getTasks().withType(ThirdPartyAuditTask.class).configureEach {
         if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
           javaHome.set(providers.provider(() -> "${project.jdks.provisioned_runtime.javaHomePath}"))
+          targetCompatibility.set(providers.provider(() -> JavaVersion.toVersion(project.jdks.provisioned_runtime.major)))
         }
       }
     }

@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
@@ -61,6 +63,8 @@ public abstract class InferenceConfigItemTestCase<T extends VersionedNamedWritea
             return TextSimilarityConfigTests.mutateForVersion(textSimilarityConfig, version);
         } else if (inferenceConfig instanceof ZeroShotClassificationConfig zeroShotClassificationConfig) {
             return ZeroShotClassificationConfigTests.mutateForVersion(zeroShotClassificationConfig, version);
+        } else if (inferenceConfig instanceof TextExpansionConfig textExpansionConfig) {
+            return TextExpansionConfigTests.mutateForVersion(textExpansionConfig, version);
         } else {
             throw new IllegalArgumentException("unknown inference config [" + inferenceConfig.getName() + "]");
         }
@@ -70,14 +74,16 @@ public abstract class InferenceConfigItemTestCase<T extends VersionedNamedWritea
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        return new NamedWriteableRegistry(entries);
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
+        return new NamedWriteableRegistry(namedWriteables);
     }
 
     @Override

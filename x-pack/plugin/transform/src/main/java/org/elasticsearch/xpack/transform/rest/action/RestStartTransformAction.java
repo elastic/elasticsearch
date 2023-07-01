@@ -15,6 +15,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -27,6 +29,7 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestStartTransformAction extends BaseRestHandler {
 
     @Override

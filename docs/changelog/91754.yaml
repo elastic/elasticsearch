@@ -1,5 +1,0 @@
-pr: 91754
-summary: Allow ILM step transition to the phase terminal step
-area: ILM+SLM
-type: bug
-issues: []

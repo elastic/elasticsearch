@@ -7,18 +7,21 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestDownsampleAction extends BaseRestHandler {
 
     @Override

@@ -28,23 +28,23 @@ public class InternalClusterForbiddenSettingIT extends ESIntegTestCase {
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
         // create / delete an index with forbidden setting
         prepareCreate("test").setSettings(settings(version).build()).get();
-        client().admin().indices().prepareDelete("test").get();
+        indicesAdmin().prepareDelete("test").get();
         // full restart
         internalCluster().fullRestart();
         // create / delete an index with forbidden setting
         prepareCreate("test").setSettings(settings(version).build()).get();
-        client().admin().indices().prepareDelete("test").get();
+        indicesAdmin().prepareDelete("test").get();
     }
 
     public void testRollingRestart() throws Exception {
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
         // create / delete an index with forbidden setting
         prepareCreate("test").setSettings(settings(version).build()).get();
-        client().admin().indices().prepareDelete("test").get();
+        indicesAdmin().prepareDelete("test").get();
         // rolling restart
         internalCluster().rollingRestart(new InternalTestCluster.RestartCallback());
         // create / delete an index with forbidden setting
         prepareCreate("test").setSettings(settings(version).build()).get();
-        client().admin().indices().prepareDelete("test").get();
+        indicesAdmin().prepareDelete("test").get();
     }
 }

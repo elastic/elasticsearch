@@ -178,7 +178,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         INGEST("ingest"),
         ADAPTIVE_SELECTION("adaptive_selection"),
         SCRIPT_CACHE("script_cache"),
-        INDEXING_PRESSURE("indexing_pressure"),;
+        INDEXING_PRESSURE("indexing_pressure"),
+        REPOSITORIES("repositories");
 
         private String metricName;
 

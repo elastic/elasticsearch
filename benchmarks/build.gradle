@@ -58,7 +58,7 @@ tasks.register("copyPainless", Copy) {
 
 tasks.named("run").configure {
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  jvmArgs << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
+  args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
   dependsOn "copyExpression", "copyPainless"
 }
 

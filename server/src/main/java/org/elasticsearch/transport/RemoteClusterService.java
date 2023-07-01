@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -122,10 +124,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         )
     );
 
-    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_AUTHORIZATION = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<SecureString> REMOTE_CLUSTER_CREDENTIALS = Setting.affixKeySetting(
         "cluster.remote.",
-        "authorization",
-        key -> Setting.simpleString(key, v -> {}, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered)
+        "credentials",
+        key -> SecureSetting.secureString(key, null)
     );
 
     public static final String REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME = "cluster:internal/remote_cluster/handshake";
@@ -143,14 +145,16 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     private final TransportService transportService;
     private final Map<String, RemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();
+    private final Set<String> credentialsProtectedRemoteClusters;
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
         this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
         this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
+        this.credentialsProtectedRemoteClusters = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings).keySet();
 
-        if (RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
+        if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
     }
@@ -234,6 +238,39 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     public Transport.Connection getConnection(String cluster) {
         return getRemoteClusterConnection(cluster).getConnection();
+    }
+
+    /**
+     * Unlike {@link #getConnection(String)} this method might attempt to re-establish a remote connection if there is no connection
+     * available before returning a connection to the remote cluster.
+     *
+     * @param clusterAlias    the remote cluster
+     * @param ensureConnected whether requests should wait for a connection attempt when there isn't available connection
+     * @param listener        a listener that will be notified the connection or failure
+     */
+    public void maybeEnsureConnectedAndGetConnection(
+        String clusterAlias,
+        boolean ensureConnected,
+        ActionListener<Transport.Connection> listener
+    ) {
+        ActionListener<Void> ensureConnectedListener = listener.delegateFailureAndWrap(
+            (l, nullValue) -> ActionListener.completeWith(l, () -> {
+                try {
+                    return getConnection(clusterAlias);
+                } catch (NoSuchRemoteClusterException e) {
+                    if (ensureConnected == false) {
+                        // trigger another connection attempt, but don't wait for it to complete
+                        ensureConnected(clusterAlias, ActionListener.noop());
+                    }
+                    throw e;
+                }
+            })
+        );
+        if (ensureConnected) {
+            ensureConnected(clusterAlias, ensureConnectedListener);
+        } else {
+            ensureConnectedListener.onResponse(null);
+        }
     }
 
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {
@@ -320,7 +357,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (remote == null) {
             // this is a new cluster we have to add a new representation
             Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
-            remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService);
+            remote = new RemoteClusterConnection(
+                finalSettings,
+                clusterAlias,
+                transportService,
+                credentialsProtectedRemoteClusters.contains(clusterAlias)
+            );
             remoteClusters.put(clusterAlias, remote);
             remote.ensureConnected(listener);
         } else if (remote.shouldRebuildConnection(newSettings)) {
@@ -332,7 +374,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             }
             remoteClusters.remove(clusterAlias);
             Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
-            remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService);
+            remote = new RemoteClusterConnection(
+                finalSettings,
+                clusterAlias,
+                transportService,
+                credentialsProtectedRemoteClusters.contains(clusterAlias)
+            );
             remoteClusters.put(clusterAlias, remote);
             remote.ensureConnected(listener);
         } else {

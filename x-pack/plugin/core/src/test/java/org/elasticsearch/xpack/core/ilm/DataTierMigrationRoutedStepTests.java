@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
 import java.util.Collections;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
 import static org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStepTests.randomUnassignedInfo;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
@@ -276,6 +276,6 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
     }
 
     private DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+        return DiscoveryNodeUtils.builder(nodeId).roles(roles).build();
     }
 }

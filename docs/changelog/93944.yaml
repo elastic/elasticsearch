@@ -1,6 +1,0 @@
-pr: 93944
-summary: Add checks for exception loops through suppressed exceptions only
-area: Infra/Core
-type: bug
-issues:
- - 93943

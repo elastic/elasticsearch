@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
@@ -133,7 +133,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
                     onFailure(e);
                 }
             }
-        }, ThreadPool.Names.SAME, request);
+        }, ThreadPool.Names.SAME);
     }
 
     @Override

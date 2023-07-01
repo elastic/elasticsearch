@@ -136,10 +136,7 @@ public class DynamicTemplateParseTests extends ESTestCase {
             templateDef.put(param, "*a");
             templateDef.put("match_pattern", "regex");
             templateDef.put("mapping", Collections.singletonMap("store", true));
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> DynamicTemplate.parse("my_template", templateDef)
-            );
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> DynamicTemplate.parse("my_template", templateDef));
             assertEquals("Pattern [*a] of type [regex] is invalid. Cannot create dynamic template [my_template].", e.getMessage());
         }
     }
@@ -205,6 +202,29 @@ public class DynamicTemplateParseTests extends ESTestCase {
         assertTrue(template.match(null, "a.b", "b", XContentFieldType.LONG));
         assertFalse(template.match(null, "a.b", "b", XContentFieldType.OBJECT));
         assertFalse(template.match(null, "a.b", "b", XContentFieldType.BINARY));
+    }
+
+    public void testMatchAllTypesTemplateRuntimeWithListOfMatches() {
+        Map<String, Object> templateDef = new HashMap<>();
+        templateDef.put("match", List.of("b", "c*"));
+        templateDef.put("runtime", Collections.emptyMap());
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        assertTrue(template.isRuntimeMapping());
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.BOOLEAN));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.DATE));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.STRING));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.DOUBLE));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.LONG));
+        assertFalse(template.match(null, "a.b", "b", XContentFieldType.OBJECT));
+        assertFalse(template.match(null, "a.b", "b", XContentFieldType.BINARY));
+
+        assertTrue(template.match(null, null, "cx", XContentFieldType.BOOLEAN));
+        assertTrue(template.match(null, null, "cx", XContentFieldType.DATE));
+        assertTrue(template.match(null, null, "cx", XContentFieldType.STRING));
+        assertTrue(template.match(null, null, "cx", XContentFieldType.DOUBLE));
+        assertTrue(template.match(null, null, "cx", XContentFieldType.LONG));
+        assertFalse(template.match(null, null, "cx", XContentFieldType.OBJECT));
+        assertFalse(template.match(null, null, "cx", XContentFieldType.BINARY));
     }
 
     public void testMatchTypeTemplate() {
@@ -303,6 +323,20 @@ public class DynamicTemplateParseTests extends ESTestCase {
         assertEquals("""
             {"match":"*name","unmatch":"first_name","mapping":{"store":true}}""", Strings.toString(builder));
 
+        // name-based template with array of match patterns
+        templateDef = new HashMap<>();
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
+        templateDef.put("match", List.of("*name", "user*"));
+        templateDef.put("unmatch", "first_name");
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        template = DynamicTemplate.parse("my_template", templateDef);
+        builder = JsonXContent.contentBuilder();
+        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals("""
+            {"match":["*name","user*"],"unmatch":"first_name","mapping":{"store":true}}""", Strings.toString(builder));
+
         // path-based template
         templateDef = new HashMap<>();
         templateDef.put("path_match", "*name");
@@ -316,6 +350,37 @@ public class DynamicTemplateParseTests extends ESTestCase {
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("""
             {"path_match":"*name","path_unmatch":"first_name","mapping":{"store":true}}""", Strings.toString(builder));
+
+        // path-based template with single-entry array - still serializes as single string, rather than list
+        templateDef = new HashMap<>();
+        templateDef.put("path_match", List.of("*name"));
+        templateDef.put("path_unmatch", List.of("first_name"));
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        template = DynamicTemplate.parse("my_template", templateDef);
+        builder = JsonXContent.contentBuilder();
+        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals("""
+            {"path_match":"*name","path_unmatch":"first_name","mapping":{"store":true}}""", Strings.toString(builder));
+
+        // path-based template with multi-entry array - now serializes as list
+        templateDef = new HashMap<>();
+        templateDef.put("path_match", List.of("*name", "user*"));
+        templateDef.put("path_unmatch", List.of("first_name", "username"));
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        template = DynamicTemplate.parse("my_template", templateDef);
+        builder = JsonXContent.contentBuilder();
+        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(
+            """
+                {"path_match":["*name","user*"],"path_unmatch":["first_name","username"],"mapping":{"store":true}}""",
+            Strings.toString(builder)
+        );
 
         // regex matching
         templateDef = new HashMap<>();
@@ -423,6 +488,42 @@ public class DynamicTemplateParseTests extends ESTestCase {
             assertFalse(template.match("not_template_name", "foo.bar", "foo", randomFrom(XContentFieldType.values())));
             assertTrue(template.match("my_template", "foo.bar", "not_match_name", randomFrom(XContentFieldType.values())));
             assertFalse(template.match(null, "foo.bar", "not_match_name", randomFrom(XContentFieldType.values())));
+        }
+        // match name with array of patterns
+        {
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match", List.of("baz*", "*quux", "*wibble*"));
+            templateDef.put("mapping", Map.of());
+            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+            assertTrue(template.match("my_template", "foo.bar", "foo", randomFrom(XContentFieldType.values())));
+            // won't match because fieldName doesn't match
+            assertFalse(template.match(null, "foo.bar", "foo", randomFrom(XContentFieldType.values())));
+            assertTrue(template.match(null, null, "bazzy", randomFrom(XContentFieldType.values())));
+            assertTrue(template.match(null, null, "myquux", randomFrom(XContentFieldType.values())));
+            assertTrue(template.match(null, null, "foo.wibble_bar", randomFrom(XContentFieldType.values())));
+            assertFalse(template.match("not_template_name", "foo.bar", "foo", randomFrom(XContentFieldType.values())));
+            assertTrue(template.match("my_template", "foo.bar", "not_match_name", randomFrom(XContentFieldType.values())));
+            assertFalse(template.match(null, "foo.bar", "not_match_name", randomFrom(XContentFieldType.values())));
+        }
+        // match name with number rather than string (is allowed)
+        {
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match", 12);
+            templateDef.put("mapping", Map.of());
+            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+            assertTrue(template.match("my_template", "foo.bar", "foo", randomFrom(XContentFieldType.values())));
+            assertTrue(template.match(null, null, "12", randomFrom(XContentFieldType.values())));
+            assertFalse(template.match("not_template_name", null, "12", randomFrom(XContentFieldType.values())));
+            assertTrue(template.match("my_template", "foo.bar", "not_match_name", randomFrom(XContentFieldType.values())));
+            assertFalse(template.match(null, "foo.bar", "not_match_name", randomFrom(XContentFieldType.values())));
+        }
+        // match name with array of patterns with non-strings (not allowed)
+        {
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match", List.of("baz*", "*quux", 12));
+            templateDef.put("mapping", Map.of());
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> DynamicTemplate.parse("my_template", templateDef));
+            assertEquals("[match] values must either be a string or list of strings, but was [[baz*, *quux, 12]]", e.getMessage());
         }
         // no match condition
         {

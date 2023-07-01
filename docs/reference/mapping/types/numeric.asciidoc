@@ -179,7 +179,7 @@ The following parameters are accepted by numeric types:
     (default).
 
 `time_series_dimension`::
-preview:[] (Optional, Boolean)
+(Optional, Boolean)
 +
 --
 include::keyword.asciidoc[tag=dimension]
@@ -191,7 +191,7 @@ A numeric field can't be both a time series dimension and a time series metric.
 --
 
 `time_series_metric`::
-preview:[] (Optional, string)
+(Optional, string)
 // tag::time_series_metric[]
 Marks the field as a <<time-series-metric,time series metric>>. The value is the
 metric type. You can't update this parameter for existing fields.

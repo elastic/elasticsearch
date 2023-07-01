@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.rest.dataframe;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
@@ -22,6 +24,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.rest.dataframe.RestPutDataFrameAnalyticsAction.MAX_REQUEST_SIZE;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPostDataFrameAnalyticsUpdateAction extends BaseRestHandler {
 
     @Override

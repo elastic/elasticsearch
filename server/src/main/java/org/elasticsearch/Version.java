@@ -11,8 +11,10 @@ package org.elasticsearch;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,7 +32,6 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
 
-@SuppressWarnings("checkstyle:linelength")
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
@@ -49,97 +50,103 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      */
 
     public static final int V_EMPTY_ID = 0;
-    public static final Version V_EMPTY = new Version(V_EMPTY_ID, TransportVersion.ZERO, org.apache.lucene.util.Version.LATEST);
-    public static final Version V_7_0_0 = new Version(7_00_00_99, TransportVersion.V_7_0_0, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_0_1 = new Version(7_00_01_99, TransportVersion.V_7_0_1, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_1_0 = new Version(7_01_00_99, TransportVersion.V_7_1_0, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_1_1 = new Version(7_01_01_99, TransportVersion.V_7_1_1, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_2_0 = new Version(7_02_00_99, TransportVersion.V_7_2_0, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_2_1 = new Version(7_02_01_99, TransportVersion.V_7_2_1, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_3_0 = new Version(7_03_00_99, TransportVersion.V_7_3_0, org.apache.lucene.util.Version.LUCENE_8_1_0);
-    public static final Version V_7_3_1 = new Version(7_03_01_99, TransportVersion.V_7_3_1, org.apache.lucene.util.Version.LUCENE_8_1_0);
-    public static final Version V_7_3_2 = new Version(7_03_02_99, TransportVersion.V_7_3_2, org.apache.lucene.util.Version.LUCENE_8_1_0);
-    public static final Version V_7_4_0 = new Version(7_04_00_99, TransportVersion.V_7_4_0, org.apache.lucene.util.Version.LUCENE_8_2_0);
-    public static final Version V_7_4_1 = new Version(7_04_01_99, TransportVersion.V_7_4_1, org.apache.lucene.util.Version.LUCENE_8_2_0);
-    public static final Version V_7_4_2 = new Version(7_04_02_99, TransportVersion.V_7_4_2, org.apache.lucene.util.Version.LUCENE_8_2_0);
-    public static final Version V_7_5_0 = new Version(7_05_00_99, TransportVersion.V_7_5_0, org.apache.lucene.util.Version.LUCENE_8_3_0);
-    public static final Version V_7_5_1 = new Version(7_05_01_99, TransportVersion.V_7_5_1, org.apache.lucene.util.Version.LUCENE_8_3_0);
-    public static final Version V_7_5_2 = new Version(7_05_02_99, TransportVersion.V_7_5_2, org.apache.lucene.util.Version.LUCENE_8_3_0);
-    public static final Version V_7_6_0 = new Version(7_06_00_99, TransportVersion.V_7_6_0, org.apache.lucene.util.Version.LUCENE_8_4_0);
-    public static final Version V_7_6_1 = new Version(7_06_01_99, TransportVersion.V_7_6_1, org.apache.lucene.util.Version.LUCENE_8_4_0);
-    public static final Version V_7_6_2 = new Version(7_06_02_99, TransportVersion.V_7_6_2, org.apache.lucene.util.Version.LUCENE_8_4_0);
-    public static final Version V_7_7_0 = new Version(7_07_00_99, TransportVersion.V_7_7_0, org.apache.lucene.util.Version.LUCENE_8_5_1);
-    public static final Version V_7_7_1 = new Version(7_07_01_99, TransportVersion.V_7_7_1, org.apache.lucene.util.Version.LUCENE_8_5_1);
-    public static final Version V_7_8_0 = new Version(7_08_00_99, TransportVersion.V_7_8_0, org.apache.lucene.util.Version.LUCENE_8_5_1);
-    public static final Version V_7_8_1 = new Version(7_08_01_99, TransportVersion.V_7_8_1, org.apache.lucene.util.Version.LUCENE_8_5_1);
-    public static final Version V_7_9_0 = new Version(7_09_00_99, TransportVersion.V_7_9_0, org.apache.lucene.util.Version.LUCENE_8_6_0);
-    public static final Version V_7_9_1 = new Version(7_09_01_99, TransportVersion.V_7_9_1, org.apache.lucene.util.Version.LUCENE_8_6_2);
-    public static final Version V_7_9_2 = new Version(7_09_02_99, TransportVersion.V_7_9_2, org.apache.lucene.util.Version.LUCENE_8_6_2);
-    public static final Version V_7_9_3 = new Version(7_09_03_99, TransportVersion.V_7_9_3, org.apache.lucene.util.Version.LUCENE_8_6_2);
-    public static final Version V_7_10_0 = new Version(7_10_00_99, TransportVersion.V_7_10_0, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final Version V_7_10_1 = new Version(7_10_01_99, TransportVersion.V_7_10_1, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final Version V_7_10_2 = new Version(7_10_02_99, TransportVersion.V_7_10_2, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final Version V_7_11_0 = new Version(7_11_00_99, TransportVersion.V_7_11_0, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final Version V_7_11_1 = new Version(7_11_01_99, TransportVersion.V_7_11_1, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final Version V_7_11_2 = new Version(7_11_02_99, TransportVersion.V_7_11_2, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final Version V_7_12_0 = new Version(7_12_00_99, TransportVersion.V_7_12_0, org.apache.lucene.util.Version.LUCENE_8_8_0);
-    public static final Version V_7_12_1 = new Version(7_12_01_99, TransportVersion.V_7_12_1, org.apache.lucene.util.Version.LUCENE_8_8_0);
-    public static final Version V_7_13_0 = new Version(7_13_00_99, TransportVersion.V_7_13_0, org.apache.lucene.util.Version.LUCENE_8_8_2);
-    public static final Version V_7_13_1 = new Version(7_13_01_99, TransportVersion.V_7_13_1, org.apache.lucene.util.Version.LUCENE_8_8_2);
-    public static final Version V_7_13_2 = new Version(7_13_02_99, TransportVersion.V_7_13_2, org.apache.lucene.util.Version.LUCENE_8_8_2);
-    public static final Version V_7_13_3 = new Version(7_13_03_99, TransportVersion.V_7_13_3, org.apache.lucene.util.Version.LUCENE_8_8_2);
-    public static final Version V_7_13_4 = new Version(7_13_04_99, TransportVersion.V_7_13_4, org.apache.lucene.util.Version.LUCENE_8_8_2);
-    public static final Version V_7_14_0 = new Version(7_14_00_99, TransportVersion.V_7_14_0, org.apache.lucene.util.Version.LUCENE_8_9_0);
-    public static final Version V_7_14_1 = new Version(7_14_01_99, TransportVersion.V_7_14_1, org.apache.lucene.util.Version.LUCENE_8_9_0);
-    public static final Version V_7_14_2 = new Version(7_14_02_99, TransportVersion.V_7_14_2, org.apache.lucene.util.Version.LUCENE_8_9_0);
-    public static final Version V_7_15_0 = new Version(7_15_00_99, TransportVersion.V_7_15_0, org.apache.lucene.util.Version.LUCENE_8_9_0);
-    public static final Version V_7_15_1 = new Version(7_15_01_99, TransportVersion.V_7_15_1, org.apache.lucene.util.Version.LUCENE_8_9_0);
-    public static final Version V_7_15_2 = new Version(7_15_02_99, TransportVersion.V_7_15_2, org.apache.lucene.util.Version.LUCENE_8_9_0);
-    public static final Version V_7_16_0 = new Version(7_16_00_99, TransportVersion.V_7_16_0, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_7_16_1 = new Version(7_16_01_99, TransportVersion.V_7_16_1, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_7_16_2 = new Version(7_16_02_99, TransportVersion.V_7_16_2, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_7_16_3 = new Version(7_16_03_99, TransportVersion.V_7_16_3, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_7_17_0 = new Version(7_17_00_99, TransportVersion.V_7_17_0, org.apache.lucene.util.Version.LUCENE_8_11_1);
-    public static final Version V_7_17_1 = new Version(7_17_01_99, TransportVersion.V_7_17_1, org.apache.lucene.util.Version.LUCENE_8_11_1);
-    public static final Version V_7_17_2 = new Version(7_17_02_99, TransportVersion.V_7_17_2, org.apache.lucene.util.Version.LUCENE_8_11_1);
-    public static final Version V_7_17_3 = new Version(7_17_03_99, TransportVersion.V_7_17_3, org.apache.lucene.util.Version.LUCENE_8_11_1);
-    public static final Version V_7_17_4 = new Version(7_17_04_99, TransportVersion.V_7_17_4, org.apache.lucene.util.Version.LUCENE_8_11_1);
-    public static final Version V_7_17_5 = new Version(7_17_05_99, TransportVersion.V_7_17_5, org.apache.lucene.util.Version.LUCENE_8_11_1);
-    public static final Version V_7_17_6 = new Version(7_17_06_99, TransportVersion.V_7_17_6, org.apache.lucene.util.Version.LUCENE_8_11_1);
-    public static final Version V_7_17_7 = new Version(7_17_07_99, TransportVersion.V_7_17_7, org.apache.lucene.util.Version.LUCENE_8_11_1);
-    public static final Version V_7_17_8 = new Version(7_17_08_99, TransportVersion.V_7_17_8, org.apache.lucene.util.Version.LUCENE_8_11_1);
-    public static final Version V_7_17_9 = new Version(7_17_09_99, TransportVersion.V_7_17_9, org.apache.lucene.util.Version.LUCENE_8_11_1);
-    public static final Version V_7_17_10 = new Version(7_17_10_99, TransportVersion.V_7_17_10, org.apache.lucene.util.Version.LUCENE_8_11_1);
-    public static final Version V_8_0_0 = new Version(8_00_00_99, TransportVersion.V_8_0_0, org.apache.lucene.util.Version.LUCENE_9_0_0);
-    public static final Version V_8_0_1 = new Version(8_00_01_99, TransportVersion.V_8_0_1, org.apache.lucene.util.Version.LUCENE_9_0_0);
-    public static final Version V_8_1_0 = new Version(8_01_00_99, TransportVersion.V_8_1_0, org.apache.lucene.util.Version.LUCENE_9_0_0);
-    public static final Version V_8_1_1 = new Version(8_01_01_99, TransportVersion.V_8_1_1, org.apache.lucene.util.Version.LUCENE_9_0_0);
-    public static final Version V_8_1_2 = new Version(8_01_02_99, TransportVersion.V_8_1_2, org.apache.lucene.util.Version.LUCENE_9_0_0);
-    public static final Version V_8_1_3 = new Version(8_01_03_99, TransportVersion.V_8_1_3, org.apache.lucene.util.Version.LUCENE_9_0_0);
-    public static final Version V_8_2_0 = new Version(8_02_00_99, TransportVersion.V_8_2_0, org.apache.lucene.util.Version.LUCENE_9_1_0);
-    public static final Version V_8_2_1 = new Version(8_02_01_99, TransportVersion.V_8_2_1, org.apache.lucene.util.Version.LUCENE_9_1_0);
-    public static final Version V_8_2_2 = new Version(8_02_02_99, TransportVersion.V_8_2_2, org.apache.lucene.util.Version.LUCENE_9_1_0);
-    public static final Version V_8_2_3 = new Version(8_02_03_99, TransportVersion.V_8_2_3, org.apache.lucene.util.Version.LUCENE_9_1_0);
-    public static final Version V_8_3_0 = new Version(8_03_00_99, TransportVersion.V_8_3_0, org.apache.lucene.util.Version.LUCENE_9_2_0);
-    public static final Version V_8_3_1 = new Version(8_03_01_99, TransportVersion.V_8_3_1, org.apache.lucene.util.Version.LUCENE_9_2_0);
-    public static final Version V_8_3_2 = new Version(8_03_02_99, TransportVersion.V_8_3_2, org.apache.lucene.util.Version.LUCENE_9_2_0);
-    public static final Version V_8_3_3 = new Version(8_03_03_99, TransportVersion.V_8_3_3, org.apache.lucene.util.Version.LUCENE_9_2_0);
-    public static final Version V_8_4_0 = new Version(8_04_00_99, TransportVersion.V_8_4_0, org.apache.lucene.util.Version.LUCENE_9_3_0);
-    public static final Version V_8_4_1 = new Version(8_04_01_99, TransportVersion.V_8_4_1, org.apache.lucene.util.Version.LUCENE_9_3_0);
-    public static final Version V_8_4_2 = new Version(8_04_02_99, TransportVersion.V_8_4_2, org.apache.lucene.util.Version.LUCENE_9_3_0);
-    public static final Version V_8_4_3 = new Version(8_04_03_99, TransportVersion.V_8_4_3, org.apache.lucene.util.Version.LUCENE_9_3_0);
-    public static final Version V_8_5_0 = new Version(8_05_00_99, TransportVersion.V_8_5_0, org.apache.lucene.util.Version.LUCENE_9_4_1);
-    public static final Version V_8_5_1 = new Version(8_05_01_99, TransportVersion.V_8_5_1, org.apache.lucene.util.Version.LUCENE_9_4_1);
-    public static final Version V_8_5_2 = new Version(8_05_02_99, TransportVersion.V_8_5_2, org.apache.lucene.util.Version.LUCENE_9_4_1);
-    public static final Version V_8_5_3 = new Version(8_05_03_99, TransportVersion.V_8_5_3, org.apache.lucene.util.Version.LUCENE_9_4_2);
-    public static final Version V_8_6_0 = new Version(8_06_00_99, TransportVersion.V_8_6_0, org.apache.lucene.util.Version.LUCENE_9_4_2);
-    public static final Version V_8_6_1 = new Version(8_06_01_99, TransportVersion.V_8_6_1, org.apache.lucene.util.Version.LUCENE_9_4_2);
-    public static final Version V_8_6_2 = new Version(8_06_02_99, TransportVersion.V_8_6_2, org.apache.lucene.util.Version.LUCENE_9_4_2);
-    public static final Version V_8_6_3 = new Version(8_06_03_99, TransportVersion.V_8_6_3, org.apache.lucene.util.Version.LUCENE_9_4_2);
-    public static final Version V_8_7_0 = new Version(8_07_00_99, TransportVersion.V_8_7_0, org.apache.lucene.util.Version.LUCENE_9_5_0);
-
-    public static final Version V_8_8_0 = new Version(8_08_00_99, TransportVersion.V_8_8_0, org.apache.lucene.util.Version.LUCENE_9_6_0);
-    public static final Version CURRENT = V_8_8_0;
+    public static final Version V_EMPTY = new Version(V_EMPTY_ID, IndexVersion.ZERO);
+    public static final Version V_7_0_0 = new Version(7_00_00_99, IndexVersion.V_7_0_0);
+    public static final Version V_7_0_1 = new Version(7_00_01_99, IndexVersion.V_7_0_1);
+    public static final Version V_7_1_0 = new Version(7_01_00_99, IndexVersion.V_7_1_0);
+    public static final Version V_7_1_1 = new Version(7_01_01_99, IndexVersion.V_7_1_1);
+    public static final Version V_7_2_0 = new Version(7_02_00_99, IndexVersion.V_7_2_0);
+    public static final Version V_7_2_1 = new Version(7_02_01_99, IndexVersion.V_7_2_1);
+    public static final Version V_7_3_0 = new Version(7_03_00_99, IndexVersion.V_7_3_0);
+    public static final Version V_7_3_1 = new Version(7_03_01_99, IndexVersion.V_7_3_1);
+    public static final Version V_7_3_2 = new Version(7_03_02_99, IndexVersion.V_7_3_2);
+    public static final Version V_7_4_0 = new Version(7_04_00_99, IndexVersion.V_7_4_0);
+    public static final Version V_7_4_1 = new Version(7_04_01_99, IndexVersion.V_7_4_1);
+    public static final Version V_7_4_2 = new Version(7_04_02_99, IndexVersion.V_7_4_2);
+    public static final Version V_7_5_0 = new Version(7_05_00_99, IndexVersion.V_7_5_0);
+    public static final Version V_7_5_1 = new Version(7_05_01_99, IndexVersion.V_7_5_1);
+    public static final Version V_7_5_2 = new Version(7_05_02_99, IndexVersion.V_7_5_2);
+    public static final Version V_7_6_0 = new Version(7_06_00_99, IndexVersion.V_7_6_0);
+    public static final Version V_7_6_1 = new Version(7_06_01_99, IndexVersion.V_7_6_1);
+    public static final Version V_7_6_2 = new Version(7_06_02_99, IndexVersion.V_7_6_2);
+    public static final Version V_7_7_0 = new Version(7_07_00_99, IndexVersion.V_7_7_0);
+    public static final Version V_7_7_1 = new Version(7_07_01_99, IndexVersion.V_7_7_1);
+    public static final Version V_7_8_0 = new Version(7_08_00_99, IndexVersion.V_7_8_0);
+    public static final Version V_7_8_1 = new Version(7_08_01_99, IndexVersion.V_7_8_1);
+    public static final Version V_7_9_0 = new Version(7_09_00_99, IndexVersion.V_7_9_0);
+    public static final Version V_7_9_1 = new Version(7_09_01_99, IndexVersion.V_7_9_1);
+    public static final Version V_7_9_2 = new Version(7_09_02_99, IndexVersion.V_7_9_2);
+    public static final Version V_7_9_3 = new Version(7_09_03_99, IndexVersion.V_7_9_3);
+    public static final Version V_7_10_0 = new Version(7_10_00_99, IndexVersion.V_7_10_0);
+    public static final Version V_7_10_1 = new Version(7_10_01_99, IndexVersion.V_7_10_1);
+    public static final Version V_7_10_2 = new Version(7_10_02_99, IndexVersion.V_7_10_2);
+    public static final Version V_7_11_0 = new Version(7_11_00_99, IndexVersion.V_7_11_0);
+    public static final Version V_7_11_1 = new Version(7_11_01_99, IndexVersion.V_7_11_1);
+    public static final Version V_7_11_2 = new Version(7_11_02_99, IndexVersion.V_7_11_2);
+    public static final Version V_7_12_0 = new Version(7_12_00_99, IndexVersion.V_7_12_0);
+    public static final Version V_7_12_1 = new Version(7_12_01_99, IndexVersion.V_7_12_1);
+    public static final Version V_7_13_0 = new Version(7_13_00_99, IndexVersion.V_7_13_0);
+    public static final Version V_7_13_1 = new Version(7_13_01_99, IndexVersion.V_7_13_1);
+    public static final Version V_7_13_2 = new Version(7_13_02_99, IndexVersion.V_7_13_2);
+    public static final Version V_7_13_3 = new Version(7_13_03_99, IndexVersion.V_7_13_3);
+    public static final Version V_7_13_4 = new Version(7_13_04_99, IndexVersion.V_7_13_4);
+    public static final Version V_7_14_0 = new Version(7_14_00_99, IndexVersion.V_7_14_0);
+    public static final Version V_7_14_1 = new Version(7_14_01_99, IndexVersion.V_7_14_1);
+    public static final Version V_7_14_2 = new Version(7_14_02_99, IndexVersion.V_7_14_2);
+    public static final Version V_7_15_0 = new Version(7_15_00_99, IndexVersion.V_7_15_0);
+    public static final Version V_7_15_1 = new Version(7_15_01_99, IndexVersion.V_7_15_1);
+    public static final Version V_7_15_2 = new Version(7_15_02_99, IndexVersion.V_7_15_2);
+    public static final Version V_7_16_0 = new Version(7_16_00_99, IndexVersion.V_7_16_0);
+    public static final Version V_7_16_1 = new Version(7_16_01_99, IndexVersion.V_7_16_1);
+    public static final Version V_7_16_2 = new Version(7_16_02_99, IndexVersion.V_7_16_2);
+    public static final Version V_7_16_3 = new Version(7_16_03_99, IndexVersion.V_7_16_3);
+    public static final Version V_7_17_0 = new Version(7_17_00_99, IndexVersion.V_7_17_0);
+    public static final Version V_7_17_1 = new Version(7_17_01_99, IndexVersion.V_7_17_1);
+    public static final Version V_7_17_2 = new Version(7_17_02_99, IndexVersion.V_7_17_2);
+    public static final Version V_7_17_3 = new Version(7_17_03_99, IndexVersion.V_7_17_3);
+    public static final Version V_7_17_4 = new Version(7_17_04_99, IndexVersion.V_7_17_4);
+    public static final Version V_7_17_5 = new Version(7_17_05_99, IndexVersion.V_7_17_5);
+    public static final Version V_7_17_6 = new Version(7_17_06_99, IndexVersion.V_7_17_6);
+    public static final Version V_7_17_7 = new Version(7_17_07_99, IndexVersion.V_7_17_7);
+    public static final Version V_7_17_8 = new Version(7_17_08_99, IndexVersion.V_7_17_8);
+    public static final Version V_7_17_9 = new Version(7_17_09_99, IndexVersion.V_7_17_9);
+    public static final Version V_7_17_10 = new Version(7_17_10_99, IndexVersion.V_7_17_10);
+    public static final Version V_7_17_11 = new Version(7_17_11_99, IndexVersion.V_7_17_11);
+    public static final Version V_7_17_12 = new Version(7_17_12_99, IndexVersion.V_7_17_12);
+    public static final Version V_8_0_0 = new Version(8_00_00_99, IndexVersion.V_8_0_0);
+    public static final Version V_8_0_1 = new Version(8_00_01_99, IndexVersion.V_8_0_1);
+    public static final Version V_8_1_0 = new Version(8_01_00_99, IndexVersion.V_8_1_0);
+    public static final Version V_8_1_1 = new Version(8_01_01_99, IndexVersion.V_8_1_1);
+    public static final Version V_8_1_2 = new Version(8_01_02_99, IndexVersion.V_8_1_2);
+    public static final Version V_8_1_3 = new Version(8_01_03_99, IndexVersion.V_8_1_3);
+    public static final Version V_8_2_0 = new Version(8_02_00_99, IndexVersion.V_8_2_0);
+    public static final Version V_8_2_1 = new Version(8_02_01_99, IndexVersion.V_8_2_1);
+    public static final Version V_8_2_2 = new Version(8_02_02_99, IndexVersion.V_8_2_2);
+    public static final Version V_8_2_3 = new Version(8_02_03_99, IndexVersion.V_8_2_3);
+    public static final Version V_8_3_0 = new Version(8_03_00_99, IndexVersion.V_8_3_0);
+    public static final Version V_8_3_1 = new Version(8_03_01_99, IndexVersion.V_8_3_1);
+    public static final Version V_8_3_2 = new Version(8_03_02_99, IndexVersion.V_8_3_2);
+    public static final Version V_8_3_3 = new Version(8_03_03_99, IndexVersion.V_8_3_3);
+    public static final Version V_8_4_0 = new Version(8_04_00_99, IndexVersion.V_8_4_0);
+    public static final Version V_8_4_1 = new Version(8_04_01_99, IndexVersion.V_8_4_1);
+    public static final Version V_8_4_2 = new Version(8_04_02_99, IndexVersion.V_8_4_2);
+    public static final Version V_8_4_3 = new Version(8_04_03_99, IndexVersion.V_8_4_3);
+    public static final Version V_8_5_0 = new Version(8_05_00_99, IndexVersion.V_8_5_0);
+    public static final Version V_8_5_1 = new Version(8_05_01_99, IndexVersion.V_8_5_1);
+    public static final Version V_8_5_2 = new Version(8_05_02_99, IndexVersion.V_8_5_2);
+    public static final Version V_8_5_3 = new Version(8_05_03_99, IndexVersion.V_8_5_3);
+    public static final Version V_8_6_0 = new Version(8_06_00_99, IndexVersion.V_8_6_0);
+    public static final Version V_8_6_1 = new Version(8_06_01_99, IndexVersion.V_8_6_1);
+    public static final Version V_8_6_2 = new Version(8_06_02_99, IndexVersion.V_8_6_2);
+    public static final Version V_8_7_0 = new Version(8_07_00_99, IndexVersion.V_8_7_0);
+    public static final Version V_8_7_1 = new Version(8_07_01_99, IndexVersion.V_8_7_1);
+    public static final Version V_8_8_0 = new Version(8_08_00_99, IndexVersion.V_8_8_0);
+    public static final Version V_8_8_1 = new Version(8_08_01_99, IndexVersion.V_8_8_1);
+    public static final Version V_8_8_2 = new Version(8_08_02_99, IndexVersion.V_8_8_2);
+    public static final Version V_8_8_3 = new Version(8_08_03_99, IndexVersion.V_8_8_3);
+    public static final Version V_8_9_0 = new Version(8_09_00_99, IndexVersion.V_8_9_0);
+    public static final Version V_8_10_0 = new Version(8_10_00_99, IndexVersion.V_8_10_0);
+    public static final Version CURRENT = V_8_10_0;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;
@@ -175,8 +182,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 }
             }
         }
-        assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST)
-            : "Version must be upgraded to [" + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
         assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1
             : "RestApiVersion must be upgraded "
                 + "to reflect major from Version.CURRENT ["
@@ -205,28 +210,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     private static Version fromIdSlow(int id) {
-        // We need at least the major of the Lucene version to be correct.
-        // Our best guess is to use the same Lucene version as the previous
-        // version in the list, assuming that it didn't change.
-        List<Version> versions = DeclaredVersionsHolder.DECLARED_VERSIONS;
-        Version tmp = new Version(id, TransportVersion.CURRENT, org.apache.lucene.util.Version.LATEST);
-        int index = Collections.binarySearch(versions, tmp);
-        if (index < 0) {
-            index = -2 - index;
-        } else {
-            assert false : "Version [" + tmp + "] is declared but absent from the switch statement in Version#fromId";
-        }
-        final org.apache.lucene.util.Version luceneVersion;
-        if (index == -1) {
-            // this version is older than any supported version, so we
-            // assume it is the previous major to the oldest Lucene version
-            // that we know about
-            luceneVersion = org.apache.lucene.util.Version.fromBits(versions.get(0).luceneVersion.major - 1, 0, 0);
-        } else {
-            luceneVersion = versions.get(index).luceneVersion;
-        }
-        // TODO: assume this is an old version that has transport version == release version
-        return new Version(id, TransportVersion.fromId(id), luceneVersion);
+        // TODO: assume this is an old version that has index version == release version
+        return new Version(id, IndexVersion.fromId(id));
     }
 
     public static void writeVersion(Version version, StreamOutput out) throws IOException {
@@ -309,19 +294,18 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte minor;
     public final byte revision;
     public final byte build;
-    public final TransportVersion transportVersion;
-    public final org.apache.lucene.util.Version luceneVersion;
+    @Deprecated(forRemoval = true)
+    public final IndexVersion indexVersion;
     private final String toString;
     private final int previousMajorId;
 
-    Version(int id, TransportVersion transportVersion, org.apache.lucene.util.Version luceneVersion) {
+    Version(int id, IndexVersion indexVersion) {
         this.id = id;
         this.major = (byte) ((id / 1000000) % 100);
         this.minor = (byte) ((id / 10000) % 100);
         this.revision = (byte) ((id / 100) % 100);
         this.build = (byte) (id % 100);
-        this.transportVersion = Objects.requireNonNull(transportVersion);
-        this.luceneVersion = Objects.requireNonNull(luceneVersion);
+        this.indexVersion = Objects.requireNonNull(indexVersion);
         this.toString = major + "." + minor + "." + revision;
         this.previousMajorId = major > 0 ? (major - 1) * 1000000 + 99 : major;
     }
@@ -350,6 +334,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(toString());
+    }
+
+    @Deprecated(forRemoval = true)
+    public org.apache.lucene.util.Version luceneVersion() {
+        return indexVersion.luceneVersion();
     }
 
     /*

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
@@ -57,9 +58,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -83,7 +82,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(
+        return List.of(
             CACHE_SIZE,
             GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING,
             GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
@@ -123,7 +122,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         try {
             String nodeId = nodeEnvironment.nodeId();
@@ -206,7 +206,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             .setPrimaryIndex(DATABASES_INDEX)
             .setNetNew()
             .build();
-        return Collections.singleton(geoipDatabasesIndex);
+        return List.of(geoipDatabasesIndex);
     }
 
     @Override

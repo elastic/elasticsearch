@@ -12,19 +12,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.CancellableFanOut;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -38,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -49,13 +49,11 @@ public abstract class TransportNodesAction<
 
     private static final Logger logger = LogManager.getLogger(TransportNodesAction.class);
 
-    protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
-    protected final Class<NodeResponse> nodeResponseClass;
     protected final String transportNodeAction;
 
-    private final String finalExecutor;
+    private final Executor finalExecutor;
 
     /**
      * @param actionName        action name
@@ -65,9 +63,7 @@ public abstract class TransportNodesAction<
      * @param actionFilters     action filters
      * @param request           node request writer
      * @param nodeRequest       node request reader
-     * @param nodeExecutor      executor to execute node action on
-     * @param finalExecutor     executor to execute final collection of all responses on
-     * @param nodeResponseClass class of the node responses
+     * @param executor          executor to execute node action and final collection
      */
     protected TransportNodesAction(
         String actionName,
@@ -77,51 +73,15 @@ public abstract class TransportNodesAction<
         ActionFilters actionFilters,
         Writeable.Reader<NodesRequest> request,
         Writeable.Reader<NodeRequest> nodeRequest,
-        String nodeExecutor,
-        String finalExecutor,
-        Class<NodeResponse> nodeResponseClass
+        String executor
     ) {
         super(actionName, transportService, actionFilters, request);
-        this.threadPool = threadPool;
+        assert executor.equals(ThreadPool.Names.SAME) == false : "TransportNodesAction must always fork off the transport thread";
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
-        this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);
-
+        this.finalExecutor = threadPool.executor(executor);
         this.transportNodeAction = actionName + "[n]";
-        this.finalExecutor = finalExecutor.equals(ThreadPool.Names.SAME) ? ThreadPool.Names.GENERIC : finalExecutor;
-        transportService.registerRequestHandler(transportNodeAction, nodeExecutor, nodeRequest, new NodeTransportHandler());
-    }
-
-    /**
-     * Same as {@link #TransportNodesAction(String, ThreadPool, ClusterService, TransportService, ActionFilters, Writeable.Reader,
-     * Writeable.Reader, String, String, Class)} but executes final response collection on the transport thread except for when the final
-     * node response is received from the local node, in which case {@code nodeExecutor} is used.
-     * This constructor should only be used for actions for which the creation of the final response is fast enough to be safely executed
-     * on a transport thread.
-     */
-    protected TransportNodesAction(
-        String actionName,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<NodesRequest> request,
-        Writeable.Reader<NodeRequest> nodeRequest,
-        String nodeExecutor,
-        Class<NodeResponse> nodeResponseClass
-    ) {
-        this(
-            actionName,
-            threadPool,
-            clusterService,
-            transportService,
-            actionFilters,
-            request,
-            nodeRequest,
-            nodeExecutor,
-            ThreadPool.Names.SAME,
-            nodeResponseClass
-        );
+        transportService.registerRequestHandler(transportNodeAction, executor, nodeRequest, new NodeTransportHandler());
     }
 
     @Override
@@ -131,84 +91,64 @@ public abstract class TransportNodesAction<
             assert request.concreteNodes() != null;
         }
 
-        final var responses = new ArrayList<NodeResponse>(request.concreteNodes().length);
-        final var exceptions = new ArrayList<FailedNodeException>(0);
+        new CancellableFanOut<DiscoveryNode, NodeResponse, CheckedConsumer<ActionListener<NodesResponse>, Exception>>() {
 
-        final var resultListener = new ListenableFuture<NodesResponse>();
-        final var resultListenerCompleter = new RunOnce(() -> {
-            if (task instanceof CancellableTask cancellableTask) {
-                if (cancellableTask.notifyIfCancelled(resultListener)) {
-                    return;
-                }
-            }
-            // ref releases all happen-before here so no need to be synchronized
-            threadPool.executor(finalExecutor)
-                .execute(ActionRunnable.wrap(resultListener, l -> newResponseAsync(task, request, responses, exceptions, l)));
-        });
+            final ArrayList<NodeResponse> responses = new ArrayList<>(request.concreteNodes().length);
+            final ArrayList<FailedNodeException> exceptions = new ArrayList<>(0);
 
-        final var nodeCancellationListener = new ListenableFuture<NodeResponse>(); // collects node listeners & completes them if cancelled
-        if (task instanceof CancellableTask cancellableTask) {
-            cancellableTask.addListener(() -> {
-                assert cancellableTask.isCancelled();
-                resultListenerCompleter.run();
-                cancellableTask.notifyIfCancelled(nodeCancellationListener);
-            });
-        }
+            final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
 
-        final var transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
-
-        try (var refs = new RefCountingRunnable(() -> {
-            resultListener.addListener(listener);
-            resultListenerCompleter.run();
-        })) {
-            for (final var node : request.concreteNodes()) {
-                final ActionListener<NodeResponse> nodeResponseListener = ActionListener.notifyOnce(new ActionListener<>() {
-                    @Override
-                    public void onResponse(NodeResponse nodeResponse) {
-                        synchronized (responses) {
-                            responses.add(nodeResponse);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
-                            return;
-                        }
-
-                        logger.debug(() -> format("failed to execute [%s] on node [%s]", actionName, node), e);
-                        synchronized (exceptions) {
-                            exceptions.add(new FailedNodeException(node.getId(), "Failed node [" + node.getId() + "]", e));
-                        }
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "[" + actionName + "][" + node.descriptionWithoutAttributes() + "]";
-                    }
-                });
-
-                if (task instanceof CancellableTask) {
-                    nodeCancellationListener.addListener(nodeResponseListener);
-                }
-
+            @Override
+            protected void sendItemRequest(DiscoveryNode discoveryNode, ActionListener<NodeResponse> listener) {
                 final var nodeRequest = newNodeRequest(request);
                 if (task != null) {
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 }
 
                 transportService.sendRequest(
-                    node,
+                    discoveryNode,
                     transportNodeAction,
                     nodeRequest,
                     transportRequestOptions,
-                    new ActionListenerResponseHandler<>(
-                        ActionListener.releaseAfter(nodeResponseListener, refs.acquire()),
-                        in -> newNodeResponse(in, node)
-                    )
+                    new ActionListenerResponseHandler<>(listener, nodeResponseReader(discoveryNode))
                 );
             }
-        }
+
+            @Override
+            protected void onItemResponse(DiscoveryNode discoveryNode, NodeResponse nodeResponse) {
+                synchronized (responses) {
+                    responses.add(nodeResponse);
+                }
+            }
+
+            @Override
+            protected void onItemFailure(DiscoveryNode discoveryNode, Exception e) {
+                logger.debug(() -> format("failed to execute [%s] on node [%s]", actionName, discoveryNode), e);
+                synchronized (exceptions) {
+                    exceptions.add(new FailedNodeException(discoveryNode.getId(), "Failed node [" + discoveryNode.getId() + "]", e));
+                }
+            }
+
+            @Override
+            protected CheckedConsumer<ActionListener<NodesResponse>, Exception> onCompletion() {
+                // ref releases all happen-before here so no need to be synchronized
+                return l -> newResponseAsync(task, request, responses, exceptions, l);
+            }
+
+            @Override
+            public String toString() {
+                return actionName;
+            }
+        }.run(
+            task,
+            Iterators.forArray(request.concreteNodes()),
+            new ThreadedActionListener<>(finalExecutor, listener.delegateFailureAndWrap((l, c) -> c.accept(l)))
+        );
+    }
+
+    private Writeable.Reader<NodeResponse> nodeResponseReader(DiscoveryNode discoveryNode) {
+        // not an inline lambda to avoid capturing CancellableFanOut.this.
+        return in -> TransportNodesAction.this.newNodeResponse(in, discoveryNode);
     }
 
     /**

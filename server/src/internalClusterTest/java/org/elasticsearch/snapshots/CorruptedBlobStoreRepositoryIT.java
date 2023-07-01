@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
@@ -70,9 +71,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final String snapshot = "test-snap";
 
         logger.info("--> creating snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repoName, snapshot)
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repoName, snapshot)
             .setWaitForCompletion(true)
             .setIndices("test-idx-1")
             .get();
@@ -89,15 +88,12 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertRepositoryBlocked(repoName, snapshot);
 
         logger.info("--> recreate repository with same settings in order to reset corrupted state");
-        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(settings));
+        assertAcked(clusterAdmin().preparePutRepository(repoName).setType("fs").setSettings(settings));
 
         startDeleteSnapshot(repoName, snapshot).get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> client().admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get()
-        );
+        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots(repoName).addSnapshots(snapshot).get());
     }
 
     public void testConcurrentlyChangeRepositoryContents() throws Exception {
@@ -200,9 +196,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final String snapshot = "test-snap";
 
         logger.info("--> creating snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repoName, snapshot)
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repoName, snapshot)
             .setWaitForCompletion(true)
             .setIndices("test-idx-*")
             .get();
@@ -248,10 +242,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(getRepositoryData(repoName).getGenId(), is(beforeMoveGen + 2));
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> client().admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get()
-        );
+        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots(repoName).addSnapshots(snapshot).get());
     }
 
     public void testHandlingMissingRootLevelSnapshotMetadata() throws Exception {
@@ -274,9 +265,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         for (int i = 0; i < snapshots; ++i) {
             // Workaround to simulate BwC situation: taking a snapshot without indices here so that we don't create any new version shard
             // generations (the existence of which would short-circuit checks for the repo containing old version snapshots)
-            CreateSnapshotResponse createSnapshotResponse = client().admin()
-                .cluster()
-                .prepareCreateSnapshot(repoName, snapshotPrefix + i)
+            CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repoName, snapshotPrefix + i)
                 .setIndices()
                 .setWaitForCompletion(true)
                 .get();
@@ -352,7 +341,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         );
         final RepositoryData finalRepositoryData = getRepositoryData(repoName);
         for (SnapshotId snapshotId : finalRepositoryData.getSnapshotIds()) {
-            assertThat(finalRepositoryData.getVersion(snapshotId), is(Version.CURRENT));
+            assertThat(finalRepositoryData.getVersion(snapshotId), is(IndexVersion.current()));
         }
     }
 
@@ -475,7 +464,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         );
 
         logger.info("--> recreating repository to clear caches");
-        client().admin().cluster().prepareDeleteRepository(repoName).get();
+        clusterAdmin().prepareDeleteRepository(repoName).get();
         createRepository(repoName, "fs", repoPath);
 
         createFullSnapshot(repoName, "snapshot-2");
@@ -530,7 +519,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo(snapshot1));
 
         logger.info("-->  deleting index [{}]", indexName);
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         logger.info("-->  restoring snapshot [{}]", snapshot1);
         clusterAdmin().prepareRestoreSnapshot("test-repo", snapshot1)
@@ -808,7 +797,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             "--> restoring the first snapshot, the repository should not have lost any shard data despite deleting index-N, "
                 + "because it uses snap-*.data files and not the index-N to determine what files to restore"
         );
-        client().admin().indices().prepareDelete("test-idx-1", "test-idx-2").get();
+        indicesAdmin().prepareDelete("test-idx-1", "test-idx-2").get();
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-1")
             .setWaitForCompletion(true)
             .get();

@@ -28,6 +28,8 @@ applied.
 template, the settings from the <<indices-create-index,create index>> request
 take precedence over settings specified in the index template and its component
 templates.
+* Settings specified in the index template itself take precedence over the settings 
+in its component templates.
 * If a new data stream or index matches more than one index template, the index
 template with the highest priority is used.
 
@@ -41,6 +43,7 @@ following index patterns:
 - `logs-*-*`
 - `metrics-*-*`
 - `synthetics-*-*`
+- `profiling-*`
 // end::built-in-index-template-patterns[]
 
 {fleet-guide}/fleet-overview.html[{agent}] uses these templates to create

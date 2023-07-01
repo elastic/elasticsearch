@@ -10,6 +10,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -28,25 +29,29 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 public class ClusterStateUpdaters {
     private static final Logger logger = LogManager.getLogger(ClusterStateUpdaters.class);
 
-    public static ClusterState setLocalNode(final ClusterState clusterState, DiscoveryNode localNode) {
+    public static ClusterState setLocalNode(ClusterState clusterState, DiscoveryNode localNode, TransportVersion transportVersion) {
         return ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
+            .putTransportVersion(localNode.getId(), transportVersion)
             .build();
     }
 
-    static ClusterState upgradeAndArchiveUnknownOrInvalidSettings(final ClusterState clusterState, final ClusterSettings clusterSettings) {
+    public static ClusterState upgradeAndArchiveUnknownOrInvalidSettings(
+        final ClusterState clusterState,
+        final ClusterSettings clusterSettings
+    ) {
         final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
 
         metadataBuilder.persistentSettings(
             clusterSettings.archiveUnknownOrInvalidSettings(
-                clusterSettings.upgradeSettings(metadataBuilder.persistentSettings()),
+                metadataBuilder.persistentSettings(),
                 e -> logUnknownSetting("persistent", e),
                 (e, ex) -> logInvalidSetting("persistent", e, ex)
             )
         );
         metadataBuilder.transientSettings(
             clusterSettings.archiveUnknownOrInvalidSettings(
-                clusterSettings.upgradeSettings(metadataBuilder.transientSettings()),
+                metadataBuilder.transientSettings(),
                 e -> logUnknownSetting("transient", e),
                 (e, ex) -> logInvalidSetting("transient", e, ex)
             )
@@ -65,7 +70,7 @@ public class ClusterStateUpdaters {
         );
     }
 
-    static ClusterState recoverClusterBlocks(final ClusterState state) {
+    public static ClusterState recoverClusterBlocks(final ClusterState state) {
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
 
         if (Metadata.SETTING_READ_ONLY_SETTING.get(state.metadata().settings())) {

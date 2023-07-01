@@ -1,6 +1,0 @@
-pr: 94128
-summary: Allocate trained models if zone awareness attributes not set
-area: Machine Learning
-type: bug
-issues:
- - 94123

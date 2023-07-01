@@ -98,7 +98,7 @@ public class BytesStreamsTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
 
         // bulk-write with wrong args
-        expectThrows(IllegalArgumentException.class, () -> out.writeBytes(new byte[] {}, 0, 1));
+        expectThrows(IndexOutOfBoundsException.class, () -> out.writeBytes(new byte[] {}, 0, 1));
         out.close();
     }
 
@@ -562,7 +562,7 @@ public class BytesStreamsTests extends ESTestCase {
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
-        final Map<String, List<String>> loaded = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+        final Map<String, List<String>> loaded = in.readMapOfLists(StreamInput::readString);
 
         assertThat(loaded.size(), equalTo(expected.size()));
 

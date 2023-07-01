@@ -403,7 +403,7 @@ If you do not want to enable SSL and are currently using other
 * Discontinue use of other `xpack.security.http.ssl` settings
 
 If you want to enable SSL, follow the instructions in
-{ref}/configuring-tls.html#tls-http[Encrypting HTTP client communications]. As part
+{ref}/security-basic-setup-https.html#encrypt-http-communication[Encrypting HTTP client communications]. As part
 of this configuration, explicitly specify `xpack.security.http.ssl.enabled`
 as `true`.
 

@@ -17,8 +17,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -38,9 +40,11 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.CCS_APIS;
@@ -65,6 +69,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static TestCandidateAwareClient searchYamlTestClient;
     // the remote cluster is the one we write index operations etc... to
     private static final String REMOTE_CLUSTER_NAME = "remote_cluster";
+    private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
 
     private static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("x-pack-async-search")
         .module("aggregations")
@@ -98,9 +103,53 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
         .setting("cluster.remote.connections_per_cluster", "1")
         .apply(commonClusterConfig)
+        .keystore("cluster.remote." + REMOTE_CLUSTER_NAME + ".credentials", () -> {
+            if (API_KEY_MAP_REF.get() == null) {
+                try {
+                    API_KEY_MAP_REF.set(createCrossClusterAccessApiKey());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+            return (String) API_KEY_MAP_REF.get().get("encoded");
+        })
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("remote_search_user", "x-pack-test-password", "remote_search_role")
         .build();
+
+    private static Map<String, Object> createCrossClusterAccessApiKey() throws IOException {
+        assert fulfillingCluster != null;
+        final var createApiKeyRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createApiKeyRequest.setJsonEntity("""
+            {
+              "name": "cross_cluster_access_key",
+              "access": {
+                  "search": [
+                    {
+                      "names": ["*"],
+                      "allow_restricted_indices": true
+                    }
+                  ]
+              }
+            }""");
+        createApiKeyRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray())))
+        );
+
+        final int numberOfFcNodes = fulfillingCluster.getHttpAddresses().split(",").length;
+        final String url = fulfillingCluster.getHttpAddress(randomIntBetween(0, numberOfFcNodes - 1));
+        final int portSeparator = url.lastIndexOf(':');
+        final var httpHost = new HttpHost(url.substring(0, portSeparator), Integer.parseInt(url.substring(portSeparator + 1)), "http");
+        RestClientBuilder builder = RestClient.builder(httpHost);
+        doConfigureClient(builder, Settings.EMPTY);
+        builder.setStrictDeprecationMode(true);
+        try (RestClient fulfillingClusterClient = builder.build()) {
+            final Response createApiKeyResponse = fulfillingClusterClient.performRequest(createApiKeyRequest);
+            assertOK(createApiKeyResponse);
+            return responseAsMap(createApiKeyResponse);
+        }
+    }
 
     @ClassRule
     // Use a RuleChain to ensure that remote cluster is started before local cluster
@@ -206,30 +255,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     private static void configureRemoteCluster() throws IOException {
-        final var createApiKeyRequest = new Request("POST", "/_security/api_key");
-        createApiKeyRequest.setJsonEntity("""
-            {
-              "name": "cross_cluster_access_key",
-              "role_descriptors": {
-                "role": {
-                  "cluster": ["cross_cluster_access"],
-                  "index": [
-                    {
-                      "names": ["*"],
-                      "privileges": ["read", "read_cross_cluster"],
-                      "allow_restricted_indices": true
-                    }
-                  ]
-                }
-              }
-            }""");
-        final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
-        assertOK(createApiKeyResponse);
-        final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
-        final String encodedCrossClusterAccessApiKey = (String) apiKeyMap.get("encoded");
-
-        final Settings.Builder builder = Settings.builder()
-            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".authorization", encodedCrossClusterAccessApiKey);
+        final Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "proxy")
                 .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));

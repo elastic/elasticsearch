@@ -31,6 +31,7 @@ final class ElasticServiceAccounts {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         "search-*",
+                        ".search-acl-filter-*",
                         ".elastic-analytics-collections",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",
@@ -73,6 +74,7 @@ final class ElasticServiceAccounts {
                     )
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("profiling-*").privileges("read", "write", "auto_configure").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     // APM Server (and hence Fleet Server, which issues its API Keys) needs additional privileges
                     // for the non-sensitive "sampled traces" data stream:
@@ -81,6 +83,11 @@ final class ElasticServiceAccounts {
                     // - "read" privilege to search the documents
                     .indices("traces-apm.sampled-*")
                     .privileges("read", "monitor", "maintenance")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-secrets*")
+                    .privileges("read")
+                    .allowRestrictedIndices(true)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")

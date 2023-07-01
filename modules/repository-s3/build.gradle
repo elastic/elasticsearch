@@ -15,7 +15,6 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  */
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The S3 repository plugin adds S3 repositories'
@@ -49,15 +48,6 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
 }
 
-testArtifacts {
-  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
-}
-
-tasks.named("internalClusterTestJar").configure {
-  // for the plugin-security.policy resource
-  from sourceSets.test.output
-}
-
 restResources {
   restApi {
     include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
@@ -78,6 +68,8 @@ esplugin.bundleSpec.from('config/repository-s3') {
 def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {
   include '**/RepositoryCredentialsTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
 }
 
 tasks.named('check').configure {

@@ -1,0 +1,5 @@
+pr: 96012
+summary: Support CCS minimize round trips in async search
+area: Search
+type: enhancement
+issues: []

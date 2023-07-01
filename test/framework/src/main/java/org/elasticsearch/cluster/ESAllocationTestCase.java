@@ -10,10 +10,12 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -31,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -40,6 +41,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
@@ -51,13 +53,11 @@ import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
-import static org.mockito.Mockito.mock;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
 
@@ -152,11 +152,13 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
+        var clusterSettings = createBuiltInClusterSettings(settings);
+        var clusterService = ClusterServiceUtils.createClusterService(queue.getThreadPool(), clusterSettings);
         return new DesiredBalanceShardsAllocator(
-            createBuiltInClusterSettings(settings),
+            clusterSettings,
             new BalancedShardsAllocator(settings),
             queue.getThreadPool(),
-            mock(ClusterService.class),
+            clusterService,
             null
         ) {
             private RoutingAllocation lastAllocation;
@@ -165,6 +167,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                 lastAllocation = allocation;
                 super.allocate(allocation, listener);
+                queue.runAllTasks();
+                completeToLastConvergedIndex();
                 queue.runAllTasks();
             }
 
@@ -184,27 +188,27 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
 
     protected static DiscoveryNode newNode(String nodeId) {
-        return newNode(nodeId, Version.CURRENT);
+        return newNode(nodeId, (Version) null);
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode(nodeName, nodeId, buildNewFakeTransportAddress(), attributes, MASTER_DATA_ROLES, Version.CURRENT);
+        return DiscoveryNodeUtils.builder(nodeId).name(nodeName).attributes(attributes).roles(MASTER_DATA_ROLES).build();
     }
 
     protected static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, MASTER_DATA_ROLES, Version.CURRENT);
+        return DiscoveryNodeUtils.builder(nodeId).attributes(attributes).build();
     }
 
     protected static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+        return DiscoveryNodeUtils.builder(nodeId).roles(roles).build();
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(nodeName, nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+        return DiscoveryNodeUtils.builder(nodeId).name(nodeName).roles(roles).build();
     }
 
     protected static DiscoveryNode newNode(String nodeId, Version version) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, version);
+        return DiscoveryNodeUtils.builder(nodeId).roles(MASTER_DATA_ROLES).version(version).build();
     }
 
     protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
@@ -309,11 +313,14 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterState clusterState,
         List<ShardRouting> initializingShards
     ) {
-        return allocationService.reroute(
-            allocationService.applyStartedShards(clusterState, initializingShards),
-            "reroute after starting",
-            ActionListener.noop()
-        );
+        return reroute(allocationService, allocationService.applyStartedShards(clusterState, initializingShards));
+    }
+
+    public static ClusterState reroute(AllocationService allocationService, ClusterState clusterState) {
+        final var listener = new PlainActionFuture<Void>();
+        final var result = allocationService.reroute(clusterState, "test reroute", listener);
+        listener.result(); // ensures it completed successfully
+        return result;
     }
 
     public static class TestAllocateDecision extends AllocationDecider {

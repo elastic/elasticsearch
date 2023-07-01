@@ -11,6 +11,7 @@ package org.elasticsearch.dlm;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -23,38 +24,45 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
  */
 public class DataLifecycleErrorStore {
 
-    private final ConcurrentMap<String, String> targetToError = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, String> indexNameToError = new ConcurrentHashMap<>();
 
     /**
-     * Records a string representation of the provided exception for the provided target.
-     * If an error was already recorded for the provided target this will override that error.
+     * Records a string representation of the provided exception for the provided index.
+     * If an error was already recorded for the provided index this will override that error.
      */
-    public void recordError(String target, Exception e) {
-        targetToError.put(target, org.elasticsearch.common.Strings.toString(((builder, params) -> {
+    public void recordError(String indexName, Exception e) {
+        indexNameToError.put(indexName, org.elasticsearch.common.Strings.toString(((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, EMPTY_PARAMS, e);
             return builder;
         })));
     }
 
     /**
-     * Clears the recorded error for the provided target (if any exists)
+     * Clears the recorded error for the provided index (if any exists)
      */
-    public void clearRecordedError(String target) {
-        targetToError.remove(target);
+    public void clearRecordedError(String indexName) {
+        indexNameToError.remove(indexName);
     }
 
     /**
      * Clears all the errors recorded in the store.
      */
     public void clearStore() {
-        targetToError.clear();
+        indexNameToError.clear();
     }
 
     /**
-     * Retrieves the recorderd error for the provided target.
+     * Retrieves the recorderd error for the provided index.
      */
     @Nullable
-    public String getError(String target) {
-        return targetToError.get(target);
+    public String getError(String indexName) {
+        return indexNameToError.get(indexName);
+    }
+
+    /**
+     * Return an immutable view (a snapshot) of the tracked indices at the moment this method is called.
+     */
+    public List<String> getAllIndices() {
+        return List.copyOf(indexNameToError.keySet());
     }
 }

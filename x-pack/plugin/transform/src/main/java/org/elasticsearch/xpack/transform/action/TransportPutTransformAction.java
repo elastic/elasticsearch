@@ -35,9 +35,11 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
@@ -123,16 +125,38 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
-        if (XPackSettings.SECURITY_ENABLED.get(settings) && request.isDeferValidation() == false) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             TransformPrivilegeChecker.checkPrivileges(
                 "create",
+                settings,
                 securityContext,
                 indexNameExpressionResolver,
                 clusterState,
                 client,
                 config,
                 true,
-                checkPrivilegesListener
+                ActionListener.wrap(
+                    aVoid -> AuthorizationStatePersistenceUtils.persistAuthState(
+                        settings,
+                        transformConfigManager,
+                        transformId,
+                        AuthorizationState.green(),
+                        checkPrivilegesListener
+                    ),
+                    e -> {
+                        if (request.isDeferValidation()) {
+                            AuthorizationStatePersistenceUtils.persistAuthState(
+                                settings,
+                                transformConfigManager,
+                                transformId,
+                                AuthorizationState.red(e),
+                                checkPrivilegesListener
+                            );
+                        } else {
+                            checkPrivilegesListener.onFailure(e);
+                        }
+                    }
+                )
             );
         } else { // No security enabled, just move on
             checkPrivilegesListener.onResponse(null);

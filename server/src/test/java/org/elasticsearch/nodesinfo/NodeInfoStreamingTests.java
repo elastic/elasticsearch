@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,6 +32,7 @@ import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
@@ -46,7 +48,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -103,13 +104,10 @@ public class NodeInfoStreamingTests extends ESTestCase {
 
     private static NodeInfo createNodeInfo() {
         Build build = Build.CURRENT;
-        DiscoveryNode node = new DiscoveryNode(
-            "test_node",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            VersionUtils.randomVersion(random())
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
+            .roles(emptySet())
+            .version(VersionUtils.randomVersion(random()))
+            .build();
         Settings settings = randomBoolean() ? null : Settings.builder().put("test", "setting").build();
         OsInfo osInfo = null;
         if (randomBoolean()) {
@@ -229,6 +227,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         }
         return new NodeInfo(
             VersionUtils.randomVersion(random()),
+            TransportVersionUtils.randomVersion(random()),
             build,
             node,
             settings,

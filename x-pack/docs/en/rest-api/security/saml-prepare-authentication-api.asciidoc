@@ -8,7 +8,7 @@
 Creates a SAML authentication request (`<AuthnRequest>`) as a URL string, based on the configuration of the respective SAML realm in {es}.
 
 NOTE: This API is intended for use by custom web applications other than {kib}.
-If you are using {kib}, see the <<saml-guide>>.
+If you are using {kib}, see the <<saml-guide-stack>>.
 
 [[security-api-saml-prepare-authentication-request]]
 ==== {api-request-title}

@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -340,7 +340,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void deleteRepository(String repoName) {
-        assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+        assertAcked(clusterAdmin().prepareDeleteRepository(repoName));
     }
 
     public static Settings.Builder randomRepositorySettings() {
@@ -356,7 +356,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected static Settings.Builder indexSettingsNoReplicas(int shards) {
-        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        return indexSettings(shards, 0);
     }
 
     /**
@@ -365,6 +365,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected void maybeInitWithOldSnapshotVersion(String repoName, Path repoPath) throws Exception {
         if (randomBoolean() && randomBoolean()) {
             initWithSnapshotVersion(repoName, repoPath, VersionUtils.randomIndexCompatibleVersion(random()));
+        }
+    }
+
+    private static String versionString(Version version) {
+        if (version.before(Version.V_8_9_0)) {
+            // add back the "" for a json String
+            return "\"" + version + "\"";
+        } else {
+            return version.indexVersion.toString();
         }
     }
 
@@ -389,7 +398,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(
             JsonXContent.jsonXContent.createParser(
                 XContentParserConfiguration.EMPTY,
-                Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), version.toString())
+                Strings.toString(jsonBuilder).replace(IndexVersion.current().toString(), versionString(version))
             ),
             repositoryData.getGenId(),
             randomBoolean()
@@ -404,7 +413,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             JsonXContent.jsonXContent.createParser(
                 XContentParserConfiguration.EMPTY,
                 Strings.toString(snapshotInfo, ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS)
-                    .replace(String.valueOf(Version.CURRENT.id), String.valueOf(version.id))
+                    .replace(String.valueOf(IndexVersion.current().id()), String.valueOf(version.id))
             )
         );
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);
@@ -427,7 +436,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final RepositoryMetadata repoMetadata = blobStoreRepository.getMetadata();
         if (BlobStoreRepository.CACHE_REPOSITORY_DATA.get(repoMetadata.settings())) {
             logger.info("--> recreating repository to clear caches");
-            assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+            assertAcked(clusterAdmin().prepareDeleteRepository(repoName));
             createRepository(repoName, repoMetadata.type(), Settings.builder().put(repoMetadata.settings()));
         }
         return oldVersionSnapshot;
@@ -451,9 +460,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices, List<String> featureStates) {
         logger.info("--> creating snapshot [{}] of {} in [{}]", snapshot, indices, repositoryName);
-        final CreateSnapshotResponse response = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, snapshot)
+        final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(repositoryName, snapshot)
             .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
             .setWaitForCompletion(true)
             .setFeatureStates(featureStates.toArray(Strings.EMPTY_ARRAY))
@@ -524,7 +531,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             Collections.emptyList(),
             Collections.emptyList(),
             "failed on purpose",
-            SnapshotsService.OLD_SNAPSHOT_FORMAT,
+            SnapshotsService.OLD_SNAPSHOT_FORMAT.indexVersion,
             0L,
             0L,
             0,
@@ -683,7 +690,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected static ThreadPoolStats.Stats snapshotThreadPoolStats(final String node) {
         return StreamSupport.stream(internalCluster().getInstance(ThreadPool.class, node).stats().spliterator(), false)
-            .filter(threadPool -> threadPool.getName().equals(ThreadPool.Names.SNAPSHOT))
+            .filter(threadPool -> threadPool.name().equals(ThreadPool.Names.SNAPSHOT))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Failed to find snapshot pool on node [" + node + "]"));
     }
@@ -691,7 +698,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected void awaitMasterFinishRepoOperations() throws Exception {
         logger.info("--> waiting for master to finish all repo operations on its SNAPSHOT pool");
         final String masterName = internalCluster().getMasterName();
-        assertBusy(() -> assertEquals(snapshotThreadPoolStats(masterName).getActive(), 0));
+        assertBusy(() -> assertEquals(snapshotThreadPoolStats(masterName).active(), 0));
     }
 
     protected List<String> createNSnapshots(String repoName, int count) throws Exception {

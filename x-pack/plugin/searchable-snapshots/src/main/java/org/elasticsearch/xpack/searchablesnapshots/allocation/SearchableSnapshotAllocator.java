@@ -8,11 +8,9 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -42,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -76,9 +75,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotAllocator.class);
 
-    private static final ActionListener<ClusterState> REROUTE_LISTENER = new ActionListener<>() {
+    private static final ActionListener<Void> REROUTE_LISTENER = new ActionListener<>() {
         @Override
-        public void onResponse(ClusterState clusterRerouteResponse) {
+        public void onResponse(Void ignored) {
             logger.trace("reroute succeeded after loading snapshot cache information");
         }
 
@@ -172,9 +171,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
                 final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
-                final Version version = shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+                final IndexVersion version = shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
                     ? ((RecoverySource.SnapshotRecoverySource) shardRouting.recoverySource()).version()
-                    : Version.CURRENT;
+                    : IndexVersion.current();
 
                 final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
                     recoveryUuid,
@@ -236,7 +235,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 // recovery attempt has completed. It might succeed, but if it doesn't then we replace it with a dummy restore to bypass
                 // the RestoreInProgressAllocationDecider
 
-                final RestoreInProgress restoreInProgress = allocation.custom(RestoreInProgress.TYPE);
+                final RestoreInProgress restoreInProgress = allocation.getClusterState().custom(RestoreInProgress.TYPE);
                 if (restoreInProgress == null) {
                     // no ongoing restores, so this shard definitely completed
                     return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
@@ -343,11 +342,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         if (shardRouting.unassignedInfo().isDelayed()) {
             String lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
             if (lastAllocatedNodeId != null) {
-                SingleNodeShutdownMetadata nodeShutdownMetadata = allocation.metadata().nodeShutdowns().get(lastAllocatedNodeId);
-                return nodeShutdownMetadata != null && nodeShutdownMetadata.getType() == SingleNodeShutdownMetadata.Type.RESTART;
+                return allocation.metadata().nodeShutdowns().contains(lastAllocatedNodeId, SingleNodeShutdownMetadata.Type.RESTART);
             }
         }
-
         return false;
     }
 

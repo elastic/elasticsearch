@@ -498,6 +498,10 @@ that document will not be used for training, but a prediction with the trained
 model will be generated for it. It is also known as continuous target variable.
 end::dependent-variable[]
 
+tag::deployment-id[]
+A unique identifier for the deployment of the model.
+end::deployment-id[]
+
 tag::desc-results[]
 If true, the results are sorted in descending order.
 end::desc-results[]
@@ -887,7 +891,7 @@ For example:
    "ignore_throttled": true
 }
 ```
-For more information about these options, see <<multi-index>>.
+For more information about these options, see <<api-multi-index>>.
 --
 end::indices-options[]
 
@@ -940,12 +944,20 @@ values are
 * `bert`: Use for BERT-style models
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
+* experimental:[] `xlm_roberta`: Use for XLMRoBERTa-style models
+* experimental:[] `bert_ja`: Use for BERT-style models trained for the Japanese
+language.
 --
 end::inference-config-nlp-tokenization[]
 
 tag::inference-config-nlp-tokenization-bert[]
 BERT-style tokenization is to be performed with the enclosed settings.
 end::inference-config-nlp-tokenization-bert[]
+
+tag::inference-config-nlp-tokenization-bert-ja[]
+experimental:[] BERT-style tokenization for Japanese text is to be performed 
+with the enclosed settings.
+end::inference-config-nlp-tokenization-bert-ja[]
 
 tag::inference-config-nlp-tokenization-do-lower-case[]
 Specifies if the tokenization lower case the text sequence when building the
@@ -988,6 +1000,10 @@ Tokenize with special tokens. The tokens typically included in BERT-style tokeni
 --
 end::inference-config-nlp-tokenization-bert-with-special-tokens[]
 
+tag::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
+Tokenize with special tokens if `true`.
+end::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
+
 tag::inference-config-nlp-tokenization-max-sequence-length[]
 Specifies the maximum number of tokens allowed to be output by the tokenizer.
 end::inference-config-nlp-tokenization-max-sequence-length[]
@@ -1021,6 +1037,10 @@ Tokenize with special tokens. The tokens typically included in MPNet-style token
 * `</s>`: Indicates sequence separation.
 --
 end::inference-config-nlp-tokenization-mpnet-with-special-tokens[]
+
+tag::inference-config-nlp-tokenization-xlm-roberta[]
+experimental:[] XLMRoBERTa-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-xlm-roberta[]
 
 tag::inference-config-nlp-vocabulary[]
 The configuration for retrieving the vocabulary of the model. The vocabulary is
@@ -1069,6 +1089,10 @@ numbers. These embeddings capture not simply tokens, but semantic meanings and
 context. These embeddings can be used in a <<dense-vector,dense vector>> field
 for powerful insights.
 end::inference-config-text-embedding[]
+
+tag::inference-config-text-embedding-size[]
+The number of dimensions in the embedding vector produced by the model.
+end::inference-config-text-embedding-size[]
 
 tag::inference-config-text-similarity[]
 Text similarity takes an input sequence and compares it with another input sequence. This is commonly referred to

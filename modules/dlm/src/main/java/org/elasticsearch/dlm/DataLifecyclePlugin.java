@@ -10,21 +10,42 @@ package org.elasticsearch.dlm;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.dlm.action.DeleteDataLifecycleAction;
+import org.elasticsearch.dlm.action.ExplainDataLifecycleAction;
+import org.elasticsearch.dlm.action.GetDataLifecycleAction;
+import org.elasticsearch.dlm.action.PutDataLifecycleAction;
+import org.elasticsearch.dlm.action.TransportDeleteDataLifecycleAction;
+import org.elasticsearch.dlm.action.TransportExplainDataLifecycleAction;
+import org.elasticsearch.dlm.action.TransportGetDataLifecycleAction;
+import org.elasticsearch.dlm.action.TransportPutDataLifecycleAction;
+import org.elasticsearch.dlm.rest.RestDeleteDataLifecycleAction;
+import org.elasticsearch.dlm.rest.RestExplainDataLifecycleAction;
+import org.elasticsearch.dlm.rest.RestGetDataLifecycleAction;
+import org.elasticsearch.dlm.rest.RestPutDataLifecycleAction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -33,11 +54,12 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
+import static org.elasticsearch.cluster.metadata.DataLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
 /**
  * Plugin encapsulating Data Lifecycle Management Service.
@@ -45,6 +67,8 @@ import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
 public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
 
     private final Settings settings;
+    private final SetOnce<DataLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
+
     private final SetOnce<DataLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
 
     public DataLifecyclePlugin(Settings settings) {
@@ -74,25 +98,27 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         if (DataLifecycle.isEnabled() == false) {
             return List.of();
         }
 
+        errorStoreInitialisationService.set(new DataLifecycleErrorStore());
         dataLifecycleInitialisationService.set(
             new DataLifecycleService(
                 settings,
-                new OriginSettingClient(client, DLM_ORIGIN),
+                new OriginSettingClient(client, DATA_STREAM_LIFECYCLE_ORIGIN),
                 clusterService,
                 getClock(),
                 threadPool,
                 threadPool::absoluteTimeInMillis,
-                new DataLifecycleErrorStore()
+                errorStoreInitialisationService.get()
             )
         );
         dataLifecycleInitialisationService.get().init();
-        return List.of(dataLifecycleInitialisationService.get());
+        return List.of(errorStoreInitialisationService.get(), dataLifecycleInitialisationService.get());
     }
 
     @Override
@@ -101,7 +127,47 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
             return List.of();
         }
 
-        return List.of(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
+        return List.of(
+            DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING,
+            DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING,
+            DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING
+        );
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        if (DataLifecycle.isEnabled() == false) {
+            return List.of();
+        }
+
+        List<RestHandler> handlers = new ArrayList<>();
+        handlers.add(new RestPutDataLifecycleAction());
+        handlers.add(new RestGetDataLifecycleAction());
+        handlers.add(new RestDeleteDataLifecycleAction());
+        handlers.add(new RestExplainDataLifecycleAction());
+        return handlers;
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        if (DataLifecycle.isEnabled() == false) {
+            return List.of();
+        }
+
+        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
+        actions.add(new ActionHandler<>(PutDataLifecycleAction.INSTANCE, TransportPutDataLifecycleAction.class));
+        actions.add(new ActionHandler<>(GetDataLifecycleAction.INSTANCE, TransportGetDataLifecycleAction.class));
+        actions.add(new ActionHandler<>(DeleteDataLifecycleAction.INSTANCE, TransportDeleteDataLifecycleAction.class));
+        actions.add(new ActionHandler<>(ExplainDataLifecycleAction.INSTANCE, TransportExplainDataLifecycleAction.class));
+        return actions;
     }
 
     @Override

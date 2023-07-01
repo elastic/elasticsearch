@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.license.ClusterStateLicenseService;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -74,7 +74,7 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
             }
 
             @Override
-            protected ClusterStateLicenseService getLicenseService() {
+            protected LicenseService getLicenseService() {
                 return thisVar.getLicenseService();
             }
 

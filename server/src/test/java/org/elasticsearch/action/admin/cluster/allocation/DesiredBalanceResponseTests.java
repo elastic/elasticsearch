@@ -58,6 +58,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -190,12 +191,13 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
         // stats
         Map<String, Object> stats = (Map<String, Object>) json.get("stats");
+        assertEquals(stats.get("computation_converged_index"), response.getStats().lastConvergedIndex());
         assertEquals(stats.get("computation_active"), response.getStats().computationActive());
         assertEquals(stats.get("computation_submitted"), response.getStats().computationSubmitted());
         assertEquals(stats.get("computation_executed"), response.getStats().computationExecuted());
         assertEquals(stats.get("computation_converged"), response.getStats().computationConverged());
         assertEquals(stats.get("computation_iterations"), response.getStats().computationIterations());
-        assertEquals(stats.get("computation_converged_index"), response.getStats().lastConvergedIndex());
+        assertEquals(stats.get("computed_shard_movements"), response.getStats().computedShardMovements());
         assertEquals(stats.get("computation_time_in_millis"), response.getStats().cumulativeComputationTime());
         assertEquals(stats.get("reconciliation_time_in_millis"), response.getStats().cumulativeReconciliationTime());
 

@@ -7,15 +7,15 @@
  */
 package org.elasticsearch.datastreams.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataMapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -79,12 +79,18 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         }));
 
         ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2020-12-12")));
-        assertThat(doc.rootDoc().getFields("@timestamp").length, equalTo(1));
+        assertThat(doc.rootDoc().getFields("@timestamp").size(), equalTo(1));
 
-        Exception e = expectThrows(MapperException.class, () -> docMapper.parse(source(b -> b.field("@timestamp1", "2020-12-12"))));
+        Exception e = expectThrows(
+            DocumentParsingException.class,
+            () -> docMapper.parse(source(b -> b.field("@timestamp1", "2020-12-12")))
+        );
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
 
-        e = expectThrows(MapperException.class, () -> docMapper.parse(source(b -> b.array("@timestamp", "2020-12-12", "2020-12-13"))));
+        e = expectThrows(
+            DocumentParsingException.class,
+            () -> docMapper.parse(source(b -> b.array("@timestamp", "2020-12-12", "2020-12-13")))
+        );
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
     }
 
@@ -164,7 +170,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         Settings indexSettings = Settings.builder().put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), true).build();
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> createMapperService(Version.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
+            () -> createMapperService(IndexVersion.current(), indexSettings, () -> true, timestampMapping(true, b -> {
                 b.startObject("@timestamp");
                 b.field("type", "date");
                 b.endObject();
@@ -175,7 +181,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             equalTo("data stream timestamp field [@timestamp] has disallowed [ignore_malformed] attribute specified")
         );
 
-        MapperService mapperService = createMapperService(Version.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
+        MapperService mapperService = createMapperService(IndexVersion.current(), indexSettings, () -> true, timestampMapping(true, b -> {
             b.startObject("@timestamp");
             b.field("type", "date");
             b.field("ignore_malformed", false);

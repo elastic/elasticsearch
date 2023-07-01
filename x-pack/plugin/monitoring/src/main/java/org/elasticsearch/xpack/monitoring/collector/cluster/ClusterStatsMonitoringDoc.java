@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.License;
@@ -140,7 +139,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         if (license != null) {
             builder.startObject("license");
             {
-                Map<String, String> extraParams = new MapBuilder<String, String>().put(License.REST_VIEW_MODE, "true").map();
+                Map<String, String> extraParams = Map.of(License.REST_VIEW_MODE, "true");
                 params = new ToXContent.DelegatingMapParams(extraParams, params);
                 license.toInnerXContent(builder, params);
                 if (clusterNeedsTLSEnabled) {

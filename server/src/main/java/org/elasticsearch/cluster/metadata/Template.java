@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -41,6 +41,18 @@ import java.util.Objects;
  * template and a {@link ComponentTemplate}.
  */
 public class Template implements SimpleDiffable<Template>, ToXContentObject {
+
+    // This represents when the data lifecycle was explicitly set to be null, meaning the user wants to remove the
+    // lifecycle.
+    public static final DataLifecycle NO_LIFECYCLE = new DataLifecycle() {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params, RolloverConfiguration rolloverConfiguration)
+            throws IOException {
+            return builder.nullValue();
+        }
+    };
+
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");
@@ -82,7 +94,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }, ALIASES);
         // We adjust the parser to ensure that the error message will be consistent with that of an unknown field.
         if (DataLifecycle.isEnabled()) {
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataLifecycle.fromXContent(p), LIFECYCLE);
+            PARSER.declareObjectOrNull(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> DataLifecycle.fromXContent(p),
+                NO_LIFECYCLE,
+                LIFECYCLE
+            );
         }
     }
 
@@ -128,12 +145,17 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             this.mappings = null;
         }
         if (in.readBoolean()) {
-            this.aliases = in.readMap(StreamInput::readString, AliasMetadata::new);
+            this.aliases = in.readMap(AliasMetadata::new);
         } else {
             this.aliases = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-            this.lifecycle = in.readOptionalWriteable(DataLifecycle::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            boolean isExplicitNull = in.readBoolean();
+            if (isExplicitNull) {
+                this.lifecycle = NO_LIFECYCLE;
+            } else {
+                this.lifecycle = in.readOptionalWriteable(DataLifecycle::new);
+            }
         } else {
             this.lifecycle = null;
         }
@@ -179,8 +201,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(true);
             out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetadata) -> aliasMetadata.writeTo(stream));
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-            out.writeOptionalWriteable(lifecycle);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            boolean isExplicitNull = lifecycle == NO_LIFECYCLE;
+            out.writeBoolean(isExplicitNull);
+            if (isExplicitNull == false) {
+                out.writeOptionalWriteable(lifecycle);
+            }
         }
     }
 
@@ -217,7 +243,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     /**
      * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle.
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
         builder.startObject();
         if (this.settings != null) {
@@ -248,7 +274,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (this.lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConditions);
+            lifecycle.toXContent(builder, params, rolloverConfiguration);
         }
         builder.endObject();
         return builder;

@@ -5,7 +5,7 @@ setup:
       reason: "API added in in 8.6.0"
 
 ---
-"Test empty desired balance":
+"Test get empty desired balance":
 
   - do:
       _internal.get_desired_balance: { }
@@ -20,11 +20,50 @@ setup:
   - match: { routing_table: {} }
 
 ---
+"Test get desired balance for a single shard":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - gte: { stats.computation_submitted: 0 }
+  - gte: { stats.computation_executed: 0 }
+  - gte: { stats.computation_converged: 0 }
+  - gte: { stats.computation_iterations: 0 }
+  - gte: { stats.computation_converged_index: 0 }
+  - gte: { stats.computation_time_in_millis: 0 }
+  - gte: { stats.reconciliation_time_in_millis: 0 }
+
+  - match: { routing_table.test.0.current.0.state: 'STARTED' }
+  - match: { routing_table.test.0.current.0.shard_id: 0 }
+  - match: { routing_table.test.0.current.0.index: test }
+  - is_true: 'routing_table.test.0.current.0.node_is_desired'
+  - is_false: 'routing_table.test.0.current.0.relocating_node'
+  - is_false: 'routing_table.test.0.current.0.relocating_node_is_desired'
+  - is_false: 'routing_table.test.0.current.0.forecast_write_load'
+  - is_false: 'routing_table.test.0.current.0.forecast_shard_size_in_bytes'
+  - match: { routing_table.test.0.desired.total: 1 }
+  - gte: { routing_table.test.0.desired.unassigned: 0 }
+  - gte: { routing_table.test.0.desired.ignored: 0 }
+  - is_true: 'routing_table.test.0.desired.node_ids'
+
+---
 "Test cluster_balance_stats":
 
   - skip:
       version: " - 8.6.99"
-      reason: "Field added in in 8.7.0"
+      reason: "cluster_balance_stats added in in 8.7.0"
 
   - do:
       cluster.state: {}
@@ -72,7 +111,7 @@ setup:
 
   - skip:
       version: " - 8.7.99"
-      reason: "Field added in in 8.8.0"
+      reason: "cluster_info added in in 8.8.0"
 
   - do:
       _internal.get_desired_balance: { }
@@ -84,7 +123,7 @@ setup:
 
   - skip:
       version: " - 8.7.99"
-      reason: "Node ID added in in 8.8.0"
+      reason: "node_id and roles added in in 8.8.0"
 
   - do:
       cluster.state: {}
@@ -99,50 +138,11 @@ setup:
   - is_true: 'cluster_balance_stats.nodes.$node_name.roles'
 
 ---
-"Test get desired balance for single shard":
-  - do:
-      indices.create:
-        index: test
-        body:
-          settings:
-            number_of_shards: 1
-            number_of_replicas: 0
-
-  - do:
-      cluster.health:
-        index: test
-        wait_for_status: green
-
-  - do:
-      _internal.get_desired_balance: { }
-
-  - gte: { stats.computation_submitted: 0 }
-  - gte: { stats.computation_executed: 0 }
-  - gte: { stats.computation_converged: 0 }
-  - gte: { stats.computation_iterations: 0 }
-  - gte: { stats.computation_converged_index: 0 }
-  - gte: { stats.computation_time_in_millis: 0 }
-  - gte: { stats.reconciliation_time_in_millis: 0 }
-
-  - match: { routing_table.test.0.current.0.state: 'STARTED' }
-  - match: { routing_table.test.0.current.0.shard_id: 0 }
-  - match: { routing_table.test.0.current.0.index: test }
-  - is_true: 'routing_table.test.0.current.0.node_is_desired'
-  - is_false: 'routing_table.test.0.current.0.relocating_node'
-  - is_false: 'routing_table.test.0.current.0.relocating_node_is_desired'
-  - is_false: 'routing_table.test.0.current.0.forecast_write_load'
-  - is_false: 'routing_table.test.0.current.0.forecast_shard_size_in_bytes'
-  - match: { routing_table.test.0.desired.total: 1 }
-  - gte: { routing_table.test.0.desired.unassigned: 0 }
-  - gte: { routing_table.test.0.desired.ignored: 0 }
-  - is_true: 'routing_table.test.0.desired.node_ids'
-
----
 "Test tier_preference":
 
   - skip:
       version: " - 8.7.99"
-      reason: "tier preference added in in 8.8.0"
+      reason: "tier_preference added in in 8.8.0"
 
   - do:
       indices.create:
@@ -161,3 +161,25 @@ setup:
       _internal.get_desired_balance: { }
 
   - is_true: 'routing_table.test.0.current.0.tier_preference'
+
+---
+"Test computed_shard_movements":
+
+  - skip:
+      version: " - 8.7.99"
+      reason: "computed_shard_movements added in in 8.8.0"
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - gte: { stats.computed_shard_movements: 0 }
+
+---
+"Test reset desired balance":
+
+  - skip:
+      version: " - 8.7.99"
+      reason: "reset API added in in 8.8.0"
+
+  - do:
+      _internal.delete_desired_balance: { }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
@@ -56,12 +57,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -187,6 +190,35 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertEquals("abc", headers.get(Task.X_OPAQUE_ID_HTTP_HEADER).get(0));
         assertEquals(Integer.toString(resp.content().length()), headers.get(DefaultRestChannel.CONTENT_LENGTH).get(0));
         assertEquals(resp.contentType(), headers.get(DefaultRestChannel.CONTENT_TYPE).get(0));
+    }
+
+    public void testNormallyNoConnectionClose() {
+        Settings settings = Settings.builder().build();
+        final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
+        // send a response
+        DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            handlingSettings,
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(settings),
+            httpTracer,
+            tracer
+        );
+
+        RestResponse resp = testRestResponse();
+        channel.sendResponse(resp);
+
+        ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
+        verify(httpChannel).sendResponse(responseCaptor.capture(), any());
+
+        TestHttpResponse httpResponse = responseCaptor.getValue();
+        Map<String, List<String>> headers = httpResponse.headers();
+        assertNull(headers.get(DefaultRestChannel.CONNECTION));
     }
 
     public void testCookiesSet() {
@@ -322,6 +354,45 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
     }
 
+    public void testResponseHeadersFiltering() {
+        final HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        final AtomicReference<HttpResponse> responseReference = new AtomicReference<>();
+        final DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(Settings.EMPTY),
+            httpTracer,
+            tracer
+        );
+        doAnswer(invocationOnMock -> {
+            ActionListener<?> listener = invocationOnMock.getArgument(1);
+            listener.onResponse(null);
+            HttpResponse response = invocationOnMock.getArgument(0);
+            responseReference.set(response);
+            return null;
+        }).when(httpChannel).sendResponse(any(HttpResponse.class), anyActionListener());
+        for (RestResponse response : List.of(
+            new RestResponse(RestStatus.UNAUTHORIZED, "whatever"),
+            new RestResponse(RestStatus.FORBIDDEN, "whatever")
+        )) {
+            try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
+                threadPool.getThreadContext().addResponseHeader("X-elastic-product", "some product response header");
+                threadPool.getThreadContext().addResponseHeader("Warning", "some product response header");
+                String someRandomResponseHeader = "some-random-response-header-" + randomAlphaOfLength(8);
+                threadPool.getThreadContext().addResponseHeader(someRandomResponseHeader, "should transpire to http response");
+                channel.sendResponse(response);
+                assertThat(responseReference.get().containsHeader(someRandomResponseHeader), is(true));
+                assertThat(responseReference.get().containsHeader("X-elastic-product"), is(false));
+                assertThat(responseReference.get().containsHeader("Warning"), is(false));
+            }
+        }
+    }
+
     public void testUnsupportedHttpMethod() {
         final boolean close = randomBoolean();
         final HttpRequest.HttpVersion httpVersion = close ? HttpRequest.HttpVersion.HTTP_1_0 : HttpRequest.HttpVersion.HTTP_1_1;
@@ -423,8 +494,8 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         executeRequest(Settings.EMPTY, "request-host");
 
-        verify(tracer).setAttribute(argThat(id -> id.startsWith("rest-")), eq("http.status_code"), eq(200L));
-        verify(tracer).stopTrace(argThat(id -> id.startsWith("rest-")));
+        verify(tracer).setAttribute(argThat(id -> id.getRawId().startsWith("rest-")), eq("http.status_code"), eq(200L));
+        verify(tracer).stopTrace(any(RestRequest.class));
     }
 
     public void testHandleHeadRequest() {

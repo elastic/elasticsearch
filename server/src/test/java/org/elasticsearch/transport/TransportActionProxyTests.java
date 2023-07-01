@@ -12,14 +12,17 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -45,14 +48,22 @@ public class TransportActionProxyTests extends ESTestCase {
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
     private static final Version CURRENT_VERSION = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");
-    protected static final Version version0 = CURRENT_VERSION.minimumCompatibilityVersion();
+    protected static final VersionInformation version0 = new VersionInformation(
+        CURRENT_VERSION.minimumCompatibilityVersion(),
+        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersion.current()
+    );
     protected static final TransportVersion transportVersion0 = TransportVersion.MINIMUM_COMPATIBLE;
 
     protected DiscoveryNode nodeA;
     protected MockTransportService serviceA;
 
-    protected static final Version version1 = Version.fromId(CURRENT_VERSION.id + 1);
-    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(TransportVersion.CURRENT.id + 1);
+    protected static final VersionInformation version1 = new VersionInformation(
+        Version.fromId(CURRENT_VERSION.id + 1),
+        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersion.current()
+    );
+    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(TransportVersion.current().id() + 1);
     protected DiscoveryNode nodeB;
     protected MockTransportService serviceB;
 
@@ -68,10 +79,13 @@ public class TransportActionProxyTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
         serviceA = buildService(version0, transportVersion0); // this one supports dynamic tracer updates
+        serviceA.taskManager.setTaskCancellationService(new TaskCancellationService(serviceA));
         nodeA = serviceA.getLocalDiscoNode();
         serviceB = buildService(version1, transportVersion1); // this one doesn't support dynamic tracer updates
+        serviceB.taskManager.setTaskCancellationService(new TaskCancellationService(serviceB));
         nodeB = serviceB.getLocalDiscoNode();
         serviceC = buildService(version1, transportVersion1); // this one doesn't support dynamic tracer updates
+        serviceC.taskManager.setTaskCancellationService(new TaskCancellationService(serviceC));
         nodeC = serviceC.getLocalDiscoNode();
         serviceD = buildService(version1, transportVersion1);
         nodeD = serviceD.getLocalDiscoNode();
@@ -83,7 +97,7 @@ public class TransportActionProxyTests extends ESTestCase {
         IOUtils.close(serviceA, serviceB, serviceC, serviceD, () -> { terminate(threadPool); });
     }
 
-    private MockTransportService buildService(Version version, TransportVersion transportVersion) {
+    private MockTransportService buildService(VersionInformation version, TransportVersion transportVersion) {
         MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, version, transportVersion, threadPool, null);
         service.start();
         service.acceptIncomingRequests();
@@ -292,12 +306,9 @@ public class TransportActionProxyTests extends ESTestCase {
         });
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceB, nodeC);
-        serviceC.registerRequestHandler(
-            "internal:test",
-            ThreadPool.Names.SAME,
-            SimpleTestRequest::new,
-            (request, channel, task) -> { throw new ElasticsearchException("greetings from TS_C"); }
-        );
+        serviceC.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new, (request, channel, task) -> {
+            throw new ElasticsearchException("greetings from TS_C");
+        });
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
 
         CountDownLatch latch = new CountDownLatch(1);

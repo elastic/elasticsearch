@@ -8,11 +8,10 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -29,7 +28,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
@@ -124,9 +122,18 @@ public class DiskUsageTests extends ESTestCase {
         CommonStats commonStats2 = new CommonStats();
         commonStats2.store = new StoreStats(1000, 999, 0L);
         ShardStats[] stats = new ShardStats[] {
-            new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0, null, null, null),
-            new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1, null, null, null),
-            new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats2, null, null, null) };
+            new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0, null, null, null, false, 0),
+            new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1, null, null, null, false, 0),
+            new ShardStats(
+                test_1,
+                new ShardPath(false, test1Path, test1Path, test_1.shardId()),
+                commonStats2,
+                null,
+                null,
+                null,
+                false,
+                0
+            ) };
         Map<String, Long> shardSizes = new HashMap<>();
         Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
         Map<ClusterInfo.NodeAndShard, String> routingToPath = new HashMap<>();
@@ -167,7 +174,7 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/least", "/dev/sdb", 200, 190, 70),
                 new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280), };
             NodeStats nodeStats = new NodeStats(
-                new DiscoveryNode("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                DiscoveryNodeUtils.builder("node_1").roles(emptySet()).build(),
                 0,
                 null,
                 null,
@@ -175,6 +182,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 new FsInfo(0, null, nodeFSInfo),
+                null,
                 null,
                 null,
                 null,
@@ -194,7 +202,7 @@ public class DiskUsageTests extends ESTestCase {
         {
             FsInfo.Path[] nodeFSInfo = new FsInfo.Path[] { new FsInfo.Path("/least_most", "/dev/sda", 100, 90, 80), };
             NodeStats nodeStats = new NodeStats(
-                new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                DiscoveryNodeUtils.builder("node_2").roles(emptySet()).build(),
                 0,
                 null,
                 null,
@@ -202,6 +210,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 new FsInfo(0, null, nodeFSInfo),
+                null,
                 null,
                 null,
                 null,
@@ -223,7 +232,7 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/least", "/dev/sda", 100, 90, 70),
                 new FsInfo.Path("/most", "/dev/sda", 100, 90, 80), };
             NodeStats nodeStats = new NodeStats(
-                new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                DiscoveryNodeUtils.builder("node_3").roles(emptySet()).build(),
                 0,
                 null,
                 null,
@@ -231,6 +240,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 new FsInfo(0, null, nodeFSInfo),
+                null,
                 null,
                 null,
                 null,
@@ -256,7 +266,7 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280), };
 
             NodeStats nodeStats = new NodeStats(
-                new DiscoveryNode("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                DiscoveryNodeUtils.builder("node_1").roles(emptySet()).build(),
                 0,
                 null,
                 null,
@@ -264,6 +274,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 new FsInfo(0, null, nodeFSInfo),
+                null,
                 null,
                 null,
                 null,
@@ -284,7 +295,7 @@ public class DiskUsageTests extends ESTestCase {
         {
             FsInfo.Path[] nodeFSInfo = new FsInfo.Path[] { new FsInfo.Path("/least_most", "/dev/sda", -1, -1, -1), };
             NodeStats nodeStats = new NodeStats(
-                new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                DiscoveryNodeUtils.builder("node_2").roles(emptySet()).build(),
                 0,
                 null,
                 null,
@@ -292,6 +303,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 new FsInfo(0, null, nodeFSInfo),
+                null,
                 null,
                 null,
                 null,
@@ -313,7 +325,7 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/most", "/dev/sda", 100, 90, 70),
                 new FsInfo.Path("/least", "/dev/sda", 10, -1, 0), };
             NodeStats nodeStats = new NodeStats(
-                new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                DiscoveryNodeUtils.builder("node_3").roles(emptySet()).build(),
                 0,
                 null,
                 null,
@@ -321,6 +333,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 new FsInfo(0, null, node3FSInfo),
+                null,
                 null,
                 null,
                 null,

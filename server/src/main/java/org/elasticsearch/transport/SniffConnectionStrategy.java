@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,9 +27,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -230,32 +232,26 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         if (seedNodesSuppliers.hasNext()) {
             final Consumer<Exception> onFailure = e -> {
-                if (e instanceof ConnectTransportException || e instanceof IOException || e instanceof IllegalStateException) {
-                    // ISE if we fail the handshake with an version incompatible node
-                    if (seedNodesSuppliers.hasNext()) {
-                        logger.debug(
-                            () -> format("fetching nodes from external cluster [%s] failed moving to next seed node", clusterAlias),
-                            e
-                        );
-                        collectRemoteNodes(seedNodesSuppliers, listener);
-                        return;
-                    }
+                if (isRetryableException(e) && seedNodesSuppliers.hasNext()) {
+                    logger.debug(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed moving to next seed node", e);
+                    collectRemoteNodes(seedNodesSuppliers, listener);
+                } else {
+                    logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
+                    listener.onFailure(e);
                 }
-                logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
-                listener.onFailure(e);
             };
 
             final DiscoveryNode seedNode = seedNodesSuppliers.next().get();
             logger.trace("[{}] opening transient connection to seed node: [{}]", clusterAlias, seedNode);
-            final StepListener<Transport.Connection> openConnectionStep = new StepListener<>();
+            final ListenableFuture<Transport.Connection> openConnectionStep = new ListenableFuture<>();
             try {
                 connectionManager.openConnection(seedNode, null, openConnectionStep);
             } catch (Exception e) {
                 onFailure.accept(e);
             }
 
-            final StepListener<TransportService.HandshakeResponse> handshakeStep = new StepListener<>();
-            openConnectionStep.whenComplete(connection -> {
+            final ListenableFuture<TransportService.HandshakeResponse> handshakeStep = new ListenableFuture<>();
+            openConnectionStep.addListener(ActionListener.wrap(connection -> {
                 ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
                 transportService.handshake(
                     connection,
@@ -263,10 +259,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     getRemoteClusterNamePredicate(),
                     handshakeStep
                 );
-            }, onFailure);
+            }, onFailure));
 
-            final StepListener<Void> fullConnectionStep = new StepListener<>();
-            handshakeStep.whenComplete(handshakeResponse -> {
+            final ListenableFuture<Void> fullConnectionStep = new ListenableFuture<>();
+            handshakeStep.addListener(ActionListener.wrap(handshakeResponse -> {
                 final DiscoveryNode handshakeNode = handshakeResponse.getDiscoveryNode();
 
                 if (nodePredicate.test(handshakeNode) && shouldOpenMoreConnections()) {
@@ -291,9 +287,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 logger.debug(() -> format("[%s] failed to handshake with seed node: [%s]", clusterAlias, node), e);
                 IOUtils.closeWhileHandlingException(connection);
                 onFailure.accept(e);
-            });
+            }));
 
-            fullConnectionStep.whenComplete(aVoid -> {
+            fullConnectionStep.addListener(ActionListener.wrap(aVoid -> {
                 if (remoteClusterName.get() == null) {
                     TransportService.HandshakeResponse handshakeResponse = handshakeStep.result();
                     assert handshakeResponse.getClusterName().value() != null;
@@ -345,9 +341,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 logger.debug(() -> format("[%s] failed to open managed connection to seed node: [%s]", clusterAlias, node), e);
                 IOUtils.closeWhileHandlingException(connection);
                 onFailure.accept(e);
-            });
+            }));
         } else {
-            listener.onFailure(new NoSeedNodeLeftException(strategyType(), clusterAlias));
+            listener.onFailure(new NoSeedNodeLeftException("no seed node left for cluster: [" + clusterAlias + "]"));
         }
     }
 
@@ -496,18 +492,26 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     private static DiscoveryNode resolveSeedNode(String clusterAlias, String address, String proxyAddress) {
+        var seedVersion = new VersionInformation(
+            Version.CURRENT.minimumCompatibilityVersion(),
+            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersion.current()
+        );
         if (proxyAddress == null || proxyAddress.isEmpty()) {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(address));
             return new DiscoveryNode(
-                clusterAlias + "#" + transportAddress.toString(),
+                null,
+                clusterAlias + "#" + transportAddress,
                 transportAddress,
-                Version.CURRENT.minimumCompatibilityVersion()
+                Collections.emptyMap(),
+                DiscoveryNodeRole.roles(),
+                seedVersion
             );
         } else {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
             String hostName = RemoteConnectionStrategy.parseHost(proxyAddress);
             return new DiscoveryNode(
-                "",
+                null,
                 clusterAlias + "#" + address,
                 UUIDs.randomBase64UUID(),
                 hostName,
@@ -515,7 +519,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 transportAddress,
                 Collections.singletonMap("server_name", hostName),
                 DiscoveryNodeRole.roles(),
-                Version.CURRENT.minimumCompatibilityVersion()
+                seedVersion
             );
         }
     }
@@ -545,7 +549,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 new TransportAddress(proxyInetAddress),
                 node.getAttributes(),
                 node.getRoles(),
-                node.getVersion()
+                node.getVersionInformation()
             );
         }
     }

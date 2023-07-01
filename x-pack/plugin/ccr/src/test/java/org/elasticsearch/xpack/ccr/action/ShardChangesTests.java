@@ -102,14 +102,9 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
     }
 
     public void testMissingOperations() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("index")
+        indicesAdmin().prepareCreate("index")
             .setSettings(
-                Settings.builder()
-                    .put("index.soft_deletes.retention.operations", 0)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
+                indexSettings(1, 0).put("index.soft_deletes.retention.operations", 0)
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
             )
             .get();
@@ -138,13 +133,10 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         forceMergeRequest.maxNumSegments(1);
         client().admin().indices().forceMerge(forceMergeRequest).actionGet();
 
-        client().admin()
-            .indices()
-            .execute(
-                RetentionLeaseActions.Add.INSTANCE,
-                new RetentionLeaseActions.AddRequest(new ShardId(resolveIndex("index"), 0), "test", RetentionLeaseActions.RETAIN_ALL, "ccr")
-            )
-            .get();
+        indicesAdmin().execute(
+            RetentionLeaseActions.Add.INSTANCE,
+            new RetentionLeaseActions.AddRequest(new ShardId(resolveIndex("index"), 0), "test", RetentionLeaseActions.RETAIN_ALL, "ccr")
+        ).get();
 
         ShardStats shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);

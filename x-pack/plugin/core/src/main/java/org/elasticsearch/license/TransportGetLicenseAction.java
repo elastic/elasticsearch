@@ -23,13 +23,16 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportGetLicenseAction extends TransportMasterNodeReadAction<GetLicenseRequest, GetLicenseResponse> {
 
+    private final LicenseService licenseService;
+
     @Inject
     public TransportGetLicenseAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        LicenseService licenseService
     ) {
         super(
             GetLicenseAction.NAME,
@@ -42,6 +45,7 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
             GetLicenseResponse::new,
             ThreadPool.Names.SAME
         );
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -56,6 +60,10 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
         ClusterState state,
         final ActionListener<GetLicenseResponse> listener
     ) throws ElasticsearchException {
-        listener.onResponse(new GetLicenseResponse(ClusterStateLicenseService.getLicense(state.metadata())));
+        if (licenseService instanceof ClusterStateLicenseService clusterStateLicenseService) {
+            listener.onResponse(new GetLicenseResponse(clusterStateLicenseService.getLicense(state.metadata())));
+        } else {
+            listener.onResponse(new GetLicenseResponse(licenseService.getLicense()));
+        }
     }
 }

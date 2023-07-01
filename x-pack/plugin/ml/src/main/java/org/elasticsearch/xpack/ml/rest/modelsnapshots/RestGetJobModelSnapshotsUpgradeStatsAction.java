@@ -11,6 +11,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.GetJobModelSnapshotsUpgradeStatsAction;
@@ -23,6 +25,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request.SNAPSHOT_ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetJobModelSnapshotsUpgradeStatsAction extends BaseRestHandler {
 
     @Override

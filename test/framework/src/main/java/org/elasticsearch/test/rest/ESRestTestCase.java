@@ -621,17 +621,23 @@ public abstract class ESRestTestCase extends ESTestCase {
             "ml-size-based-ilm-policy",
             "logs",
             "metrics",
+            "profiling",
             "synthetics",
             "7-days-default",
             "30-days-default",
             "90-days-default",
             "180-days-default",
             "365-days-default",
-            ".fleet-actions-results-ilm-policy",
-            ".fleet-file-data-ilm-policy",
             ".fleet-files-ilm-policy",
+            ".fleet-file-data-ilm-policy",
+            ".fleet-actions-results-ilm-policy",
+            ".fleet-file-fromhost-data-ilm-policy",
+            ".fleet-file-fromhost-meta-ilm-policy",
+            ".fleet-file-tohost-data-ilm-policy",
+            ".fleet-file-tohost-meta-ilm-policy",
             ".deprecation-indexing-ilm-policy",
-            ".monitoring-8-ilm-policy"
+            ".monitoring-8-ilm-policy",
+            "behavioral_analytics-events-default_policy"
         );
     }
 
@@ -1300,7 +1306,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         return builder.build();
     }
 
-    protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+    /**
+     * Override this to configure the client with additional settings.
+     */
+    protected void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+        doConfigureClient(builder, settings);
+    }
+
+    protected static void doConfigureClient(RestClientBuilder builder, Settings settings) throws IOException {
         String truststorePath = settings.get(TRUSTSTORE_PATH);
         String certificateAuthorities = settings.get(CERTIFICATE_AUTHORITIES);
         String clientCertificatePath = settings.get(CLIENT_CERT_PATH);
@@ -1405,6 +1418,11 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    public static ObjectPath assertOKAndCreateObjectPath(Response response) throws IOException {
+        assertOK(response);
+        return ObjectPath.createFromResponse(response);
     }
 
     /**
@@ -1805,11 +1823,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".fleet-")) {
             return true;
         }
+        if (name.startsWith("behavioral_analytics-")) {
+            return true;
+        }
+        if (name.startsWith("profiling-")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
             case ".slm-history":
             case ".async-search":
+            case ".profiling-ilm-lock": // TODO: Remove after switch to K/V indices
             case "saml-service-provider":
             case "logs":
             case "logs-settings":
@@ -1825,6 +1850,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":
+            case "ecs@dynamic_templates":
                 return true;
             default:
                 return false;

@@ -31,6 +31,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -185,7 +186,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         final IndexNameExpressionResolver expressionResolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         this.client = client;
         if (enabled == false) {
@@ -244,15 +246,12 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 DeleteInternalCcrRepositoryAction.INSTANCE,
                 DeleteInternalCcrRepositoryAction.TransportDeleteInternalRepositoryAction.class
             ),
-            new ActionHandler<>(PutCcrRestoreSessionAction.INSTANCE, PutCcrRestoreSessionAction.TransportPutCcrRestoreSessionAction.class),
-            new ActionHandler<>(
-                ClearCcrRestoreSessionAction.INSTANCE,
-                ClearCcrRestoreSessionAction.TransportDeleteCcrRestoreSessionAction.class
-            ),
-            new ActionHandler<>(
-                GetCcrRestoreFileChunkAction.INSTANCE,
-                GetCcrRestoreFileChunkAction.TransportGetCcrRestoreFileChunkAction.class
-            ),
+            new ActionHandler<>(PutCcrRestoreSessionAction.INTERNAL_INSTANCE, PutCcrRestoreSessionAction.InternalTransportAction.class),
+            new ActionHandler<>(PutCcrRestoreSessionAction.INSTANCE, PutCcrRestoreSessionAction.TransportAction.class),
+            new ActionHandler<>(ClearCcrRestoreSessionAction.INTERNAL_INSTANCE, ClearCcrRestoreSessionAction.InternalTransportAction.class),
+            new ActionHandler<>(ClearCcrRestoreSessionAction.INSTANCE, ClearCcrRestoreSessionAction.TransportAction.class),
+            new ActionHandler<>(GetCcrRestoreFileChunkAction.INTERNAL_INSTANCE, GetCcrRestoreFileChunkAction.InternalTransportAction.class),
+            new ActionHandler<>(GetCcrRestoreFileChunkAction.INSTANCE, GetCcrRestoreFileChunkAction.TransportAction.class),
             // stats action
             new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
             new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),

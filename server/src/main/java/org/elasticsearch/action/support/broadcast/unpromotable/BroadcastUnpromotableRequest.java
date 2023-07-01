@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.support.broadcast.unpromotable;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -38,18 +39,25 @@ public class BroadcastUnpromotableRequest extends ActionRequest implements Indic
 
     protected final ShardId shardId;
     protected final String[] indices;
+    protected final boolean failShardOnError;
 
     public BroadcastUnpromotableRequest(StreamInput in) throws IOException {
         super(in);
         indexShardRoutingTable = null;
         shardId = new ShardId(in);
         indices = new String[] { shardId.getIndex().getName() };
+        failShardOnError = in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0) && in.readBoolean();
     }
 
     public BroadcastUnpromotableRequest(IndexShardRoutingTable indexShardRoutingTable) {
+        this(indexShardRoutingTable, false);
+    }
+
+    public BroadcastUnpromotableRequest(IndexShardRoutingTable indexShardRoutingTable, boolean failShardOnError) {
         this.indexShardRoutingTable = Objects.requireNonNull(indexShardRoutingTable, "index shard routing table is null");
         this.shardId = indexShardRoutingTable.shardId();
         this.indices = new String[] { this.shardId.getIndex().getName() };
+        this.failShardOnError = failShardOnError;
     }
 
     public ShardId shardId() {
@@ -69,6 +77,9 @@ public class BroadcastUnpromotableRequest extends ActionRequest implements Indic
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeWriteable(shardId);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeBoolean(failShardOnError);
+        }
     }
 
     @Override
@@ -84,6 +95,10 @@ public class BroadcastUnpromotableRequest extends ActionRequest implements Indic
     @Override
     public String[] indices() {
         return indices;
+    }
+
+    public boolean failShardOnError() {
+        return failShardOnError;
     }
 
     @Override

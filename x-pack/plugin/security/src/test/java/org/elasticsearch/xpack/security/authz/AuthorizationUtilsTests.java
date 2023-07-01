@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -20,12 +22,8 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -54,7 +52,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
     public void testSystemUserSwitchWithSystemUser() {
         threadContext.putTransient(
             AuthenticationField.AUTHENTICATION_KEY,
-            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build()
+            AuthenticationTestHelper.builder().internal(InternalUsers.SYSTEM_USER).build()
         );
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
     }
@@ -111,11 +109,23 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSwitchAndExecuteXpackSecurityUser() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_ORIGIN, XPackSecurityUser.INSTANCE, randomTransportVersion());
+        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_ORIGIN, InternalUsers.XPACK_SECURITY_USER, randomTransportVersion());
     }
 
     public void testSwitchAndExecuteSecurityProfileUser() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_PROFILE_ORIGIN, SecurityProfileUser.INSTANCE, randomTransportVersion());
+        assertSwitchBasedOnOriginAndExecute(
+            ClientHelper.SECURITY_PROFILE_ORIGIN,
+            InternalUsers.SECURITY_PROFILE_USER,
+            randomTransportVersion()
+        );
+    }
+
+    public void testSwitchWithDlmOrigin() throws Exception {
+        assertSwitchBasedOnOriginAndExecute(
+            DataLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN,
+            InternalUsers.DATA_STREAM_LIFECYCLE_USER,
+            randomTransportVersion()
+        );
     }
 
     public void testSwitchAndExecuteXpackUser() throws Exception {
@@ -127,17 +137,17 @@ public class AuthorizationUtilsTests extends ESTestCase {
             PersistentTasksService.PERSISTENT_TASK_ORIGIN,
             ClientHelper.INDEX_LIFECYCLE_ORIGIN
         )) {
-            assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE, randomTransportVersion());
+            assertSwitchBasedOnOriginAndExecute(origin, InternalUsers.XPACK_USER, randomTransportVersion());
         }
     }
 
     public void testSwitchAndExecuteAsyncSearchUser() throws Exception {
         String origin = ClientHelper.ASYNC_SEARCH_ORIGIN;
-        assertSwitchBasedOnOriginAndExecute(origin, AsyncSearchUser.INSTANCE, randomTransportVersion());
+        assertSwitchBasedOnOriginAndExecute(origin, InternalUsers.ASYNC_SEARCH_USER, randomTransportVersion());
     }
 
     public void testSwitchWithTaskOrigin() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(TASKS_ORIGIN, XPackUser.INSTANCE, randomTransportVersion());
+        assertSwitchBasedOnOriginAndExecute(TASKS_ORIGIN, InternalUsers.XPACK_USER, randomTransportVersion());
     }
 
     private void assertSwitchBasedOnOriginAndExecute(String origin, User user, TransportVersion version) throws Exception {
@@ -146,14 +156,14 @@ public class AuthorizationUtilsTests extends ESTestCase {
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
         final CountDownLatch latch = new CountDownLatch(2);
 
-        final ActionListener<Void> listener = ActionListener.wrap(v -> {
+        final ActionListener<Void> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
             final Authentication authentication = securityContext.getAuthentication();
             assertEquals(user, authentication.getEffectiveSubject().getUser());
             assertEquals(version, authentication.getEffectiveSubject().getTransportVersion());
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         final Consumer<ThreadContext.StoredContext> consumer = original -> {
             assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));

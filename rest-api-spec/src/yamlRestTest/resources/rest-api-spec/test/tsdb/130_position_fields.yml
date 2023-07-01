@@ -51,6 +51,7 @@ setup:
 ---
 multi-valued fields unsupported:
   - skip:
+      features: contains
       version: " - 8.7.99"
       reason: position metric introduced in 8.8.0
   - do:
@@ -67,16 +68,15 @@ multi-valued fields unsupported:
   - match: { errors: true }
   - match: { items.0.index.result: "created" }
   - match: { items.1.index.result: "created" }
-  - match: { items.2.index.error.reason: "failed to parse" }
-  - match: { items.2.index.error.caused_by.reason: "field type for [location] does not accept more than single value" }
+  - contains: { items.2.index.error.reason: "failed to parse: field type for [location] does not accept more than single value" }
 
 ---
 "avg aggregation on position field unsupported":
   - skip:
-      version: " - 8.7.99"
-      reason: position metric introduced in 8.8.0
+      version: " - 8.9.99"
+      reason: position metric introduced in 8.8.0, but exception message changed in 8.10.0
   - do:
-      catch: /Field \[location\] of type \[geo_point\] is not supported for aggregation \[avg\]/
+      catch: /Field \[location\] of type \[geo_point\]\[position\] is not supported for aggregation \[avg\]/
       search:
         index: locations
         body:
@@ -108,6 +108,13 @@ multi-valued fields unsupported:
   - close_to: { aggregations.view_port.bounds.bottom_right.lat: { value: 48.860000, error: 0.00001 } }
   - close_to: { aggregations.view_port.bounds.bottom_right.lon: { value: 4.914722, error: 0.00001 } }
 
+---
+"geo_centroid on position field":
+  - skip:
+      version: " - 8.7.99"
+      reason: position metric introduced in 8.8.0
+      features: close_to
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -120,7 +127,6 @@ multi-valued fields unsupported:
   - match: { aggregations.centroid.location.lat: 51.00982965203002 }
   - match: { aggregations.centroid.location.lon: 3.9662131341174245 }
   - match: { aggregations.centroid.count: 6 }
-
 
 ---
 "geo bounding box query":
@@ -231,28 +237,6 @@ multi-valued fields unsupported:
   - match: { hits.total.value: 4 }
 
 ---
-"bounds agg":
-  - skip:
-      version: " - 8.7.99"
-      reason: position metric introduced in 8.8.0
-      features: close_to
-
-  - do:
-      search:
-        index: locations
-        body:
-          aggs:
-            bounds:
-              geo_bounds:
-                field: "location"
-                wrap_longitude: false
-  - match: { hits.total.value: 6 }
-  - close_to: { aggregations.bounds.bounds.top_left.lat: { value: 52.374081, error: 0.00001 } }
-  - close_to: { aggregations.bounds.bounds.top_left.lon: { value: 2.327000, error: 0.00001 } }
-  - close_to: { aggregations.bounds.bounds.bottom_right.lat: { value: 48.860000, error: 0.00001 } }
-  - close_to: { aggregations.bounds.bounds.bottom_right.lon: { value: 4.914722, error: 0.00001 } }
-
----
 "geo_distance sort":
   - skip:
       version: " - 8.7.99"
@@ -281,7 +265,6 @@ multi-valued fields unsupported:
   - close_to: { hits.hits.4._source.location.lon: { value: 2.336389, error: 0.00001 } }
   - close_to: { hits.hits.5._source.location.lat: { value: 48.860000, error: 0.00001 } }
   - close_to: { hits.hits.5._source.location.lon: { value: 2.327000, error: 0.00001 } }
-
 
 ---
 "distance_feature query":

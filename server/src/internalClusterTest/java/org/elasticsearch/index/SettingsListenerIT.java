@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -75,7 +76,8 @@ public class SettingsListenerIT extends ESIntegTestCase {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationService allocationService
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             return Collections.singletonList(service);
         }
@@ -105,9 +107,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
     }
 
     public void testListener() {
-        assertAcked(
-            client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.test.new.setting", 21).build()).get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.test.new.setting", 21).build()).get());
 
         for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(21, instance.value);
@@ -118,13 +118,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
             assertEquals(42, instance.value);
         }
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("other")
-                .setSettings(Settings.builder().put("index.test.new.setting", 21).build())
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("other").setSettings(Settings.builder().put("index.test.new.setting", 21).build()).get());
 
         for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
@@ -136,11 +130,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
         }
 
         try {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("other")
-                .setSettings(Settings.builder().put("index.test.new.setting", -5))
-                .get();
+            indicesAdmin().prepareUpdateSettings("other").setSettings(Settings.builder().put("index.test.new.setting", -5)).get();
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals("Failed to parse value [-5] for setting [index.test.new.setting] must be >= -1", ex.getMessage());

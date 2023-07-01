@@ -17,10 +17,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.Optional;
 
 /**
@@ -33,7 +37,7 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
     private static final Logger logger = LogManager.getLogger(WaitForNoFollowersStep.class);
 
-    static final String NAME = "wait-for-shard-history-leases";
+    public static final String NAME = "wait-for-shard-history-leases";
     static final String CCR_LEASE_KEY = "ccr";
     private static final String WAIT_MESSAGE = "this index is a leader index; waiting for all following indices to cease "
         + "following before proceeding";
@@ -49,10 +53,24 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
+        XPackInfoRequest xPackInfoRequest = new XPackInfoRequest();
+        xPackInfoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
+        getClient().execute(XPackInfoFeatureAction.CCR, xPackInfoRequest, ActionListener.wrap((xPackInfoResponse) -> {
+            XPackInfoResponse.FeatureSetsInfo.FeatureSet featureSet = xPackInfoResponse.getInfo();
+            if (featureSet != null && featureSet.enabled() == false) {
+                listener.onResponse(true, null);
+                return;
+            }
+            leaderIndexCheck(metadata, index, listener, masterTimeout);
+        }, listener::onFailure));
+    }
+
+    private void leaderIndexCheck(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
         String indexName = index.getName();
         request.indices(indexName);
+
         getClient().admin().indices().stats(request, ActionListener.wrap((response) -> {
             IndexStats indexStats = response.getIndex(indexName);
             if (indexStats == null) {

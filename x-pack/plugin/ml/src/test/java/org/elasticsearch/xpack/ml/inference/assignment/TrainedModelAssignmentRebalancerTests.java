@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -47,21 +45,23 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Map.of(),
             Optional.empty()
         ).rebalance().build();
-        assertThat(result.modelAssignments().isEmpty(), is(true));
+        assertThat(result.allAssignments().isEmpty(), is(true));
     }
 
     public void testRebalance_GivenAllAssignmentsAreSatisfied_ShouldMakeNoChanges() throws Exception {
         String modelId1 = "model-1";
         String modelId2 = "model-2";
-        StartTrainedModelDeploymentAction.TaskParams taskParams1 = normalPriorityParams(modelId1, 1024L, 1, 2);
-        StartTrainedModelDeploymentAction.TaskParams taskParams2 = normalPriorityParams(modelId2, 1024L, 4, 1);
+        String deploymentId1 = "deployment-1";
+        String deploymentId2 = "deployment-2";
+        StartTrainedModelDeploymentAction.TaskParams taskParams1 = normalPriorityParams(deploymentId1, modelId1, 1024L, 1, 2);
+        StartTrainedModelDeploymentAction.TaskParams taskParams2 = normalPriorityParams(deploymentId2, modelId2, 1024L, 4, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
-                modelId1,
+                deploymentId1,
                 TrainedModelAssignment.Builder.empty(taskParams1).addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
-                modelId2,
+                deploymentId2,
                 TrainedModelAssignment.Builder.empty(taskParams2)
                     .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(3, 3, RoutingState.STARTED, ""))
@@ -86,15 +86,17 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
 
         String modelId1 = "model-1";
         String modelId2 = "model-2";
-        StartTrainedModelDeploymentAction.TaskParams taskParams1 = normalPriorityParams(modelId1, 1024L, 1, 2);
-        StartTrainedModelDeploymentAction.TaskParams taskParams2 = normalPriorityParams(modelId2, 1024L, 4, 1);
+        String deploymentId1 = "deployment-1";
+        String deploymentId2 = "deployment-2";
+        StartTrainedModelDeploymentAction.TaskParams taskParams1 = normalPriorityParams(deploymentId1, modelId1, 1024L, 1, 2);
+        StartTrainedModelDeploymentAction.TaskParams taskParams2 = normalPriorityParams(deploymentId2, modelId2, 1024L, 4, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
-                modelId1,
+                deploymentId1,
                 TrainedModelAssignment.Builder.empty(taskParams1).addRoutingEntry("node-1", new RoutingInfo(0, 0, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
-                modelId2,
+                deploymentId2,
                 TrainedModelAssignment.Builder.empty(taskParams2)
                     .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(3, 3, RoutingState.STARTED, ""))
@@ -111,22 +113,22 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.empty()
         ).rebalance().build();
 
-        assertThat(result.modelAssignments(), is(aMapWithSize(2)));
+        assertThat(result.allAssignments(), is(aMapWithSize(2)));
 
-        for (String modelId : List.of(modelId1, modelId2)) {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId);
+        for (String deploymentId : List.of(deploymentId1, deploymentId2)) {
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(deploymentId);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.hasOutdatedRoutingEntries(), is(false));
             assertThat(
                 assignment.getNodeRoutingTable().values().stream().mapToInt(RoutingInfo::getTargetAllocations).sum(),
-                equalTo(currentMetadata.getModelAssignment(modelId).getTaskParams().getNumberOfAllocations())
+                equalTo(currentMetadata.getDeploymentAssignment(deploymentId).getTaskParams().getNumberOfAllocations())
             );
         }
     }
 
     public void testRebalance_GivenModelToAddAlreadyExists() {
         String modelId = "model-to-add";
-        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelId, 1024L, 1, 1);
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelId, modelId, 1024L, 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(taskParams))
             .build();
@@ -138,7 +140,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
 
     public void testRebalance_GivenFirstModelToAdd_NoMLNodes() throws Exception {
         String modelId = "model-to-add";
-        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelId, 1024L, 1, 1);
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelId, modelId, 1024L, 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
 
         TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
@@ -148,7 +150,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.of(taskParams)
         ).rebalance().build();
 
-        TrainedModelAssignment assignment = result.getModelAssignment(modelId);
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
         assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
         assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
@@ -161,7 +163,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         DiscoveryNode node = buildNode("node-1", nodeMemoryBytes, 3);
 
         String modelId = "model-to-add";
-        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelId, 1024L, 1, 4);
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelId, modelId, 1024L, 1, 4);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
 
@@ -174,7 +176,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.of(taskParams)
         ).rebalance().build();
 
-        TrainedModelAssignment assignment = result.getModelAssignment(modelId);
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
         assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
         assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
@@ -190,7 +192,13 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
 
     public void testRebalance_GivenFirstModelToAdd_NotEnoughMemory() throws Exception {
         String modelId = "model-to-add";
-        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelId, ByteSizeValue.ofGb(2).getBytes(), 1, 1);
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(
+            modelId,
+            modelId,
+            ByteSizeValue.ofGb(2).getBytes(),
+            1,
+            1
+        );
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
         long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
@@ -203,7 +211,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.of(taskParams)
         ).rebalance().build();
 
-        TrainedModelAssignment assignment = result.getModelAssignment(modelId);
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
         assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
         assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
@@ -216,7 +224,13 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
 
     public void testRebalance_GivenFirstModelToAdd_ErrorDetectingNodeLoad() throws Exception {
         String modelId = "model-to-add";
-        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelId, ByteSizeValue.ofGb(2).getBytes(), 1, 1);
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(
+            modelId,
+            modelId,
+            ByteSizeValue.ofGb(2).getBytes(),
+            1,
+            1
+        );
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
         long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
@@ -232,7 +246,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.of(taskParams)
         ).rebalance().build();
 
-        TrainedModelAssignment assignment = result.getModelAssignment(modelId);
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
         assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
         assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
@@ -248,7 +262,13 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         DiscoveryNode node2 = buildNode("node-2", ByteSizeValue.ofGb(10).getBytes(), 3);
 
         String modelId = "model-to-add";
-        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelId, ByteSizeValue.ofGb(2).getBytes(), 1, 4);
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(
+            modelId,
+            modelId,
+            ByteSizeValue.ofGb(2).getBytes(),
+            1,
+            4
+        );
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
         nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(ByteSizeValue.ofGb(1).getBytes()).build());
@@ -261,7 +281,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.of(taskParams)
         ).rebalance().build();
 
-        TrainedModelAssignment assignment = result.getModelAssignment(modelId);
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
         assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
         assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
@@ -281,7 +301,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 4);
 
         String modelId = "model-to-add";
-        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelId, 1024L, 1, 1);
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelId, modelId, 1024L, 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
         nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
@@ -293,7 +313,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.of(taskParams)
         ).rebalance().build();
 
-        TrainedModelAssignment assignment = result.getModelAssignment(modelId);
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
         assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
         assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -309,13 +329,13 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 4);
         DiscoveryNode node2 = buildNode("node-2", nodeMemoryBytes, 4);
 
-        String modelToAddId = "model-to-add";
-        String previousModelId = "previous-model";
-        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelToAddId, 1024L, 1, 2);
+        String deploymentToAddId = "model-to-add";
+        String previousDeploymentId = "previous-model";
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(deploymentToAddId, deploymentToAddId, 1024L, 1, 2);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
-                previousModelId,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousModelId, 1024L, 3, 2))
+                previousDeploymentId,
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeploymentId, previousDeploymentId, 1024L, 3, 2))
                     .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
@@ -331,10 +351,10 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.of(taskParams)
         ).rebalance().build();
 
-        assertThat(result.modelAssignments(), is(aMapWithSize(2)));
+        assertThat(result.allAssignments(), is(aMapWithSize(2)));
 
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelToAddId);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(deploymentToAddId);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -345,7 +365,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             assertThat(assignment.getReason().isPresent(), is(false));
         }
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(previousModelId);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(previousDeploymentId);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTED));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(2)));
@@ -367,18 +387,18 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         DiscoveryNode node2 = buildNode("node-2", nodeMemoryBytes, 4);
         DiscoveryNode node3 = buildNode("node-3", nodeMemoryBytes, 4);
 
-        String previousModel1Id = "previous-model-1";
-        String previousModel2Id = "previous-model-2";
+        String previousDeployment1Id = "previous-model-1";
+        String previousDeployment2Id = "previous-model-2";
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
-                previousModel1Id,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousModel1Id, 1024L, 3, 2))
+                previousDeployment1Id,
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment1Id, 1024L, 3, 2))
                     .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
-                previousModel2Id,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousModel2Id, 1024L, 4, 1))
+                previousDeployment2Id,
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment2Id, 1024L, 4, 1))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
@@ -394,10 +414,10 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.empty()
         ).rebalance().build();
 
-        assertThat(result.modelAssignments(), is(aMapWithSize(2)));
+        assertThat(result.allAssignments(), is(aMapWithSize(2)));
 
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(previousModel1Id);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(previousDeployment1Id);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTED));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(2)));
@@ -412,7 +432,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             assertThat(assignment.getReason().isPresent(), is(false));
         }
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(previousModel2Id);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(previousDeployment2Id);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTED));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(2)));
@@ -432,18 +452,18 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
         DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 4);
 
-        String previousModel1Id = "previous-model-1";
-        String previousModel2Id = "previous-model-2";
+        String previousDeployment1Id = "previous-deployment-1";
+        String previousDeployment2Id = "previous-deployment-2";
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
-                previousModel1Id,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousModel1Id, 1024L, 3, 2))
+                previousDeployment1Id,
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment1Id, 1024L, 3, 2))
                     .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
-                previousModel2Id,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousModel2Id, 1024L, 4, 1))
+                previousDeployment2Id,
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment2Id, 1024L, 4, 1))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
@@ -457,10 +477,10 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.empty()
         ).rebalance().build();
 
-        assertThat(result.modelAssignments(), is(aMapWithSize(2)));
+        assertThat(result.allAssignments(), is(aMapWithSize(2)));
 
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(previousModel1Id);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(previousDeployment1Id);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTED));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -478,7 +498,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             );
         }
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(previousModel2Id);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(previousDeployment2Id);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -501,18 +521,18 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
         DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 7);
 
-        String previousModel1Id = "previous-model-1";
-        String previousModel2Id = "previous-model-2";
+        String previousDeployment1Id = "previous-deployment-1";
+        String previousDeployment2Id = "previous-deployment-2";
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
-                previousModel1Id,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousModel1Id, 1024L, 3, 2))
+                previousDeployment1Id,
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment1Id, 1024L, 3, 2))
                     .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
-                previousModel2Id,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousModel2Id, 1024L, 1, 1))
+                previousDeployment2Id,
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment2Id, 1024L, 1, 1))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
@@ -526,10 +546,10 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.empty()
         ).rebalance().build();
 
-        assertThat(result.modelAssignments(), is(aMapWithSize(2)));
+        assertThat(result.allAssignments(), is(aMapWithSize(2)));
 
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(previousModel1Id);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(previousDeployment1Id);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTED));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -540,7 +560,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             assertThat(assignment.getReason().isPresent(), is(false));
         }
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(previousModel2Id);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(previousDeployment2Id);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -574,9 +594,9 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.empty()
         ).rebalance().build();
 
-        assertThat(result.modelAssignments(), is(aMapWithSize(1)));
+        assertThat(result.allAssignments(), is(aMapWithSize(1)));
 
-        TrainedModelAssignment assignment = result.getModelAssignment(modelId);
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
         assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
         assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -589,7 +609,12 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
 
     public void testRebalance_GivenLowPriorityModelToAdd_OnlyModel_NotEnoughMemory() throws Exception {
         String modelId = "model-to-add";
-        StartTrainedModelDeploymentAction.TaskParams taskParams = lowPriorityParams(modelId, ByteSizeValue.ofGb(2).getBytes());
+        String deploymentId = "deployment-to-add";
+        StartTrainedModelDeploymentAction.TaskParams taskParams = lowPriorityParams(
+            deploymentId,
+            modelId,
+            ByteSizeValue.ofGb(2).getBytes()
+        );
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
         long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
@@ -602,7 +627,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.of(taskParams)
         ).rebalance().build();
 
-        TrainedModelAssignment assignment = result.getModelAssignment(modelId);
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(deploymentId);
         assertThat(assignment, is(notNullValue()));
         assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
         assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
@@ -622,13 +647,18 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
         nodeLoads.put(node2, NodeLoad.builder("node-2").setMaxMemory(nodeMemoryBytes).build());
 
-        String modelId1 = "model-1";
-        StartTrainedModelDeploymentAction.TaskParams taskParams1 = lowPriorityParams(modelId1, ByteSizeValue.ofMb(300).getBytes());
-        String modelId2 = "model-2";
-        StartTrainedModelDeploymentAction.TaskParams taskParams2 = normalPriorityParams(modelId2, ByteSizeValue.ofMb(300).getBytes(), 2, 1);
+        String deployment1 = "deployment-1";
+        StartTrainedModelDeploymentAction.TaskParams taskParams1 = lowPriorityParams(deployment1, ByteSizeValue.ofMb(300).getBytes());
+        String deployment2 = "deployment-2";
+        StartTrainedModelDeploymentAction.TaskParams taskParams2 = normalPriorityParams(
+            deployment2,
+            ByteSizeValue.ofMb(300).getBytes(),
+            2,
+            1
+        );
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
-                modelId2,
+                deployment2,
                 TrainedModelAssignment.Builder.empty(taskParams2)
                     .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
@@ -642,7 +672,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Optional.of(taskParams1)
         ).rebalance().build();
 
-        TrainedModelAssignment assignment = result.getModelAssignment(modelId1);
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(deployment1);
         assertThat(assignment, is(notNullValue()));
         assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
         assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
@@ -681,7 +711,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         ).rebalance().build();
 
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId1);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId1);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
@@ -692,7 +722,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             );
         }
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId2);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId2);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -735,7 +765,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         List<String> assignedNodes = new ArrayList<>();
 
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId1);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId1);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -747,7 +777,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             assignedNodes.add(assignedNode);
         }
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId2);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId2);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTED));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -786,7 +816,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         ).rebalance().build();
 
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId1);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId1);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
@@ -797,7 +827,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             );
         }
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId2);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId2);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -835,7 +865,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         ).rebalance().build();
 
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId1);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId1);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -846,7 +876,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             assertThat(assignment.getReason().isPresent(), is(false));
         }
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId2);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId2);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -884,7 +914,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         ).rebalance().build();
 
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId1);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId1);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
@@ -895,7 +925,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             );
         }
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId2);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId2);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -935,7 +965,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         ).rebalance().build();
 
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId1);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId1);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTED));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -946,7 +976,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             assertThat(assignment.getReason().isPresent(), is(false));
         }
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId2);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId2);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -986,7 +1016,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         ).rebalance().build();
 
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId1);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId1);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -997,7 +1027,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             assertThat(assignment.getReason().isPresent(), is(false));
         }
         {
-            TrainedModelAssignment assignment = result.getModelAssignment(modelId2);
+            TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId2);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
@@ -1009,9 +1039,14 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         }
     }
 
-    private static StartTrainedModelDeploymentAction.TaskParams lowPriorityParams(String modelId, long modelSize) {
+    private static StartTrainedModelDeploymentAction.TaskParams lowPriorityParams(String deploymentId, long modelSize) {
+        return lowPriorityParams(deploymentId, deploymentId, modelSize);
+    }
+
+    private static StartTrainedModelDeploymentAction.TaskParams lowPriorityParams(String deploymentId, String modelId, long modelSize) {
         return new StartTrainedModelDeploymentAction.TaskParams(
             modelId,
+            deploymentId,
             modelSize,
             1,
             1,
@@ -1022,6 +1057,16 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams normalPriorityParams(
+        String deploymentId,
+        long modelSize,
+        int numberOfAllocations,
+        int threadsPerAllocation
+    ) {
+        return normalPriorityParams(deploymentId, deploymentId, modelSize, numberOfAllocations, threadsPerAllocation);
+    }
+
+    private static StartTrainedModelDeploymentAction.TaskParams normalPriorityParams(
+        String deploymentId,
         String modelId,
         long modelSize,
         int numberOfAllocations,
@@ -1029,6 +1074,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     ) {
         return new StartTrainedModelDeploymentAction.TaskParams(
             modelId,
+            deploymentId,
             modelSize,
             numberOfAllocations,
             threadsPerAllocation,
@@ -1039,17 +1085,18 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, long nativeMemory, int allocatedProcessors) {
-        return new DiscoveryNode(
-            name,
-            name,
-            buildNewFakeTransportAddress(),
-            MapBuilder.<String, String>newMapBuilder()
-                .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(nativeMemory))
-                .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10))
-                .put(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, String.valueOf(allocatedProcessors))
-                .map(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder(name)
+            .name(name)
+            .attributes(
+                Map.of(
+                    MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                    String.valueOf(nativeMemory),
+                    MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                    String.valueOf(10),
+                    MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+                    String.valueOf(allocatedProcessors)
+                )
+            )
+            .build();
     }
 }

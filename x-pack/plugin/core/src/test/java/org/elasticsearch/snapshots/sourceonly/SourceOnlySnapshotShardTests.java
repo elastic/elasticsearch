@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -45,6 +46,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -69,6 +71,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
@@ -129,7 +132,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
@@ -171,7 +174,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
@@ -202,7 +205,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
@@ -233,7 +236,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
@@ -257,7 +260,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         return "{ \"value\" : \"" + randomAlphaOfLength(10) + "\"}";
     }
 
-    public void testRestoreMinmal() throws IOException {
+    public void testRestoreMinimal() throws IOException {
         IndexShard shard = newStartedShard(true);
         int numInitialDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numInitialDocs; i++) {
@@ -294,7 +297,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
@@ -356,7 +359,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 new Snapshot("src_only", snapshotId),
-                Version.CURRENT,
+                IndexVersion.current(),
                 indexId
             )
         );
@@ -369,10 +372,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             metadata,
             null,
             SourceOnlySnapshotRepository.getEngineFactory(),
-            () -> {},
+            NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY
         );
-        DiscoveryNode discoveryNode = new DiscoveryNode("node_g", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("node_g");
         restoredShard.markAsRecovering("test from snap", new RecoveryState(restoredShard.routingEntry(), discoveryNode, null));
         runAsSnapshot(shard.getThreadPool(), () -> {
             final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();

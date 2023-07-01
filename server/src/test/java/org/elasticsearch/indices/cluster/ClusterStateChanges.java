@@ -9,7 +9,7 @@
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -84,6 +84,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -128,6 +129,7 @@ import static org.mockito.Mockito.when;
 public class ClusterStateChanges {
     private static final Settings SETTINGS = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
 
+    private final TransportService transportService;
     private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
@@ -212,7 +214,7 @@ public class ClusterStateChanges {
         }
 
         // services
-        TransportService transportService = new TransportService(
+        transportService = new TransportService(
             SETTINGS,
             transport,
             threadPool,
@@ -221,11 +223,25 @@ public class ClusterStateChanges {
             clusterSettings,
             Collections.emptySet(),
             Tracer.NOOP
-        );
-        IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(SETTINGS, xContentRegistry, null, null, null) {
+        ) {
+            @Override
+            public Transport.Connection getConnection(DiscoveryNode node) {
+                Transport.Connection conn = mock(Transport.Connection.class);
+                when(conn.getTransportVersion()).thenReturn(TransportVersion.current());
+                return conn;
+            }
+        };
+        IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
+            SETTINGS,
+            clusterService,
+            xContentRegistry,
+            null,
+            null,
+            null
+        ) {
             // metadata upgrader should do nothing
             @Override
-            public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+            public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
                 return indexMetadata;
             }
         };
@@ -338,9 +354,9 @@ public class ClusterStateChanges {
     private void resetMasterService() {
         final var masterService = clusterService.getMasterService();
         masterService.setClusterStateSupplier(() -> { throw new AssertionError("should not be called"); });
-        masterService.setClusterStatePublisher(
-            (clusterStatePublicationEvent, publishListener, ackListener) -> { throw new AssertionError("should not be called"); }
-        );
+        masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            throw new AssertionError("should not be called");
+        });
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -383,35 +399,26 @@ public class ClusterStateChanges {
 
     private static final JoinReason DUMMY_REASON = new JoinReason("dummy reason", null);
 
-    public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
+    public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode, TransportVersion transportVersion) {
         return runTasks(
             new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
-            List.of(
-                JoinTask.singleNode(
-                    discoveryNode,
-                    DUMMY_REASON,
-                    ActionListener.running(() -> { throw new AssertionError("should not complete publication"); }),
-                    clusterState.term()
-                )
-            )
+            List.of(JoinTask.singleNode(discoveryNode, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
+                throw new AssertionError("should not complete publication");
+            }), clusterState.term()))
         );
     }
 
-    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
+    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes, TransportVersion transportVersion) {
         return runTasks(
             new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
                 JoinTask.completingElection(
                     nodes.stream()
-                        .map(
-                            node -> new JoinTask.NodeJoinTask(
-                                node,
-                                DUMMY_REASON,
-                                ActionListener.running(() -> { throw new AssertionError("should not complete publication"); })
-                            )
-                        ),
+                        .map(node -> new JoinTask.NodeJoinTask(node, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
+                            throw new AssertionError("should not complete publication");
+                        }))),
                     clusterState.term() + between(1, 10)
                 )
             )

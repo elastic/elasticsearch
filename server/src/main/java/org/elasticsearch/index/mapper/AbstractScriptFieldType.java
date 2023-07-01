@@ -14,15 +14,16 @@ import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -176,7 +177,11 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
+        return new DocValueFetcher(
+            docValueFormat(format, null),
+            context.getForField(this, FielddataOperation.SEARCH),
+            StoredFieldsSpec.NEEDS_SOURCE       // for now we assume runtime fields need source
+        );
     }
 
     /**
@@ -199,9 +204,11 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public void validateMatchedRoutingPath() {
+    public void validateMatchedRoutingPath(final String routingPath) {
         throw new IllegalArgumentException(
-            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+            "All fields that match routing_path "
+                + "must be keywords with [time_series_dimension: true] "
+                + "or flattened fields with a list of dimensions in [time_series_dimensions] "
                 + "and without the [script] parameter. ["
                 + name()
                 + "] was a runtime ["
@@ -271,10 +278,10 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory) {
-            return createRuntimeField(scriptFactory, Version.CURRENT);
+            return createRuntimeField(scriptFactory, IndexVersion.current());
         }
 
-        final RuntimeField createRuntimeField(Factory scriptFactory, Version indexVersion) {
+        final RuntimeField createRuntimeField(Factory scriptFactory, IndexVersion indexVersion) {
             var fieldType = createFieldType(name, scriptFactory, getScript(), meta(), indexVersion, onScriptError.get());
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
@@ -292,7 +299,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             Factory factory,
             Script script,
             Map<String, String> meta,
-            Version supportedVersion,
+            IndexVersion supportedVersion,
             OnScriptError onScriptError
         ) {
             return createFieldType(name, factory, script, meta, onScriptError);

@@ -1,6 +1,0 @@
-pr: 94574
-summary: Build index qualified name in cross cluster vector tile search
-area: Geo
-type: bug
-issues:
- - 94557

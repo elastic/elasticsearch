@@ -51,6 +51,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -142,10 +143,8 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
                 } }
             )
         );
-        return new IndexAnalyzers(
-            Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
-            Map.of(),
-            Map.of()
+        return IndexAnalyzers.of(
+            Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop)
         );
     }
 
@@ -157,10 +156,10 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         String annotatedText = "He paid [Stormy Daniels](Stephanie+Clifford&Payee) hush money";
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", annotatedText)));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
 
-        assertEquals(annotatedText, fields[0].stringValue());
+        assertEquals(annotatedText, fields.get(0).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
 
@@ -196,10 +195,10 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         String annotatedText = "foo [bar](MissingEndBracket baz";
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", annotatedText)));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
 
-        assertEquals(annotatedText, fields[0].stringValue());
+        assertEquals(annotatedText, fields.get(0).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             LeafReader leaf = reader.leaves().get(0).reader();
@@ -254,11 +253,11 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
 
-        assertEquals("1234", fields[0].stringValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        assertEquals("1234", fields.get(0).stringValue());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(false));
         assertTrue(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -279,9 +278,9 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().stored());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertTrue(fields.get(0).fieldType().stored());
     }
 
     public void testDisableNorms() throws IOException {
@@ -293,9 +292,9 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().omitNorms());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertTrue(fields.get(0).fieldType().omitNorms());
     }
 
     public void testIndexOptions() throws IOException {
@@ -311,9 +310,9 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
                 b.field("index_options", option);
             }));
             ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(1, fields.length);
-            assertEquals(supportedOptions.get(option), fields[0].fieldType().indexOptions());
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(1, fields.size());
+            assertEquals(supportedOptions.get(option), fields.get(0).fieldType().indexOptions());
         }
     }
 
@@ -323,11 +322,11 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", "a", "b")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
 
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+        assertEquals("a", fields.get(0).stringValue());
+        assertEquals("b", fields.get(1).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             LeafReader leaf = reader.leaves().get(0).reader();
@@ -349,10 +348,10 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", "a", "b")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("a", fields.get(0).stringValue());
+        assertEquals("b", fields.get(1).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             LeafReader leaf = reader.leaves().get(0).reader();
@@ -556,7 +555,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPayloads(), equalTo(true));
     }
 
-    public void testNullConfigValuesFail() throws MapperParsingException {
+    public void testNullConfigValuesFail() {
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "annotated_text");
             b.nullField("analyzer");

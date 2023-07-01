@@ -70,7 +70,7 @@ public class SequenceKey implements Accountable, Comparable<SequenceKey> {
         int length = keys.length;
         int otherLength = other.keys.length;
         for (int i = 0; i < length && i < otherLength; i++) {
-            if (keys[i]instanceof Comparable key) {
+            if (keys[i] instanceof Comparable key) {
                 int result = key.compareTo(other.keys[i]);
                 if (result != 0) {
                     return result;

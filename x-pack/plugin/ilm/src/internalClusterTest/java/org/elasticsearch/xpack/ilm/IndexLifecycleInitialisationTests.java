@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -177,12 +178,9 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         );
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin()
-            .indices()
-            .create(new CreateIndexRequest("test").settings(settings))
-            .actionGet();
+        CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
         assertBusy(() -> { assertTrue(indexExists("test")); });
@@ -190,9 +188,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = client().admin()
-                .cluster()
-                .prepareState()
+            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
                 .execute()
                 .actionGet()
                 .getState()
@@ -263,10 +259,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         long actualModifiedDate = Instant.from(ISO_ZONED_DATE_TIME.parse(responseItem.getModifiedDate())).toEpochMilli();
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin()
-            .indices()
-            .create(new CreateIndexRequest("test").settings(settings))
-            .actionGet();
+        CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
 
         // using AtomicLong only to extract a value from a lambda rather than the more traditional atomic update use-case
@@ -282,7 +275,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         // set the origination date setting to an older value
-        updateIndexSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 1000L), "test");
+        updateIndexSettings(Settings.builder().put(IndexSettings.LIFECYCLE_ORIGINATION_DATE, 1000L), "test");
 
         {
             assertBusy(() -> {
@@ -292,7 +285,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         // set the origination date setting to null
-        updateIndexSettings(Settings.builder().putNull(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE), "test");
+        updateIndexSettings(Settings.builder().putNull(IndexSettings.LIFECYCLE_ORIGINATION_DATE), "test");
 
         {
             assertBusy(() -> {
@@ -339,14 +332,11 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         String indexName = "test-2019.09.14";
         logger.info("Creating index [{}]", indexName);
-        CreateIndexResponse createIndexResponse = client().admin()
-            .indices()
-            .create(
-                new CreateIndexRequest(indexName).settings(
-                    Settings.builder().put(settings).put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
-                )
+        CreateIndexResponse createIndexResponse = indicesAdmin().create(
+            new CreateIndexRequest(indexName).settings(
+                Settings.builder().put(settings).put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
             )
-            .actionGet();
+        ).actionGet();
         assertAcked(createIndexResponse);
 
         DateFormatter dateFormatter = DateFormatter.forPattern("yyyy.MM.dd");
@@ -357,7 +347,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         });
 
         // disabling the lifecycle parsing would maintain the parsed value as that was set as the origination date
-        updateIndexSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false), indexName);
+        updateIndexSettings(Settings.builder().put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false), indexName);
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
@@ -365,7 +355,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         });
 
         // setting the lifecycle origination date setting to null should make the lifecyle date fallback on the index creation date
-        updateIndexSettings(Settings.builder().putNull(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE), indexName);
+        updateIndexSettings(Settings.builder().putNull(IndexSettings.LIFECYCLE_ORIGINATION_DATE), indexName);
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
@@ -376,8 +366,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         long originationDate = 42L;
         updateIndexSettings(
             Settings.builder()
-                .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
-                .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, originationDate),
+                .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                .put(IndexSettings.LIFECYCLE_ORIGINATION_DATE, originationDate),
             indexName
         );
 
@@ -421,21 +411,16 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin()
-            .indices()
-            .create(new CreateIndexRequest("test").settings(settings))
-            .actionGet();
+        CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
 
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node2);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
 
         assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = client().admin()
-                .cluster()
-                .prepareState()
+            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
                 .execute()
                 .actionGet()
                 .getState()

@@ -1,0 +1,43 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1",
+        "refresh_interval": "10s",
+        "hidden": true,
+        "lifecycle.rollover_alias": "profiling-executables"
+      }
+    },
+    "mappings": {
+      "_source": {
+        "mode": "synthetic"
+      },
+      "dynamic": false,
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true
+        },
+        "Executable.build.id": {
+          "type": "keyword",
+          "index": true
+        },
+        "Executable.file.name": {
+          "type": "keyword",
+          "index": true
+        },
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_second"
+        },
+        "Symbolization.next_time": {
+          "type": "date",
+          "format": "epoch_second",
+          "index": true
+        }
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

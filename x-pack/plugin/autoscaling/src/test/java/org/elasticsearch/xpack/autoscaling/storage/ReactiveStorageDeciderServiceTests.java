@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
@@ -243,7 +245,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
         ShardRouting primaryShard = subjectRoutings.primaryShard();
         ShardRouting replicaShard = subjectRoutings.replicaShards().get(0);
-        DiscoveryNode[] nodes = initialClusterState.nodes().toArray(DiscoveryNode[]::new);
+        DiscoveryNode[] nodes = initialClusterState.nodes().getAllNodes().toArray(DiscoveryNode[]::new);
         boolean useReplica = randomBoolean();
         if (useReplica || randomBoolean()) {
             startShard(allocation, primaryShard, nodes[0].getId());
@@ -416,7 +418,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot(randomAlphaOfLength(5), new SnapshotId(randomAlphaOfLength(5), UUIDs.randomBase64UUID())),
-            Version.CURRENT,
+            IndexVersion.current(),
             new IndexId(randomAlphaOfLength(5), UUIDs.randomBase64UUID())
         );
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
@@ -486,16 +488,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     static void addNode(ClusterState.Builder stateBuilder, DiscoveryNodeRole role) {
         stateBuilder.nodes(
             DiscoveryNodes.builder(stateBuilder.nodes())
-                .add(
-                    new DiscoveryNode(
-                        "test",
-                        UUIDs.randomBase64UUID(),
-                        buildNewFakeTransportAddress(),
-                        Map.of(),
-                        Set.of(role),
-                        Version.CURRENT
-                    )
-                )
+                .add(DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).name("test").roles(Set.of(role)).build())
         );
     }
 

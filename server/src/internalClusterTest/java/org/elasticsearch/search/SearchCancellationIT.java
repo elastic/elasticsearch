@@ -19,9 +19,7 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -64,7 +62,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
-        logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
+        logger.info("Segments {}", Strings.toString(indicesAdmin().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
     }
 
@@ -81,7 +79,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
-        logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
+        logger.info("Segments {}", Strings.toString(indicesAdmin().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
     }
 
@@ -89,13 +87,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         // This test is only meaningful with at least 2 shards to trigger reduce
         int numberOfShards = between(2, 5);
-        createIndex(
-            "test",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
-        );
+        createIndex("test", numberOfShards, 0);
         indexTestData();
 
         logger.info("Executing search");
@@ -253,13 +245,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
                 }
             });
         }
-        createIndex(
-            "test",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
-        );
+        createIndex("test", numberOfShards, 0);
         indexTestData();
         Thread searchThread = new Thread(() -> {
             SearchPhaseExecutionException e = expectThrows(

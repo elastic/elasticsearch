@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -56,7 +55,7 @@ public class FlushIT extends ESIntegTestCase {
             final CountDownLatch latch = new CountDownLatch(10);
             final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
             for (int j = 0; j < 10; j++) {
-                client().admin().indices().prepareFlush("test").execute(new ActionListener<FlushResponse>() {
+                indicesAdmin().prepareFlush("test").execute(new ActionListener<FlushResponse>() {
                     @Override
                     public void onResponse(FlushResponse flushResponse) {
                         try {
@@ -94,16 +93,13 @@ public class FlushIT extends ESIntegTestCase {
         assertThat(
             expectThrows(
                 ValidationException.class,
-                () -> client().admin().indices().flush(new FlushRequest().force(true).waitIfOngoing(false)).actionGet()
+                () -> indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(false)).actionGet()
             ).getMessage(),
             containsString("wait_if_ongoing must be true for a force flush")
         );
+        assertThat(indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(true)).actionGet().getShardFailures(), emptyArray());
         assertThat(
-            client().admin().indices().flush(new FlushRequest().force(true).waitIfOngoing(true)).actionGet().getShardFailures(),
-            emptyArray()
-        );
-        assertThat(
-            client().admin().indices().flush(new FlushRequest().force(false).waitIfOngoing(randomBoolean())).actionGet().getShardFailures(),
+            indicesAdmin().flush(new FlushRequest().force(false).waitIfOngoing(randomBoolean())).actionGet().getShardFailures(),
             emptyArray()
         );
     }
@@ -118,14 +114,9 @@ public class FlushIT extends ESIntegTestCase {
                 .build()
         );
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(200, 500, "ms"))
+                    indexSettings(1, 1).put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(200, 500, "ms"))
                         .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(50, 200, "ms"))
                         .put("index.routing.allocation.include._name", String.join(",", dataNodes))
                         .build()
@@ -141,7 +132,7 @@ public class FlushIT extends ESIntegTestCase {
             ensureGreen(indexName);
         }
         assertBusy(() -> {
-            for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getShards()) {
+            for (ShardStats shardStats : indicesAdmin().prepareStats(indexName).get().getShards()) {
                 assertThat(shardStats.getStats().getTranslog().getUncommittedOperations(), equalTo(0));
             }
         }, 30, TimeUnit.SECONDS);

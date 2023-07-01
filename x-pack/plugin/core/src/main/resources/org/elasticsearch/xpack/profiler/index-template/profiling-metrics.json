@@ -1,0 +1,15 @@
+{
+  "index_patterns": [
+    "profiling-metrics*"
+  ],
+  "data_stream": {},
+  "composed_of": [
+    "profiling-metrics",
+    "profiling-ilm"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "Template for profiling-metrics"
+  },
+  "version": ${xpack.profiling.template.version}
+}

@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
@@ -135,6 +136,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         flush();
         assertBusy(() -> {
             refresh();
+            ensureGreen(HistoryStoreField.DATA_STREAM);
             SearchResponse searchResponse = searchWatchRecords(builder -> {
                 // defaults to match all;
             });

@@ -10,5 +10,5 @@ package org.elasticsearch.test.cluster.local;
 
 public interface LocalClusterConfigProvider {
 
-    void apply(LocalClusterSpecBuilder builder);
+    void apply(LocalClusterSpecBuilder<?> builder);
 }

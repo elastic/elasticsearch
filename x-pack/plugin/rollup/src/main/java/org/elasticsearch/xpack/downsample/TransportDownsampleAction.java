@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -67,7 +69,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -76,6 +77,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 
@@ -96,6 +98,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadContext threadContext;
+
+    private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
+        IndexSettings.DEFAULT_PIPELINE.getKey(),
+        IndexSettings.FINAL_PIPELINE.getKey(),
+        IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()
+    );
+
+    private static final Set<String> OVERRIDE_SETTINGS = Set.of(DataTier.TIER_PREFERENCE_SETTING.getKey());
 
     /**
      * This is the cluster state task executor for cluster state update actions.
@@ -165,6 +175,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             "Rollup forbidden for index [" + sourceIndexName + "] with document level or field level security settings."
                         )
                     );
+                    return;
                 }
             }
         }
@@ -256,9 +267,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (dimensionFields.isEmpty()) {
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
-            }
-            if (metricFields.isEmpty()) {
-                validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any metric fields");
             }
 
             if (validationException.validationErrors().isEmpty() == false) {
@@ -525,28 +533,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         if (meta.isEmpty() == false) {
             String interval = meta.get(config.getIntervalType());
             if (interval != null) {
-                DateHistogramInterval sourceIndexInterval = new DateHistogramInterval(interval);
-                DateHistogramInterval targetIndexInterval = config.getInterval();
-                long sourceMillis = sourceIndexInterval.estimateMillis();
-                long targetMillis = targetIndexInterval.estimateMillis();
-                if (sourceMillis >= targetMillis) {
-                    // Downsampling interval must be greater than source interval
-                    e.addValidationError(
-                        "Source index is a downsampled index. Downsampling interval ["
-                            + targetIndexInterval
-                            + "] must be greater than the source index interval ["
-                            + sourceIndexInterval
-                            + "]"
-                    );
-                } else if (targetMillis % sourceMillis != 0) {
-                    // Downsampling interval must be a multiple of the source interval
-                    e.addValidationError(
-                        "Source index is a downsampled index. Downsampling interval ["
-                            + targetIndexInterval
-                            + "] must be a multiple of the source index interval ["
-                            + sourceIndexInterval
-                            + "]"
-                    );
+                try {
+                    DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval));
+                    DownsampleConfig.validateSourceAndTargetIntervals(sourceConfig, config);
+                } catch (IllegalArgumentException exception) {
+                    e.addValidationError("Source index is a downsampled index. " + exception.getMessage());
                 }
             }
 
@@ -558,14 +549,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                         + config.getTimeZone()
                         + "] cannot be different than the source index timezone ["
                         + sourceTimezone
-                        + "]"
+                        + "]."
                 );
             }
 
             if (e.validationErrors().isEmpty() == false) {
                 throw e;
             }
-
         }
     }
 
@@ -573,7 +563,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
      * Copy index settings from the source index to the rollup index. Settings that
      * have already been set in the rollup index will not be overridden.
      */
-    private IndexMetadata.Builder copyIndexMetadata(IndexMetadata sourceIndexMetadata, IndexMetadata rollupIndexMetadata) {
+    static IndexMetadata.Builder copyIndexMetadata(
+        final IndexMetadata sourceIndexMetadata,
+        final IndexMetadata rollupIndexMetadata,
+        final IndexScopedSettings indexScopedSettings
+    ) {
         // Copy index settings from the source index, but do not override the settings
         // that already have been set in the rollup index
         final Settings.Builder targetSettings = Settings.builder().put(rollupIndexMetadata.getSettings());
@@ -586,12 +580,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 // the same rules with resize apply
                 continue;
             }
-            // Do not override settings that have already been set in the rollup index.
-            // Also, we don't want to copy the `index.block.write` setting that we know
-            // it is set in the source index settings.
-            if (IndexMetadata.SETTING_BLOCKS_WRITE.equals(key) || targetSettings.keys().contains(key)) {
+            // Do not copy index settings which are valid for the source index but not for the target index
+            if (FORBIDDEN_SETTINGS.contains(key)) {
                 continue;
             }
+
+            if (OVERRIDE_SETTINGS.contains(key)) {
+                targetSettings.put(key, sourceIndexMetadata.getSettings().get(key));
+            }
+            // Do not override settings that have already been set in the rollup index.
+            if (targetSettings.keys().contains(key)) {
+                continue;
+            }
+
             targetSettings.copy(key, sourceIndexMetadata.getSettings());
         }
 
@@ -669,7 +670,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     createIndexClusterStateUpdateRequest,
                     true,
                     // Copy index metadata from source index to rollup index
-                    (builder, rollupIndexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata)),
+                    (builder, rollupIndexMetadata) -> builder.put(
+                        copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata, indexScopedSettings)
+                    ),
                     delegate.reroute()
                 );
             }

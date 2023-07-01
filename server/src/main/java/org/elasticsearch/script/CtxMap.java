@@ -222,7 +222,7 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
         @Override
         public boolean remove(Object o) {
             if (o instanceof Map.Entry<?, ?> entry) {
-                if (entry.getKey()instanceof String key) {
+                if (entry.getKey() instanceof String key) {
                     if (metadata.containsKey(key)) {
                         if (Objects.equals(entry.getValue(), metadata.get(key))) {
                             metadata.remove(key);

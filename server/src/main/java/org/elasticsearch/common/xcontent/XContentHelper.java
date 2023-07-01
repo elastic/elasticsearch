@@ -497,6 +497,16 @@ public class XContentHelper {
     }
 
     /**
+     * Returns the bytes that represent the XContent output of the provided {@link ChunkedToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns.
+     */
+    public static BytesReference toXContent(ChunkedToXContent toXContent, XContentType xContentType, boolean humanReadable)
+        throws IOException {
+        return toXContent(ChunkedToXContent.wrapAsToXContent(toXContent), xContentType, humanReadable);
+    }
+
+    /**
      * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
      * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
      * by the {@link ToXContent#isFragment()} method returns.
@@ -514,6 +524,16 @@ public class XContentHelper {
             }
             return BytesReference.bytes(builder);
         }
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ChunkedToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns.
+     */
+    public static BytesReference toXContent(ChunkedToXContent toXContent, XContentType xContentType, Params params, boolean humanReadable)
+        throws IOException {
+        return toXContent(ChunkedToXContent.wrapAsToXContent(toXContent), xContentType, params, humanReadable);
     }
 
     /**

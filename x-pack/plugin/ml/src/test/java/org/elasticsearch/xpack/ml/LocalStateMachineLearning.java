@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.license.ClusterStateLicenseService;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -42,6 +42,10 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
     private final MachineLearning mlPlugin;
 
     public LocalStateMachineLearning(final Settings settings, final Path configPath) {
+        this(settings, configPath, null);
+    }
+
+    protected LocalStateMachineLearning(final Settings settings, final Path configPath, final ExtensionLoader extensionLoader) {
         super(settings, configPath);
         LocalStateMachineLearning thisVar = this;
         mlPlugin = new MachineLearning(settings) {
@@ -50,7 +54,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         };
-        mlPlugin.loadExtensions(null);
+        mlPlugin.loadExtensions(extensionLoader);
         mlPlugin.setCircuitBreaker(new NoopCircuitBreaker(TRAINED_MODEL_CIRCUIT_BREAKER_NAME));
         plugins.add(mlPlugin);
         plugins.add(new Monitoring(settings) {
@@ -60,7 +64,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             }
 
             @Override
-            protected ClusterStateLicenseService getLicenseService() {
+            protected LicenseService getLicenseService() {
                 return thisVar.getLicenseService();
             }
 

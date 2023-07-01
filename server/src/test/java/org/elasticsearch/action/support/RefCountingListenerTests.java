@@ -78,11 +78,13 @@ public class RefCountingListenerTests extends ESTestCase {
 
             var listener = refs.acquire();
             assertThat(listener.toString(), containsString("refCounting[test listener]"));
+            assertFalse(refs.isFailing());
             if (randomBoolean()) {
                 listener.onResponse(null);
             } else {
                 listener.onFailure(new ElasticsearchException("simulated"));
                 exceptionCount.incrementAndGet();
+                assertTrue(refs.isFailing());
             }
 
             var reachChecker = new ReachabilityChecker();
@@ -109,6 +111,9 @@ public class RefCountingListenerTests extends ESTestCase {
                 assertFalse(consumed.get());
                 exceptionCount.incrementAndGet();
             }
+
+            assertEquals(exceptionCount.get() > 0, refs.isFailing());
+
             reachChecker.ensureUnreachable();
             assertThat(consumingListener.toString(), containsString("refCounting[test listener][null]"));
 
@@ -133,6 +138,7 @@ public class RefCountingListenerTests extends ESTestCase {
                 }
             }
 
+            assertEquals(exceptionCount.get() > 0, refs.isFailing());
             assertFalse(executed.get());
         }
 
@@ -174,7 +180,7 @@ public class RefCountingListenerTests extends ESTestCase {
                 expectedMessage = RefCountingRunnable.ALREADY_CLOSED_MESSAGE;
             } else {
                 throwingRunnable = refs::close;
-                expectedMessage = "already closed";
+                expectedMessage = "invalid decRef call: already closed";
             }
 
             assertEquals(expectedMessage, expectThrows(AssertionError.class, throwingRunnable).getMessage());

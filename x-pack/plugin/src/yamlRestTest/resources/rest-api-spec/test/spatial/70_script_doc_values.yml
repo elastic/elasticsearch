@@ -93,8 +93,11 @@ setup:
 
 ---
 "geoshape value":
+  - skip:
+      version: " - 8.8.99"
+      reason: output changed in 8.9
+
   - do:
-      catch: /illegal_argument_exception/
       search:
         rest_total_hits_as_int: true
         body:
@@ -103,10 +106,9 @@ setup:
               script:
                 source: "doc['geo_shape'].get(0)"
 
-  - match: { error.root_cause.0.reason: "cannot write xcontent for geo_shape doc value" }
+  - match: { hits.hits.0.fields.type.0: '<unserializable>' }
 
   - do:
-      catch: /illegal_argument_exception/
       search:
         rest_total_hits_as_int: true
         body:
@@ -115,10 +117,9 @@ setup:
               script:
                 source: "field('geo_shape').get(null)"
 
-  - match: { error.root_cause.0.reason: "cannot write xcontent for geo_shape doc value" }
+  - match: { hits.hits.0.fields.type.0: '<unserializable>' }
 
   - do:
-      catch: /illegal_argument_exception/
       search:
         rest_total_hits_as_int: true
         body:
@@ -127,7 +128,7 @@ setup:
               script:
                 source: "/* avoid yaml stash */ $('geo_shape', null)"
 
-  - match: { error.root_cause.0.reason: "cannot write xcontent for geo_shape doc value" }
+  - match: { hits.hits.0.fields.type.0: '<unserializable>' }
 
 ---
 "diagonal length":

@@ -40,6 +40,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -101,6 +102,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import javax.crypto.SecretKey;
 
@@ -217,8 +219,22 @@ public class TokenServiceTests extends ESTestCase {
         // tokens docs on a separate index), let's test the TokenService works in a mixed cluster with nodes with versions prior to these
         // developments
         if (randomBoolean()) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
+            oldNode = addAnother7071DataNode(this.clusterService);
         }
+    }
+
+    private static DiscoveryNode addAnother7071DataNode(ClusterService clusterService) {
+        Version version;
+        TransportVersion transportVersion;
+        if (randomBoolean()) {
+            version = Version.V_7_0_0;
+            transportVersion = TransportVersion.V_7_0_0;
+        } else {
+            version = Version.V_7_1_0;
+            transportVersion = TransportVersion.V_7_1_0;
+        }
+
+        return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
 
     @After
@@ -303,7 +319,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
         if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
+            oldNode = addAnother7071DataNode(this.clusterService);
         }
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe", "admin"))
@@ -342,7 +358,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
         if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
+            oldNode = addAnother7071DataNode(this.clusterService);
         }
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe", "admin"))
@@ -1055,19 +1071,21 @@ public class TokenServiceTests extends ESTestCase {
         assertEquals(expected.getAuthenticatingSubject().getMetadata(), result.getAuthenticatingSubject().getMetadata());
     }
 
-    private DiscoveryNode addAnotherDataNodeWithVersion(ClusterService clusterService, Version version) {
+    private static DiscoveryNode addAnotherDataNodeWithVersion(
+        ClusterService clusterService,
+        Version version,
+        TransportVersion transportVersion
+    ) {
         final ClusterState currentState = clusterService.state();
         final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(currentState.getNodes());
-        final DiscoveryNode anotherDataNode = new DiscoveryNode(
-            "another_data_node#" + version,
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
-            version
-        );
+        final DiscoveryNode anotherDataNode = DiscoveryNodeUtils.builder("another_data_node#" + version)
+            .roles(Set.of(DiscoveryNodeRole.DATA_ROLE))
+            .version(version)
+            .build();
         discoBuilder.add(anotherDataNode);
         final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
         newStateBuilder.nodes(discoBuilder);
+        newStateBuilder.putTransportVersion(anotherDataNode.getId(), transportVersion);
         setState(clusterService, newStateBuilder.build());
         return anotherDataNode;
     }

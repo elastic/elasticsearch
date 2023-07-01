@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -17,6 +18,9 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
@@ -27,6 +31,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterHealthAction extends BaseRestHandler {
 
     @Override
@@ -47,7 +52,9 @@ public class RestClusterHealthAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterHealthRequest clusterHealthRequest = fromRequest(request);
-        return channel -> client.admin().cluster().health(clusterHealthRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .cluster()
+            .health(clusterHealthRequest, new RestStatusToXContentListener<>(channel));
     }
 
     public static ClusterHealthRequest fromRequest(final RestRequest request) {
@@ -81,6 +88,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (request.param("wait_for_events") != null) {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
+        // level parameter validation
+        ClusterStatsLevel.of(request, ClusterStatsLevel.CLUSTER);
         return clusterHealthRequest;
     }
 

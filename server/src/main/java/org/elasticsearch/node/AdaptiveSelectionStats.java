@@ -42,8 +42,8 @@ public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
     }
 
     public AdaptiveSelectionStats(StreamInput in) throws IOException {
-        this.clientOutgoingConnections = in.readMap(StreamInput::readString, StreamInput::readLong);
-        this.nodeComputedStats = in.readMap(StreamInput::readString, ResponseCollectorService.ComputedNodeStats::new);
+        this.clientOutgoingConnections = in.readMap(StreamInput::readLong);
+        this.nodeComputedStats = in.readMap(ResponseCollectorService.ComputedNodeStats::new);
     }
 
     @Override

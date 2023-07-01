@@ -33,6 +33,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -225,7 +226,12 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     }
 
     @Override
-    protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        Request request,
+        TransformTask transformTask,
+        ActionListener<Response> listener
+    ) {
 
         Set<String> ids = request.getExpandedIds();
         if (ids == null) {
@@ -485,7 +491,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         final ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
             GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
                 transformNodeAssignments.getWaitingForAssignment().size(),
-                ActionListener.wrap(r -> { finalListener.onResponse(response); }, finalListener::onFailure)
+                ActionListener.wrap(r -> {
+                    finalListener.onResponse(response);
+                }, finalListener::onFailure)
             );
 
             for (String unassignedTaskId : transformNodeAssignments.getWaitingForAssignment()) {
@@ -495,7 +503,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }, e -> {
             GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
                 transformNodeAssignments.getWaitingForAssignment().size(),
-                ActionListener.wrap(r -> { finalListener.onFailure(e); }, finalListener::onFailure)
+                ActionListener.wrap(r -> {
+                    finalListener.onFailure(e);
+                }, finalListener::onFailure)
             );
 
             for (String unassignedTaskId : transformNodeAssignments.getWaitingForAssignment()) {

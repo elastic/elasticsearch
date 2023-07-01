@@ -15,15 +15,20 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 public class PostWriteRefresh {
 
+    public static final String POST_WRITE_REFRESH_ORIGIN = "post_write_refresh";
     public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
     private final TransportService transportService;
 
@@ -35,15 +40,18 @@ public class PostWriteRefresh {
         WriteRequest.RefreshPolicy policy,
         IndexShard indexShard,
         @Nullable Translog.Location location,
-        ActionListener<Boolean> listener
+        ActionListener<Boolean> listener,
+        @Nullable TimeValue postWriteRefreshTimeout
     ) {
         switch (policy) {
             case NONE -> listener.onResponse(false);
             case WAIT_UNTIL -> waitUntil(indexShard, location, new ActionListener<>() {
                 @Override
                 public void onResponse(Boolean forced) {
-                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
-                        refreshUnpromotables(indexShard, location, listener, forced);
+                    // Fast refresh indices do not depend on the unpromotables being refreshed
+                    boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexShard.indexSettings().getSettings());
+                    if (location != null && (indexShard.routingEntry().isSearchable() == false && fastRefresh == false)) {
+                        refreshUnpromotables(indexShard, location, listener, forced, postWriteRefreshTimeout);
                     } else {
                         listener.onResponse(forced);
                     }
@@ -57,8 +65,10 @@ public class PostWriteRefresh {
             case IMMEDIATE -> immediate(indexShard, new ActionListener<>() {
                 @Override
                 public void onResponse(Engine.RefreshResult refreshResult) {
-                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
-                        sendUnpromotableRequests(indexShard, refreshResult.generation(), true, listener);
+                    // Fast refresh indices do not depend on the unpromotables being refreshed
+                    boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexShard.indexSettings().getSettings());
+                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0 && fastRefresh == false) {
+                        sendUnpromotableRequests(indexShard, refreshResult.generation(), true, listener, postWriteRefreshTimeout);
                     } else {
                         listener.onResponse(true);
                     }
@@ -88,8 +98,7 @@ public class PostWriteRefresh {
     }
 
     private static void immediate(IndexShard indexShard, ActionListener<Engine.RefreshResult> listener) {
-        Engine.RefreshResult refreshResult = indexShard.refresh(FORCED_REFRESH_AFTER_INDEX);
-        listener.onResponse(refreshResult);
+        indexShard.externalRefresh(FORCED_REFRESH_AFTER_INDEX, listener);
     }
 
     private static void waitUntil(IndexShard indexShard, Translog.Location location, ActionListener<Boolean> listener) {
@@ -100,35 +109,55 @@ public class PostWriteRefresh {
         }
     }
 
-    private void refreshUnpromotables(IndexShard indexShard, Translog.Location location, ActionListener<Boolean> listener, boolean forced) {
+    private void refreshUnpromotables(
+        IndexShard indexShard,
+        Translog.Location location,
+        ActionListener<Boolean> listener,
+        boolean forced,
+        @Nullable TimeValue postWriteRefreshTimeout
+    ) {
         Engine engineOrNull = indexShard.getEngineOrNull();
         if (engineOrNull == null) {
             listener.onFailure(new AlreadyClosedException("Engine closed during refresh."));
             return;
         }
 
-        engineOrNull.addFlushListener(location, new ActionListener<>() {
+        engineOrNull.addFlushListener(location, ActionListener.wrap(new ActionListener<>() {
             @Override
             public void onResponse(Long generation) {
-                sendUnpromotableRequests(indexShard, generation, forced, listener);
+                try (
+                    ThreadContext.StoredContext ignore = transportService.getThreadPool()
+                        .getThreadContext()
+                        .stashWithOrigin(POST_WRITE_REFRESH_ORIGIN)
+                ) {
+                    sendUnpromotableRequests(indexShard, generation, forced, listener, postWriteRefreshTimeout);
+                }
             }
 
             @Override
             public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
-        });
+        }));
     }
 
-    private void sendUnpromotableRequests(IndexShard indexShard, long generation, boolean wasForced, ActionListener<Boolean> listener) {
+    private void sendUnpromotableRequests(
+        IndexShard indexShard,
+        long generation,
+        boolean wasForced,
+        ActionListener<Boolean> listener,
+        @Nullable TimeValue postWriteRefreshTimeout
+    ) {
         UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
             indexShard.getReplicationGroup().getRoutingTable(),
-            generation
+            generation,
+            true
         );
         transportService.sendRequest(
             transportService.getLocalNode(),
             TransportUnpromotableShardRefreshAction.NAME,
             unpromotableReplicaRequest,
+            TransportRequestOptions.timeout(postWriteRefreshTimeout),
             new ActionListenerResponseHandler<>(
                 listener.delegateFailure((l, r) -> l.onResponse(wasForced)),
                 (in) -> ActionResponse.Empty.INSTANCE,

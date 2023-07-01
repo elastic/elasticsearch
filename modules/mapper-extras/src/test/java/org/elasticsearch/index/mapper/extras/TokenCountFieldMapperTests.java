@@ -80,7 +80,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         NamedAnalyzer dflt = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
         NamedAnalyzer standard = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
         NamedAnalyzer keyword = new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer());
-        return new IndexAnalyzers(Map.of("default", dflt, "standard", standard, "keyword", keyword), Map.of(), Map.of());
+        return IndexAnalyzers.of(Map.of("default", dflt, "standard", standard, "keyword", keyword));
     }
 
     /**

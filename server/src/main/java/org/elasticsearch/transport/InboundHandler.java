@@ -133,7 +133,7 @@ public class InboundHandler {
                 }
                 // ignore if its null, the service logs it
                 if (responseHandler != null) {
-                    if (message.getContentLength() > 0 || header.getVersion().equals(TransportVersion.CURRENT) == false) {
+                    if (message.getContentLength() > 0 || header.getVersion().equals(TransportVersion.current()) == false) {
                         final StreamInput streamInput = namedWriteableStream(message.openOrGetStreamInput());
                         assertRemoteVersion(streamInput, header.getVersion());
                         if (header.isError()) {
@@ -209,6 +209,7 @@ public class InboundHandler {
                 requestId,
                 version,
                 header.getCompressionScheme(),
+                ResponseStatsConsumer.NONE,
                 header.isHandshake(),
                 message.takeBreakerReleaseControl()
             );
@@ -219,25 +220,54 @@ public class InboundHandler {
                 channel.close();
             }
         } else {
-            final TransportChannel transportChannel = new TcpTransportChannel(
-                outboundHandler,
-                channel,
-                action,
-                requestId,
-                version,
-                header.getCompressionScheme(),
-                header.isHandshake(),
-                message.takeBreakerReleaseControl()
-            );
+            final TransportChannel transportChannel;
+            final RequestHandlerRegistry<T> reg;
+            try {
+                reg = requestHandlers.getHandler(action);
+                assert message.isShortCircuit() || reg != null : action;
+                transportChannel = new TcpTransportChannel(
+                    outboundHandler,
+                    channel,
+                    action,
+                    requestId,
+                    version,
+                    header.getCompressionScheme(),
+                    reg == null ? ResponseStatsConsumer.NONE : reg,
+                    header.isHandshake(),
+                    message.takeBreakerReleaseControl()
+                );
+            } catch (Exception e) {
+                assert false : e;
+                sendErrorResponse(
+                    action,
+                    new TcpTransportChannel(
+                        outboundHandler,
+                        channel,
+                        action,
+                        requestId,
+                        version,
+                        header.getCompressionScheme(),
+                        ResponseStatsConsumer.NONE,
+                        header.isHandshake(),
+                        message.takeBreakerReleaseControl()
+                    ),
+                    e
+                );
+                return;
+            }
+
             try {
                 messageListener.onRequestReceived(requestId, action);
+                if (reg != null) {
+                    reg.addRequestStats(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
+                }
+
                 if (message.isShortCircuit()) {
                     sendErrorResponse(action, transportChannel, message.getException());
                 } else {
+                    assert reg != null;
                     final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
                     assertRemoteVersion(stream, header.getVersion());
-                    final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
-                    assert reg != null;
                     final T request;
                     try {
                         request = reg.newRequest(stream);
@@ -247,6 +277,8 @@ public class InboundHandler {
                     }
                     try {
                         request.remoteAddress(channel.getRemoteAddress());
+                        assert requestId > 0;
+                        request.setRequestId(requestId);
                         // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
                         final int nextByte = stream.read();
                         // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker

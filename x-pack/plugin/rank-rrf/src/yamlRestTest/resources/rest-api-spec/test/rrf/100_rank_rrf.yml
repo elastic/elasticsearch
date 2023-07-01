@@ -1,0 +1,180 @@
+setup:
+  - skip:
+      features: close_to
+      version: ' - 8.7.99'
+      reason: 'rank added in 8.8'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 5
+            number_of_replicas: 0
+          mappings:
+            properties:
+              text:
+                type: text
+              keyword:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 1
+                index: true
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "term term"
+          keyword: "other"
+          vector: [0.0]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          text: "other"
+          keyword: "other"
+          vector: [1.0]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          text: "term"
+          keyword: "keyword"
+          vector: [2.0]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Simple rank with bm25 search and kNN search":
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: false
+          fields: [ "text" ]
+          knn:
+            field: vector
+            query_vector: [0.0]
+            k: 3
+            num_candidates: 3
+          query:
+            term:
+              text: term
+          rank:
+            rrf:
+              window_size: 100
+              rank_constant: 1
+          size: 10
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._rank: 1 }
+  - match: { hits.hits.0.fields.text.0: "term term" }
+
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1._rank: 2 }
+  - match: { hits.hits.1.fields.text.0: "term" }
+
+  - match: { hits.hits.2._id: "2" }
+  - match: { hits.hits.2._rank: 3 }
+  - match: { hits.hits.2.fields.text.0: "other" }
+
+---
+"Simple rank with multiple bm25 sub searches":
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text" ]
+          sub_searches: [
+            {
+              "query": {
+                "term": {
+                  "text": "term"
+                }
+              }
+            },
+            {
+              "query": {
+                "match": {
+                  "keyword": "keyword"
+                }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              window_size: 100
+              rank_constant: 1
+          size: 10
+
+  - match: { hits.total.value : 2 }
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._rank: 1 }
+  - match: { hits.hits.0.fields.text.0: "term" }
+
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1._rank: 2 }
+  - match: { hits.hits.1.fields.text.0: "term term" }
+
+---
+"Simple rank with multiple bm25 sub_searches and a knn search":
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text" ]
+          knn:
+            field: vector
+            query_vector: [ 0.0 ]
+            k: 3
+            num_candidates: 3
+          sub_searches: [
+            {
+              "query": {
+                "term": {
+                  "text": "term"
+                }
+              }
+            },
+            {
+              "query": {
+                "match": {
+                  "keyword": "keyword"
+                }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              window_size: 100
+              rank_constant: 1
+          size: 10
+
+  - match: { hits.total.value : 3 }
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._rank: 1 }
+  - match: { hits.hits.0.fields.text.0: "term" }
+
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1._rank: 2 }
+  - match: { hits.hits.1.fields.text.0: "term term" }
+
+  - match: { hits.hits.2._id: "2" }
+  - match: { hits.hits.2._rank: 3 }
+  - match: { hits.hits.2.fields.text.0: "other" }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -28,8 +29,13 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
@@ -75,7 +81,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         var type = randomFrom(Type.REMOVE, Type.REPLACE, Type.RESTART);
         var allocationDelay = type == Type.RESTART ? TimeValue.timeValueMinutes(randomIntBetween(1, 3)) : null;
         var targetNodeName = type == Type.REPLACE ? randomAlphaOfLength(5) : null;
-        var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName);
+        var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName, null);
         action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
         var updateTask = ArgumentCaptor.forClass(PutShutdownNodeTask.class);
         var taskExecutor = ArgumentCaptor.forClass(PutShutdownNodeExecutor.class);
@@ -102,5 +108,40 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private void clearTaskQueueInvocations() {
         clearInvocations(taskQueue);
+    }
+
+    public void testGracePeriodOnlyForSigterm() throws Exception {
+        Arrays.stream(Type.values()).filter(type -> type != Type.SIGTERM).forEach(type -> {
+            var allocationDelay = type == Type.RESTART ? TimeValue.timeValueMinutes(randomIntBetween(1, 3)) : null;
+            var targetNodeName = type == Type.REPLACE ? randomAlphaOfLength(5) : null;
+            assertThat(
+                format("type [%s] should work without grace period", type),
+                new PutShutdownNodeAction.Request("node1", type, "test", allocationDelay, targetNodeName, null),
+                notNullValue()
+            );
+            ActionRequestValidationException arve = new PutShutdownNodeAction.Request(
+                "node1",
+                type,
+                "test",
+                allocationDelay,
+                targetNodeName,
+                TimeValue.timeValueMinutes(5)
+            ).validate();
+            assertThat(
+                format("type [%s] validation message should be due to grace period", type),
+                arve.getMessage(),
+                containsString("grace period is only valid for SIGTERM type shutdowns")
+            );
+        });
+
+        assertThat(
+            new PutShutdownNodeAction.Request("node1", Type.SIGTERM, "test", null, null, TimeValue.timeValueMinutes(5)).validate(),
+            nullValue()
+        );
+
+        assertThat(
+            new PutShutdownNodeAction.Request("node1", Type.SIGTERM, "test", null, null, null).validate().getMessage(),
+            containsString("grace period is required for SIGTERM shutdowns")
+        );
     }
 }

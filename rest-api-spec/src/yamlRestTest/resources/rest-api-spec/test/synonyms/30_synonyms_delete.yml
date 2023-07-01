@@ -1,0 +1,64 @@
+setup:
+  - skip:
+      version: " - 8.8.99"
+      reason: Introduced in 8.9.0
+  - do:
+      synonyms.put:
+        synonyms_set: test-get-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "test-id-1"
+            - synonyms: "bye => goodbye"
+              id: "test-id-2"
+
+---
+"Delete synonyms set":
+  - do:
+      synonyms.delete:
+        synonyms_set: test-get-synonyms
+
+  - match:
+      acknowledged: true
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
+
+  - do:
+      catch: missing
+      synonyms.get:
+        synonyms_set: test-get-synonyms
+
+---
+"Delete synonyms set - not found":
+  - do:
+      catch: missing
+      synonyms.delete:
+        synonyms_set: unknown-synonym-set
+
+---
+"Delete synonyms set - does not impact other synonym sets":
+  - do:
+      synonyms.put:
+        synonyms_set: test-other-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hola, hi"
+              id: "test-other-1"
+            - synonyms: "test => check"
+              id: "test-other-2"
+  - do:
+      synonyms.delete:
+        synonyms_set: test-get-synonyms
+
+  - do:
+      synonyms.get:
+        synonyms_set: test-other-synonyms
+
+  - match:
+      count: 2
+  - match:
+      synonyms_set:
+        - synonyms: "hola, hi"
+          id: "test-other-1"
+        - synonyms: "test => check"
+          id: "test-other-2"

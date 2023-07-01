@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -126,7 +127,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             String id = Integer.toString(i);
             client().prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
         }
-        client().admin().indices().prepareFlush(indexName).get();
+        indicesAdmin().prepareFlush(indexName).get();
 
         logger.info("--> create first snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -282,9 +283,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         ensureGreen("green-index");
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("red-index")
+            indicesAdmin().prepareCreate("red-index")
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), "*")
@@ -294,9 +293,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         );
 
         final long beforeStartTime = getInstanceFromNode(ThreadPool.class).absoluteTimeInMillis();
-        final CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, "test-snap-1")
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repositoryName, "test-snap-1")
             .setWaitForCompletion(true)
             .setPartial(true)
             .get();
@@ -307,7 +304,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         final Consumer<RepositoryData.SnapshotDetails> snapshotDetailsAsserter = snapshotDetails -> {
             assertThat(snapshotDetails.getSnapshotState(), equalTo(SnapshotState.PARTIAL));
-            assertThat(snapshotDetails.getVersion(), equalTo(Version.CURRENT));
+            assertThat(snapshotDetails.getVersion(), equalTo(IndexVersion.current()));
             assertThat(snapshotDetails.getStartTimeMillis(), allOf(greaterThanOrEqualTo(beforeStartTime), lessThanOrEqualTo(afterEndTime)));
             assertThat(
                 snapshotDetails.getEndTimeMillis(),
@@ -331,7 +328,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             repositoryData.withExtraDetails(
                 Collections.singletonMap(
                     snapshotId,
-                    new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, Version.CURRENT, -1, -1, null)
+                    new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, IndexVersion.current(), -1, -1, null)
                 )
             ),
             repositoryData.getGenId()
@@ -387,7 +384,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 .collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
             final RepositoryData.SnapshotDetails details = new RepositoryData.SnapshotDetails(
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
-                Version.CURRENT,
+                IndexVersion.current(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)

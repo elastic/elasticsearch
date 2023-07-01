@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.ESTestCase;
@@ -97,9 +98,9 @@ public class GatewayMetaStateTests extends ESTestCase {
 
     public void testIndexTemplateValidation() {
         Metadata metadata = randomMetadata();
-        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(
-            Collections.singletonList(customs -> { throw new IllegalStateException("template is incompatible"); })
-        );
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.singletonList(customs -> {
+            throw new IllegalStateException("template is incompatible");
+        }));
         String message = expectThrows(
             IllegalStateException.class,
             () -> GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader)
@@ -182,12 +183,12 @@ public class GatewayMetaStateTests extends ESTestCase {
         private final boolean upgrade;
 
         MockIndexMetadataVerifier(boolean upgrade) {
-            super(Settings.EMPTY, null, null, null, null);
+            super(Settings.EMPTY, null, null, null, null, null);
             this.upgrade = upgrade;
         }
 
         @Override
-        public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+        public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
             return upgrade ? IndexMetadata.builder(indexMetadata).build() : indexMetadata;
         }
     }
@@ -206,7 +207,7 @@ public class GatewayMetaStateTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override

@@ -10,9 +10,10 @@ package org.elasticsearch.transport.netty4;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -23,7 +24,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
@@ -68,7 +68,6 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             new NoneCircuitBreakerService(),
             new SharedGroupFactory(settings)
         ) {
-
             @Override
             public void executeHandshake(
                 DiscoveryNode node,
@@ -79,7 +78,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    listener.onResponse(TransportVersionUtils.minimumCompatibilityVersion(version));
+                    assert getVersion().equals(TransportVersion.current());
+                    listener.onResponse(TransportVersion.MINIMUM_COMPATIBLE);
                 }
             }
         };
@@ -89,13 +89,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         try {
             connectToNode(
                 serviceA,
-                new DiscoveryNode(
-                    "C",
-                    new TransportAddress(InetAddress.getByName("localhost"), 9876),
-                    emptyMap(),
-                    emptySet(),
-                    Version.CURRENT
-                )
+                DiscoveryNodeUtils.create("C", new TransportAddress(InetAddress.getByName("localhost"), 9876), emptyMap(), emptySet())
             );
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
@@ -107,8 +101,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     public void testDefaultKeepAliveSettings() throws IOException {
         assumeTrue("setting default keepalive options not supported on this platform", (IOUtils.LINUX || IOUtils.MAC_OS_X));
         try (
-            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY);
-            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY)
+            MockTransportService serviceC = buildService("TS_C", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY);
+            MockTransportService serviceD = buildService("TS_D", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)
         ) {
 
             try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), TestProfiles.LIGHT_PROFILE)) {
@@ -151,8 +145,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         );
 
         try (
-            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY);
-            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY)
+            MockTransportService serviceC = buildService("TS_C", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY);
+            MockTransportService serviceD = buildService("TS_D", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)
         ) {
 
             try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), connectionProfile)) {
@@ -206,20 +200,16 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
 
-            DiscoveryNode first = new DiscoveryNode(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
-            DiscoveryNode second = new DiscoveryNode(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
+            DiscoveryNode first = DiscoveryNodeUtils.builder("TEST")
+                .address(new TransportAddress(socket.getInetAddress(), socket.getLocalPort()))
+                .roles(emptySet())
+                .version(version0)
+                .build();
+            DiscoveryNode second = DiscoveryNodeUtils.builder("TEST")
+                .address(new TransportAddress(socket.getInetAddress(), socket.getLocalPort()))
+                .roles(emptySet())
+                .version(version0)
+                .build();
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(
                 1,
@@ -233,8 +223,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             try (
                 TransportService service = buildService(
                     "TS_TPC",
-                    Version.CURRENT,
-                    TransportVersion.CURRENT,
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
                     null,
                     Settings.EMPTY,
                     true,

@@ -11,6 +11,7 @@ package org.elasticsearch.health;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -43,7 +44,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
@@ -60,8 +66,8 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         return mock(NodeClient.class);
     }
 
-    private HealthService getTestHealthService() {
-        return new HealthService(null, null, this.threadPool);
+    private HealthService getMockedHealthService() {
+        return mock(HealthService.class);
     }
 
     @Before
@@ -106,7 +112,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         var results = getTestIndicatorResults();
         var overallStatus = HealthStatus.merge(results.stream().map(HealthIndicatorResult::status));
 
-        HealthService testHealthService = getTestHealthService();
+        HealthService testHealthService = getMockedHealthService();
         testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, this.clusterService, client, testHealthService);
         testHealthPeriodicLogger.init();
 
@@ -132,7 +138,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     }
 
     public void testHealthNodeIsSelected() throws Exception {
-        HealthService testHealthService = getTestHealthService();
+        HealthService testHealthService = this.getMockedHealthService();
 
         // create a cluster topology
         final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
@@ -154,7 +160,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     }
 
     public void testJobScheduling() {
-        HealthService testHealthService = getTestHealthService();
+        HealthService testHealthService = this.getMockedHealthService();
 
         // create a cluster topology
         final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
@@ -179,7 +185,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         assertFalse(scheduler.scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
     }
 
-    public void testTriggeredJobCallsGetHealth() throws Exception {
+    public void testTriggeredJobCallsTryToLogHealth() throws Exception {
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
         ActionListener<List<HealthIndicatorResult>> testListener = new ActionListener<List<HealthIndicatorResult>>() {
@@ -193,7 +199,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 failureCalled.set(true);
             }
         };
-        HealthService testHealthService = getTestHealthService();
+        HealthService testHealthService = this.getMockedHealthService();
 
         testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
         testHealthPeriodicLogger.init();
@@ -203,13 +209,81 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         doAnswer(invocation -> {
             testListener.onResponse(getTestIndicatorResults());
             return null;
-        }).when(spyHealthPeriodicLogger).callGetHealth();
+        }).when(spyHealthPeriodicLogger).tryToLogHealth();
 
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
         spyHealthPeriodicLogger.triggered(event);
 
         assertFalse(failureCalled.get());
         assertTrue(listenerCalled.get());
+    }
+
+    public void testTryToLogHealthConcurrencyControl() throws Exception {
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        AtomicBoolean failureCalled = new AtomicBoolean(false);
+        ActionListener<List<HealthIndicatorResult>> testListener = new ActionListener<List<HealthIndicatorResult>>() {
+            @Override
+            public void onResponse(List<HealthIndicatorResult> indicatorResults) {
+                listenerCalled.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failureCalled.set(true);
+            }
+        };
+
+        HealthService testHealthService = this.getMockedHealthService();
+        doAnswer(invocation -> {
+            testListener.onResponse(getTestIndicatorResults());
+            return null;
+        }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+
+        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
+        testHealthPeriodicLogger.init();
+
+        HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
+        spyHealthPeriodicLogger.isHealthNode = true;
+
+        SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+
+        // set to currently running, verify that listener isn't called
+        {
+            spyHealthPeriodicLogger.currentlyRunning.set(true);
+            spyHealthPeriodicLogger.triggered(event);
+
+            assertFalse(failureCalled.get());
+            assertFalse(listenerCalled.get());
+            assertBusy(() -> assertTrue(spyHealthPeriodicLogger.currentlyRunning.get()));
+        }
+
+        // set to not running, verify that listener is called
+        {
+            failureCalled.set(false);
+            listenerCalled.set(false);
+            spyHealthPeriodicLogger.currentlyRunning.set(false);
+            spyHealthPeriodicLogger.triggered(event);
+
+            assertFalse(failureCalled.get());
+            assertTrue(listenerCalled.get());
+            assertBusy(() -> assertFalse(spyHealthPeriodicLogger.currentlyRunning.get()));
+        }
+
+        // if an exception occurs verify that currently running is set false
+        {
+            failureCalled.set(false);
+            listenerCalled.set(false);
+            spyHealthPeriodicLogger.currentlyRunning.set(false);
+
+            doThrow(new ResourceNotFoundException("No preflight indicators")).when(testHealthService)
+                .getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+
+            spyHealthPeriodicLogger.triggered(event);
+
+            assertFalse(failureCalled.get());
+            assertFalse(listenerCalled.get());
+            assertBusy(() -> assertFalse(spyHealthPeriodicLogger.currentlyRunning.get()));
+        }
     }
 
     public void testLoggingHappens() {
@@ -250,7 +324,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         Logger periodicLoggerLogger = LogManager.getLogger(HealthPeriodicLogger.class);
         Loggers.addAppender(periodicLoggerLogger, mockAppender);
 
-        HealthService testHealthService = getTestHealthService();
+        HealthService testHealthService = this.getMockedHealthService();
 
         testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
         testHealthPeriodicLogger.init();
@@ -260,7 +334,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         doAnswer(invocation -> {
             spyHealthPeriodicLogger.resultsListener.onResponse(getTestIndicatorResults());
             return null;
-        }).when(spyHealthPeriodicLogger).callGetHealth();
+        }).when(spyHealthPeriodicLogger).tryToLogHealth();
 
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
         spyHealthPeriodicLogger.triggered(event);

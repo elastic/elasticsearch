@@ -23,6 +23,7 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -66,7 +67,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     // default visibility for testing purposes
     volatile boolean isHealthNode = false;
 
-    private final AtomicBoolean currentlyRunning = new AtomicBoolean(false);
+    final AtomicBoolean currentlyRunning = new AtomicBoolean(false);
 
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private volatile TimeValue pollInterval;
@@ -110,7 +111,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         DiscoveryNode healthNode = HealthNode.findHealthNode(event.state());
         if (healthNode == null) {
             this.isHealthNode = false;
-            this.cancelJob();
+            this.maybeCancelJob();
             return;
         }
         final boolean isCurrentlyHealthNode = healthNode.getId().equals(this.clusterService.localNode().getId());
@@ -121,7 +122,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
                 maybeScheduleJob();
             } else {
                 // we were the health node, and now we aren't
-                cancelJob();
+                maybeCancelJob();
             }
         }
     }
@@ -137,15 +138,26 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     @Override
     public void triggered(SchedulerEngine.Event event) {
         if (event.getJobName().equals(HEALTH_PERIODIC_LOGGER_JOB_NAME)) {
-            if (this.isHealthNode && this.currentlyRunning.compareAndExchange(false, true) == false) {
-                this.callGetHealth();
-            }
+            this.tryToLogHealth();
         }
     }
 
     // default visibility for testing purposes
-    void callGetHealth() {
-        this.healthService.getHealth(this.client, null, false, 0, this.resultsListener);
+    void tryToLogHealth() {
+        if (this.currentlyRunning.compareAndExchange(false, true) == false) {
+            // We ensure that the flag will only be released once when it's time
+            RunOnce release = new RunOnce(() -> currentlyRunning.set(false));
+            try {
+                // We can use the runAfter listener to wire the release to the current listener
+                ActionListener<List<HealthIndicatorResult>> listenerWithRelease = ActionListener.runAfter(resultsListener, release);
+                this.healthService.getHealth(this.client, null, false, 0, listenerWithRelease);
+            } catch (Exception e) {
+                logger.warn(() -> "The health periodic logger encountered an error.", e);
+                // In case of an exception before the listener was wired, we can release the flag here, and we feel safe
+                // that it will not release it again because this can only be run once.
+                release.run();
+            }
+        }
     }
 
     // default visibility for testing purposes
@@ -202,15 +214,12 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
                 }
             } catch (Exception e) {
                 logger.warn("Health Periodic Logger error:{}", e.toString());
-            } finally {
-                currentlyRunning.set(false);
             }
         }
 
         @Override
         public void onFailure(Exception e) {
             logger.warn("Health Periodic Logger error:{}", e.toString());
-            currentlyRunning.set(false);
         }
     };
 
@@ -244,7 +253,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         scheduler.get().add(scheduledJob);
     }
 
-    private void cancelJob() {
+    private void maybeCancelJob() {
         if (scheduler.get() != null) {
             scheduler.get().remove(HEALTH_PERIODIC_LOGGER_JOB_NAME);
         }

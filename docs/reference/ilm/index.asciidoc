@@ -2,6 +2,8 @@
 [[index-lifecycle-management]]
 == {ilm-init}: Manage the index lifecycle
 
+:keywords: ILM, lifecycle, index lifecycle management
+
 // [partintro]
 --
 You can configure {ilm} ({ilm-init}) policies to automatically manage indices

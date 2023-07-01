@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
@@ -31,7 +30,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class CleanerService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(CleanerService.class);
 
-    private final XPackLicenseState licenseState;
     private final ThreadPool threadPool;
     private final ExecutionScheduler executionScheduler;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
@@ -39,14 +37,7 @@ public class CleanerService extends AbstractLifecycleComponent {
 
     private volatile TimeValue globalRetention;
 
-    CleanerService(
-        Settings settings,
-        ClusterSettings clusterSettings,
-        XPackLicenseState licenseState,
-        ThreadPool threadPool,
-        ExecutionScheduler executionScheduler
-    ) {
-        this.licenseState = licenseState;
+    CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, ExecutionScheduler executionScheduler) {
         this.threadPool = threadPool;
         this.executionScheduler = executionScheduler;
         this.globalRetention = MonitoringField.HISTORY_DURATION.get(settings);
@@ -56,8 +47,8 @@ public class CleanerService extends AbstractLifecycleComponent {
         clusterSettings.addSettingsUpdateConsumer(MonitoringField.HISTORY_DURATION, this::setGlobalRetention);
     }
 
-    public CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, XPackLicenseState licenseState) {
-        this(settings, clusterSettings, licenseState, threadPool, new DefaultExecutionScheduler());
+    public CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(settings, clusterSettings, threadPool, new DefaultExecutionScheduler());
     }
 
     @Override

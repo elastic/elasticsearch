@@ -1,0 +1,45 @@
+tag::troubleshooting-network-timeouts-gc-vm[]
+* GC pauses are recorded in the GC logs that {es} emits by default, and also
+usually by the `JvmMonitorService` in the main node logs. Use these logs to
+confirm whether or not GC is resulting in delays.
+
+* VM pauses also affect other processes on the same host. A VM pause also
+typically causes a discontinuity in the system clock, which {es} will report in
+its logs.
+end::troubleshooting-network-timeouts-gc-vm[]
+
+tag::troubleshooting-network-timeouts-packet-capture-elections[]
+* Packet captures will reveal system-level and network-level faults, especially
+if you capture the network traffic simultaneously at all relevant nodes. You
+should be able to observe any retransmissions, packet loss, or other delays on
+the connections between the nodes.
+tag::troubleshooting-network-timeouts-packet-capture-elections[]
+
+tag::troubleshooting-network-timeouts-packet-capture-fault-detection[]
+* Packet captures will reveal system-level and network-level faults, especially
+if you capture the network traffic simultaneously at the elected master and the
+faulty node. The connection used for follower checks is not used for any other
+traffic so it can be easily identified from the flow pattern alone, even if TLS
+is in use: almost exactly every second there will be a few hundred bytes sent
+each way, first the request by the master and then the response by the
+follower. You should be able to observe any retransmissions, packet loss, or
+other delays on such a connection.
+tag::troubleshooting-network-timeouts-packet-capture-fault-detection[]
+
+tag::troubleshooting-network-timeouts-threads[]
+* Long waits for particular threads to be available can be identified by taking
+stack dumps (for example, using `jstack`) or a profiling trace (for example,
+using Java Flight Recorder) in the few seconds leading up to the relevant log
+message.
++
+The <<cluster-nodes-hot-threads>> API sometimes yields useful information, but
+bear in mind that this API also requires a number of `transport_worker` and
+`generic` threads across all the nodes in the cluster. The API may be affected
+by the very problem you're trying to diagnose. `jstack` is much more reliable
+since it doesn't require any JVM threads.
++
+The threads involved in discovery and cluster membership are mainly
+`transport_worker` and `cluster_coordination` threads, for which there should
+never be a long wait. There may also be evidence of long waits for threads in
+the {es} logs. See <<modules-network-threading-model>> for more information.
+end::troubleshooting-network-timeouts-threads[]

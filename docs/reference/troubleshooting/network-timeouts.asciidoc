@@ -13,7 +13,7 @@ tag::troubleshooting-network-timeouts-packet-capture-elections[]
 if you capture the network traffic simultaneously at all relevant nodes. You
 should be able to observe any retransmissions, packet loss, or other delays on
 the connections between the nodes.
-tag::troubleshooting-network-timeouts-packet-capture-elections[]
+end::troubleshooting-network-timeouts-packet-capture-elections[]
 
 tag::troubleshooting-network-timeouts-packet-capture-fault-detection[]
 * Packet captures will reveal system-level and network-level faults, especially
@@ -24,7 +24,7 @@ is in use: almost exactly every second there will be a few hundred bytes sent
 each way, first the request by the master and then the response by the
 follower. You should be able to observe any retransmissions, packet loss, or
 other delays on such a connection.
-tag::troubleshooting-network-timeouts-packet-capture-fault-detection[]
+end::troubleshooting-network-timeouts-packet-capture-fault-detection[]
 
 tag::troubleshooting-network-timeouts-threads[]
 * Long waits for particular threads to be available can be identified by taking

@@ -38,7 +38,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Node level stats about searchable snapshots caches.
@@ -109,7 +108,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             resolvedNodes = Arrays.stream(request.nodesIds())
                 .filter(dataNodes::containsKey)
                 .map(dataNodes::get)
-                .collect(Collectors.toList())
+                .toList()
                 .toArray(DiscoveryNode[]::new);
         }
         request.setConcreteNodes(resolvedNodes);

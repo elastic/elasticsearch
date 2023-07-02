@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -71,7 +70,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         PARSER.declareField(optionalConstructorArg(), Settings::fromXContent, INDEX_SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(
             optionalConstructorArg(),
-            p -> p.list().stream().map(s -> (String) s).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY),
+            p -> p.list().stream().map(s -> (String) s).toList().toArray(Strings.EMPTY_ARRAY),
             IGNORE_INDEX_SETTINGS_FIELD,
             ObjectParser.ValueType.STRING_ARRAY
         );

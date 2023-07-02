@@ -47,7 +47,6 @@ import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.time.Instant.ofEpochMilli;
@@ -458,7 +457,7 @@ class MlMemoryAutoscalingDecider {
             .map(sizeFunction)
             .map(l -> l == null ? 0L : l)
             .sorted(Comparator.comparingLong(Long::longValue).reversed())
-            .collect(Collectors.toList());
+            .toList();
 
         long tierMemory = 0L;
         // Node memory needs to be AT LEAST the size of the largest job + the required overhead.
@@ -724,7 +723,7 @@ class MlMemoryAutoscalingDecider {
             .map(sizeFunction)
             .map(l -> l == null ? 0L : l)
             .sorted(Comparator.comparingLong(Long::longValue).reversed())
-            .collect(Collectors.toList());
+            .toList();
 
         Iterator<Long> assignmentIter = jobSizes.iterator();
         while (jobSizes.size() > maxNumInQueue && assignmentIter.hasNext()) {

@@ -48,7 +48,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import javax.naming.ldap.Rdn;
 
@@ -554,7 +553,7 @@ public final class LdapUtils {
             // in order to get the actual object we are searching for
             final String[] referralUrls = referenceList.stream()
                 .flatMap((ref) -> Arrays.stream(ref.getReferralURLs()))
-                .collect(Collectors.toList())
+                .toList()
                 .toArray(Strings.EMPTY_ARRAY);
             final SearchRequest request = searchRequestRef.get();
             if (referralUrls.length == 0 || request.followReferrals(ldapConnection) == false) {

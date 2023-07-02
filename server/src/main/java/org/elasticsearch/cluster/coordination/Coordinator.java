@@ -692,7 +692,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
 
         final ListenableActionFuture<Empty> validateStateListener = new ListenableActionFuture<>();
-        if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
+        if (stateForJoinValidation != null && stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
             onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
             if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                 // We do this in a couple of places including the cluster update thread. This one here is really just best effort to ensure

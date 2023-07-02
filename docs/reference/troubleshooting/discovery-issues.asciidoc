@@ -69,11 +69,11 @@ nodes to form a quorum.
 If the logs suggest that discovery or master elections are failing due to
 timeouts or network-related issues then narrow down the problem as follows.
 
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-gc-vm]
+include::network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-gc-vm]
 
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-packet-capture-elections]
+include::network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-packet-capture-elections]
 
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-threads]
+include::network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-threads]
 
 [discrete]
 [[discovery-master-unstable]]
@@ -86,11 +86,11 @@ to understand why the election winner stops being the master and triggers
 another election. If the logs suggest that the master is unstable due to
 timeouts or network-related issues then narrow down the problem as follows.
 
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-gc-vm]
+include::network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-gc-vm]
 
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-packet-capture-elections]
+include::network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-packet-capture-elections]
 
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-threads]
+include::network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-threads]
 
 [discrete]
 [[discovery-cannot-join-master]]
@@ -105,11 +105,11 @@ information about the problem. If the logs suggest that the node cannot
 discover or join the cluster due to timeouts or network-related issues then
 narrow down the problem as follows.
 
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-gc-vm]
+include::network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-gc-vm]
 
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-packet-capture-elections]
+include::network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-packet-capture-elections]
 
-include::../../troubleshooting/network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-threads]
+include::network-timeouts.asciidoc[tag=troubleshooting-network-timeouts-threads]
 
 [discrete]
 [[discovery-node-leaves]]

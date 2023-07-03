@@ -129,7 +129,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         DataFrameAnalyticsTask task,
         ActionListener<QueryPage<Stats>> listener
     ) {
-        logger.debug("Get stats for running task [{}]", task.getParams().getId());
+        logger.trace("Get stats for running task [{}]", task.getParams().getId());
 
         ActionListener<Void> updateProgressListener = ActionListener.wrap(aVoid -> {
             StatsHolder statsHolder = task.getStatsHolder();
@@ -160,7 +160,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener
     ) {
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        logger.debug("Get stats for data frame analytics [{}]", request.getId());
+        logger.trace("Get stats for data frame analytics [{}]", request.getId());
 
         ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(getResponse -> {
             List<String> expandedIds = getResponse.getResources()
@@ -249,7 +249,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
     }
 
     private void searchStats(DataFrameAnalyticsConfig config, TaskId parentTaskId, ActionListener<Stats> listener) {
-        logger.debug("[{}] Gathering stats for stopped task", config.getId());
+        logger.trace("[{}] Gathering stats for stopped task", config.getId());
 
         RetrievedStatsHolder retrievedStatsHolder = new RetrievedStatsHolder(
             ProgressTracker.fromZeroes(config.getAnalysis().getProgressPhases(), config.getAnalysis().supportsInference()).report()

@@ -10,8 +10,6 @@ package org.elasticsearch.index.seqno;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -26,12 +24,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,6 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.seqno.RetentionLeaseSyncAction.getExceptionLogLevel;
 
 /**
  * Replication action responsible for background syncing retention leases to replicas. This action is deliberately a replication action so
@@ -129,20 +125,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                 public void handleException(TransportException e) {
                     task.setPhase("finished");
                     taskManager.unregister(task);
-                    if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
-                        // node shutting down
-                        return;
-                    }
-                    if (ExceptionsHelper.unwrap(
-                        e,
-                        IndexNotFoundException.class,
-                        AlreadyClosedException.class,
-                        IndexShardClosedException.class
-                    ) != null) {
-                        // the index was deleted or the shard is closed
-                        return;
-                    }
-                    getLogger().warn(() -> format("%s retention lease background sync failed", shardId), e);
+                    LOGGER.log(getExceptionLogLevel(e), () -> format("%s retention lease background sync failed", shardId), e);
                 }
             }
         );

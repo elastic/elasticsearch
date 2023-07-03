@@ -234,7 +234,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.joinValidationService = new JoinValidationService(
             settings,
             transportService,
-            this::getApplierState, // best-effort validation can use any recent state
+            this::getStateForMasterService, // TODO see https://github.com/elastic/elasticsearch/issues/97313
             this.onJoinValidators
         );
         this.persistedStateSupplier = persistedStateSupplier;

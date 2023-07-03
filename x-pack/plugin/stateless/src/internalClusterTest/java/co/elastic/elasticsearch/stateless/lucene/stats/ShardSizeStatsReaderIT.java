@@ -28,7 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.Arrays;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD;
+import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD_NAME;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -62,7 +62,7 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
 
         var index = randomIdentifier();
         createIndex(index, indexSettings(1, 1).build());
-        indexRandom(index, builder -> builder.setSource(TIMESTAMP_FIELD.getName(), randomLongBetween(now - interactiveAge + 1, now)));
+        indexRandom(index, builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(now - interactiveAge + 1, now)));
 
         var shardId = resolveShardId(index);
         var shard = findSearchShard(shardId.getIndex(), shardId.id());
@@ -82,7 +82,7 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
 
         var index = randomIdentifier();
         createIndex(index, indexSettings(1, 1).build());
-        indexRandom(index, builder -> builder.setSource(TIMESTAMP_FIELD.getName(), randomLongBetween(0, now - interactiveAge - 1)));
+        indexRandom(index, builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(0, now - interactiveAge - 1)));
 
         var shardId = resolveShardId(index);
         var shard = findSearchShard(shardId.getIndex(), shardId.id());

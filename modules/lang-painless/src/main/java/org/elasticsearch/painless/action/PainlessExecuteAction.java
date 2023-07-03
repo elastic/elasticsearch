@@ -515,12 +515,11 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            String clusterAlias = request.getContextSetup().getClusterAlias();
-            if (clusterAlias == null) {
-                // run on local cluster
+            if (request.getContextSetup() == null || request.getContextSetup().getClusterAlias() == null) {
                 super.doExecute(task, request, listener);
             } else {
                 // forward to remote cluster
+                String clusterAlias = request.getContextSetup().getClusterAlias();
                 Client remoteClusterClient = transportService.getRemoteClusterService().getRemoteClusterClient(threadPool, clusterAlias);
                 request.getContextSetup().setClusterAlias(null);  // once sent to remote shard, cluster alias is "local"
                 remoteClusterClient.admin().cluster().execute(PainlessExecuteAction.INSTANCE, request, listener);

@@ -397,6 +397,47 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         assertEquals(2, Integer.parseInt((String) response.getResult()));
     }
 
+    /**
+     * When an index expression with a remote cluster name is passed into Request.ContextSetup, it
+     * is parsed into separate fields - clusterAlias and index.
+     * The other tests in this suite, test without a clusterAlias prefix.
+     * This tests that innerShardOperation works the same with one present, since the clusterAlias
+     * field is only need by the initial coordinator of the action to determine where to run the
+     * action (which is not part of this test).
+     */
+    public void testFilterExecutionContextWorksWithRemoteClusterPrefix() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        String indexName = "index";
+        IndexService indexService = createIndex(indexName, Settings.EMPTY, "doc", "field", "type=long");
+
+        String indexNameWithClusterAlias = "remote1:" + indexName;
+        Request.ContextSetup contextSetup = new Request.ContextSetup(indexNameWithClusterAlias, new BytesArray("{\"field\": 3}"), null);
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script("doc['field'].value >= 3"), "filter", contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        assertThat(response.getResult(), equalTo(true));
+
+        contextSetup = new Request.ContextSetup(indexNameWithClusterAlias, new BytesArray("{\"field\": 3}"), null);
+        contextSetup.setXContentType(XContentType.JSON);
+        request = new Request(
+            new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max", singletonMap("max", 3)),
+            "filter",
+            contextSetup
+        );
+        response = innerShardOperation(request, scriptService, indexService);
+        assertThat(response.getResult(), equalTo(true));
+
+        contextSetup = new Request.ContextSetup(indexNameWithClusterAlias, new BytesArray("{\"field\": 2}"), null);
+        contextSetup.setXContentType(XContentType.JSON);
+        request = new Request(
+            new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max", singletonMap("max", 3)),
+            "filter",
+            contextSetup
+        );
+        response = innerShardOperation(request, scriptService, indexService);
+        assertThat(response.getResult(), equalTo(false));
+    }
+
     public void testParseClusterAliasAndIndex() {
         record ValidTestCase(String input, Tuple<String, String> output) {}
 

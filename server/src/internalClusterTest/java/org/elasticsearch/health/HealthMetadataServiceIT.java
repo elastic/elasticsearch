@@ -85,6 +85,20 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
                 assertEquals(shardLimitsMetadata, shardLimitsPerNode.get(electedMaster));
             }
+
+            // restart the whole cluster
+            internalCluster.fullRestart();
+            ensureStableCluster(internalCluster.numDataAndMasterNodes());
+            String electedMasterAfterRestart = internalCluster.getMasterName();
+            {
+                var healthMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state());
+                var diskMetadata = healthMetadata.getDiskMetadata();
+                assertThat(diskMetadata.describeHighWatermark(), equalTo(watermarkByNode.get(electedMasterAfterRestart)));
+                assertThat(diskMetadata.highMaxHeadroom(), equalTo(maxHeadroomByNode.get(electedMasterAfterRestart)));
+
+                var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
+                assertEquals(shardLimitsMetadata, shardLimitsPerNode.get(electedMasterAfterRestart));
+            }
         }
     }
 
@@ -162,7 +176,25 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             ensureStableCluster(numberOfNodes - 1);
 
             assertBusy(() -> {
-                var healthMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state());
+                var healthMetadata = HealthMetadata.getFromClusterState(
+                    internalCluster.clusterService(internalCluster.getMasterName()).state()
+                );
+                var diskMetadata = healthMetadata.getDiskMetadata();
+                assertThat(diskMetadata.describeHighWatermark(), equalTo(updatedHighWatermark));
+                assertThat(diskMetadata.highMaxHeadroom(), equalTo(updatedHighMaxHeadroom));
+                assertThat(diskMetadata.describeFloodStageWatermark(), equalTo(updatedFloodStageWatermark));
+                assertThat(diskMetadata.floodStageMaxHeadroom(), equalTo(updatedFloodStageMaxHeadroom));
+
+                var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
+                assertEquals(shardLimitsMetadata, updatedShardLimits);
+            });
+
+            // restart the whole cluster
+            internalCluster.fullRestart();
+            ensureStableCluster(internalCluster.numDataAndMasterNodes());
+            String electedMasterAfterRestart = internalCluster.getMasterName();
+            assertBusy(() -> {
+                var healthMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService(electedMasterAfterRestart).state());
                 var diskMetadata = healthMetadata.getDiskMetadata();
                 assertThat(diskMetadata.describeHighWatermark(), equalTo(updatedHighWatermark));
                 assertThat(diskMetadata.highMaxHeadroom(), equalTo(updatedHighMaxHeadroom));

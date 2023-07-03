@@ -126,6 +126,7 @@ public class HealthMetadataService {
         this.enabled = enabled;
         if (this.enabled) {
             clusterService.addListener(clusterStateListener);
+            taskQueue.submitTask("health-node-enabled", () -> this.localHealthMetadata, null);
         } else {
             clusterService.removeListener(clusterStateListener);
         }

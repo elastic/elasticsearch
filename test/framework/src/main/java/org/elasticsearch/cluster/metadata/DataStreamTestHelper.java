@@ -490,7 +490,7 @@ public final class DataStreamTestHelper {
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
             root.add(
                 new DateFieldMapper.Builder(
-                    dataStream.getTimeStampField().getName(),
+                    DataStream.TIMESTAMP_FIELD_NAME,
                     DateFieldMapper.Resolution.MILLISECONDS,
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     ScriptCompiler.NONE,

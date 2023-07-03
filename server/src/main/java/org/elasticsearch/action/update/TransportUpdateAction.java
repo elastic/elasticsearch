@@ -54,6 +54,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
@@ -325,20 +326,28 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         int retryCount
     ) {
         final Throwable cause = unwrapCause(failure);
-        if (cause instanceof VersionConflictEngineException) {
-            if (retryCount < request.retryOnConflict()) {
-                logger.trace(
-                    "Retry attempt [{}] of [{}] on version conflict on [{}][{}][{}]",
-                    retryCount + 1,
-                    request.retryOnConflict(),
-                    request.index(),
-                    request.getShardId(),
-                    request.id()
-                );
-                threadPool.executor(executor(request.getShardId()))
-                    .execute(ActionRunnable.wrap(listener, l -> shardOperation(request, l, retryCount + 1)));
+        if (cause instanceof VersionConflictEngineException && retryCount < request.retryOnConflict()) {
+            VersionConflictEngineException versionConflictEngineException = (VersionConflictEngineException) cause;
+            logger.trace(
+                "Retry attempt [{}] of [{}] on version conflict on [{}][{}][{}]",
+                retryCount + 1,
+                request.retryOnConflict(),
+                request.index(),
+                request.getShardId(),
+                request.id()
+            );
+
+            final ExecutorService executor;
+            try {
+                executor = threadPool.executor(executor(request.getShardId()));
+            } catch (Exception e) {
+                // might fail if shard no longer exists locally, in which case we cannot retry
+                e.addSuppressed(versionConflictEngineException);
+                listener.onFailure(e);
                 return;
             }
+            executor.execute(ActionRunnable.wrap(listener, l -> shardOperation(request, l, retryCount + 1)));
+            return;
         }
         listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
     }

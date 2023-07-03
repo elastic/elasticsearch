@@ -1033,7 +1033,7 @@ public class Node implements Closeable {
                 threadPool,
                 systemIndices
             );
-            HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService);
+            HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
             HealthApiStats healthApiStats = new HealthApiStats();

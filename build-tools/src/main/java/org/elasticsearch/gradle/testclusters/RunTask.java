@@ -136,7 +136,7 @@ public class RunTask extends DefaultTestClustersTask {
                     entry -> entry.getValue().toString()
                 )
             );
-        boolean singleNode = getClusters().stream().flatMap(c -> c.getNodes().stream()).count() == 1;
+        boolean singleNode = getClusters().stream().mapToLong(c -> c.getNodes().size()).sum() == 1;
         final Function<ElasticsearchNode, Path> getDataPath;
         if (singleNode) {
             getDataPath = n -> dataDir;

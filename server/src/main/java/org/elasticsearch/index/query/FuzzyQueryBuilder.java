@@ -318,7 +318,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         if (context != null) {
             MappedFieldType fieldType = context.getFieldType(fieldName);
             if (fieldType == null) {
-                return new MatchNoneQueryBuilder();
+                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
             }
         }
         return super.doRewrite(context);

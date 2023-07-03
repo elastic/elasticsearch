@@ -240,7 +240,7 @@ dependencies {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
-    integTestImplementation('org.ow2.asm:asm:9.4')
+    integTestImplementation('org.ow2.asm:asm:9.5')
     api("org.yaml:snakeyaml") {
       version { strictly(versions.snakeyaml) }
     }

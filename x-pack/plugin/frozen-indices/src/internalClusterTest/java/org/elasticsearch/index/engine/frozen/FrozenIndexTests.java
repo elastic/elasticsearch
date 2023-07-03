@@ -614,8 +614,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     public void testComputesTimestampRangeFromMilliseconds() {
         final int shardCount = between(1, 3);
         createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount).build());
-        client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-05T01:02:03.456Z").get();
-        client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-06T02:03:04.567Z").get();
+        client().prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-05T01:02:03.456Z").get();
+        client().prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567Z").get();
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
 
@@ -637,7 +637,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         final XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
-            .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+            .startObject(DataStream.TIMESTAMP_FIELD_NAME)
             .field("type", "date_nanos")
             .field("format", "strict_date_optional_time_nanos")
             .endObject()
@@ -646,8 +646,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         final int shardCount = between(1, 3);
         createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount).build(), mapping);
-        client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-05T01:02:03.456789012Z").get();
-        client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-06T02:03:04.567890123Z").get();
+        client().prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-05T01:02:03.456789012Z").get();
+        client().prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567890123Z").get();
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
 

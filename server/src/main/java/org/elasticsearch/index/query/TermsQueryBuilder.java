@@ -97,7 +97,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, int... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).toList() : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).boxed().toList() : null);
     }
 
     /**
@@ -107,7 +107,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, long... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).toList() : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).boxed().toList() : null);
     }
 
     /**
@@ -117,7 +117,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, float... values) {
-        this(fieldName, values != null ? IntStream.range(0, values.length).mapToObj(i -> values[i]).toList() : (Iterable<?>) null);
+        this(fieldName, values != null ? IntStream.range(0, values.length).mapToObj(i -> values[i]).toList() : null);
     }
 
     /**
@@ -127,7 +127,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, double... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).toList() : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).boxed().toList() : null);
     }
 
     /**
@@ -137,7 +137,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, Object... values) {
-        this(fieldName, values != null ? Arrays.asList(values) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.asList(values) : null);
     }
 
     /**

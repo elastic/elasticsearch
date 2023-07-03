@@ -147,8 +147,43 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 throw blockException;
             }
 
-            String concreteSingleIndex;
+            // //////// ------- START
+            // final Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
+            // .groupIndices(request.indicesOptions(), request.indices());
+            // final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            // System.err.println("localIndices: " + localIndices);
+            // System.err.println("remoteClusterIndices: " + remoteClusterIndices);
+
+            // RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
+            // remoteClusterService.getRemoteClusterClient().admin().cluster().execute(); // TODO: use this
+            //
+            // request.index();
+            // System.err.println("request.index(): " + request.index());
+            // request.indices();
+            // System.err.println("request.indices(): " + request.indices());
+            // resolveIndex(request);
+            // System.err.println("resolveIndex(request): " + resolveIndex(request));
+
+            // if (remoteClusterIndices.size() == 1) {
+            // for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
+            // String clusterAlias = remoteIndices.getKey();
+            // OriginalIndices originalIndices = remoteIndices.getValue();
+            // System.err.println("xxx remote originalIndices: " + originalIndices);
+            // Client remoteClusterClient = transportService.getRemoteClusterService().getRemoteClusterClient(threadPool, clusterAlias);
+            // System.err.println("remoteClusterClient: " + remoteClusterClient);
+            // GetMappingsResponse getMappingsResponse =
+            // remoteClusterClient.admin().indices().prepareGetMappings(originalIndices.indices()[0]).get();
+            // System.err.println("getMappingsResponse: " + getMappingsResponse);
+            // getMappingsResponse.mappings();
+            // System.err.println("getMappingsResponse.mappings(): " + getMappingsResponse.mappings());
+            // }
+            // }
+            //
+            //////// ------- END
+
+            String concreteSingleIndex = "foo";
             if (resolveIndex(request)) {
+                // local index
                 concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, request).getName();
             } else {
                 concreteSingleIndex = request.index();

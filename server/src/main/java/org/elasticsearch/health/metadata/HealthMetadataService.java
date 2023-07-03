@@ -126,7 +126,10 @@ public class HealthMetadataService {
         this.enabled = enabled;
         if (this.enabled) {
             clusterService.addListener(clusterStateListener);
-            taskQueue.submitTask("health-node-enabled", () -> this.localHealthMetadata, null);
+
+            if (isMaster) {
+                taskQueue.submitTask("health-node-enabled", () -> this.localHealthMetadata, null);
+            }
         } else {
             clusterService.removeListener(clusterStateListener);
         }
@@ -138,11 +141,7 @@ public class HealthMetadataService {
             return;
         }
 
-        final var prevIsMaster = isMaster;
-        if (prevIsMaster != event.localNodeMaster()) {
-            isMaster = event.localNodeMaster();
-        }
-
+        isMaster = event.localNodeMaster();
         // Wait until every node in the cluster is upgraded to 8.5.0 or later
         if (isMaster && event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
             if (this.localHealthMetadata.equals(HealthMetadata.getFromClusterState(event.state())) == false) {

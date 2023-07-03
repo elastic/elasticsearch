@@ -1,6 +1,9 @@
 ---
 Test flattened document with subobjects-false:
 # NOTE: this doesn't work. In order to run this test set "subobjects: false" through logs-mappings.json
+  - skip:
+      features: allowed_warnings
+
   - do:
       cluster.put_component_template:
         name: logs-test-subobjects-mappings
@@ -22,6 +25,8 @@ Test flattened document with subobjects-false:
                   type: constant_keyword
 
   - do:
+      allowed_warnings:
+          - "index template [logs-ecs-test-template] has index patterns [logs-*-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-ecs-test-template] will take precedence during new index creation"
       indices.put_index_template:
         name: logs-ecs-test-template
         body:

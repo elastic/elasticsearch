@@ -18,9 +18,13 @@ import org.elasticsearch.compute.data.Page;
 
 import java.util.function.Supplier;
 
+/**
+ * Utilities to remove duplicates from multivalued fields.
+ */
 public final class MultivalueDedupe {
     /**
-     * Dedupe values using an adaptive algorithm based on the size of the input list.
+     * Remove duplicate values from each position and write the results to a
+     * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
     public static Block dedupeToBlockAdaptive(Block block) {
         return switch (block.elementType()) {
@@ -34,8 +38,10 @@ public final class MultivalueDedupe {
     }
 
     /**
-     * Dedupe values using an {@code n^2} strategy with low overhead. Prefer {@link #dedupeToBlockAdaptive}.
-     * This is public for testing and performance testing.
+     * Remove duplicate values from each position and write the results to a
+     * {@link Block} using an algorithm with very low overhead but {@code n^2}
+     * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
+     * which picks based on the number of elements at each position.
      */
     public static Block dedupeToBlockUsingCopyMissing(Block block) {
         return switch (block.elementType()) {
@@ -49,8 +55,12 @@ public final class MultivalueDedupe {
     }
 
     /**
-     * Dedupe values using an {@code n^2} strategy with low overhead. Prefer {@link #dedupeToBlockAdaptive}.
-     * This is public for testing and performance testing.
+     * Remove duplicate values from each position and write the results to a
+     * {@link Block} using an algorithm that sorts all values. It has a higher
+     * overhead for small numbers of values at each position than
+     * {@link #dedupeToBlockUsingCopyMissing} for large numbers of values the
+     * performance is dominated by the {@code n*log n} sort. Prefer
+     * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
     public static Block dedupeToBlockUsingCopyAndSort(Block block) {
         return switch (block.elementType()) {
@@ -64,7 +74,8 @@ public final class MultivalueDedupe {
     }
 
     /**
-     * Build and {@link EvalOperator.ExpressionEvaluator} that deduplicates values.
+     * Build and {@link EvalOperator.ExpressionEvaluator} that deduplicates values
+     * using an adaptive algorithm based on the size of the input list.
      */
     public static Supplier<EvalOperator.ExpressionEvaluator> evaluator(
         ElementType elementType,
@@ -108,6 +119,24 @@ public final class MultivalueDedupe {
                 }
             };
             default -> throw new IllegalArgumentException("unsupported type [" + elementType + "]");
+        };
+    }
+
+    /**
+     * Build a {@link BatchEncoder} which deduplicates values at each position
+     * and then encodes the results into a {@link byte[]} which can be used for
+     * things like hashing many fields together.
+     */
+    public static BatchEncoder batchEncoder(Block block, int batchSize) {
+        // TODO collect single-valued block handling here. And maybe vector. And maybe all null?
+        // TODO check for for unique multivalued fields and for ascending multivalue fields.
+        return switch (block.elementType()) {
+            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block).batchEncoder(batchSize);
+            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block).batchEncoder(batchSize);
+            case INT -> new MultivalueDedupeInt((IntBlock) block).batchEncoder(batchSize);
+            case LONG -> new MultivalueDedupeLong((LongBlock) block).batchEncoder(batchSize);
+            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).batchEncoder(batchSize);
+            default -> throw new IllegalArgumentException();
         };
     }
 

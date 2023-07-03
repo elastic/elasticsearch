@@ -11,6 +11,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
@@ -36,7 +37,8 @@ public class MultivalueDedupeInt {
     }
 
     /**
-     * Dedupe values using an adaptive algorithm based on the size of the input list.
+     * Remove duplicate values from each position and write the results to a
+     * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
     public IntBlock dedupeToBlockAdaptive() {
         if (false == block.mayHaveMultivaluedFields()) {
@@ -81,8 +83,10 @@ public class MultivalueDedupeInt {
     }
 
     /**
-     * Dedupe values using an {@code n*log(n)} strategy with higher overhead. Prefer {@link #dedupeToBlockAdaptive}.
-     * This is public for testing and performance testing.
+     * Remove duplicate values from each position and write the results to a
+     * {@link Block} using an algorithm with very low overhead but {@code n^2}
+     * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
+     * which picks based on the number of elements at each position.
      */
     public IntBlock dedupeToBlockUsingCopyAndSort() {
         if (false == block.mayHaveMultivaluedFields()) {
@@ -105,8 +109,12 @@ public class MultivalueDedupeInt {
     }
 
     /**
-     * Dedupe values using an {@code n^2} strategy with low overhead. Prefer {@link #dedupeToBlockAdaptive}.
-     * This is public for testing and performance testing.
+     * Remove duplicate values from each position and write the results to a
+     * {@link Block} using an algorithm that sorts all values. It has a higher
+     * overhead for small numbers of values at each position than
+     * {@link #dedupeToBlockUsingCopyMissing} for large numbers of values the
+     * performance is dominated by the {@code n*log n} sort. Prefer
+     * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
     public IntBlock dedupeToBlockUsingCopyMissing() {
         if (false == block.mayHaveMultivaluedFields()) {
@@ -157,6 +165,67 @@ public class MultivalueDedupeInt {
         return builder.build();
     }
 
+    /**
+     * Build a {@link BatchEncoder} which deduplicates values at each position
+     * and then encodes the results into a {@link byte[]} which can be used for
+     * things like hashing many fields together.
+     */
+    public BatchEncoder batchEncoder(int batchSize) {
+        return new BatchEncoder.Ints(batchSize) {
+            @Override
+            protected void readNextBatch() {
+                int position = firstPosition();
+                if (w > 0) {
+                    // The last block didn't fit so we have to *make* it fit
+                    ensureCapacity(w);
+                    startPosition();
+                    encodeUniquedWork(this);
+                    endPosition();
+                    position++;
+                }
+                for (; position < block.getPositionCount(); position++) {
+                    int count = block.getValueCount(position);
+                    int first = block.getFirstValueIndex(position);
+                    switch (count) {
+                        case 0 -> encodeNull();
+                        case 1 -> {
+                            int v = block.getInt(first);
+                            if (hasCapacity(1)) {
+                                startPosition();
+                                encode(v);
+                                endPosition();
+                            } else {
+                                work[0] = v;
+                                w = 1;
+                                return;
+                            }
+                        }
+                        default -> {
+                            if (count < ALWAYS_COPY_MISSING) {
+                                copyMissing(first, count);
+                            } else {
+                                copyAndSort(first, count);
+                                convertSortedWorkToUnique();
+                            }
+                            if (hasCapacity(w)) {
+                                startPosition();
+                                encodeUniquedWork(this);
+                                endPosition();
+                            } else {
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
+        };
+    }
+
+    /**
+     * Copy all value from the position into {@link #work} and then
+     * sorts it {@code n * log(n)}.
+     */
     private void copyAndSort(int first, int count) {
         grow(count);
         int end = first + count;
@@ -169,6 +238,10 @@ public class MultivalueDedupeInt {
         Arrays.sort(work, 0, w);
     }
 
+    /**
+     * Fill {@link #work} with the unique values in the position by scanning
+     * all fields already copied {@code n^2}.
+     */
     private void copyMissing(int first, int count) {
         grow(count);
         int end = first + count;
@@ -186,6 +259,9 @@ public class MultivalueDedupeInt {
         }
     }
 
+    /**
+     * Writes an already deduplicated {@link #work} to a {@link IntBlock.Builder}.
+     */
     private void writeUniquedWork(IntBlock.Builder builder) {
         if (w == 1) {
             builder.appendInt(work[0]);
@@ -198,6 +274,9 @@ public class MultivalueDedupeInt {
         builder.endPositionEntry();
     }
 
+    /**
+     * Writes a sorted {@link #work} to a {@link IntBlock.Builder}, skipping duplicates.
+     */
     private void writeSortedWork(IntBlock.Builder builder) {
         if (w == 1) {
             builder.appendInt(work[0]);
@@ -215,6 +294,9 @@ public class MultivalueDedupeInt {
         builder.endPositionEntry();
     }
 
+    /**
+     * Writes an already deduplicated {@link #work} to a hash.
+     */
     private void hashUniquedWork(LongHash hash, LongBlock.Builder builder) {
         if (w == 1) {
             hash(builder, hash, work[0]);
@@ -227,6 +309,9 @@ public class MultivalueDedupeInt {
         builder.endPositionEntry();
     }
 
+    /**
+     * Writes a sorted {@link #work} to a hash, skipping duplicates.
+     */
     private void hashSortedWork(LongHash hash, LongBlock.Builder builder) {
         if (w == 1) {
             hash(builder, hash, work[0]);
@@ -242,6 +327,30 @@ public class MultivalueDedupeInt {
             }
         }
         builder.endPositionEntry();
+    }
+
+    /**
+     * Writes a deduplicated {@link #work} to a {@link BatchEncoder.Ints}.
+     */
+    private void encodeUniquedWork(BatchEncoder.Ints encoder) {
+        for (int i = 0; i < w; i++) {
+            encoder.encode(work[i]);
+        }
+    }
+
+    /**
+     * Converts {@link #work} from sorted array to a deduplicated array.
+     */
+    private void convertSortedWorkToUnique() {
+        int prev = work[0];
+        int end = w;
+        w = 1;
+        for (int i = 1; i < end; i++) {
+            if (prev != work[i]) {
+                prev = work[i];
+                work[w++] = prev;
+            }
+        }
     }
 
     private void grow(int size) {

@@ -17,9 +17,11 @@ $endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 $if(long)$
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 
 $else$
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.LongBlock;
 $endif$
@@ -59,7 +61,8 @@ $endif$
     }
 
     /**
-     * Dedupe values using an adaptive algorithm based on the size of the input list.
+     * Remove duplicate values from each position and write the results to a
+     * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
     public $Type$Block dedupeToBlockAdaptive() {
         if (false == block.mayHaveMultivaluedFields()) {
@@ -108,8 +111,10 @@ $endif$
     }
 
     /**
-     * Dedupe values using an {@code n*log(n)} strategy with higher overhead. Prefer {@link #dedupeToBlockAdaptive}.
-     * This is public for testing and performance testing.
+     * Remove duplicate values from each position and write the results to a
+     * {@link Block} using an algorithm with very low overhead but {@code n^2}
+     * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
+     * which picks based on the number of elements at each position.
      */
     public $Type$Block dedupeToBlockUsingCopyAndSort() {
         if (false == block.mayHaveMultivaluedFields()) {
@@ -136,8 +141,12 @@ $endif$
     }
 
     /**
-     * Dedupe values using an {@code n^2} strategy with low overhead. Prefer {@link #dedupeToBlockAdaptive}.
-     * This is public for testing and performance testing.
+     * Remove duplicate values from each position and write the results to a
+     * {@link Block} using an algorithm that sorts all values. It has a higher
+     * overhead for small numbers of values at each position than
+     * {@link #dedupeToBlockUsingCopyMissing} for large numbers of values the
+     * performance is dominated by the {@code n*log n} sort. Prefer
+     * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
     public $Type$Block dedupeToBlockUsingCopyMissing() {
         if (false == block.mayHaveMultivaluedFields()) {
@@ -200,6 +209,89 @@ $endif$
         return builder.build();
     }
 
+    /**
+     * Build a {@link BatchEncoder} which deduplicates values at each position
+     * and then encodes the results into a {@link byte[]} which can be used for
+     * things like hashing many fields together.
+     */
+    public BatchEncoder batchEncoder(int batchSize) {
+        return new BatchEncoder.$Type$s(batchSize) {
+            @Override
+            protected void readNextBatch() {
+                int position = firstPosition();
+                if (w > 0) {
+                    // The last block didn't fit so we have to *make* it fit
+$if(BytesRef)$
+                    ensureCapacity(workSize(), w);
+$else$
+                    ensureCapacity(w);
+$endif$
+                    startPosition();
+                    encodeUniquedWork(this);
+                    endPosition();
+                    position++;
+                }
+                for (; position < block.getPositionCount(); position++) {
+                    int count = block.getValueCount(position);
+                    int first = block.getFirstValueIndex(position);
+                    switch (count) {
+                        case 0 -> encodeNull();
+                        case 1 -> {
+$if(BytesRef)$
+                            BytesRef v = block.getBytesRef(first, work[0]);
+                            if (hasCapacity(v.length, 1)) {
+$else$
+                            $type$ v = block.get$Type$(first);
+                            if (hasCapacity(1)) {
+$endif$
+                                startPosition();
+                                encode(v);
+                                endPosition();
+                            } else {
+                                work[0] = v;
+                                w = 1;
+                                return;
+                            }
+                        }
+                        default -> {
+                            if (count < ALWAYS_COPY_MISSING) {
+                                copyMissing(first, count);
+                            } else {
+                                copyAndSort(first, count);
+                                convertSortedWorkToUnique();
+                            }
+$if(BytesRef)$
+                            if (hasCapacity(workSize(), w)) {
+$else$
+                            if (hasCapacity(w)) {
+$endif$
+                                startPosition();
+                                encodeUniquedWork(this);
+                                endPosition();
+                            } else {
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
+$if(BytesRef)$
+            private int workSize() {
+                int size = 0;
+                for (int i = 0; i < w; i++) {
+                    size += work[i].length;
+                }
+                return size;
+            }
+$endif$
+        };
+    }
+
+    /**
+     * Copy all value from the position into {@link #work} and then
+     * sorts it {@code n * log(n)}.
+     */
     private void copyAndSort(int first, int count) {
         grow(count);
         int end = first + count;
@@ -217,6 +309,10 @@ $endif$
         Arrays.sort(work, 0, w);
     }
 
+    /**
+     * Fill {@link #work} with the unique values in the position by scanning
+     * all fields already copied {@code n^2}.
+     */
     private void copyMissing(int first, int count) {
         grow(count);
         int end = first + count;
@@ -246,6 +342,9 @@ $endif$
         }
     }
 
+    /**
+     * Writes an already deduplicated {@link #work} to a {@link $Type$Block.Builder}.
+     */
     private void writeUniquedWork($Type$Block.Builder builder) {
         if (w == 1) {
             builder.append$Type$(work[0]);
@@ -258,6 +357,9 @@ $endif$
         builder.endPositionEntry();
     }
 
+    /**
+     * Writes a sorted {@link #work} to a {@link $Type$Block.Builder}, skipping duplicates.
+     */
     private void writeSortedWork($Type$Block.Builder builder) {
         if (w == 1) {
             builder.append$Type$(work[0]);
@@ -279,6 +381,9 @@ $endif$
         builder.endPositionEntry();
     }
 
+    /**
+     * Writes an already deduplicated {@link #work} to a hash.
+     */
 $if(BytesRef)$
     private void hashUniquedWork(BytesRefHash hash, LongBlock.Builder builder) {
 $else$
@@ -295,6 +400,9 @@ $endif$
         builder.endPositionEntry();
     }
 
+    /**
+     * Writes a sorted {@link #work} to a hash, skipping duplicates.
+     */
 $if(BytesRef)$
     private void hashSortedWork(BytesRefHash hash, LongBlock.Builder builder) {
 $else$
@@ -318,6 +426,40 @@ $endif$
             }
         }
         builder.endPositionEntry();
+    }
+
+    /**
+     * Writes a deduplicated {@link #work} to a {@link BatchEncoder.$Type$s}.
+     */
+    private void encodeUniquedWork(BatchEncoder.$Type$s encoder) {
+        for (int i = 0; i < w; i++) {
+            encoder.encode(work[i]);
+        }
+    }
+
+    /**
+     * Converts {@link #work} from sorted array to a deduplicated array.
+     */
+    private void convertSortedWorkToUnique() {
+        $type$ prev = work[0];
+        int end = w;
+        w = 1;
+        for (int i = 1; i < end; i++) {
+$if(BytesRef)$
+            if (false == prev.equals(work[i])) {
+                prev = work[i];
+                work[w].bytes = prev.bytes;
+                work[w].offset = prev.offset;
+                work[w].length = prev.length;
+                w++;
+            }
+$else$
+            if (prev != work[i]) {
+                prev = work[i];
+                work[w++] = prev;
+            }
+$endif$
+        }
     }
 
     private void grow(int size) {

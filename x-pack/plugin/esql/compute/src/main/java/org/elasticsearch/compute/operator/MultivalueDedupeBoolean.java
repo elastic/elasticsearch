@@ -68,6 +68,41 @@ public class MultivalueDedupeBoolean {
         return builder.build();
     }
 
+    /**
+     * Build a {@link BatchEncoder} which deduplicates values at each position
+     * and then encodes the results into a {@link byte[]} which can be used for
+     * things like hashing many fields together.
+     */
+    public BatchEncoder batchEncoder(int batchSize) {
+        return new BatchEncoder.Booleans(Math.max(2, batchSize)) {
+            @Override
+            protected void readNextBatch() {
+                for (int position = firstPosition(); position < block.getPositionCount(); position++) {
+                    if (hasCapacity(2) == false) {
+                        return;
+                    }
+                    int count = block.getValueCount(position);
+                    int first = block.getFirstValueIndex(position);
+                    switch (count) {
+                        case 0 -> encodeNull();
+                        case 1 -> {
+                            boolean v = block.getBoolean(first);
+                            startPosition();
+                            encode(v);
+                            endPosition();
+                        }
+                        default -> {
+                            readValues(first, count);
+                            startPosition();
+                            encodeUniquedWork(this);
+                            endPosition();
+                        }
+                    }
+                }
+            }
+        };
+    }
+
     private void readValues(int first, int count) {
         int end = first + count;
 
@@ -119,6 +154,15 @@ public class MultivalueDedupeBoolean {
             builder.appendLong(hashOrd(everSeen, true));
         } else {
             throw new IllegalStateException("didn't see true of false but counted values");
+        }
+    }
+
+    private void encodeUniquedWork(BatchEncoder.Booleans encoder) {
+        if (seenFalse) {
+            encoder.encode(false);
+        }
+        if (seenTrue) {
+            encoder.encode(true);
         }
     }
 

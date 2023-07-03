@@ -43,8 +43,6 @@ final class LongBlockHash extends BlockHash {
         return new LongArrayVector(groups, groups.length);
     }
 
-    private static final long[] EMPTY = new long[0];
-
     private LongBlock add(LongBlock block) {
         return new MultivalueDedupeLong(block).hash(longHash);
     }

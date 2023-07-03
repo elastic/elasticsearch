@@ -73,6 +73,7 @@ public class AggregatorBenchmark {
     private static final String BYTES_REFS = "bytes_refs";
     private static final String TWO_LONGS = "two_" + LONGS;
     private static final String LONGS_AND_BYTES_REFS = LONGS + "_and_" + BYTES_REFS;
+    private static final String TWO_LONGS_AND_BYTES_REFS = "two_" + LONGS + "_and_" + BYTES_REFS;
 
     private static final String VECTOR_DOUBLES = "vector_doubles";
     private static final String HALF_NULL_DOUBLES = "half_null_doubles";
@@ -104,10 +105,10 @@ public class AggregatorBenchmark {
         }
     }
 
-    @Param({ NONE, LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS, TWO_LONGS, LONGS_AND_BYTES_REFS })
+    @Param({ NONE, LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS, TWO_LONGS, LONGS_AND_BYTES_REFS, TWO_LONGS_AND_BYTES_REFS })
     public String grouping;
 
-    @Param({ AVG, COUNT, COUNT_DISTINCT, MIN, MAX, SUM })
+    @Param({ COUNT, COUNT_DISTINCT, MIN, MAX, SUM })
     public String op;
 
     @Param({ VECTOR_LONGS, HALF_NULL_LONGS, VECTOR_DOUBLES, HALF_NULL_DOUBLES })
@@ -130,6 +131,11 @@ public class AggregatorBenchmark {
             case LONGS_AND_BYTES_REFS -> List.of(
                 new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
                 new HashAggregationOperator.GroupSpec(1, ElementType.BYTES_REF)
+            );
+            case TWO_LONGS_AND_BYTES_REFS -> List.of(
+                new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
+                new HashAggregationOperator.GroupSpec(1, ElementType.LONG),
+                new HashAggregationOperator.GroupSpec(2, ElementType.BYTES_REF)
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
@@ -185,6 +191,11 @@ public class AggregatorBenchmark {
             case LONGS_AND_BYTES_REFS -> {
                 checkGroupingBlock(prefix, LONGS, page.getBlock(0));
                 checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(1));
+            }
+            case TWO_LONGS_AND_BYTES_REFS -> {
+                checkGroupingBlock(prefix, LONGS, page.getBlock(0));
+                checkGroupingBlock(prefix, LONGS, page.getBlock(1));
+                checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(2));
             }
             default -> checkGroupingBlock(prefix, grouping, page.getBlock(0));
         }
@@ -468,6 +479,11 @@ public class AggregatorBenchmark {
         return switch (grouping) {
             case TWO_LONGS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(LONGS, blockType));
             case LONGS_AND_BYTES_REFS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(BYTES_REFS, blockType));
+            case TWO_LONGS_AND_BYTES_REFS -> List.of(
+                groupingBlock(LONGS, blockType),
+                groupingBlock(LONGS, blockType),
+                groupingBlock(BYTES_REFS, blockType)
+            );
             default -> List.of(groupingBlock(grouping, blockType));
         };
     }

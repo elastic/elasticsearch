@@ -7,30 +7,22 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanArrayVector;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefArrayVector;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleArrayVector;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntArrayVector;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BatchEncoder;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.MultivalueDedupe;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 
@@ -40,53 +32,189 @@ import java.util.List;
  * that.
  */
 final class PackedValuesBlockHash extends BlockHash {
-    private final Key[] keys;
+    private static final Logger logger = LogManager.getLogger(PackedValuesBlockHash.class);
+    static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
+
+    private final List<HashAggregationOperator.GroupSpec> groups;
     private final BytesRefHash bytesRefHash;
+    private final int nullTrackingBytes;
 
     PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays) {
-        this.keys = groups.stream().map(s -> switch (s.elementType()) {
-            case BYTES_REF -> new BytesRefKey(s.channel());
-            case BOOLEAN -> new BooleanKey(s.channel());
-            case INT -> new IntKey(s.channel());
-            case LONG -> new LongKey(s.channel());
-            case DOUBLE -> new DoubleKey(s.channel());
-            default -> throw new IllegalArgumentException("unsupported type [" + s.elementType() + "]");
-        }).toArray(PackedValuesBlockHash.Key[]::new);
+        this.groups = groups;
         this.bytesRefHash = new BytesRefHash(1, bigArrays);
+        this.nullTrackingBytes = groups.size() / 8 + 1;
     }
 
     @Override
     public LongBlock add(Page page) {
-        KeyWork[] work = new KeyWork[page.getPositionCount()];
-        for (int i = 0; i < work.length; i++) {
-            work[i] = new KeyWork();
-        }
-        for (Key k : keys) {
-            k.buildKeys(page, work);
+        return add(page, DEFAULT_BATCH_SIZE);
+    }
+
+    LongBlock add(Page page, int batchSize) {
+        return new AddWork(page, batchSize).add();
+    }
+
+    class AddWork {
+        final BatchEncoder[] encoders = new BatchEncoder[groups.size()];
+        final int[] positionOffsets = new int[groups.size()];
+        final int[] valueOffsets = new int[groups.size()];
+        final BytesRef[] scratches = new BytesRef[groups.size()];
+        final BytesRefBuilder bytes = new BytesRefBuilder();
+        final int positionCount;
+        final LongBlock.Builder builder;
+
+        int count;
+        long bufferedGroup;
+
+        AddWork(Page page, int batchSize) {
+            for (int g = 0; g < groups.size(); g++) {
+                encoders[g] = MultivalueDedupe.batchEncoder(page.getBlock(groups.get(g).channel()), batchSize);
+                scratches[g] = new BytesRef();
+            }
+            bytes.grow(nullTrackingBytes);
+            this.positionCount = page.getPositionCount();
+            builder = LongBlock.newBlockBuilder(positionCount);
         }
 
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(page.getPositionCount());
-        for (KeyWork w : work) {
-            if (w.isNull) {
-                builder.appendNull();
-            } else {
-                builder.appendLong(hashOrdToGroup(bytesRefHash.add(w.builder.get())));
+        /**
+         * Encodes one permutation of the keys at time into {@link #bytes}. The encoding is
+         * mostly provided by {@link BatchEncoder} with nulls living in a bit mask at the
+         * front of the bytes.
+         */
+        LongBlock add() {
+            for (int position = 0; position < positionCount; position++) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("position {}", position);
+                }
+                // Make sure all encoders have encoded the current position and the offsets are queued to it's start
+                for (int g = 0; g < encoders.length; g++) {
+                    positionOffsets[g]++;
+                    while (positionOffsets[g] >= encoders[g].positionCount()) {
+                        encoders[g].encodeNextBatch();
+                        positionOffsets[g] = 0;
+                        valueOffsets[g] = 0;
+                    }
+                }
+
+                count = 0;
+                Arrays.fill(bytes.bytes(), 0, nullTrackingBytes, (byte) 0);
+                bytes.setLength(nullTrackingBytes);
+                addPosition(0);
+                switch (count) {
+                    case 0 -> {
+                        logger.trace("appending null");
+                        builder.appendNull();  // TODO https://github.com/elastic/elasticsearch-internal/issues/1327
+                    }
+                    case 1 -> builder.appendLong(bufferedGroup);
+                    default -> builder.endPositionEntry();
+                }
+                for (int g = 0; g < encoders.length; g++) {
+                    valueOffsets[g] += encoders[g].valueCount(positionOffsets[g]);
+                }
+            }
+            return builder.build();
+        }
+
+        private void addPosition(int g) {
+            if (g == groups.size()) {
+                addBytes();
+                return;
+            }
+            int start = bytes.length();
+            int count = encoders[g].valueCount(positionOffsets[g]);
+            assert count > 0;
+            int valueOffset = valueOffsets[g];
+            BytesRef v = encoders[g].read(valueOffset++, scratches[g]);
+            if (logger.isTraceEnabled()) {
+                logger.trace("\t".repeat(g + 1) + v);
+            }
+            if (v.length == 0) {
+                assert count == 1 : "null value in non-singleton list";
+                int nullByte = g / 8;
+                int nullShift = g % 8;
+                bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
+            }
+            bytes.setLength(start);
+            bytes.append(v);
+            addPosition(g + 1);  // TODO stack overflow protection
+            for (int i = 1; i < count; i++) {
+                v = encoders[g].read(valueOffset++, scratches[g]);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("\t".repeat(g + 1) + v);
+                }
+                assert v.length > 0 : "null value after the first position";
+                bytes.setLength(start);
+                bytes.append(v);
+                addPosition(g + 1);
             }
         }
-        return builder.build();
+
+        private void addBytes() {
+            for (int i = 0; i < nullTrackingBytes; i++) {
+                if (bytes.bytes()[i] != 0) {
+                    // TODO https://github.com/elastic/elasticsearch-internal/issues/1327
+                    return;
+                }
+            }
+            long group = hashOrdToGroup(bytesRefHash.add(bytes.get()));
+            switch (count) {
+                case 0 -> bufferedGroup = group;
+                case 1 -> {
+                    builder.beginPositionEntry();
+                    builder.appendLong(bufferedGroup);
+                    builder.appendLong(group);
+                }
+                default -> builder.appendLong(group);
+            }
+            count++;
+            if (logger.isTraceEnabled()) {
+                logger.trace("{} = {}", bytes.get(), group);
+            }
+        }
     }
 
     @Override
     public Block[] getKeys() {
-        int[] positions = new int[Math.toIntExact(bytesRefHash.size())];
-        BytesRefArray bytes = bytesRefHash.getBytesRefs();
-        BytesRef scratch = new BytesRef();
+        int size = Math.toIntExact(bytesRefHash.size());
+        BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[groups.size()];
+        Block.Builder[] builders = new Block.Builder[groups.size()];
+        for (int g = 0; g < builders.length; g++) {
+            ElementType elementType = groups.get(g).elementType();
+            decoders[g] = BatchEncoder.decoder(elementType);
+            builders[g] = elementType.newBlockBuilder(size);
+        }
 
-        Block[] keyBlocks = new Block[keys.length];
-        for (int i = 0; i < keyBlocks.length; i++) {
-            keyBlocks[i] = keys[i].getKeys(positions, bytes, scratch);
+        BytesRef values[] = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
+        for (int offset = 0; offset < values.length; offset++) {
+            values[offset] = new BytesRef();
+        }
+        int offset = 0;
+        for (int i = 0; i < bytesRefHash.size(); i++) {
+            values[offset] = bytesRefHash.get(i, values[offset]);
+            // TODO restore nulls. for now we're skipping them
+            values[offset].offset += nullTrackingBytes;
+            values[offset].length -= nullTrackingBytes;
+            offset++;
+            if (offset == values.length) {
+                readKeys(decoders, builders, values, offset);
+                offset = 0;
+            }
+        }
+        if (offset > 0) {
+            readKeys(decoders, builders, values, offset);
+        }
+
+        Block[] keyBlocks = new Block[groups.size()];
+        for (int g = 0; g < keyBlocks.length; g++) {
+            keyBlocks[g] = builders[g].build();
         }
         return keyBlocks;
+    }
+
+    private void readKeys(BatchEncoder.Decoder[] decoders, Block.Builder[] builders, BytesRef[] values, int count) {
+        for (int g = 0; g < builders.length; g++) {
+            decoders[g].decode(builders[g], values, count);
+        }
     }
 
     @Override
@@ -99,237 +227,21 @@ final class PackedValuesBlockHash extends BlockHash {
         bytesRefHash.close();
     }
 
-    private class KeyWork {
-        final BytesRefBuilder builder = new BytesRefBuilder();
-        boolean isNull;
-
-        @Override
-        public String toString() {
-            return "KeyWork{builder=" + builder.toBytesRef() + ", isNull=" + isNull + '}';
-        }
-    }
-
-    interface Key {
-        void buildKeys(Page page, KeyWork[] keyWork);
-
-        Block getKeys(int[] positions, BytesRefArray bytes, BytesRef scratch);
-    }
-
-    private record BytesRefKey(int channel) implements Key {
-        private static final VarHandle intHandle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
-
-        @Override
-        public void buildKeys(Page page, KeyWork[] work) {
-            BytesRef scratch = new BytesRef();
-            BytesRefBlock block = page.getBlock(channel);
-            for (int i = 0; i < work.length; i++) {
-                KeyWork w = work[i];
-                if (w.isNull) {
-                    continue;
-                }
-                if (block.isNull(i)) {
-                    w.isNull = true;
-                    continue;
-                }
-                block.getBytesRef(block.getFirstValueIndex(i), scratch);
-
-                // Add the length of the bytes as an int and then the bytes
-                int newLen = w.builder.length() + scratch.length + Integer.BYTES;
-                w.builder.grow(newLen);
-                intHandle.set(w.builder.bytes(), w.builder.length(), scratch.length);
-                System.arraycopy(scratch.bytes, scratch.offset, w.builder.bytes(), w.builder.length() + Integer.BYTES, scratch.length);
-                w.builder.setLength(newLen);
-            }
-        }
-
-        @Override
-        public Block getKeys(int[] positions, BytesRefArray bytes, BytesRef scratch) {
-            BytesRefArray keys = new BytesRefArray(positions.length, BigArrays.NON_RECYCLING_INSTANCE);
-            for (int i = 0; i < positions.length; i++) {
-                bytes.get(i, scratch);
-                if (scratch.length - positions[i] < Integer.BYTES) {
-                    throw new IllegalStateException();
-                }
-                int lengthPosition = scratch.offset + positions[i];
-                int len = (int) intHandle.get(scratch.bytes, lengthPosition);
-                if (scratch.length + Integer.BYTES < len) {
-                    throw new IllegalStateException();
-                }
-                scratch.length = len;
-                scratch.offset = lengthPosition + Integer.BYTES;
-                keys.append(scratch);
-                positions[i] += scratch.length + Integer.BYTES;
-            }
-            return new BytesRefArrayVector(keys, positions.length).asBlock();
-        }
-    }
-
-    private record LongKey(int channel) implements Key {
-        private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
-        private static final int KEY_BYTES = Long.BYTES;
-
-        @Override
-        public void buildKeys(Page page, KeyWork[] work) {
-            LongBlock block = page.getBlock(channel);
-            for (int i = 0; i < work.length; i++) {
-                KeyWork w = work[i];
-                if (w.isNull) {
-                    continue;
-                }
-                if (block.isNull(i)) {
-                    w.isNull = true;
-                    continue;
-                }
-                long value = block.getLong(block.getFirstValueIndex(i));
-                int newLen = w.builder.length() + KEY_BYTES;
-                w.builder.grow(newLen);
-                longHandle.set(w.builder.bytes(), w.builder.length(), value);
-                w.builder.setLength(newLen);
-            }
-        }
-
-        @Override
-        public Block getKeys(int[] positions, BytesRefArray bytes, BytesRef scratch) {
-            final long[] keys = new long[positions.length];
-            for (int i = 0; i < keys.length; i++) {
-                bytes.get(i, scratch);
-                if (scratch.length - positions[i] < KEY_BYTES) {
-                    throw new IllegalStateException();
-                }
-                keys[i] = (long) longHandle.get(scratch.bytes, scratch.offset + positions[i]);
-                positions[i] += KEY_BYTES;
-            }
-            return new LongArrayVector(keys, keys.length).asBlock();
-        }
-    }
-
-    private record DoubleKey(int channel) implements Key {
-        private static final VarHandle doubleHandle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
-        private static final int KEY_BYTES = Double.BYTES;
-
-        @Override
-        public void buildKeys(Page page, KeyWork[] work) {
-            DoubleBlock block = page.getBlock(channel);
-            for (int i = 0; i < work.length; i++) {
-                KeyWork w = work[i];
-                if (w.isNull) {
-                    continue;
-                }
-                if (block.isNull(i)) {
-                    w.isNull = true;
-                    continue;
-                }
-                int newLen = w.builder.length() + KEY_BYTES;
-                w.builder.grow(newLen);
-                double value = block.getDouble(block.getFirstValueIndex(i));
-                doubleHandle.set(w.builder.bytes(), w.builder.length(), value);
-                w.builder.setLength(newLen);
-            }
-        }
-
-        @Override
-        public Block getKeys(int[] positions, BytesRefArray bytes, BytesRef scratch) {
-            final double[] keys = new double[positions.length];
-            for (int i = 0; i < keys.length; i++) {
-                bytes.get(i, scratch);
-                if (scratch.length - positions[i] < KEY_BYTES) {
-                    throw new IllegalStateException();
-                }
-                keys[i] = (double) doubleHandle.get(scratch.bytes, scratch.offset + positions[i]);
-                positions[i] += KEY_BYTES;
-            }
-            return new DoubleArrayVector(keys, keys.length).asBlock();
-        }
-    }
-
-    private record IntKey(int channel) implements Key {
-        private static final VarHandle intHandle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
-        private static final int KEY_BYTES = Integer.BYTES;
-
-        @Override
-        public void buildKeys(Page page, KeyWork[] work) {
-            IntBlock block = page.getBlock(channel);
-            for (int i = 0; i < work.length; i++) {
-                KeyWork w = work[i];
-                if (w.isNull) {
-                    continue;
-                }
-                if (block.isNull(i)) {
-                    w.isNull = true;
-                    continue;
-                }
-                int value = block.getInt(block.getFirstValueIndex(i));
-                int newLen = w.builder.length() + KEY_BYTES;
-                w.builder.grow(newLen);
-                intHandle.set(w.builder.bytes(), w.builder.length(), value);
-                w.builder.setLength(newLen);
-            }
-        }
-
-        @Override
-        public Block getKeys(int[] positions, BytesRefArray bytes, BytesRef scratch) {
-            final int[] keys = new int[positions.length];
-            for (int i = 0; i < keys.length; i++) {
-                bytes.get(i, scratch);
-                if (scratch.length - positions[i] < KEY_BYTES) {
-                    throw new IllegalStateException();
-                }
-                keys[i] = (int) intHandle.get(scratch.bytes, scratch.offset + positions[i]);
-                positions[i] += KEY_BYTES;
-            }
-            return new IntArrayVector(keys, keys.length).asBlock();
-        }
-    }
-
-    private record BooleanKey(int channel) implements Key {
-        private static final VarHandle byteHandle = MethodHandles.arrayElementVarHandle(byte[].class);
-        private static final int KEY_BYTES = Byte.BYTES;
-
-        @Override
-        public void buildKeys(Page page, KeyWork[] work) {
-            BooleanBlock block = page.getBlock(channel);
-            for (int i = 0; i < work.length; i++) {
-                KeyWork w = work[i];
-                if (w.isNull) {
-                    continue;
-                }
-                if (block.isNull(i)) {
-                    w.isNull = true;
-                    continue;
-                }
-                boolean value = block.getBoolean(block.getFirstValueIndex(i));
-                int newLen = w.builder.length() + KEY_BYTES;
-                w.builder.grow(newLen);
-                // Serialize boolean as a byte (true: 1, false: 0)
-                byteHandle.set(w.builder.bytes(), w.builder.length(), value ? (byte) 1 : 0);
-                w.builder.setLength(newLen);
-            }
-        }
-
-        @Override
-        public Block getKeys(int[] positions, BytesRefArray bytes, BytesRef scratch) {
-            final boolean[] keys = new boolean[positions.length];
-            for (int i = 0; i < keys.length; i++) {
-                bytes.get(i, scratch);
-                if (scratch.length - positions[i] < KEY_BYTES) {
-                    throw new IllegalStateException();
-                }
-                // Deserialize byte to boolean (true: 1, false: 0)
-                keys[i] = (byte) byteHandle.get(scratch.bytes, scratch.offset + positions[i]) != 0;
-                positions[i] += KEY_BYTES;
-            }
-            return new BooleanArrayVector(keys, keys.length).asBlock();
-        }
-    }
-
     @Override
     public String toString() {
-        return "PackedValuesBlockHash{keys="
-            + Arrays.toString(keys)
-            + ", entries="
-            + bytesRefHash.size()
-            + ", size="
-            + ByteSizeValue.ofBytes(bytesRefHash.ramBytesUsed())
-            + '}';
+        StringBuilder b = new StringBuilder();
+        b.append("PackedValuesBlockHash{groups=[");
+        boolean first = true;
+        for (HashAggregationOperator.GroupSpec spec : groups) {
+            if (first) {
+                first = false;
+            } else {
+                b.append(", ");
+            }
+            b.append(spec.channel()).append(':').append(spec.elementType());
+        }
+        b.append("], entries=").append(bytesRefHash.size());
+        b.append(", size=").append(ByteSizeValue.ofBytes(bytesRefHash.ramBytesUsed()));
+        return b.append("}").toString();
     }
 }

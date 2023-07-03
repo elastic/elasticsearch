@@ -114,7 +114,7 @@ public class ShardSizeStatsReader {
     }
 
     private static boolean isInteractive(LeafReader segmentReader, long currentTimeMillis, long interactiveDataAge) throws IOException {
-        PointValues values = segmentReader.getPointValues(DataStream.TIMESTAMP_FIELD.getName());
+        PointValues values = segmentReader.getPointValues(DataStream.TIMESTAMP_FIELD_NAME);
         if (values == null || values.getMaxPackedValue() == null) {
             // no timestamp field, entire segment is considered interactive
             return true;

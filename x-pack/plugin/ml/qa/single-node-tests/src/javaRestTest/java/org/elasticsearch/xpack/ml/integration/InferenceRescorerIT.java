@@ -198,25 +198,23 @@ public class InferenceRescorerIT extends InferenceTestCase {
               }
             }""");
         assertHitScores(client().performRequest(request), List.of(20.0, 20.0, 17.0));
-        request.setJsonEntity(
-            """
-                {
-                  "query": {"term": {"product": "Laptop"}},
-                  "rescore": {
-                    "window_size": 10,
-                    "inference": {
-                      "model_id": "ltr-model",
-                      "inference_config": {
-                        "learn_to_rank": {
-                          "feature_extractors":[{
-                            "query_extractor": {"feature_name": "product_bm25", "query": {"term": {"product": "Laptop"}}}
-                          }]
-                        }
-                      }
+        request.setJsonEntity("""
+            {
+              "query": {"term": {"product": "Laptop"}},
+              "rescore": {
+                "window_size": 10,
+                "inference": {
+                  "model_id": "ltr-model",
+                  "inference_config": {
+                    "learn_to_rank": {
+                      "feature_extractors":[{
+                        "query_extractor": {"feature_name": "product_bm25", "query": {"term": {"product": "Laptop"}}}
+                      }]
                     }
                   }
-                }"""
-        );
+                }
+              }
+            }""");
         assertHitScores(client().performRequest(request), List.of(12.0, 12.0, 9.0));
         request.setJsonEntity("""
             {

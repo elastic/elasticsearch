@@ -19,10 +19,10 @@ public class PreBuiltCacheFactory {
     /**
      * The strategy of caching the analyzer
      *
-     * ONE               Exactly one version is stored. Useful for analyzers which do not store version information
-     * LUCENE            Exactly one version for each lucene version is stored. Useful to prevent different analyzers with the same version
-     * ELASTICSEARCH     Exactly one version for each index version is stored. Useful if you change an analyzer between index changes,
-     *                   when the lucene version does not change
+     * ONE        Exactly one version is stored. Useful for analyzers which do not store version information
+     * LUCENE     Exactly one version for each lucene version is stored. Useful to prevent different analyzers with the same version
+     * INDEX      Exactly one version for each index version is stored. Useful if you change an analyzer between index changes,
+     *            when the lucene version does not change
      */
     public enum CachingStrategy {
         ONE,

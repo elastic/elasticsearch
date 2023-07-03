@@ -118,17 +118,17 @@ buildScan {
         tag branch
       }
 
-      buildScanPublished { scan ->
+      // buildScanPublished { scan ->
         // Attach build scan link as build metadata
         // See: https://buildkite.com/docs/pipelines/build-meta-data
-        ['buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}"].execute()
+        // ['buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}"].execute()
 
         // Add a build annotation
         // See: https://buildkite.com/docs/agent/v3/cli-annotate
         // TODO fix and add back
         // def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: build ran: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
         // ['buildkite-agent', 'annotate', '--context', 'gradle-build-scans', '--append', '--style', 'info', body].execute()
-      }
+      // }
     } else {
       tag 'LOCAL'
     }

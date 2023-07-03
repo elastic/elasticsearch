@@ -59,7 +59,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
+import static org.elasticsearch.cluster.metadata.DataLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
 /**
  * Plugin encapsulating Data Lifecycle Management Service.
@@ -109,7 +109,7 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         dataLifecycleInitialisationService.set(
             new DataLifecycleService(
                 settings,
-                new OriginSettingClient(client, DLM_ORIGIN),
+                new OriginSettingClient(client, DATA_STREAM_LIFECYCLE_ORIGIN),
                 clusterService,
                 getClock(),
                 threadPool,

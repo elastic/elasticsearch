@@ -1,7 +1,7 @@
 {
   "indices.delete_data_lifecycle":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/dlm-delete-lifecycle.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams-delete-lifecycle.html",
       "description":"Deletes the data lifecycle of the selected data streams."
     },
     "stability":"experimental",

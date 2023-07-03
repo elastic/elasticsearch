@@ -469,7 +469,7 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
             final List<Map.Entry<RealmConfig.RealmIdentifier, Settings>> saml = realms.entrySet()
                 .stream()
                 .filter(entry -> isSamlRealm(entry.getKey()))
-                .collect(Collectors.toList());
+                .toList();
             if (saml.isEmpty()) {
                 throw new UserException(ExitCodes.CONFIG, "There is no SAML realm configured in " + env.configFile());
             }

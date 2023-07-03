@@ -167,18 +167,17 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     /**
      * Here we fetch the stored model inference context, apply the given update, and rewrite.
      *
-     * This can and should be done on the coordinator as it not only validates if the stored model is of the appropriate type, it allows
+     * This can and be done on the coordinator as it not only validates if the stored model is of the appropriate type, it allows
      * any stored logic to rewrite on the coordinator level if possible.
-     * @param ctx QueryRewriteContext on the coordinator
+     * @param ctx QueryRewriteContext
      * @return rewritten InferenceRescorerBuilder or self if no changes
      * @throws IOException when rewrite fails
      */
-    private RescorerBuilder<InferenceRescorerBuilder> doCoordinatorRewrite(QueryRewriteContext ctx) throws IOException {
+    private RescorerBuilder<InferenceRescorerBuilder> doRewrite(QueryRewriteContext ctx) throws IOException {
         // Awaiting fetch
         if (inferenceConfigSupplier != null && inferenceConfigSupplier.get() == null) {
             return this;
         }
-        // Already have the inference config, complete any additional rewriting required
         if (inferenceConfig != null) {
             LearnToRankConfig rewrittenConfig = Rewriteable.rewrite(inferenceConfig, ctx);
             if (rewrittenConfig == inferenceConfig) {
@@ -249,9 +248,8 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
      * This rewrite phase occurs on the data node when we know we will want to use the model for inference
      * @param ctx Rewrite context
      * @return A rewritten rescorer with a model definition or a model definition supplier populated
-     * @throws IOException If fetching, parsing, or overall rewrite failures occur
      */
-    private RescorerBuilder<InferenceRescorerBuilder> doDataNodeRewrite(QueryRewriteContext ctx) throws IOException {
+    private RescorerBuilder<InferenceRescorerBuilder> doDataNodeRewrite(QueryRewriteContext ctx) {
         assert inferenceConfig != null;
         // We already have an inference definition, no need to do any rewriting
         if (inferenceDefinition != null) {
@@ -289,15 +287,36 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         return builder;
     }
 
+    /**
+     * This rewrite phase occurs on the data node when we know we will want to use the model for inference
+     * @param ctx Rewrite context
+     * @return A rewritten rescorer with a model definition or a model definition supplier populated
+     * @throws IOException If fetching, parsing, or overall rewrite failures occur
+     */
+    private RescorerBuilder<InferenceRescorerBuilder> doSearchRewrite(QueryRewriteContext ctx) throws IOException {
+        if (inferenceConfig == null) {
+            return this;
+        }
+        LearnToRankConfig rewrittenConfig = Rewriteable.rewrite(inferenceConfig, ctx);
+        if (rewrittenConfig == inferenceConfig) {
+            return this;
+        }
+        InferenceRescorerBuilder builder = new InferenceRescorerBuilder(modelId, rewrittenConfig, modelLoadingServiceSupplier);
+        if (windowSize != null) {
+            builder.windowSize(windowSize);
+        }
+        return builder;
+    }
+
     @Override
     public RescorerBuilder<InferenceRescorerBuilder> rewrite(QueryRewriteContext ctx) throws IOException {
-        if (ctx.convertToCoordinatorRewriteContext() != null) {
-            return doCoordinatorRewrite(ctx);
-        }
         if (ctx.convertToDataRewriteContext() != null) {
             return doDataNodeRewrite(ctx);
         }
-        return this;
+        if (ctx.convertToSearchExecutionContext() != null) {
+            return doSearchRewrite(ctx);
+        }
+        return doRewrite(ctx);
     }
 
     public String getModelId() {

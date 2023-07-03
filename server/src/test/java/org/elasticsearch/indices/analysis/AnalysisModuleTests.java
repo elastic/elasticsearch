@@ -237,7 +237,7 @@ public class AnalysisModuleTests extends ESTestCase {
                             luceneVersionSupportsMultiTerm,
                             (tokenStream, luceneVersion) -> new AppendCharFilter(tokenStream, luceneVersion.toString())
                         ),
-                        PreConfiguredCharFilter.elasticsearchVersion(
+                        PreConfiguredCharFilter.indexVersion(
                             "elasticsearch_version",
                             elasticsearchVersionSupportsMultiTerm,
                             (tokenStream, esVersion) -> new AppendCharFilter(tokenStream, esVersion.toString())
@@ -318,7 +318,7 @@ public class AnalysisModuleTests extends ESTestCase {
                             luceneVersionSupportsMultiTerm,
                             (tokenStream, luceneVersion) -> new AppendTokenFilter(tokenStream, luceneVersion.toString())
                         ),
-                        PreConfiguredTokenFilter.elasticsearchVersion(
+                        PreConfiguredTokenFilter.indexVersion(
                             "elasticsearch_version",
                             elasticsearchVersionSupportsMultiTerm,
                             (tokenStream, esVersion) -> new AppendTokenFilter(tokenStream, esVersion.toString())
@@ -409,10 +409,7 @@ public class AnalysisModuleTests extends ESTestCase {
                             "lucene_version",
                             luceneVersion -> new FixedTokenizer(luceneVersion.toString())
                         ),
-                        PreConfiguredTokenizer.elasticsearchVersion(
-                            "elasticsearch_version",
-                            esVersion -> new FixedTokenizer(esVersion.toString())
-                        )
+                        PreConfiguredTokenizer.indexVersion("elasticsearch_version", esVersion -> new FixedTokenizer(esVersion.toString()))
                     );
                 }
             }),

@@ -67,7 +67,6 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     }
 
     private final String modelId;
-    // Only available on the data node
     private final LearnToRankConfigUpdate inferenceConfigUpdate;
     private final LearnToRankConfig inferenceConfig;
     private final LocalModel inferenceDefinition;
@@ -179,7 +178,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         if (inferenceConfigSupplier != null && inferenceConfigSupplier.get() == null) {
             return this;
         }
-        // Already have the inference config, completely any additional rewriting required
+        // Already have the inference config, complete any additional rewriting required
         if (inferenceConfig != null) {
             LearnToRankConfig rewrittenConfig = Rewriteable.rewrite(inferenceConfig, ctx);
             if (rewrittenConfig == inferenceConfig) {

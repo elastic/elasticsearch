@@ -29,7 +29,7 @@ public interface LearnToRankFeatureExtractorBuilder
     String featureName();
 
     /**
-     * @throws Exception If the extractor is not valid or ready for extraction.
+     * @throws Exception If the extractor is invalid.
      */
     void validate() throws Exception;
 

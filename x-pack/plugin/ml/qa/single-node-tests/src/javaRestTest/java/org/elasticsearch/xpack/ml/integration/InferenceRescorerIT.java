@@ -204,7 +204,16 @@ public class InferenceRescorerIT extends InferenceTestCase {
                   "query": {"term": {"product": "Laptop"}},
                   "rescore": {
                     "window_size": 10,
-                    "inference": { "model_id": "ltr-model", "inference_config": {"learn_to_rank": {"feature_extractors":[{"query_extractor": {"feature_name": "product_bm25", "query": {"term": {"product": "Laptop"}}}}]}}}
+                    "inference": {
+                      "model_id": "ltr-model",
+                      "inference_config": {
+                        "learn_to_rank": {
+                          "feature_extractors":[{
+                            "query_extractor": {"feature_name": "product_bm25", "query": {"term": {"product": "Laptop"}}}
+                          }]
+                        }
+                      }
+                    }
                   }
                 }"""
         );

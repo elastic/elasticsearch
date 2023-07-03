@@ -26,6 +26,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -310,10 +311,9 @@ public class EsExecutors {
         public boolean offer(E e) {
             // first try to transfer to a waiting worker thread
             if (tryTransfer(e) == false) {
-                // check if there might be spare capacity in the thread
-                // pool executor
-                int left = executor.getMaximumPoolSize() - executor.getCorePoolSize();
-                if (left > 0) {
+                // optimistically check before queueing whether there is room for more.
+                // have to use `getActiveCount` since those that are active promise to check for tasks before exiting the worker.
+                if (executor.getActiveCount() < executor.getMaximumPoolSize()) {
                     // reject queuing the task to force the thread pool
                     // executor to add a worker if it can; combined
                     // with ForceQueuePolicy, this causes the thread
@@ -321,7 +321,16 @@ public class EsExecutors {
                     // only queue when there is no spare capacity
                     return false;
                 } else {
-                    return super.offer(e);
+                    boolean offer = super.offer(e);
+                    assert offer;
+                    // check after queuing.
+                    // if any thread is no longer active, see if we can pull item off queue and retry.
+                    if (executor.getActiveCount() == executor.getMaximumPoolSize()) {
+                        return offer;
+                    } else {
+                        boolean removed = remove(e);
+                        return removed == false && offer;
+                    }
                 }
             } else {
                 return true;
@@ -353,18 +362,13 @@ public class EsExecutors {
 
         @Override
         public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
-            if (rejectAfterShutdown) {
-                if (executor.isShutdown()) {
-                    reject(executor, task);
-                } else {
-                    put(executor, task);
-                    // we need to check again the executor state as it might have been concurrently shut down; in this case
-                    // the executor's workers are shutting down and might have already picked up the task for execution.
-                    if (executor.isShutdown() && executor.remove(task)) {
-                        reject(executor, task);
-                    }
-                }
+            if (executor.isShutdown() == false) {
+                // always reject to trigger a retry.
+                throw new RetryRejectedExecutionException();
+            } else if (rejectAfterShutdown) {
+                reject(executor, task);
             } else {
+                // shutting down with rejectAfterShutdown == false, no guarantees to use more than core threads.
                 put(executor, task);
             }
         }
@@ -385,6 +389,10 @@ public class EsExecutors {
             incrementRejections();
             throw newRejectedException(task, executor, true);
         }
+    }
+
+    static class RetryRejectedExecutionException extends RejectedExecutionException {
+
     }
 
 }

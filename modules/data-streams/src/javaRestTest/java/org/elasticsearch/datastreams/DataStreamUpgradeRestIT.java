@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -279,19 +279,28 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
     @SuppressWarnings("unchecked")
     private void waitForLogsComponentTemplateInitialization() throws Exception {
         assertBusy(() -> {
-            Request logsComponentTemplateRequest = new Request("GET", "/_component_template/logs-*");
-            Response response = client().performRequest(logsComponentTemplateRequest);
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+            try {
+                Request logsComponentTemplateRequest = new Request("GET", "/_component_template/logs-*");
+                Response response = client().performRequest(logsComponentTemplateRequest);
+                assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
-            Map<?, ?> responseBody = XContentHelper.convertToMap(
-                JsonXContent.jsonXContent,
-                EntityUtils.toString(response.getEntity()),
-                false
-            );
-            List<?> componentTemplates = (List<?>) responseBody.get("component_templates");
-            assertThat(componentTemplates.size(), equalTo(2));
-            Set<String> names = componentTemplates.stream().map(m -> ((Map<String, String>) m).get("name")).collect(Collectors.toSet());
-            assertThat(names, contains("logs-mappings", "logs-settings"));
+                Map<?, ?> responseBody = XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    EntityUtils.toString(response.getEntity()),
+                    false
+                );
+                List<?> componentTemplates = (List<?>) responseBody.get("component_templates");
+                assertThat(componentTemplates.size(), equalTo(2));
+                Set<String> names = componentTemplates.stream().map(m -> ((Map<String, String>) m).get("name")).collect(Collectors.toSet());
+                assertThat(names, containsInAnyOrder("logs-mappings", "logs-settings"));
+            } catch (ResponseException responseException) {
+                // Retry in case of a 404, maybe they haven't been initialized yet.
+                if (responseException.getResponse().getStatusLine().getStatusCode() == 404) {
+                    fail();
+                }
+                // Throw the exception if it was a different error
+                throw responseException;
+            }
         });
     }
 }

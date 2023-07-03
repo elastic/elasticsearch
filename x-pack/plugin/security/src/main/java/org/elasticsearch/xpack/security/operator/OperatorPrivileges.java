@@ -34,6 +34,12 @@ public class OperatorPrivileges {
         Setting.Property.NodeScope
     );
 
+    public static boolean isOperator(ThreadContext threadContext) {
+        return AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
+            threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
+        );
+    }
+
     public interface OperatorPrivilegesService {
         /**
          * Set a ThreadContext Header {@link AuthenticationField#PRIVILEGE_CATEGORY_KEY} if authentication
@@ -126,9 +132,7 @@ public class OperatorPrivileges {
             if (user instanceof InternalUser && false == authentication.isRunAs()) {
                 return null;
             }
-            if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
-            )) {
+            if (false == isOperator(threadContext)) {
                 // Only check whether request is operator-only when user is NOT an operator
                 logger.trace("Checking operator-only violation for user [{}] and action [{}]", user, action);
                 final OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(action, request);
@@ -144,9 +148,7 @@ public class OperatorPrivileges {
             if (false == shouldProcess()) {
                 return true;
             }
-            if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
-            )) {
+            if (false == isOperator(threadContext)) {
                 // Only check whether request is operator-only when user is NOT an operator
                 if (logger.isTraceEnabled()) {
                     Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);

@@ -1088,6 +1088,7 @@ public class Node implements Closeable {
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(
                             new PeerRecoveryTargetService(
+                                client,
                                 threadPool,
                                 transportService,
                                 recoverySettings,

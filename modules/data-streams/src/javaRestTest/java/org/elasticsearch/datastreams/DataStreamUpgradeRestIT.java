@@ -21,8 +21,11 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -44,6 +47,8 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
     }
 
     public void testCompatibleMappingUpgrade() throws Exception {
+        waitForLogsComponentTemplateInitialization();
+
         // Create pipeline
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error1");
         putPipelineRequest.setJsonEntity("{\"processors\":[]}");
@@ -145,6 +150,8 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
     }
 
     public void testConflictingMappingUpgrade() throws Exception {
+        waitForLogsComponentTemplateInitialization();
+
         // Create pipeline
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error1");
         putPipelineRequest.setJsonEntity("{\"processors\":[]}");
@@ -267,5 +274,24 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
             Object value = XContentMapValues.extractValue("_source." + requiredField, hit);
             assertThat(value, notNullValue());
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void waitForLogsComponentTemplateInitialization() throws Exception {
+        assertBusy(() -> {
+            Request logsComponentTemplateRequest = new Request("GET", "/_component_template/logs-*");
+            Response response = client().performRequest(logsComponentTemplateRequest);
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+            Map<?, ?> responseBody = XContentHelper.convertToMap(
+                JsonXContent.jsonXContent,
+                EntityUtils.toString(response.getEntity()),
+                false
+            );
+            List<?> componentTemplates = (List<?>) responseBody.get("component_templates");
+            assertThat(componentTemplates.size(), equalTo(2));
+            Set<String> names = componentTemplates.stream().map(m -> ((Map<String, String>) m).get("name")).collect(Collectors.toSet());
+            assertThat(names, contains("logs-mappings", "logs-settings"));
+        });
     }
 }

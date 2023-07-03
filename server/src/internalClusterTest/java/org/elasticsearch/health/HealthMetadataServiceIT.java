@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.health.metadata.HealthMetadata;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Before;
@@ -140,22 +141,18 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
                 assertEquals(shardLimitsMetadata, initialShardLimits);
             }
-            Settings.Builder builder = Settings.builder()
+            Settings.Builder settingsBuilder = Settings.builder()
                 .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), updatedLowWatermark)
                 .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), updatedHighWatermark)
                 .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), updatedFloodStageWatermark)
                 .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), updatedShardLimits.maxShardsPerNode())
                 .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), updatedShardLimits.maxShardsPerNodeFrozen());
             if (percentageMode) {
-                builder = builder.put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), updatedLowMaxHeadroom)
+                settingsBuilder = settingsBuilder.put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), updatedLowMaxHeadroom)
                     .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), updatedHighMaxHeadroom)
                     .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), updatedFloodStageMaxHeadroom);
             }
-            internalCluster.client()
-                .admin()
-                .cluster()
-                .updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(builder))
-                .actionGet();
+            updateSettings(internalCluster, settingsBuilder);
 
             assertBusy(() -> {
                 var healthMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state());
@@ -205,6 +202,61 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 assertEquals(shardLimitsMetadata, updatedShardLimits);
             });
         }
+    }
+
+    public void testHealthNodeToggleEnabled() throws Exception {
+        try (InternalTestCluster internalCluster = internalCluster()) {
+            int numberOfNodes = 3;
+            Map<String, String> watermarkByNode = new HashMap<>();
+            Map<String, ByteSizeValue> maxHeadroomByNode = new HashMap<>();
+            Map<String, HealthMetadata.ShardLimits> shardLimitsPerNode = new HashMap<>();
+            for (int i = 0; i < numberOfNodes; i++) {
+                ByteSizeValue randomBytes = ByteSizeValue.ofBytes(randomLongBetween(6, 19));
+                String customWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
+                ByteSizeValue customMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
+                var customShardLimits = new HealthMetadata.ShardLimits(randomIntBetween(1, 1000), randomIntBetween(1001, 2000));
+                String nodeName = startNode(internalCluster, customWatermark, customMaxHeadroom.toString(), customShardLimits);
+                watermarkByNode.put(nodeName, customWatermark);
+                maxHeadroomByNode.put(nodeName, customMaxHeadroom);
+                shardLimitsPerNode.put(nodeName, customShardLimits);
+            }
+
+            String electedMaster = internalCluster.getMasterName();
+            {
+                var healthMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state());
+                var diskMetadata = healthMetadata.getDiskMetadata();
+                assertThat(diskMetadata.describeHighWatermark(), equalTo(watermarkByNode.get(electedMaster)));
+                assertThat(diskMetadata.highMaxHeadroom(), equalTo(maxHeadroomByNode.get(electedMaster)));
+
+                var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
+                assertEquals(shardLimitsMetadata, shardLimitsPerNode.get(electedMaster));
+            }
+
+            // toggle the health metadata service so we can check that the posted settings are still from the master node
+            updateSettings(internalCluster, Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false));
+
+            updateSettings(internalCluster, Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), true));
+
+            electedMaster = internalCluster.getMasterName();
+            ensureStableCluster(numberOfNodes);
+            {
+                var healthMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state());
+                var diskMetadata = healthMetadata.getDiskMetadata();
+                assertThat(diskMetadata.describeHighWatermark(), equalTo(watermarkByNode.get(electedMaster)));
+                assertThat(diskMetadata.highMaxHeadroom(), equalTo(maxHeadroomByNode.get(electedMaster)));
+
+                var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
+                assertEquals(shardLimitsMetadata, shardLimitsPerNode.get(electedMaster));
+            }
+        }
+    }
+
+    private static void updateSettings(InternalTestCluster internalCluster, Settings.Builder settings) {
+        internalCluster.client()
+            .admin()
+            .cluster()
+            .updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(settings))
+            .actionGet();
     }
 
     private String startNode(

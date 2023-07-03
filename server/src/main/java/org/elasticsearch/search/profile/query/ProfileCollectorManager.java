@@ -40,6 +40,7 @@ public final class ProfileCollectorManager<T> implements CollectorManager<Intern
     }
 
     public T reduce(Collection<InternalProfileCollector> profileCollectors) throws IOException {
+        assert profileCollectors.size() > 0 : "at least one collector expected";
         List<Collector> unwrapped = profileCollectors.stream()
             .map(InternalProfileCollector::getWrappedCollector)
             .collect(Collectors.toList());
@@ -50,7 +51,6 @@ public final class ProfileCollectorManager<T> implements CollectorManager<Intern
             .collect(Collectors.toList());
 
         long totalTime = resultsPerProfiler.stream().map(CollectorResult::getTime).reduce(0L, Long::sum);
-        assert resultsPerProfiler.size() > 0 : "newCollector() should at least be called once";
         String collectorName = resultsPerProfiler.get(0).getName();
         this.collectorTree = new CollectorResult(collectorName, reason, totalTime, Collections.emptyList());
         return returnValue;

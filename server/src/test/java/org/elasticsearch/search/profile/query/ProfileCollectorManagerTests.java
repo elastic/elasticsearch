@@ -25,8 +25,10 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public class ProfileCollectorManagerTests extends ESTestCase {
 
@@ -61,13 +63,23 @@ public class ProfileCollectorManagerTests extends ESTestCase {
             }
         }, CollectorResult.REASON_SEARCH_TOP_HITS);
         int runs = randomIntBetween(5, 10);
+        List<InternalProfileCollector> collectors = new ArrayList<>();
         for (int i = 0; i < runs; i++) {
-            InternalProfileCollector internalProfileCollector = pcm.newCollector();
-            assertEquals(i, ((TestCollector) internalProfileCollector.getWrappedCollector()).id);
+            collectors.add(pcm.newCollector());
+            assertEquals(i, ((TestCollector) collectors.get(i).getWrappedCollector()).id);
         }
-        Integer returnValue = pcm.reduce(Collections.emptyList());
+        Integer returnValue = pcm.reduce(collectors);
         assertEquals(runs, returnValue.intValue());
         assertTrue(reduceCalled.get());
+    }
+
+    public void testReduceEmpty() {
+        ProfileCollectorManager<TopDocs> pcm = new ProfileCollectorManager<>(
+            TopScoreDocCollector.createSharedManager(10, null, 1000),
+            CollectorResult.REASON_SEARCH_TOP_HITS
+        );
+        AssertionError ae = expectThrows(AssertionError.class, () -> pcm.reduce(Collections.emptyList()));
+        assertEquals("at least one collector expected", ae.getMessage());
     }
 
     /**
@@ -87,7 +99,6 @@ public class ProfileCollectorManagerTests extends ESTestCase {
             writer.flush();
             IndexReader reader = writer.getReader();
             IndexSearcher searcher = newSearcher(reader);
-            int numSlices = searcher.getSlices() == null ? 1 : searcher.getSlices().length;
             searcher.setSimilarity(new BM25Similarity());
 
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(10, null, 1000);

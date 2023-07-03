@@ -108,11 +108,7 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
 
         @Override
         public WordCounts map(Stream<Tuple<Field, List<Object>>> keyValues, WordCounts wordCounts) {
-
-            keyValues.forEach(
-                v -> v.v2().forEach(word -> wordCounts.frequencies.compute((String) word, (k, c) -> (c == null) ? 1 : c + 1))
-            );
-
+            keyValues.forEach(v -> v.v2().forEach(word -> wordCounts.frequencies.merge((String) word, 1L, Long::sum)));
             return wordCounts;
         }
 

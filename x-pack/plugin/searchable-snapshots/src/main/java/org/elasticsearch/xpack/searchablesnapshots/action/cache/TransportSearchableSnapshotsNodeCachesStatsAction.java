@@ -108,7 +108,6 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             resolvedNodes = Arrays.stream(request.nodesIds())
                 .filter(dataNodes::containsKey)
                 .map(dataNodes::get)
-                .toList()
                 .toArray(DiscoveryNode[]::new);
         }
         request.setConcreteNodes(resolvedNodes);

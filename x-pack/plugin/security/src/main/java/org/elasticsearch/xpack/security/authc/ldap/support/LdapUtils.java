@@ -553,8 +553,7 @@ public final class LdapUtils {
             // in order to get the actual object we are searching for
             final String[] referralUrls = referenceList.stream()
                 .flatMap((ref) -> Arrays.stream(ref.getReferralURLs()))
-                .toList()
-                .toArray(Strings.EMPTY_ARRAY);
+                .toArray(String[]::new);
             final SearchRequest request = searchRequestRef.get();
             if (referralUrls.length == 0 || request.followReferrals(ldapConnection) == false) {
                 // either no referrals to follow or we have explicitly disabled referral following

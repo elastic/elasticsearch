@@ -266,7 +266,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             return;
         }
         Set<String> transformsWithoutTasks = new HashSet<>(request.getExpandedIds());
-        response.getTransformsStats().stream().map(TransformStats::getId).toList().forEach(transformsWithoutTasks::remove);
+        response.getTransformsStats().stream().map(TransformStats::getId).forEach(transformsWithoutTasks::remove);
 
         // Small assurance that we are at least below the max. Terms search has a hard limit of 10k, we should at least be below that.
         assert transformsWithoutTasks.size() <= Request.MAX_SIZE_RETURN;

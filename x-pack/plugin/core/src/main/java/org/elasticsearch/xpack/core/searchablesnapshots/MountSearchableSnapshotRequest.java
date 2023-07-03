@@ -70,7 +70,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         PARSER.declareField(optionalConstructorArg(), Settings::fromXContent, INDEX_SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(
             optionalConstructorArg(),
-            p -> p.list().stream().map(s -> (String) s).toList().toArray(Strings.EMPTY_ARRAY),
+            p -> p.list().stream().map(s -> (String) s).toArray(String[]::new),
             IGNORE_INDEX_SETTINGS_FIELD,
             ObjectParser.ValueType.STRING_ARRAY
         );

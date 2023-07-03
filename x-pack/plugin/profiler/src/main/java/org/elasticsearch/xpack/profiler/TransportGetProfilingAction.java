@@ -130,7 +130,13 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             .execute(ActionListener.wrap(searchResponse -> {
                 long sampleCount = searchResponse.getHits().getTotalHits().value;
                 EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
-                log.debug("getResampledIndex took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                log.debug(
+                    "getResampledIndex took ["
+                        + (System.nanoTime() - start) / 1_000_000.0d
+                        + " ms]. Using ["
+                        + resampledIndex.getName()
+                        + "]"
+                );
                 searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
             }, e -> {
                 // All profiling-events data streams are created lazily. In a relatively empty cluster it can happen that there are so few
@@ -194,7 +200,13 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                         stackTraceEvents.put(bucket.getKeyAsString(), finalCount);
                     }
                 }
-                log.debug("searchEventGroupByStackTrace took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                log.debug(
+                    "searchEventGroupByStackTrace took ["
+                        + (System.nanoTime() - start) / 1_000_000.0d
+                        + " ms]. Found ["
+                        + stackTraceEvents.size()
+                        + "] events."
+                );
                 if (stackTraceEvents.isEmpty() == false) {
                     responseBuilder.setStart(Instant.ofEpochMilli(minTime));
                     responseBuilder.setEnd(Instant.ofEpochMilli(maxTime));
@@ -267,6 +279,12 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private final AtomicInteger totalFrames = new AtomicInteger();
         private final long start = System.nanoTime();
 
+        private final int expectedStackTraceCount;
+
+        private final Set<String> allStackTraceIds;
+
+        private volatile long idsTook = -1;
+
         private StackTraceHandler(
             ClusterState clusterState,
             Client client,
@@ -276,7 +294,9 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             int slices
         ) {
             this.clusterState = clusterState;
+            this.expectedStackTraceCount = stackTraceCount;
             this.stackTracePerId = new ConcurrentHashMap<>(stackTraceCount);
+            this.allStackTraceIds = Collections.newSetFromMap(new ConcurrentHashMap<>(stackTraceCount));
             this.remainingSlices = new AtomicInteger(slices);
             this.client = client;
             this.responseBuilder = responseBuilder;
@@ -285,6 +305,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
         public void onResponse(MultiGetResponse multiGetItemResponses) {
             for (MultiGetItemResponse trace : multiGetItemResponses) {
+                allStackTraceIds.add(trace.getId());
                 if (trace.isFailed() == false && trace.getResponse().isExists()) {
                     String id = trace.getId();
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
@@ -299,10 +320,24 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     }
                 }
             }
+            // keep only the earliest result
+            if (allStackTraceIds.size() == this.expectedStackTraceCount && idsTook == -1) {
+                idsTook = System.nanoTime() - start;
+            }
+
             if (this.remainingSlices.decrementAndGet() == 0) {
                 responseBuilder.setStackTraces(stackTracePerId);
                 responseBuilder.setTotalFrames(totalFrames.get());
-                log.debug("retrieveStackTraces took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                long took = System.nanoTime() - start;
+                log.debug(
+                    "retrieveStackTraces took ["
+                        + took / 1_000_000.0d
+                        + " ms], took by ids ["
+                        + idsTook / 1_000_000.0d
+                        + " ms], diff ["
+                        + (took - idsTook) / 1_000_000.0d
+                        + "] ms."
+                );
                 retrieveStackTraceDetails(
                     clusterState,
                     client,
@@ -426,6 +461,12 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private final AtomicInteger expectedSlices;
         private final long start = System.nanoTime();
 
+        private final Set<String> allExecutableIds;
+        private final Set<String> allStackFrameIds;
+        private volatile long idsTook = -1;
+        private final int expectedExecutableCount;
+        private final int expectedstackFrameCount;
+
         private DetailsHandler(
             GetProfilingResponseBuilder builder,
             ActionListener<GetProfilingResponse> submitListener,
@@ -436,6 +477,10 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         ) {
             this.builder = builder;
             this.submitListener = submitListener;
+            this.expectedExecutableCount = executableCount;
+            this.expectedstackFrameCount = stackFrameCount;
+            this.allExecutableIds = Collections.newSetFromMap(new ConcurrentHashMap<>(executableCount));
+            this.allStackFrameIds = Collections.newSetFromMap(new ConcurrentHashMap<>(stackFrameCount));
             this.executables = new ConcurrentHashMap<>(executableCount);
             this.stackFrames = new ConcurrentHashMap<>(stackFrameCount);
             // for deciding when we're finished it is irrelevant where a slice originated so we can
@@ -445,6 +490,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
         public void onStackFramesResponse(MultiGetResponse multiGetItemResponses) {
             for (MultiGetItemResponse frame : multiGetItemResponses) {
+                allStackFrameIds.add(frame.getId());
                 if (frame.isFailed() == false && frame.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (stackFrames.containsKey(frame.getId()) == false) {
@@ -457,6 +503,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
         public void onExecutableDetailsResponse(MultiGetResponse multiGetItemResponses) {
             for (MultiGetItemResponse executable : multiGetItemResponses) {
+                allExecutableIds.add(executable.getId());
                 if (executable.isFailed() == false && executable.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (executables.containsKey(executable.getId()) == false) {
@@ -468,10 +515,22 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         }
 
         public void mayFinish() {
+            if (idsTook == -1 && allExecutableIds.size() == expectedExecutableCount && allStackFrameIds.size() == expectedstackFrameCount) {
+                idsTook = System.nanoTime() - start;
+            }
             if (expectedSlices.decrementAndGet() == 0) {
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
-                log.debug("retrieveStackTraceDetails took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                long took = System.nanoTime() - start;
+                log.debug(
+                    "retrieveStackTraceDetails took ["
+                        + took / 1_000_000.0d
+                        + " ms], took by ids ["
+                        + idsTook / 1_000_000.0d
+                        + " ms], diff ["
+                        + (took - idsTook) / 1_000_000.0d
+                        + "] ms."
+                );
                 submitListener.onResponse(builder.build());
             }
         }

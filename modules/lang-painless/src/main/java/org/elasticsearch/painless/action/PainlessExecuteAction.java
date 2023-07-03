@@ -24,8 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -89,7 +87,6 @@ import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -101,15 +98,12 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -188,7 +182,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             }
 
             @Nullable // null means local cluster
-            private String clusterAlias;
+            private String clusterAlias;  // this field is not Writeable, as it is needed only on the initial receiving node
             private final String index;
             private final BytesReference document;
             private final QueryBuilder query;
@@ -221,15 +215,28 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 query = in.readOptionalNamedWriteable(QueryBuilder.class);
             }
 
-            private Tuple<String, String> parseClusterAliasAndIndex(String indexExpression) {
+            static Tuple<String, String> parseClusterAliasAndIndex(String indexExpression) {
+                if (indexExpression == null) {
+                    // TODO: not sure what to do here - what do the current tests do when index is null?
+                    return new Tuple<>(null, null);
+                }
+                String trimmed = indexExpression.trim();
+                if (trimmed.startsWith(":") || trimmed.endsWith(":")) {
+                    throw new IllegalArgumentException(
+                        "Unable to parse one single valid index name from the provided index: [" + indexExpression + "]"
+                    );
+                }
+
                 // TODO: we are directly parsing and accepting user input here - any security sanitization/checking-of-input required here?
-                String[] parts = indexExpression.split(":");
+                String[] parts = indexExpression.split(":", 2);
                 if (parts.length == 1) {
-                    return new Tuple<>(null, indexExpression);
-                } else if (parts.length == 2) {
+                    return new Tuple<>(null, parts[0]);
+                } else if (parts.length == 2 && parts[1].contains(":") == false) {
                     return new Tuple<>(parts[0], parts[1]);
                 } else {
-                    throw new IllegalArgumentException("Unable to parse a single index name from the provided index: " + indexExpression);
+                    throw new IllegalArgumentException(
+                        "Unable to parse one single valid index name from the provided index: [" + indexExpression + "]"
+                    );
                 }
             }
 
@@ -279,6 +286,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
+                // clusterAlias is not included as only the original coordinator needs to see it and after that it is nullified
+                // before ever sending across the wire
                 out.writeOptionalString(index);
                 out.writeOptionalBytesReference(document);
                 out.writeOptionalString(xContentType != null ? xContentType.mediaTypeWithoutParameters() : null);
@@ -351,7 +360,6 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             script = new Script(in);
             context = fromScriptContextName(in.readString());
             contextSetup = in.readOptionalWriteable(ContextSetup::new);
-            System.err.println("Reqquest(STreaminput): contextSetup: " + contextSetup.toString());
         }
 
         public Script getScript() {
@@ -507,77 +515,16 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            // FIXME - remove this hack code if possible
-            // this code is a hack to workaround the issue with RemoteClusterService..groupIndices - see below
-            String[] indices = request.indices();
-            String contextSetupIndex = request.getContextSetup().getIndex();
-            System.err.println("contextSetupIndex: " + contextSetupIndex);
-            System.err.println("index: " + Arrays.stream(indices).collect(Collectors.toList()));
-            if (indices.length > 1) {
-                throw new IllegalArgumentException(
-                    "Only a single index is supported. Multiple indexes were requested: "
-                        + Arrays.stream(indices).collect(Collectors.toList())
-                );
-            }
-
-            /*
-             * The groupIndices function does not correct handle the input "remote1:blogs,remote2:blogs" - it results in
-             * remoteClusterIndices: {remote1=OriginalIndices{indices=[blogs,remote2:books], indicesOptions=IndicesOptions[...]}}
-             * rather than parsing into two indices {remote1=x, remote2=y}
-             * is that a bug?
-             */
-            Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
-                .groupIndices(request.indicesOptions(), request.indices());
-            OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-
-            System.err.println("localIndices: " + localIndices);
-            System.err.println("remoteClusterIndices: " + remoteClusterIndices);
-
-            // TODO: check that this works with missing index, index = "" and index = " ";
-
-            // TODO: - I don't think this code below is needed (or even works)
-            if (multipleIndicesRequested(remoteClusterIndices, localIndices)) {
-                /// MP: TODO: test that this works as expected
-                throw new IllegalArgumentException(
-                    "Only a single index is supported. Multiple indexes were requested: "
-                        + Arrays.stream(request.indices()).collect(Collectors.toList())
-                );
-            }
-
-            if (localIndices != null) {
+            String clusterAlias = request.getContextSetup().getClusterAlias();
+            if (clusterAlias == null) {
+                // run on local cluster
                 super.doExecute(task, request, listener);
             } else {
-                Optional<Map.Entry<String, OriginalIndices>> first = remoteClusterIndices.entrySet().stream().findFirst();
-                if (first.isPresent() == false) {
-                    throw new IllegalArgumentException("WHAT HEPAPPEND?");  // FIXME
-                }
-
-                String clusterAlias = first.get().getKey();
-                String index = first.get().getValue().indices()[0];
-                System.err.println("remote originalIndices: " + index);
+                // forward to remote cluster
                 Client remoteClusterClient = transportService.getRemoteClusterService().getRemoteClusterClient(threadPool, clusterAlias);
-                GetMappingsResponse getMappingsResponse = remoteClusterClient.admin().indices().prepareGetMappings(index).get();
-                System.err.println("getMappingsResponse: " + getMappingsResponse);
-
-                request.getContextSetup().getIndex();
-                System.err.println("BEFORE: request.getContextSetup().getIndex(): " + request.getContextSetup());
                 request.getContextSetup().setClusterAlias(null);  // once sent to remote shard, cluster alias is "local"
-                System.err.println("BEFORE: request.getContextSetup().getIndex(): " + request.getContextSetup());
-
                 remoteClusterClient.admin().cluster().execute(PainlessExecuteAction.INSTANCE, request, listener);
             }
-        }
-
-        private boolean multipleIndicesRequested(Map<String, OriginalIndices> remoteClusterIndices, OriginalIndices localIndices) {
-            if (localIndices == null) {
-                return remoteClusterIndices.size() > 1;
-            }
-
-            if (remoteClusterIndices.size() > 0 && localIndices.indices().length > 0) {
-                return true;
-            }
-
-            return localIndices.indices().length > 1;
         }
 
         @Override

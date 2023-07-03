@@ -9,6 +9,7 @@ package org.elasticsearch.painless.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -396,4 +397,36 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         assertEquals(2, Integer.parseInt((String) response.getResult()));
     }
 
+    public void testParseClusterAliasAndIndex() {
+        record ValidTestCase(String input, Tuple<String, String> output) {}
+
+        ValidTestCase[] cases = new ValidTestCase[] {
+            // valid index expressions
+            new ValidTestCase("remote1:foo", new Tuple<>("remote1", "foo")),
+            new ValidTestCase("foo", new Tuple<>(null, "foo")),
+            new ValidTestCase("foo,bar", new Tuple<>(null, "foo,bar")), // this method only checks for invalid ":"
+            new ValidTestCase("", new Tuple<>(null, "")),
+            new ValidTestCase(null, new Tuple<>(null, null)) };
+
+        for (ValidTestCase testCase : cases) {
+            Tuple<String, String> output = Request.ContextSetup.parseClusterAliasAndIndex(testCase.input);
+            assertEquals(testCase.output(), output);
+        }
+
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1::foo"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1:foo:"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex(" :remote1:foo"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1:foo: "));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1::::"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("::"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex(":x:"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex(" : : "));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex(":blogs:"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex(":blogs"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex(" :blogs"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("blogs:"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("blogs:  "));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1:foo,remote2:bar"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("a:b,c:d,e:f"));
+    }
 }

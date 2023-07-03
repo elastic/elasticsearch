@@ -291,7 +291,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
             // We want to always have the same ordering of which tasks we un-allocate first.
             // However, the order in which the distributed tasks handle the un-allocation event is not guaranteed.
             .sorted(Comparator.comparing(PersistentTask::getTaskName))
-            .collect(Collectors.toList());
+            .toList();
 
         logger.info(
             "Un-assigning persistent tasks : " + mlTasks.stream().map(PersistentTask::getId).collect(Collectors.joining(", ", "[ ", " ]"))

@@ -61,7 +61,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -326,7 +325,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         filesSet.add(file);
-        List<String> fileNames = filesSet.stream().map(p -> p.getFileName().toString()).collect(Collectors.toList());
+        List<String> fileNames = filesSet.stream().map(p -> p.getFileName().toString()).toList();
         if (Collections.frequency(fileNames, file.getFileName().toString()) > 1) {
             Logger logger = LogManager.getLogger(ESClientYamlSuiteTestCase.class);
             logger.warn(

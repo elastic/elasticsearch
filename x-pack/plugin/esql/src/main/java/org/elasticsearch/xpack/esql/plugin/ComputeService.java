@@ -37,6 +37,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -289,10 +290,13 @@ public class ComputeService {
                 Map<String, Map<Index, AliasFilter>> nodeToAliasFilters = new HashMap<>();
                 for (SearchShardsGroup group : resp.getGroups()) {
                     var shardId = group.shardId();
-                    if (concreteIndices.contains(shardId.getIndexName()) == false) {
+                    if (group.skipped()) {
                         continue;
                     }
-                    if (group.skipped() || group.allocatedNodes().isEmpty()) {
+                    if (group.allocatedNodes().isEmpty()) {
+                        throw new ShardNotFoundException(group.shardId(), "no shard copies found {}", group.shardId());
+                    }
+                    if (concreteIndices.contains(shardId.getIndexName()) == false) {
                         continue;
                     }
                     String targetNode = group.allocatedNodes().get(0);

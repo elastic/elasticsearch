@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -25,6 +27,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -169,5 +172,49 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         assertThat(resp.values().get(0), equalTo(List.of(1L)));
         resp = run("from sales | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
         assertThat(resp.values().get(0), equalTo(List.of(25.0d)));
+    }
+
+    public void testFailOnUnavailableShards() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        String logsOnlyNode = internalCluster().startDataOnlyNode();
+        ElasticsearchAssertions.assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("events")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.routing.allocation.exclude._name", logsOnlyNode)
+                )
+                .setMapping("timestamp", "type=long", "message", "type=keyword")
+        );
+        client().prepareBulk("events")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest().source("timestamp", 1, "message", "a"))
+            .add(new IndexRequest().source("timestamp", 2, "message", "b"))
+            .add(new IndexRequest().source("timestamp", 3, "message", "c"))
+            .get();
+        ElasticsearchAssertions.assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("logs")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.routing.allocation.include._name", logsOnlyNode)
+                )
+                .setMapping("timestamp", "type=long", "message", "type=keyword")
+        );
+        client().prepareBulk("logs")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest().source("timestamp", 10, "message", "aa"))
+            .add(new IndexRequest().source("timestamp", 11, "message", "bb"))
+            .get();
+        EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message");
+        assertThat(resp.values(), hasSize(5));
+        internalCluster().stopNode(logsOnlyNode);
+        ensureClusterSizeConsistency();
+        Exception error = expectThrows(Exception.class, () -> run("from events,logs | KEEP timestamp,message"));
+        assertThat(error.getMessage(), containsString("no shard copies found"));
     }
 }

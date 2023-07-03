@@ -71,7 +71,11 @@ public abstract class DriverRunner {
                 private void done() {
                     if (counter.countDown()) {
                         for (Driver d : drivers) {
-                            Releasables.close(d.driverContext().getSnapshot().releasables());
+                            if (d.status().status() == DriverStatus.Status.QUEUED) {
+                                d.close();
+                            } else {
+                                Releasables.close(d.driverContext().getSnapshot().releasables());
+                            }
                         }
                         Exception error = failure.get();
                         if (error != null) {

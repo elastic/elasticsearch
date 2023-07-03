@@ -53,6 +53,9 @@ public class HealthMetadataService {
     private final MasterServiceTaskQueue<UpsertHealthMetadataTask> taskQueue;
     private volatile boolean enabled;
 
+    // Allows us to know if this node is the elected master without checking the cluster state, effectively protecting
+    // us from checking the cluster state before the cluster state is initialized
+    private volatile boolean isMaster = false;
     // we hold an in-memory representation of the healthMetadata which will be updated by the settings updaters. This way, we can
     // get the initial values (reading default values from `Settings`) and then, potentially, user changed values (they'll be received
     // through the settings updater). Later and if this node is the master, we will always post the latest in-memory HealthMetadata to the
@@ -135,8 +138,13 @@ public class HealthMetadataService {
             return;
         }
 
+        final var prevIsMaster = isMaster;
+        if (prevIsMaster != event.localNodeMaster()) {
+            isMaster = event.localNodeMaster();
+        }
+
         // Wait until every node in the cluster is upgraded to 8.5.0 or later
-        if (event.localNodeMaster() && event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
+        if (isMaster && event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
             if (this.localHealthMetadata.equals(HealthMetadata.getFromClusterState(event.state())) == false) {
                 taskQueue.submitTask("store-local-health-metadata", () -> this.localHealthMetadata, null);
             }

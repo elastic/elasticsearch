@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -51,9 +50,11 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -204,7 +205,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         List<Object> components = new ArrayList<>();
         components.addAll(
@@ -221,7 +223,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 expressionResolver,
                 repositoriesServiceSupplier,
                 tracer,
-                allocationService
+                allocationService,
+                indicesService
             )
         );
 
@@ -241,7 +244,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         expressionResolver,
                         repositoriesServiceSupplier,
                         tracer,
-                        allocationService
+                        allocationService,
+                        indicesService
                     )
                 )
             );
@@ -590,8 +594,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public BiConsumer<Snapshot, Version> addPreRestoreVersionCheck() {
-        List<BiConsumer<Snapshot, Version>> checks = filterPlugins(RepositoryPlugin.class).stream()
+    public BiConsumer<Snapshot, IndexVersion> addPreRestoreVersionCheck() {
+        List<BiConsumer<Snapshot, IndexVersion>> checks = filterPlugins(RepositoryPlugin.class).stream()
             .map(RepositoryPlugin::addPreRestoreVersionCheck)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
@@ -735,16 +739,16 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
         GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> allListeners = new GroupedActionListener<>(
             systemPlugins.size(),
-            ActionListener.wrap(listenerResults -> {
+            finalListener.delegateFailureAndWrap((delegate, listenerResults) -> {
                 // If the clean-up produced only one result, use that to pass along. In most
                 // cases it should be 1-1 mapping of feature to response. Passing back success
                 // prevents us from writing validation tests on this API.
                 if (listenerResults != null && listenerResults.size() == 1) {
-                    finalListener.onResponse(listenerResults.stream().findFirst().get());
+                    delegate.onResponse(listenerResults.stream().findFirst().get());
                 } else {
-                    finalListener.onResponse(ResetFeatureStateStatus.success(getFeatureName()));
+                    delegate.onResponse(ResetFeatureStateStatus.success(getFeatureName()));
                 }
-            }, finalListener::onFailure)
+            })
         );
         systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, client, allListeners));
     }

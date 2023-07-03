@@ -46,6 +46,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
@@ -63,7 +64,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.shuffle;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -310,20 +310,14 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         ShardId shard1 = new ShardId("test1", "_na_", 0);
         ShardId shard2 = new ShardId("test2", "_na_", 0);
         final DiscoveryNode newNode = DiscoveryNodeUtils.builder("newNode").roles(MASTER_DATA_ROLES).build();
-        final DiscoveryNode oldNode1 = DiscoveryNodeUtils.create(
-            "oldNode1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            VersionUtils.getPreviousVersion()
-        );
-        final DiscoveryNode oldNode2 = DiscoveryNodeUtils.create(
-            "oldNode2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            VersionUtils.getPreviousVersion()
-        );
+        final DiscoveryNode oldNode1 = DiscoveryNodeUtils.builder("oldNode1")
+            .roles(MASTER_DATA_ROLES)
+            .version(VersionUtils.getPreviousVersion())
+            .build();
+        final DiscoveryNode oldNode2 = DiscoveryNodeUtils.builder("oldNode2")
+            .roles(MASTER_DATA_ROLES)
+            .version(VersionUtils.getPreviousVersion())
+            .build();
         AllocationId allocationId1P = AllocationId.newInitializing();
         AllocationId allocationId1R = AllocationId.newInitializing();
         AllocationId allocationId2P = AllocationId.newInitializing();
@@ -421,20 +415,14 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testRestoreDoesNotAllocateSnapshotOnOlderNodes() {
         final DiscoveryNode newNode = DiscoveryNodeUtils.builder("newNode").roles(MASTER_DATA_ROLES).build();
-        final DiscoveryNode oldNode1 = DiscoveryNodeUtils.create(
-            "oldNode1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            VersionUtils.getPreviousVersion()
-        );
-        final DiscoveryNode oldNode2 = DiscoveryNodeUtils.create(
-            "oldNode2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            VersionUtils.getPreviousVersion()
-        );
+        final DiscoveryNode oldNode1 = DiscoveryNodeUtils.builder("oldNode1")
+            .roles(MASTER_DATA_ROLES)
+            .version(VersionUtils.getPreviousVersion())
+            .build();
+        final DiscoveryNode oldNode2 = DiscoveryNodeUtils.builder("oldNode2")
+            .roles(MASTER_DATA_ROLES)
+            .version(VersionUtils.getPreviousVersion())
+            .build();
 
         final Snapshot snapshot = new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID()));
         final IndexId indexId = new IndexId("test", UUIDs.randomBase64UUID(random()));
@@ -462,7 +450,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
                     .addAsRestore(
                         metadata.index("test"),
-                        new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT, indexId)
+                        new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, IndexVersion.current(), indexId)
                     )
                     .build()
             )
@@ -621,13 +609,13 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final SnapshotRecoverySource newVersionSnapshot = new SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-            newNode.node().getVersion(),
+            newNode.node().getVersion().indexVersion,
             indexId
         );
         final SnapshotRecoverySource oldVersionSnapshot = new SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-            oldNode.node().getVersion(),
+            oldNode.node().getVersion().indexVersion,
             indexId
         );
 

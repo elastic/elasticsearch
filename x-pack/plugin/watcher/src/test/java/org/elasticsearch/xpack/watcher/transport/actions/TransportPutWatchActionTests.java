@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,8 +43,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -86,7 +85,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.CURRENT);
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.current());
 
         action = new TransportPutWatchAction(
             transportService,
@@ -116,7 +115,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
 
         PutWatchRequest putWatchRequest = new PutWatchRequest();
         putWatchRequest.setId("_id");
-        action.doExecute(putWatchRequest, ActionListener.wrap(r -> {}, e -> assertThat(e, is(nullValue()))));
+        action.doExecute(putWatchRequest, ActionTestUtils.assertNoFailureListener(r -> {}));
 
         ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
         verify(watch.status()).setHeaders(captor.capture());

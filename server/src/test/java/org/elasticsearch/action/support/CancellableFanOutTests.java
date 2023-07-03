@@ -95,6 +95,43 @@ public class CancellableFanOutTests extends ESTestCase {
         }
     }
 
+    public void testSendItemRequestFailure() {
+        final var future = new PlainActionFuture<String>();
+        new CancellableFanOut<String, String, String>() {
+            int counter;
+
+            @Override
+            protected void sendItemRequest(String item, ActionListener<String> listener) {
+                final var exception = new ElasticsearchException("simulated");
+                if (randomBoolean()) {
+                    throw exception;
+                } else {
+                    listener.onFailure(exception);
+                }
+            }
+
+            @Override
+            protected void onItemResponse(String item, String itemResponse) {
+                fail("should not get item response");
+            }
+
+            @Override
+            protected void onItemFailure(String item, Exception e) {
+                assertEquals("simulated", e.getMessage());
+                counter += 1;
+            }
+
+            @Override
+            protected String onCompletion() {
+                assertEquals(3, counter);
+                return "completed";
+            }
+        }.run(null, List.of("a", "b", "c").iterator(), future);
+
+        assertTrue(future.isDone());
+        assertEquals("completed", future.actionGet());
+    }
+
     public void testReleaseOnCancellation() {
         final var task = new CancellableTask(1, "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of());
         final var future = new PlainActionFuture<String>();

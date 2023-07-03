@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -69,6 +70,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -1501,32 +1503,37 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-    public void testAsyncFsync() throws InterruptedException, IOException {
+    public void testAsyncFsync() throws Exception {
         IndexShard shard = newStartedShard();
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
-        Thread[] thread = new Thread[randomIntBetween(3, 5)];
-        CountDownLatch latch = new CountDownLatch(thread.length);
-        for (int i = 0; i < thread.length; i++) {
-            thread[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        latch.countDown();
-                        latch.await();
-                        for (int i = 0; i < 10000; i++) {
-                            semaphore.acquire();
-                            shard.sync(new Translog.Location(randomLong(), randomLong(), randomInt()), (ex) -> semaphore.release());
+        try (var operationPermit = getOperationPermit(shard)) {
+            Thread[] thread = new Thread[randomIntBetween(3, 5)];
+            CountDownLatch latch = new CountDownLatch(thread.length);
+            for (int i = 0; i < thread.length; i++) {
+                thread[i] = new Thread() {
+                    @Override
+                    public void run() {
+                        try {
+                            latch.countDown();
+                            latch.await();
+                            for (int i = 0; i < 10000; i++) {
+                                semaphore.acquire();
+                                shard.syncAfterWrite(
+                                    new Translog.Location(randomLong(), randomLong(), randomInt()),
+                                    e -> semaphore.release()
+                                );
+                            }
+                        } catch (Exception ex) {
+                            throw new RuntimeException(ex);
                         }
-                    } catch (Exception ex) {
-                        throw new RuntimeException(ex);
                     }
-                }
-            };
-            thread[i].start();
-        }
+                };
+                thread[i].start();
+            }
 
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
+            for (int i = 0; i < thread.length; i++) {
+                thread[i].join();
+            }
         }
         assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
 
@@ -2606,7 +2613,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 snapshot,
-                Version.CURRENT,
+                IndexVersion.current(),
                 new IndexId("test", UUIDs.randomBase64UUID(random()))
             )
         );
@@ -2862,10 +2869,10 @@ public class IndexShardTests extends IndexShardTestCase {
                     maxSeqNoOfUpdatesOrDeletes,
                     retentionLeases,
                     mappingVersion,
-                    ActionListener.wrap(r -> {
+                    listener.delegateFailureAndWrap((l, r) -> {
                         assertFalse(replica.isSyncNeeded());
-                        listener.onResponse(r);
-                    }, listener::onFailure)
+                        l.onResponse(r);
+                    })
                 );
             }
         }, true, true);
@@ -2986,11 +2993,11 @@ public class IndexShardTests extends IndexShardTestCase {
                     maxSeqNoOfUpdatesOrDeletes,
                     retentionLeases,
                     mappingVersion,
-                    ActionListener.wrap(checkpoint -> {
-                        listener.onResponse(checkpoint);
+                    listener.delegateFailureAndWrap((l, checkpoint) -> {
+                        l.onResponse(checkpoint);
                         // Shard should now be active since we did recover:
                         assertTrue(replica.isActive());
-                    }, listener::onFailure)
+                    })
                 );
             }
         }, false, true);
@@ -3025,10 +3032,10 @@ public class IndexShardTests extends IndexShardTestCase {
             // we're only checking that listeners are called when the engine is open, before there is no point
             @Override
             public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
-                super.prepareForTranslogOperations(totalTranslogOps, ActionListener.wrap(r -> {
+                super.prepareForTranslogOperations(totalTranslogOps, listener.delegateFailureAndWrap((l, r) -> {
                     assertListenerCalled.accept(replica);
-                    listener.onResponse(r);
-                }, listener::onFailure));
+                    l.onResponse(r);
+                }));
             }
 
             @Override
@@ -3048,19 +3055,19 @@ public class IndexShardTests extends IndexShardTestCase {
                     maxSeqNoOfUpdatesOrDeletes,
                     retentionLeases,
                     mappingVersion,
-                    ActionListener.wrap(r -> {
+                    listener.delegateFailureAndWrap((l, r) -> {
                         assertListenerCalled.accept(replica);
-                        listener.onResponse(r);
-                    }, listener::onFailure)
+                        l.onResponse(r);
+                    })
                 );
             }
 
             @Override
             public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
-                super.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, ActionListener.wrap(r -> {
+                super.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, listener.delegateFailureAndWrap((l, r) -> {
                     assertListenerCalled.accept(replica);
-                    listener.onResponse(r);
-                }, listener::onFailure));
+                    l.onResponse(r);
+                }));
             }
         }, false, true);
 
@@ -3764,7 +3771,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertBusy(() -> assertTrue(primary.isSearchIdle()));
         do {
             // now loop until we are fast enough... shouldn't take long
-            primary.awaitShardSearchActive(aBoolean -> {});
+            primary.ensureShardSearchActive(aBoolean -> {});
             if (primary.isSearchIdle()) {
                 assertTrue(primary.searchIdleTime() >= tenMillis.millis());
             }
@@ -3782,6 +3789,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testScheduledRefresh() throws Exception {
+        // Setup and make shard search idle:
         Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
@@ -3796,27 +3804,26 @@ public class IndexShardTests extends IndexShardTestCase {
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build();
         scopedSettings.applySettings(settings);
 
+        // Index document and ensure refresh is needed but not performed:
         assertFalse(primary.getEngine().refreshNeeded());
         indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
         long lastSearchAccess = primary.getLastSearcherAccess();
+        // Now since shard is search idle scheduleRefresh(...) shouldn't refresh even if a refresh is needed:
         PlainActionFuture<Boolean> future2 = PlainActionFuture.newFuture();
         primary.scheduledRefresh(future2);
         assertFalse(future2.actionGet());
         assertEquals(lastSearchAccess, primary.getLastSearcherAccess());
         // wait until the thread-pool has moved the timestamp otherwise we can't assert on this below
         assertBusy(() -> assertThat(primary.getThreadPool().relativeTimeInMillis(), greaterThan(lastSearchAccess)));
-        CountDownLatch latch = new CountDownLatch(10);
-        for (int i = 0; i < 10; i++) {
-            primary.awaitShardSearchActive(refreshed -> {
-                assertTrue(refreshed);
-                try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
-                    assertEquals(2, searcher.getIndexReader().numDocs());
-                } finally {
-                    latch.countDown();
-                }
-            });
-        }
+
+        // Make shard search active again and ensure previously index document is visible:
+        long refreshesBefore = primary.refreshStats().getTotal();
+        primary.ensureShardSearchActive(registered -> { assertTrue(registered); });
+        assertBusy(() -> {
+            assertFalse(primary.hasRefreshPending());
+            assertThat(primary.refreshStats().getTotal(), equalTo(refreshesBefore + 1));
+        });
         assertNotEquals(
             "awaitShardSearchActive must access a searcher to remove search idle state",
             lastSearchAccess,
@@ -3824,25 +3831,24 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         assertTrue(lastSearchAccess < primary.getLastSearcherAccess());
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
-            assertEquals(1, searcher.getIndexReader().numDocs());
+            assertEquals(2, searcher.getIndexReader().numDocs());
         }
-        assertTrue(primary.getEngine().refreshNeeded());
-        PlainActionFuture<Boolean> future3 = PlainActionFuture.newFuture();
-        primary.scheduledRefresh(future3);
-        assertTrue(future3.actionGet());
-        latch.await();
-        CountDownLatch latch1 = new CountDownLatch(1);
-        primary.awaitShardSearchActive(refreshed -> {
-            assertFalse(refreshed);
+
+        // No documents were added and shard is search active so ensureShardSearchActive(...) should behave like a noop:
+        assertFalse(primary.getEngine().refreshNeeded());
+        CountDownLatch latch = new CountDownLatch(1);
+        primary.ensureShardSearchActive(registered -> {
+            assertFalse(registered);
             try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
                 assertEquals(2, searcher.getIndexReader().numDocs());
             } finally {
-                latch1.countDown();
+                latch.countDown();
             }
 
         });
-        latch1.await();
+        latch.await();
 
+        // Index a document while shard is search active and ensure scheduleRefresh(...) makes documen visible:
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         PlainActionFuture<Boolean> future4 = PlainActionFuture.newFuture();
         primary.scheduledRefresh(future4);
@@ -4342,7 +4348,7 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.getOperationPrimaryTerm(),
             shard.getLastKnownGlobalCheckpoint(),
             0L,
-            ActionListener.wrap(r -> {
+            ActionTestUtils.assertNoFailureListener(r -> {
                 try (r) {
                     Translog.Snapshot snapshot = TestTranslog.newSnapshotFromOperations(operations);
                     final DocumentParsingException error = expectThrows(
@@ -4353,7 +4359,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 } finally {
                     engineResetLatch.countDown();
                 }
-            }, e -> { throw new AssertionError(e); }),
+            }),
             TimeValue.timeValueMinutes(1)
         );
         engineResetLatch.await();

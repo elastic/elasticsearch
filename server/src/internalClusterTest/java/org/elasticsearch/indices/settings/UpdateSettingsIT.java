@@ -129,9 +129,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         );
 
         @Override
-        public void onIndexModule(IndexModule indexModule) {}
-
-        @Override
         public List<Setting<?>> getSettings() {
             return Collections.singletonList(FINAL_SETTING);
         }
@@ -686,8 +683,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         // Create a list of not interned strings to make sure interning setting values works
         final List<String> queryFieldsSetting = List.of(new String("foo"), new String("bar"), new String("bla"));
         assertAcked(
-            admin().indices()
-                .prepareUpdateSettings(index1, index2)
+            indicesAdmin().prepareUpdateSettings(index1, index2)
                 .setSettings(Settings.builder().putList("query.default_field", queryFieldsSetting))
         );
         final Settings updatedIndex1SettingsMaster = clusterServiceMaster.state().metadata().index(index1).getSettings();

@@ -69,7 +69,7 @@ if (BuildParams.isSnapshotBuild() == false) {
   // TODO: Remove the following when the following features are released. These tests include new privileges only available under feature flags
   //  which require snapshot builds:
   // * RCS 2.0. cross_cluster_search is only available with untrusted_remote_cluster_feature_flag_registered set
-  // * DLM. manage_dlm privilege is only available with dlm_feature_flag_enabled set
+  // * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
   // We disable these tests for snapshot builds to maintain release build coverage.
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
   restTestBlacklist.add('api_key/50_cross_cluster/*')
@@ -89,6 +89,15 @@ tasks.named("yamlRestTestV7CompatTest").configure {
     'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with wrong time series mappings',
     'analytics/histogram/histogram with wrong time series mappings',
     'analytics/histogram/histogram with time series mappings',
+    'analytics/boxplot/Basic Search',
+    'analytics/boxplot/Search With Runtime Field',
+    'analytics/boxplot/Search With Missing',
+    'analytics/moving_percentile/Basic Search TDigest',
+    'ml/evaluate_data_frame/Test outlier_detection auc_roc',
+    'ml/evaluate_data_frame/Test outlier_detection auc_roc given actual_field is int',
+    'ml/evaluate_data_frame/Test outlier_detection auc_roc include curve',
+    'ml/evaluate_data_frame/Test classification auc_roc',
+    'ml/evaluate_data_frame/Test classification auc_roc with default top_classes_field',
   ].join(',')
 }
 
@@ -215,6 +224,7 @@ testClusters.configureEach {
   extraConfigFile serviceTokens.name, serviceTokens
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+  requiresFeature 'es.inference_rescorer_feature_flag_enabled', Version.fromString("8.10.0")
 }
 
 tasks.register('enforceApiSpecsConvention').configure {

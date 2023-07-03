@@ -20,8 +20,10 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
@@ -51,6 +53,19 @@ import org.elasticsearch.xpack.application.analytics.action.TransportGetAnalytic
 import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
+import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
+import org.elasticsearch.xpack.application.rules.action.DeleteQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.GetQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
+import org.elasticsearch.xpack.application.rules.action.PutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestDeleteQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestGetQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestListQueryRulesetsAction;
+import org.elasticsearch.xpack.application.rules.action.RestPutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportDeleteQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportListQueryRulesetsAction;
+import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -75,6 +90,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -82,17 +98,22 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemIndexPlugin {
+
     public static final String APPLICATION_API_ENDPOINT = "_application";
 
     public static final String SEARCH_APPLICATION_API_ENDPOINT = APPLICATION_API_ENDPOINT + "/search_application";
 
     public static final String BEHAVIORAL_ANALYTICS_API_ENDPOINT = APPLICATION_API_ENDPOINT + "/analytics";
 
+    public static final String QUERY_RULES_API_ENDPOINT = "_query_rules";
+
     private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 
     public static final String FEATURE_NAME = "ent_search";
 
     private final boolean enabled;
+
+    private static final FeatureFlag QUERY_RULES_FEATURE_FLAG = new FeatureFlag("query_rules");
 
     public EnterpriseSearch(Settings settings) {
         this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
@@ -109,20 +130,32 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return List.of(usageAction, infoAction);
         }
-        return List.of(
-            new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
-            new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
-            new ActionHandler<>(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
-            new ActionHandler<>(PostAnalyticsEventAction.INSTANCE, TransportPostAnalyticsEventAction.class),
-            new ActionHandler<>(DeleteSearchApplicationAction.INSTANCE, TransportDeleteSearchApplicationAction.class),
-            new ActionHandler<>(GetSearchApplicationAction.INSTANCE, TransportGetSearchApplicationAction.class),
-            new ActionHandler<>(ListSearchApplicationAction.INSTANCE, TransportListSearchApplicationAction.class),
-            new ActionHandler<>(PutSearchApplicationAction.INSTANCE, TransportPutSearchApplicationAction.class),
-            new ActionHandler<>(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class),
-            new ActionHandler<>(RenderSearchApplicationQueryAction.INSTANCE, TransportRenderSearchApplicationQueryAction.class),
-            usageAction,
-            infoAction
+
+        final List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actionHandlers = new ArrayList<>(
+            List.of(
+                new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
+                new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
+                new ActionHandler<>(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
+                new ActionHandler<>(PostAnalyticsEventAction.INSTANCE, TransportPostAnalyticsEventAction.class),
+                new ActionHandler<>(DeleteSearchApplicationAction.INSTANCE, TransportDeleteSearchApplicationAction.class),
+                new ActionHandler<>(GetSearchApplicationAction.INSTANCE, TransportGetSearchApplicationAction.class),
+                new ActionHandler<>(ListSearchApplicationAction.INSTANCE, TransportListSearchApplicationAction.class),
+                new ActionHandler<>(PutSearchApplicationAction.INSTANCE, TransportPutSearchApplicationAction.class),
+                new ActionHandler<>(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class),
+                new ActionHandler<>(RenderSearchApplicationQueryAction.INSTANCE, TransportRenderSearchApplicationQueryAction.class),
+                usageAction,
+                infoAction
+            )
         );
+
+        if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
+            actionHandlers.add(new ActionHandler<>(DeleteQueryRulesetAction.INSTANCE, TransportDeleteQueryRulesetAction.class));
+            actionHandlers.add(new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class));
+            actionHandlers.add(new ActionHandler<>(ListQueryRulesetsAction.INSTANCE, TransportListQueryRulesetsAction.class));
+            actionHandlers.add(new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class));
+        }
+
+        return Collections.unmodifiableList(actionHandlers);
     }
 
     @Override
@@ -139,18 +172,30 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return List.of(
-            new RestGetSearchApplicationAction(getLicenseState()),
-            new RestListSearchApplicationAction(getLicenseState()),
-            new RestPutSearchApplicationAction(getLicenseState()),
-            new RestDeleteSearchApplicationAction(getLicenseState()),
-            new RestQuerySearchApplicationAction(getLicenseState()),
-            new RestPutAnalyticsCollectionAction(getLicenseState()),
-            new RestGetAnalyticsCollectionAction(getLicenseState()),
-            new RestDeleteAnalyticsCollectionAction(getLicenseState()),
-            new RestPostAnalyticsEventAction(getLicenseState()),
-            new RestRenderSearchApplicationQueryAction(getLicenseState())
+
+        final List<RestHandler> restHandlers = new ArrayList<>(
+            List.of(
+                new RestPutAnalyticsCollectionAction(getLicenseState()),
+                new RestGetAnalyticsCollectionAction(getLicenseState()),
+                new RestDeleteAnalyticsCollectionAction(getLicenseState()),
+                new RestPostAnalyticsEventAction(getLicenseState()),
+                new RestDeleteSearchApplicationAction(getLicenseState()),
+                new RestGetSearchApplicationAction(getLicenseState()),
+                new RestListSearchApplicationAction(getLicenseState()),
+                new RestPutSearchApplicationAction(getLicenseState()),
+                new RestQuerySearchApplicationAction(getLicenseState()),
+                new RestRenderSearchApplicationQueryAction(getLicenseState())
+            )
         );
+
+        if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
+            restHandlers.add(new RestDeleteQueryRulesetAction(getLicenseState()));
+            restHandlers.add(new RestGetQueryRulesetAction(getLicenseState()));
+            restHandlers.add(new RestListQueryRulesetsAction(getLicenseState()));
+            restHandlers.add(new RestPutQueryRulesetAction(getLicenseState()));
+        }
+
+        return Collections.unmodifiableList(restHandlers);
     }
 
     @Override
@@ -167,7 +212,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         if (enabled == false) {
             return Collections.emptyList();
@@ -182,12 +228,19 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
         analyticsTemplateRegistry.initialize();
 
-        return Arrays.asList(analyticsTemplateRegistry);
+        return List.of(analyticsTemplateRegistry);
     }
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Arrays.asList(SearchApplicationIndexService.getSystemIndexDescriptor());
+        if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
+            return Arrays.asList(
+                SearchApplicationIndexService.getSystemIndexDescriptor(),
+                QueryRulesIndexService.getSystemIndexDescriptor()
+            );
+        } else {
+            return Collections.singletonList(SearchApplicationIndexService.getSystemIndexDescriptor());
+        }
     }
 
     @Override

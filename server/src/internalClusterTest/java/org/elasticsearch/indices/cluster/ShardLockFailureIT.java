@@ -108,7 +108,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
             ensureYellow(indexName);
             assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-            assertEquals(ClusterHealthStatus.YELLOW, client().admin().cluster().prepareHealth(indexName).get().getStatus());
+            assertEquals(ClusterHealthStatus.YELLOW, clusterAdmin().prepareHealth(indexName).get().getStatus());
             mockLogAppender.assertAllExpectationsMatched();
         }
 
@@ -167,7 +167,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             assertEquals(1, clusterHealthResponse.getUnassignedShards());
         }
 
-        assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true));
+        assertAcked(clusterAdmin().prepareReroute().setRetryFailed(true));
         ensureGreen(indexName);
     }
 }

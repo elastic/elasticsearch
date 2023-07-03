@@ -28,6 +28,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
+    requires org.elasticsearch.tdigest;
 
     requires com.sun.jna;
     requires hppc;
@@ -35,7 +36,6 @@ module org.elasticsearch.server {
     requires jopt.simple;
     requires log4j2.ecs.layout;
     requires org.lz4.java;
-    requires t.digest;
 
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
@@ -371,6 +371,7 @@ module org.elasticsearch.server {
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
 
     exports org.elasticsearch.action.dlm;
+    exports org.elasticsearch.action.downsample;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;

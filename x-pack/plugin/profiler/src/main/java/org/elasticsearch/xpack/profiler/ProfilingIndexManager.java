@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.io.Closeable;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -216,12 +217,7 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
         }
 
         private String indexPrefix() {
-            StringBuilder sb = new StringBuilder();
-            sb.append(".");
-            sb.append(name);
-            sb.append("-v");
-            sb.append(ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
-            return sb.toString();
+            return String.format(Locale.ROOT, ".%s-v%03d", name, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
         }
 
         @Override

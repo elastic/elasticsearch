@@ -136,7 +136,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public TransportVersion getTransportVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override

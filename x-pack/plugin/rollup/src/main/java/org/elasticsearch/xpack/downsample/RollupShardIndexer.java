@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Rounding;
@@ -45,7 +46,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
@@ -384,9 +384,28 @@ class RollupShardIndexer {
         private long timestamp;
         private int docCount;
         private final List<AbstractDownsampleFieldProducer> rollupFieldProducers;
+        private final List<DownsampleFieldSerializer> groupedProducers;
 
         RollupBucketBuilder(List<AbstractDownsampleFieldProducer> rollupFieldProducers) {
             this.rollupFieldProducers = rollupFieldProducers;
+            /*
+             * The rollup field producers for aggregate_metric_double all share the same name (this is
+             * the name they will be serialized in the target index). We group all field producers by
+             * name. If grouping yields multiple rollup field producers, we delegate serialization to
+             * the AggregateMetricFieldSerializer class.
+             */
+            groupedProducers = rollupFieldProducers.stream()
+                .collect(groupingBy(AbstractDownsampleFieldProducer::name))
+                .entrySet()
+                .stream()
+                .map(e -> {
+                    if (e.getValue().size() == 1) {
+                        return e.getValue().get(0);
+                    } else {
+                        return new AggregateMetricFieldSerializer(e.getKey(), e.getValue());
+                    }
+                })
+                .toList();
         }
 
         /**
@@ -434,25 +453,6 @@ class RollupShardIndexer {
                 assert e.getValue() != null;
                 builder.field((String) e.getKey(), e.getValue());
             }
-
-            /*
-             * The rollup field producers for aggregate_metric_double all share the same name (this is
-             * the name they will be serialized in the target index). We group all field producers by
-             * name. If grouping yields multiple rollup field producers, we delegate serialization to
-             * the AggregateMetricFieldSerializer class.
-             */
-            List<DownsampleFieldSerializer> groupedProducers = rollupFieldProducers.stream()
-                .collect(groupingBy(AbstractDownsampleFieldProducer::name))
-                .entrySet()
-                .stream()
-                .map(e -> {
-                    if (e.getValue().size() == 1) {
-                        return e.getValue().get(0);
-                    } else {
-                        return new AggregateMetricFieldSerializer(e.getKey(), e.getValue());
-                    }
-                })
-                .toList();
 
             // Serialize fields
             for (DownsampleFieldSerializer fieldProducer : groupedProducers) {

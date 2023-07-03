@@ -20,8 +20,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -193,7 +194,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     public void testDynamicMapperWithBadMapping() throws IOException {
         {
             // in 7.x versions this will issue a deprecation warning
-            Version version = VersionUtils.randomCompatibleVersion(random(), Version.V_7_0_0);
+            IndexVersion version = VersionUtils.randomCompatibleVersion(random(), Version.V_7_0_0).indexVersion;
             DocumentMapper mapper = createDocumentMapper(version, topMapping(b -> {
                 b.startArray("dynamic_templates");
                 {
@@ -330,7 +331,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 .endArray()
                 .endObject()
         );
-        MapperService mapperService = createMapperService(Version.CURRENT, Settings.EMPTY, () -> true);
+        MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> true);
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.INDEX_TEMPLATE);
 
         // There should be no update if templates are not set.
@@ -664,7 +665,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        Version createdVersion = randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_7_0);
+        IndexVersion createdVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_0_0, IndexVersion.V_7_7_0);
         MapperService mapperService = createMapperService(createdVersion, mapping);
         assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"type\":\"string\""));
         assertWarnings("""

@@ -11,12 +11,15 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -25,6 +28,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -33,9 +38,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DataLifecycleTests extends AbstractXContentSerializingTestCase<DataLifecycle> {
 
-    public static final DataLifecycle EXPLICIT_INFINITE_RETENTION = new DataLifecycle(DataLifecycle.Retention.NULL);
-    public static final DataLifecycle IMPLICIT_INFINITE_RETENTION = new DataLifecycle((TimeValue) null);
-
     @Override
     protected Writeable.Reader<DataLifecycle> instanceReader() {
         return DataLifecycle::new;
@@ -43,28 +45,48 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     @Override
     protected DataLifecycle createTestInstance() {
-        return switch (randomInt(2)) {
-            case 0 -> IMPLICIT_INFINITE_RETENTION;
-            case 1 -> EXPLICIT_INFINITE_RETENTION;
-            default -> new DataLifecycle(randomMillisUpToYear9999());
-        };
+        return randomLifecycle();
     }
 
     @Override
     protected DataLifecycle mutateInstance(DataLifecycle instance) throws IOException {
-        if (IMPLICIT_INFINITE_RETENTION.equals(instance)) {
-            return randomBoolean() ? EXPLICIT_INFINITE_RETENTION : new DataLifecycle(randomMillisUpToYear9999());
+        var retention = instance.getDataRetention();
+        var downsampling = instance.getDownsampling();
+        if (randomBoolean()) {
+            if (retention == null || retention == DataLifecycle.Retention.NULL) {
+                retention = randomValueOtherThan(retention, DataLifecycleTests::randomRetention);
+            } else {
+                retention = switch (randomInt(2)) {
+                    case 0 -> null;
+                    case 1 -> DataLifecycle.Retention.NULL;
+                    default -> new DataLifecycle.Retention(
+                        TimeValue.timeValueMillis(randomValueOtherThan(retention.value().millis(), ESTestCase::randomMillisUpToYear9999))
+                    );
+                };
+            }
+        } else {
+            if (downsampling == null || downsampling == DataLifecycle.Downsampling.NULL) {
+                downsampling = randomValueOtherThan(downsampling, DataLifecycleTests::randomDownsampling);
+            } else {
+                downsampling = switch (randomInt(2)) {
+                    case 0 -> null;
+                    case 1 -> DataLifecycle.Downsampling.NULL;
+                    default -> {
+                        if (downsampling.rounds().size() == 1) {
+                            yield new DataLifecycle.Downsampling(
+                                List.of(downsampling.rounds().get(0), nextRound(downsampling.rounds().get(0)))
+                            );
+
+                        } else {
+                            var updatedRounds = new ArrayList<>(downsampling.rounds());
+                            updatedRounds.remove(randomInt(downsampling.rounds().size() - 1));
+                            yield new DataLifecycle.Downsampling(updatedRounds);
+                        }
+                    }
+                };
+            }
         }
-        if (EXPLICIT_INFINITE_RETENTION.equals(instance)) {
-            return randomBoolean() ? IMPLICIT_INFINITE_RETENTION : new DataLifecycle(randomMillisUpToYear9999());
-        }
-        return switch (randomInt(2)) {
-            case 0 -> IMPLICIT_INFINITE_RETENTION;
-            case 1 -> EXPLICIT_INFINITE_RETENTION;
-            default -> new DataLifecycle(
-                randomValueOtherThan(instance.getEffectiveDataRetention().millis(), ESTestCase::randomMillisUpToYear9999)
-            );
-        };
+        return new DataLifecycle(retention, downsampling);
     }
 
     @Override
@@ -94,7 +116,7 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     public void testDefaultClusterSetting() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        RolloverConfiguration rolloverConfiguration = clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
+        RolloverConfiguration rolloverConfiguration = clusterSettings.get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         assertThat(rolloverConfiguration.getAutomaticConditions(), equalTo(Set.of("max_age")));
         RolloverConditions concreteConditions = rolloverConfiguration.getConcreteConditions();
         assertThat(concreteConditions.getMaxPrimaryShardSize(), equalTo(ByteSizeValue.ofGb(50)));
@@ -113,11 +135,123 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.get(
-                    Settings.builder().put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "").build()
+                () -> DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.get(
+                    Settings.builder().put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "").build()
                 )
             );
             assertThat(exception.getMessage(), equalTo("The rollover conditions cannot be null or blank"));
         }
+    }
+
+    public void testInvalidDownsamplingConfiguration() {
+        {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DataLifecycle.Downsampling(
+                    List.of(
+                        new DataLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(10),
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                        ),
+                        new DataLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(3),
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                        )
+                    )
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo("A downsampling round must have a later 'after' value than the proceeding, 3d is not after 10d.")
+            );
+        }
+        {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DataLifecycle.Downsampling(
+                    List.of(
+                        new DataLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(10),
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                        ),
+                        new DataLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(30),
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                        )
+                    )
+                )
+            );
+            assertThat(exception.getMessage(), equalTo("Downsampling interval [2h] must be greater than the source index interval [2h]."));
+        }
+        {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DataLifecycle.Downsampling(
+                    List.of(
+                        new DataLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(10),
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                        ),
+                        new DataLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(30),
+                            new DownsampleConfig(new DateHistogramInterval("3h"))
+                        )
+                    )
+                )
+            );
+            assertThat(exception.getMessage(), equalTo("Downsampling interval [3h] must be a multiple of the source index interval [2h]."));
+        }
+        {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DataLifecycle.Downsampling(List.of())
+            );
+            assertThat(exception.getMessage(), equalTo("Downsampling configuration should have at least one round configured."));
+        }
+    }
+
+    @Nullable
+    public static DataLifecycle randomLifecycle() {
+        return new DataLifecycle(randomRetention(), randomDownsampling());
+    }
+
+    @Nullable
+    private static DataLifecycle.Retention randomRetention() {
+        return switch (randomInt(2)) {
+            case 0 -> null;
+            case 1 -> DataLifecycle.Retention.NULL;
+            default -> new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+        };
+    }
+
+    @Nullable
+    private static DataLifecycle.Downsampling randomDownsampling() {
+        return switch (randomInt(2)) {
+            case 0 -> null;
+            case 1 -> DataLifecycle.Downsampling.NULL;
+            default -> {
+                var count = randomIntBetween(0, 10);
+                List<DataLifecycle.Downsampling.Round> rounds = new ArrayList<>();
+                var previous = new DataLifecycle.Downsampling.Round(
+                    TimeValue.timeValueDays(randomIntBetween(1, 365)),
+                    new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+                );
+                rounds.add(previous);
+                for (int i = 0; i < count; i++) {
+                    DataLifecycle.Downsampling.Round round = nextRound(previous);
+                    rounds.add(round);
+                    previous = round;
+                }
+                yield new DataLifecycle.Downsampling(rounds);
+            }
+        };
+    }
+
+    private static DataLifecycle.Downsampling.Round nextRound(DataLifecycle.Downsampling.Round previous) {
+        var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
+        var fixedInterval = new DownsampleConfig(
+            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
+        );
+        return new DataLifecycle.Downsampling.Round(after, fixedInterval);
     }
 }

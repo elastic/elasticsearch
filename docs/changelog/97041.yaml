@@ -1,0 +1,5 @@
+pr: 97041
+summary: Introduce downsampling configuration for data stream lifecycle
+area: Data streams
+type: feature
+issues: []

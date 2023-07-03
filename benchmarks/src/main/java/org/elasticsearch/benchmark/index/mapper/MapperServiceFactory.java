@@ -52,7 +52,7 @@ public class MapperServiceFactory {
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         MapperService mapperService = new MapperService(
-            () -> TransportVersion.CURRENT,
+            () -> TransportVersion.current(),
             indexSettings,
             IndexAnalyzers.of(
                 Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),

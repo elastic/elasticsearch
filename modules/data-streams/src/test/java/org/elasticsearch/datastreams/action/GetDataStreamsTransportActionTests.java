@@ -200,10 +200,10 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
     }
 
     public void testGetTimeSeriesMixedDataStream() {
-        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Instant instant = Instant.parse("2023-06-06T14:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
         String dataStream1 = "ds-1";
-        Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
-        Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
+        Instant twoHoursAgo = instant.minus(2, ChronoUnit.HOURS);
+        Instant twoHoursAhead = instant.plus(2, ChronoUnit.HOURS);
 
         ClusterState state;
         {
@@ -212,7 +212,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
                 mBuilder,
                 List.of(Tuple.tuple(dataStream1, 2)),
                 List.of(),
-                now.toEpochMilli(),
+                instant.toEpochMilli(),
                 Settings.EMPTY,
                 0,
                 false
@@ -230,9 +230,9 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings()
         );
 
-        var name1 = DataStream.getDefaultBackingIndexName("ds-1", 1, now.toEpochMilli());
-        var name2 = DataStream.getDefaultBackingIndexName("ds-1", 2, now.toEpochMilli());
-        var name3 = DataStream.getDefaultBackingIndexName("ds-1", 3, now.toEpochMilli());
+        var name1 = DataStream.getDefaultBackingIndexName("ds-1", 1, instant.toEpochMilli());
+        var name2 = DataStream.getDefaultBackingIndexName("ds-1", 2, instant.toEpochMilli());
+        var name3 = DataStream.getDefaultBackingIndexName("ds-1", 3, twoHoursAgo.toEpochMilli());
         assertThat(
             response.getDataStreams(),
             contains(

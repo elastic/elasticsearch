@@ -51,10 +51,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         clusterService.submitUnbatchedStateUpdateTask(
             "test",
             new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
-                @Override
-                public boolean mustAck(DiscoveryNode discoveryNode) {
-                    return true;
-                }
 
                 @Override
                 public void onAllNodesAcked() {
@@ -206,9 +202,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
                     ackTimeout.set(true);
                     latch.countDown();
                 }
-
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {}
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {

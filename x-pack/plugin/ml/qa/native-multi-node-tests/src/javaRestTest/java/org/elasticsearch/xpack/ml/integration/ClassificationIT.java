@@ -17,7 +17,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Strings;
@@ -25,9 +24,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -38,14 +35,12 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.PerClassSingleValue;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
@@ -117,15 +112,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.process").putNull("logger.org.elasticsearch.xpack.ml.dataframe")
         );
         cleanUp();
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedXContents());
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-        entries.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
-        return new NamedXContentRegistry(entries);
     }
 
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
@@ -331,34 +317,22 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 Arrays.asList(
                     new OneHotEncoding(
                         ALIAS_TO_KEYWORD_FIELD,
-                        MapBuilder.<String, String>newMapBuilder()
-                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom")
-                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom")
-                            .map(),
+                        Map.of(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom", KEYWORD_FIELD_VALUES.get(1), "dog_column_custom"),
                         true
                     ),
                     new OneHotEncoding(
                         ALIAS_TO_NESTED_FIELD,
-                        MapBuilder.<String, String>newMapBuilder()
-                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_1")
-                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_1")
-                            .map(),
+                        Map.of(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_1", KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_1"),
                         true
                     ),
                     new OneHotEncoding(
                         NESTED_FIELD,
-                        MapBuilder.<String, String>newMapBuilder()
-                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2")
-                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2")
-                            .map(),
+                        Map.of(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2", KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2"),
                         true
                     ),
                     new OneHotEncoding(
                         TEXT_FIELD,
-                        MapBuilder.<String, String>newMapBuilder()
-                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3")
-                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3")
-                            .map(),
+                        Map.of(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3", KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3"),
                         true
                     )
                 ),
@@ -1032,18 +1006,12 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 Arrays.asList(
                     new OneHotEncoding(
                         NESTED_FIELD,
-                        MapBuilder.<String, String>newMapBuilder()
-                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2")
-                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2")
-                            .map(),
+                        Map.of(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2", KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2"),
                         true
                     ),
                     new OneHotEncoding(
                         TEXT_FIELD,
-                        MapBuilder.<String, String>newMapBuilder()
-                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3")
-                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3")
-                            .map(),
+                        Map.of(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3", KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3"),
                         true
                     )
                 ),

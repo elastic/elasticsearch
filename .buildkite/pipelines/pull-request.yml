@@ -14,6 +14,7 @@ steps:
         agents:
           provider: gcp
           image: family/brian-elasticsearch-windows-2022
+          imageProject: elastic-images-qa
           machineType: custom-32-98304
           diskType: pd-ssd
           diskSizeGb: 350
@@ -35,7 +36,8 @@ steps:
               - default-windows-archive-no-jdk
         agents:
           provider: gcp
-          image: family/elasticsearch-{{matrix.image}}
+          image: family/brian-elasticsearch-{{matrix.image}}
+          imageProject: elastic-images-qa
           machineType: custom-32-98304
           diskType: pd-ssd
           diskSizeGb: 350
@@ -56,7 +58,8 @@ steps:
               - default-windows-archive
         agents:
           provider: gcp
-          image: family/elasticsearch-{{matrix.image}}
+          image: family/brian-elasticsearch-{{matrix.image}}
+          imageProject: elastic-images-qa
           machineType: custom-32-98304
           diskType: pd-ssd
           diskSizeGb: 350
@@ -68,6 +71,7 @@ steps:
     agents:
       provider: gcp
       image: family/brian-elasticsearch-windows-2022
+      imageProject: elastic-images-qa
       machineType: custom-32-98304
       diskType: pd-ssd
       diskSizeGb: 350
@@ -77,6 +81,7 @@ steps:
     agents:
       provider: gcp
       image: family/brian-elasticsearch-windows-2022
+      imageProject: elastic-images-qa
       machineType: custom-32-98304
       diskType: pd-ssd
       diskSizeGb: 350
@@ -86,6 +91,7 @@ steps:
     agents:
       provider: gcp
       image: family/brian-elasticsearch-windows-2022
+      imageProject: elastic-images-qa
       machineType: custom-32-98304
       diskType: pd-ssd
       diskSizeGb: 350

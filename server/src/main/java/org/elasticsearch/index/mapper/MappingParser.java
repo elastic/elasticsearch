@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -72,19 +73,37 @@ public final class MappingParser {
         return remainingFields.toString();
     }
 
-    @SuppressWarnings("unchecked")
-    Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
+    static Map<String, Object> convertToMap(CompressedXContent source) {
         Objects.requireNonNull(source, "source cannot be null");
-        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
-        if (mapping.isEmpty()) {
+        return XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
+    }
+
+    Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
+        Map<String, Object> mapping = convertToMap(source);
+        return parse(type, mapping, null);
+    }
+
+    /**
+     * A method to parse mapping from a source in a map form, that allows to specify explicit/implicit {@code subobjects} configuration.
+     * Since parsing is affected by the {@code subobjects} setting, the resulted mapping may change according to this setting.
+     * @param type the mapping type
+     * @param mappingSource mapping source already converted to a map form, but not yet processed otherwise
+     * @param explicitSubobjects subobjects configuration to use for this parsing operation
+     * @return a parsed mapping
+     * @throws MapperParsingException in case of parsing error
+     */
+    @SuppressWarnings("unchecked")
+    Mapping parse(@Nullable String type, Map<String, Object> mappingSource, @Nullable Explicit<Boolean> explicitSubobjects)
+        throws MapperParsingException {
+        if (mappingSource.isEmpty()) {
             if (type == null) {
-                throw new MapperParsingException("malformed mapping, no type name found");
+                throw new MapperParsingException("malformed mappingSource, no type name found");
             }
         } else {
-            String rootName = mapping.keySet().iterator().next();
+            String rootName = mappingSource.keySet().iterator().next();
             if (type == null || type.equals(rootName) || documentTypeResolver.apply(type).equals(rootName)) {
                 type = rootName;
-                mapping = (Map<String, Object>) mapping.get(rootName);
+                mappingSource = (Map<String, Object>) mappingSource.get(rootName);
             }
         }
         if (type == null) {
@@ -93,19 +112,16 @@ public final class MappingParser {
         if (type.isEmpty()) {
             throw new MapperParsingException("type cannot be an empty string");
         }
-        return parse(type, mapping);
-    }
 
-    private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         final MappingParserContext mappingParserContext = mappingParserContextSupplier.get();
 
-        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mapping, mappingParserContext);
+        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext, explicitSubobjects);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
         boolean isSourceSynthetic = false;
 
-        Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
+        Iterator<Map.Entry<String, Object>> iterator = mappingSource.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
             String fieldName = entry.getKey();
@@ -130,7 +146,7 @@ public final class MappingParser {
         }
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> removed = (Map<String, Object>) mapping.remove("_meta");
+        Map<String, Object> removed = (Map<String, Object>) mappingSource.remove("_meta");
         if (removed != null) {
             /*
              * It may not be required to copy meta here to maintain immutability but the cost is pretty low here.
@@ -150,7 +166,7 @@ public final class MappingParser {
         }
         if (mappingParserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
             // legacy indices are allowed to have extra definitions that we ignore (we will drop them on import)
-            checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
+            checkNoRemainingFields(mappingSource, "Root mapping definition has unsupported parameters: ");
         }
 
         return new Mapping(

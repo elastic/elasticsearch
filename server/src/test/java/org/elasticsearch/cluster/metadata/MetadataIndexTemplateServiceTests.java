@@ -2492,6 +2492,61 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("missing component templates [fail] that does not exist"));
     }
 
+    public void testComposableTemplateWithSubobjectsFalse() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate subobjects = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "subobjects": false
+            }
+            """), null), null, null);
+
+        ComponentTemplate fieldMapping = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "properties": {
+                "parent.subfield": {
+                  "type": "keyword"
+                }
+              }
+            }
+            """), null), null, null);
+
+        state = service.addComponentTemplate(state, true, "subobjects", subobjects);
+        state = service.addComponentTemplate(state, true, "field_mapping", fieldMapping);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(
+            List.of("test-*"),
+            new Template(null, null, null),
+            List.of("subobjects", "field_mapping"),
+            0L,
+            1L,
+            null,
+            null,
+            null
+        );
+        state = service.addIndexTemplateV2(state, true, "composable-template", it);
+
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "composable-template", "test-index");
+
+        assertNotNull(mappings);
+        assertThat(mappings.size(), equalTo(2));
+        List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
+            try {
+                return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
+            } catch (Exception e) {
+                logger.error(e);
+                fail("failed to parse mappings: " + m.string());
+                return null;
+            }
+        }).toList();
+
+        assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("subobjects", false))));
+        assertThat(
+            parsedMappings.get(1),
+            equalTo(Map.of("_doc", Map.of("properties", Map.of("parent.subfield", Map.of("type", "keyword")))))
+        );
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         ThreadPool testThreadPool = mock(ThreadPool.class);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);

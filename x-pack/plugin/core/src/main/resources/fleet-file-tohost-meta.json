@@ -1,17 +1,19 @@
 {
   "index_patterns": [
-    ".fleet-files-*-*"
+    ".fleet-fileds-tohost-meta-*"
   ],
+  "data_stream": {},
   "priority": 200,
   "composed_of": [],
   "_meta": {
-    "description": "fleet files index template",
+    "description": "fleet file delivery index template",
     "managed": true
   },
   "template": {
     "settings": {
       "index.auto_expand_replicas": "0-1",
-      "index.hidden": true
+      "index.hidden": true,
+      "index.lifecycle.name": ".fleet-file-tohost-meta-ilm-policy"
     },
     "mappings": {
       "_doc": {
@@ -20,7 +22,7 @@
         },
         "dynamic": false,
         "properties": {
-          "upload_start": {
+          "@timestamp": {
             "type": "date"
           },
           "agent_id": {
@@ -30,9 +32,6 @@
             "type": "keyword"
           },
           "source": {
-            "type": "keyword"
-          },
-          "upload_id": {
             "type": "keyword"
           },
           "file": {
@@ -48,6 +47,13 @@
               },
               "name": {
                 "type": "keyword"
+              },
+              "Meta": {
+                "properties": {
+                  "target_agents": {
+                    "type": "keyword"
+                  }
+                }
               }
             }
           }

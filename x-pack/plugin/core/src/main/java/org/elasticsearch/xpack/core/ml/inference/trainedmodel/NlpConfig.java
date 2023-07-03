@@ -29,4 +29,19 @@ public interface NlpConfig extends LenientlyParsedInferenceConfig, StrictlyParse
      * @return the model tokenization parameters
      */
     Tokenization getTokenization();
+
+    @Override
+    default boolean supportsIngestPipeline() {
+        return true;
+    }
+
+    @Override
+    default boolean supportsPipelineAggregation() {
+        return false;
+    }
+
+    @Override
+    default boolean supportsSearchRescorer() {
+        return false;
+    }
 }

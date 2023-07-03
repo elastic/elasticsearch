@@ -94,8 +94,10 @@
 ---
 "Downsample datastream with tier preference":
   - skip:
-      version: " - 8.4.99"
-      reason: "rollup renamed to downsample in 8.5.0"
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/97150"
+#      version: " - 8.4.99"
+#      reason: "rollup renamed to downsample in 8.5.0"
 
   - do:
       indices.put_index_template:

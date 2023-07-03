@@ -165,12 +165,10 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(2));
         DataStream barDataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
         assertThat(barDataStream.getName(), equalTo("metrics-bar"));
-        assertThat(barDataStream.getTimeStampField().getName(), equalTo("@timestamp"));
         assertThat(barDataStream.getIndices().size(), equalTo(1));
         assertThat(barDataStream.getIndices().get(0).getName(), backingIndexEqualTo("metrics-bar", 1));
         DataStream fooDataStream = getDataStreamResponse.getDataStreams().get(1).getDataStream();
         assertThat(fooDataStream.getName(), equalTo("metrics-foo"));
-        assertThat(fooDataStream.getTimeStampField().getName(), equalTo("@timestamp"));
         assertThat(fooDataStream.getIndices().size(), equalTo(1));
         assertThat(fooDataStream.getIndices().get(0).getName(), backingIndexEqualTo("metrics-foo", 1));
 
@@ -462,7 +460,6 @@ public class DataStreamIT extends ESIntegTestCase {
             .actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getTimeStampField().getName(), equalTo("@timestamp"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), equalTo(1));
         String backingIndex = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().get(0).getName();
         assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
@@ -1087,7 +1084,6 @@ public class DataStreamIT extends ESIntegTestCase {
             .actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo("logs-foobar"));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getTimeStampField().getName(), equalTo("@timestamp"));
         Map<?, ?> expectedTimestampMapping = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"));
         assertBackingIndex(
             getDataStreamResponse.getDataStreams().get(0).getDataStream().getWriteIndex().getName(),
@@ -1499,7 +1495,6 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(info.getIlmPolicy(), nullValue());
         DataStream dataStream = info.getDataStream();
         assertThat(dataStream.getName(), equalTo("logs-foobar"));
-        assertThat(dataStream.getTimeStampField().getName(), equalTo("@timestamp"));
         assertThat(dataStream.getIndices().size(), equalTo(1));
         assertThat(dataStream.getIndices().get(0).getName(), backingIndexEqualTo("logs-foobar", 1));
         assertThat(dataStream.getMetadata(), equalTo(Map.of("managed_by", "core-features")));

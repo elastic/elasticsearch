@@ -238,7 +238,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 throws IOException {
                 builder.startObject();
                 builder.field(DataStream.NAME_FIELD.getPreferredName(), dataStream.getName());
-                builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), dataStream.getTimeStampField());
+                builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName())
+                    .startObject()
+                    .field(DataStream.NAME_FIELD.getPreferredName(), DataStream.TIMESTAMP_FIELD_NAME)
+                    .endObject();
                 builder.xContentList(DataStream.INDICES_FIELD.getPreferredName(), dataStream.getIndices());
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
                 if (dataStream.getMetadata() != null) {

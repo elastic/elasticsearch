@@ -326,7 +326,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         int retryCount
     ) {
         final Throwable cause = unwrapCause(failure);
-        if (cause instanceof VersionConflictEngineException versionConflictEngineException && retryCount < request.retryOnConflict()) {
+        if (cause instanceof VersionConflictEngineException && retryCount < request.retryOnConflict()) {
+            VersionConflictEngineException versionConflictEngineException = (VersionConflictEngineException) cause;
             logger.trace(
                 "Retry attempt [{}] of [{}] on version conflict on [{}][{}][{}]",
                 retryCount + 1,

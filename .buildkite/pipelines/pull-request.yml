@@ -20,29 +20,6 @@ steps:
           diskSizeGb: 350
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
-  - group: packaging-tests-windows-nojdk
-    steps:
-      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-windows-nojdk"
-        command: .buildkite\generated-scripts\ca6b2b9c7738eac3d32fd7cd4ac2faa8.bat
-        timeout_in_minutes: 180
-        matrix:
-          setup:
-            image:
-              - windows-2016
-              - windows-2019
-              - windows-2022
-            PACKAGING_TASK:
-              - default-windows-archive
-              - default-windows-archive-no-jdk
-        agents:
-          provider: gcp
-          image: family/brian-elasticsearch-{{matrix.image}}
-          imageProject: elastic-images-qa
-          machineType: custom-32-98304
-          diskType: pd-ssd
-          diskSizeGb: 350
-        env:
-          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - group: packaging-tests-windows
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-windows"

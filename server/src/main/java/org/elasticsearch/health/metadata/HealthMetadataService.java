@@ -146,7 +146,10 @@ public class HealthMetadataService {
             return;
         }
 
-        isMaster = event.localNodeMaster();
+     final boolean prevIsMaster = this.isMaster;
+     if (prevIsMaster != event.localNodeMaster()) {
+        this.isMaster = event.localNodeMaster(); 
+      }
         if (canPostClusterStateUpdates(event.state())) {
             if (this.localHealthMetadata.equals(HealthMetadata.getFromClusterState(event.state())) == false) {
                 taskQueue.submitTask("store-local-health-metadata", () -> this.localHealthMetadata, null);

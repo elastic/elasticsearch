@@ -87,8 +87,8 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
         @SuppressWarnings("unchecked")
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             return Iterators.concat(
-                Iterators.single((ToXContent) (builder, params) -> builder.startObject()),
-                Iterators.concat(policies.stream().map(policy -> Iterators.single((ToXContent) (b, p) -> {
+                Iterators.single((builder, params) -> builder.startObject()),
+                policies.stream().map(policy -> (ToXContent) (b, p) -> {
                     b.startObject(policy.getLifecyclePolicy().getName());
                     b.field("version", policy.getVersion());
                     b.field("modified_date", policy.getModifiedDate());
@@ -96,7 +96,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
                     b.field("in_use_by", policy.getUsage());
                     b.endObject();
                     return b;
-                })).toArray(Iterator[]::new)),
+                }).iterator(),
                 Iterators.single((b, p) -> b.endObject())
             );
         }

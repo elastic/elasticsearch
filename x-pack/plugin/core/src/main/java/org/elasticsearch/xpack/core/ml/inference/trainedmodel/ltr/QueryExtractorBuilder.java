@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -117,11 +118,11 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query) imp
 
     @Override
     public QueryExtractorBuilder rewrite(QueryRewriteContext ctx) throws IOException {
-        QueryProvider rewritten = query.rewrite(ctx);
+        QueryProvider rewritten = Rewriteable.rewrite(query, ctx);
         if (rewritten == query) {
             return this;
         }
-        return new QueryExtractorBuilder(featureName, query);
+        return new QueryExtractorBuilder(featureName, rewritten);
     }
 
     @Override

@@ -7,13 +7,19 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.QueryProviderTests;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.function.Predicate;
 
 public class QueryExtractorBuilderTests extends AbstractXContentSerializingTestCase<QueryExtractorBuilder> {
 
@@ -31,6 +37,11 @@ public class QueryExtractorBuilderTests extends AbstractXContentSerializingTestC
     @Override
     protected boolean supportsUnknownFields() {
         return lenient;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.isEmpty() == false;
     }
 
     @Override
@@ -56,5 +67,15 @@ public class QueryExtractorBuilderTests extends AbstractXContentSerializingTestC
     @Override
     protected QueryExtractorBuilder doParseInstance(XContentParser parser) throws IOException {
         return QueryExtractorBuilder.fromXContent(parser, lenient);
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
     }
 }

@@ -140,10 +140,10 @@ public class QueryProvider implements Writeable, ToXContentObject, Rewriteable<Q
         if (parsedQuery == null) {
             return this;
         }
-        QueryBuilder rewritten = parsedQuery.rewrite(ctx);
+        QueryBuilder rewritten = Rewriteable.rewrite(parsedQuery, ctx);
         if (rewritten == parsedQuery) {
             return this;
         }
-        return new QueryProvider(query, parsedQuery, parsingException);
+        return new QueryProvider(query, rewritten, parsingException);
     }
 }

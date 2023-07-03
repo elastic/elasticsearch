@@ -113,6 +113,7 @@ public class LearnToRankConfigUpdateTests extends AbstractBWCSerializationTestCa
     protected NamedWriteableRegistry writableRegistry() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
         return new NamedWriteableRegistry(namedWriteables);
     }
 

@@ -121,6 +121,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
         namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(

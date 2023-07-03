@@ -42,7 +42,6 @@ public class QueryFeatureExtractor implements FeatureExtractor {
                 continue;
             }
             Scorer scorer = weight.scorer(segmentContext);
-            // Could we just skip all this if the scorer or weight is null???
             if (scorer != null) {
                 disiPriorityQueue.add(new DisiWrapper(scorer));
             }
@@ -56,7 +55,8 @@ public class QueryFeatureExtractor implements FeatureExtractor {
         rankerIterator.advance(docId);
         for (int i = 0; i < featureNames.size(); i++) {
             Scorer scorer = scorers.get(i);
-            if (scorer != null) {
+            // Do we have a scorer, and does it match the provided document?
+            if (scorer != null && scorer.docID() == docId) {
                 featureMap.put(featureNames.get(i), scorer.score());
             }
         }

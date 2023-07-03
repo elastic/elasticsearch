@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Rounding;
@@ -47,6 +48,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupAfterBulkInfo;
+import org.elasticsearch.xpack.core.rollup.action.RollupBeforeBulkInfo;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.Closeable;
@@ -130,7 +134,9 @@ class RollupShardIndexer {
     }
 
     public DownsampleIndexerAction.ShardDownsampleResponse execute() throws IOException {
-        long startTime = System.currentTimeMillis();
+        long startTime = client.threadPool().relativeTimeInMillis();
+        task.setTotalShardDocCount(searcher.getDirectoryReader().numDocs());
+        task.setRollupShardIndexerStatus(RollupShardIndexerStatus.STARTED);
         BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(this::checkCancelled));
@@ -147,10 +153,11 @@ class RollupShardIndexer {
             task.getNumSent(),
             task.getNumIndexed(),
             task.getNumFailed(),
-            TimeValue.timeValueMillis(System.currentTimeMillis() - startTime)
+            TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime)
         );
 
         if (task.getNumIndexed() != task.getNumSent()) {
+            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED);
             throw new ElasticsearchException(
                 "Shard ["
                     + indexShard.shardId()
@@ -163,6 +170,7 @@ class RollupShardIndexer {
         }
 
         if (task.getNumFailed() > 0) {
+            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED);
             throw new ElasticsearchException(
                 "Shard ["
                     + indexShard.shardId()
@@ -173,6 +181,8 @@ class RollupShardIndexer {
                     + "]."
             );
         }
+
+        task.setRollupShardIndexerStatus(RollupShardIndexerStatus.COMPLETED);
 
         return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
@@ -186,20 +196,44 @@ class RollupShardIndexer {
                 task.getNumIndexed(),
                 task.getNumFailed()
             );
+            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.CANCELLED);
             throw new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId()));
         }
     }
 
     private BulkProcessor2 createBulkProcessor() {
         final BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
+
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
                 task.addNumSent(request.numberOfActions());
+                task.setBeforeBulkInfo(
+                    new RollupBeforeBulkInfo(
+                        client.threadPool().absoluteTimeInMillis(),
+                        executionId,
+                        request.estimatedSizeInBytes(),
+                        request.numberOfActions()
+                    )
+                );
             }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                long bulkIngestTookMillis = response.getIngestTookInMillis() >= 0 ? response.getIngestTookInMillis() : 0;
+                long bulkTookMillis = response.getTook().getMillis();
                 task.addNumIndexed(request.numberOfActions());
+                task.setAfterBulkInfo(
+                    new RollupAfterBulkInfo(
+                        client.threadPool().absoluteTimeInMillis(),
+                        executionId,
+                        bulkIngestTookMillis,
+                        bulkTookMillis,
+                        response.hasFailures(),
+                        response.status().getStatus()
+                    )
+                );
+                task.updateRollupBulkInfo(bulkIngestTookMillis, bulkTookMillis);
+
                 if (response.hasFailures()) {
                     List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
                     task.addNumFailed(failedItems.size());
@@ -283,6 +317,8 @@ class RollupShardIndexer {
                             searchExecutionContext.getIndexSettings().getTimestampBounds().startTime()
                         );
                     }
+                    task.setLastSourceTimestamp(timestamp);
+                    task.setLastTargetTimestamp(lastHistoTimestamp);
 
                     if (logger.isTraceEnabled()) {
                         logger.trace(
@@ -339,6 +375,7 @@ class RollupShardIndexer {
                         rollupFieldProducer.collect(docValues, docId);
                     }
                     docsProcessed++;
+                    task.setDocsProcessed(docsProcessed);
                 }
             };
         }
@@ -349,7 +386,9 @@ class RollupShardIndexer {
             if (logger.isTraceEnabled()) {
                 logger.trace("Indexing rollup doc: [{}]", Strings.toString(doc));
             }
-            bulkProcessor.addWithBackpressure(request.request(), () -> abort);
+            IndexRequest indexRequest = request.request();
+            task.setLastIndexingTimestamp(System.currentTimeMillis());
+            bulkProcessor.addWithBackpressure(indexRequest, () -> abort);
         }
 
         @Override

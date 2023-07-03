@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -31,13 +30,17 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Contains integration tests that simulate the new indexing strategy upgrade scenarios.
  */
-public class DataStreamUpgradeRestIT extends ESRestTestCase {
+public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase {
 
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password"));
 
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
+        Settings.Builder builder = Settings.builder();
+        if (System.getProperty("tests.rest.client_path_prefix") != null) {
+            builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client_path_prefix"));
+        }
+        return builder.put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 
     public void testCompatibleMappingUpgrade() throws Exception {

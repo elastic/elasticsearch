@@ -141,14 +141,15 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
                 assertEquals(shardLimitsMetadata, initialShardLimits);
             }
-            Settings.Builder settingsBuilder = Settings.builder()
+            var settingsBuilder = Settings.builder()
                 .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), updatedLowWatermark)
                 .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), updatedHighWatermark)
                 .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), updatedFloodStageWatermark)
                 .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), updatedShardLimits.maxShardsPerNode())
                 .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), updatedShardLimits.maxShardsPerNodeFrozen());
+
             if (percentageMode) {
-                settingsBuilder = settingsBuilder.put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), updatedLowMaxHeadroom)
+                settingsBuilder.put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), updatedLowMaxHeadroom)
                     .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), updatedHighMaxHeadroom)
                     .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), updatedFloodStageMaxHeadroom);
             }

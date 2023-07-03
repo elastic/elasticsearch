@@ -298,7 +298,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
                 if (responseException.getResponse().getStatusLine().getStatusCode() == 404) {
                     fail();
                 }
-                // Throw the exception if it was a different error
+                // Throw the exception, if it was an error we did not anticipate
                 throw responseException;
             }
         });

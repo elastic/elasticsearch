@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.PublicSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -46,6 +47,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
 
     private final MetadataCreateIndexService createIndexService;
     private final SystemIndices systemIndices;
+    private PublicSettings publicSettings;
 
     @Inject
     public TransportCreateIndexAction(
@@ -55,7 +57,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        PublicSettings publicSettings
     ) {
         super(
             CreateIndexAction.NAME,
@@ -70,6 +73,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         );
         this.createIndexService = createIndexService;
         this.systemIndices = systemIndices;
+        this.publicSettings = publicSettings;
     }
 
     @Override
@@ -84,6 +88,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         final ClusterState state,
         final ActionListener<CreateIndexResponse> listener
     ) {
+        publicSettings.validateSettings(request.settings());
         String cause = request.cause();
         if (cause.isEmpty()) {
             cause = "api";

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.PublicSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.indices.IndicesService;
@@ -42,6 +43,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
 
     private final IndicesService indicesService;
     private final IndexScopedSettings indexScopedSettings;
+    private final PublicSettings publicSettings;
     private final SettingsFilter settingsFilter;
 
     @Inject
@@ -53,7 +55,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndicesService indicesService,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        PublicSettings publicSettings
     ) {
         super(
             GetIndexAction.NAME,
@@ -68,6 +71,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         this.indicesService = indicesService;
         this.settingsFilter = settingsFilter;
         this.indexScopedSettings = indexScopedSettings;
+        this.publicSettings = publicSettings;
     }
 
     @Override
@@ -137,7 +141,13 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     throw new IllegalStateException("feature [" + feature + "] is not valid");
             }
         }
-        listener.onResponse(new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams));
+        listener.onResponse(
+            new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, filter(settings), filter(defaultSettings), dataStreams)
+        );
+    }
+
+    private Map<String, Settings> filter(Map<String, Settings> settings) {
+        return settings.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> publicSettings.filterPublic(e.getValue())));
     }
 
     private static void checkCancellation(Task task) {

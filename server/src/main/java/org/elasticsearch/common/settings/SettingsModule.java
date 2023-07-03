@@ -35,6 +35,7 @@ public class SettingsModule implements Module {
 
     private final Settings settings;
     private final Set<String> settingsFilterPattern = new HashSet<>();
+    private final Set<Setting<?>> serverlessPublicSettings = new HashSet<>();
     private final Map<String, Setting<?>> nodeSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
     private final Set<Setting<?>> consistentSettings = new HashSet<>();
@@ -150,6 +151,9 @@ public class SettingsModule implements Module {
         if (setting.getKey().contains(".") == false && isS3InsecureCredentials(setting) == false) {
             throw new IllegalArgumentException("setting [" + setting.getKey() + "] is not in any namespace, its name must contain a dot");
         }
+        if (setting.isServerlessPublic()) {
+            serverlessPublicSettings.add(setting);
+        }
         if (setting.isFiltered()) {
             if (settingsFilterPattern.contains(setting.getKey()) == false) {
                 registerSettingsFilter(setting.getKey());
@@ -218,6 +222,10 @@ public class SettingsModule implements Module {
 
     public IndexScopedSettings getIndexScopedSettings() {
         return indexScopedSettings;
+    }
+
+    public Set<Setting<?>> getServerlessPublicSettings() {
+        return serverlessPublicSettings;
     }
 
     public ClusterSettings getClusterSettings() {

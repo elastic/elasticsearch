@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.PublicSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -88,7 +89,8 @@ public class TransportCreateIndexActionTests extends ESTestCase {
             metadataCreateIndexService,
             mock(ActionFilters.class),
             indexNameExpressionResolver,
-            SYSTEM_INDICES
+            SYSTEM_INDICES,
+            new PublicSettings.DefaultPublicSettings()
         );
     }
 

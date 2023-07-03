@@ -106,7 +106,7 @@ public final class EngineConfig {
                 }
                 return s;
         }
-    }, Property.IndexScope, Property.NodeScope);
+    }, Property.IndexScope, Property.NodeScope, Property.ServerlessPublic);
 
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.

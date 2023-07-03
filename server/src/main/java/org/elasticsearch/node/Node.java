@@ -82,6 +82,8 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.ConsistentSettingsService;
+import org.elasticsearch.common.settings.PublicSettings;
+import org.elasticsearch.common.settings.PublicSettingsFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -90,6 +92,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -478,6 +481,12 @@ public class Node implements Closeable {
                 settings,
                 additionalSettings,
                 pluginsService.flatMap(Plugin::getSettingsFilter).toList()
+            );
+
+            PublicSettings serverlessPublicSettings = createOrchestratorSettings(
+                pluginsService,
+                threadPool.getThreadContext(),
+                settingsModule.getServerlessPublicSettings()
             );
 
             // creating `NodeEnvironment` breaks the ability to rollback to 7.x on an 8.0 upgrade (`upgradeLegacyNodeFolders`) so do this
@@ -1136,6 +1145,7 @@ public class Node implements Closeable {
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
+                b.bind(PublicSettings.class).toInstance(serverlessPublicSettings);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1191,6 +1201,16 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    private static PublicSettings createOrchestratorSettings(
+        PluginsService pluginsService,
+        ThreadContext threadContext,
+        Set<Setting<?>> serverlessPublicSettings
+    ) {
+        PublicSettingsFactory factory = PublicSettingsFactory.load(pluginsService);
+        return factory.create(threadContext, serverlessPublicSettings);
+
     }
 
     /**

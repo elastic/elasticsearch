@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -48,13 +47,11 @@ public class AutoCreateActionTests extends ESTestCase {
         ComposableIndexTemplate result = AutoCreateAction.resolveTemplate(request, metadata);
         assertThat(result, notNullValue());
         assertThat(result.getDataStreamTemplate(), notNullValue());
-        assertThat(DataStreamTemplate.getTimestampField(), equalTo("@timestamp"));
 
         request = new CreateIndexRequest("logs-barbaz");
         result = AutoCreateAction.resolveTemplate(request, metadata);
         assertThat(result, notNullValue());
         assertThat(result.getDataStreamTemplate(), notNullValue());
-        assertThat(DataStreamTemplate.getTimestampField(), equalTo("@timestamp"));
 
         // An index that matches with a template without a data steam definition
         request = new CreateIndexRequest("legacy-logs-foobaz");

@@ -12,8 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.sandbox.search.ProfilerCollectorResult;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -27,6 +25,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -48,27 +47,39 @@ public class ProfileCollectorManagerTests extends ESTestCase {
      */
     public void testBasic() throws IOException {
         final SetOnce<Boolean> reduceCalled = new SetOnce<>();
-        ProfileCollectorManager pcm = new ProfileCollectorManager(new CollectorManager<>() {
+        ProfileCollectorManager<Integer> pcm = new ProfileCollectorManager<>(new CollectorManager<TestCollector, Integer>() {
 
-            private static int counter = 0;
+            private int counter = 0;
 
             @Override
-            public Collector newCollector() {
+            public TestCollector newCollector() {
                 return new TestCollector(counter++);
             }
 
             @Override
-            public Void reduce(Collection<Collector> collectors) {
+            public Integer reduce(Collection<TestCollector> collectors) {
                 reduceCalled.set(true);
-                return null;
+                return counter;
             }
         }, CollectorResult.REASON_SEARCH_TOP_HITS);
-        for (int i = 0; i < randomIntBetween(5, 10); i++) {
-            InternalProfileCollector internalProfileCollector = pcm.newCollector();
-            assertEquals(i, ((TestCollector) internalProfileCollector.getWrappedCollector()).id);
+        int runs = randomIntBetween(5, 10);
+        List<InternalProfileCollector> collectors = new ArrayList<>();
+        for (int i = 0; i < runs; i++) {
+            collectors.add(pcm.newCollector());
+            assertEquals(i, ((TestCollector) collectors.get(i).getWrappedCollector()).id);
         }
-        pcm.reduce(Collections.emptyList());
+        Integer returnValue = pcm.reduce(collectors);
+        assertEquals(runs, returnValue.intValue());
         assertTrue(reduceCalled.get());
+    }
+
+    public void testReduceEmpty() {
+        ProfileCollectorManager<TopDocs> pcm = new ProfileCollectorManager<>(
+            TopScoreDocCollector.createSharedManager(10, null, 1000),
+            CollectorResult.REASON_SEARCH_TOP_HITS
+        );
+        AssertionError ae = expectThrows(AssertionError.class, () -> pcm.reduce(Collections.emptyList()));
+        assertEquals("at least one collector expected", ae.getMessage());
     }
 
     /**
@@ -88,7 +99,6 @@ public class ProfileCollectorManagerTests extends ESTestCase {
             writer.flush();
             IndexReader reader = writer.getReader();
             IndexSearcher searcher = newSearcher(reader);
-            int numSlices = searcher.getSlices() == null ? 1 : searcher.getSlices().length;
             searcher.setSimilarity(new BM25Similarity());
 
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(10, null, 1000);
@@ -96,21 +106,15 @@ public class ProfileCollectorManagerTests extends ESTestCase {
             assertEquals(numDocs, topDocs.totalHits.value);
 
             String profileReason = "profiler_reason";
-            ProfileCollectorManager profileCollectorManager = new ProfileCollectorManager(topDocsManager, profileReason);
+            ProfileCollectorManager<TopDocs> profileCollectorManager = new ProfileCollectorManager<>(topDocsManager, profileReason);
 
             searcher.search(new MatchAllDocsQuery(), profileCollectorManager);
 
-            CollectorResult parent = profileCollectorManager.getCollectorTree();
-            assertEquals("ProfileCollectorManager", parent.getName());
-            assertEquals("segment_search", parent.getReason());
-            assertEquals(0, parent.getTime());
-            List<ProfilerCollectorResult> delegateCollectorResults = parent.getProfiledChildren();
-            assertEquals(numSlices, delegateCollectorResults.size());
-            for (ProfilerCollectorResult pcr : delegateCollectorResults) {
-                assertEquals("SimpleTopScoreDocCollector", pcr.getName());
-                assertEquals(profileReason, pcr.getReason());
-                assertTrue(pcr.getTime() > 0);
-            }
+            CollectorResult result = profileCollectorManager.getCollectorTree();
+            assertEquals("profiler_reason", result.getReason());
+            assertEquals("SimpleTopScoreDocCollector", result.getName());
+            assertTrue(result.getTime() > 0);
+
             reader.close();
         }
         directory.close();

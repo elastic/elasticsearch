@@ -1032,7 +1032,7 @@ public class Node implements Closeable {
             );
             HealthPeriodicLogger healthPeriodicLogger = createHealthPeriodicLogger(clusterService, settings, client, healthService);
             healthPeriodicLogger.init();
-            HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService);
+            HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
             HealthApiStats healthApiStats = new HealthApiStats();

@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -23,6 +24,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.OLD;
 import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.UPGRADED;
+import static org.hamcrest.Matchers.lessThan;
 
 @TestCaseOrdering(FullClusterRestartTestOrdering.class)
 public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTestCase {
@@ -77,6 +79,13 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     public static org.elasticsearch.Version getOldClusterVersion() {
         return org.elasticsearch.Version.fromString(OLD_CLUSTER_VERSION.toString());
     }
+
+    public static IndexVersion getOldClusterIndexVersion() {
+        var version = getOldClusterVersion();
+        assertThat("Index version needs to be added to restart test parameters", version, lessThan(org.elasticsearch.Version.V_8_10_0));
+        return IndexVersion.fromId(version.id);
+    }
+
 
     public static Version getOldClusterTestVersion() {
         return Version.fromString(OLD_CLUSTER_VERSION.toString());

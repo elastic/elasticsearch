@@ -137,7 +137,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
         final DataStream rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), false);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
-        assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
@@ -163,7 +162,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         final Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(builder.build());
         final DataStream rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), false);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
-        assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + numConflictingIndices + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
@@ -191,7 +189,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), true);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
-        assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
@@ -217,7 +214,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), false);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
-        assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
@@ -238,7 +234,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         DataStream updated = original.removeBackingIndex(indices.get(indexToRemove - 1));
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
-        assertThat(updated.getTimeStampField(), equalTo(original.getTimeStampField()));
         assertThat(updated.getIndices().size(), equalTo(numBackingIndices - 1));
         for (int k = 0; k < (numBackingIndices - 1); k++) {
             assertThat(updated.getIndices().get(k), equalTo(original.getIndices().get(k < (indexToRemove - 1) ? k : k + 1)));
@@ -321,7 +316,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         DataStream updated = original.addBackingIndex(builder.build(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
-        assertThat(updated.getTimeStampField(), equalTo(original.getTimeStampField()));
         assertThat(updated.getIndices().size(), equalTo(numBackingIndices + 1));
         for (int k = 1; k <= numBackingIndices; k++) {
             assertThat(updated.getIndices().get(k), equalTo(original.getIndices().get(k - 1)));
@@ -406,7 +400,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         DataStream updated = original.addBackingIndex(builder.build(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
-        assertThat(updated.getTimeStampField(), equalTo(original.getTimeStampField()));
         assertThat(updated.getIndices().size(), equalTo(numBackingIndices));
         for (int k = 0; k < numBackingIndices; k++) {
             assertThat(updated.getIndices().get(k), equalTo(original.getIndices().get(k)));
@@ -494,7 +487,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         DataStream updated = original.replaceBackingIndex(indices.get(indexToReplace), newBackingIndex);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
-        assertThat(updated.getTimeStampField(), equalTo(original.getTimeStampField()));
         assertThat(updated.getIndices().size(), equalTo(numBackingIndices));
         assertThat(updated.getIndices().get(indexToReplace), equalTo(newBackingIndex));
 
@@ -580,7 +572,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         );
 
         assertThat(reconciledDataStream.getName(), equalTo(postSnapshotDataStream.getName()));
-        assertThat(reconciledDataStream.getTimeStampField(), equalTo(postSnapshotDataStream.getTimeStampField()));
         assertThat(reconciledDataStream.getGeneration(), equalTo(postSnapshotDataStream.getGeneration()));
         if (reconciledDataStream.getMetadata() != null) {
             assertThat(

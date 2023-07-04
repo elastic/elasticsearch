@@ -23,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
@@ -68,11 +67,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
-    public static final TimestampField TIMESTAMP_FIELD = new DataStream.TimestampField("@timestamp");
+    public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
-            PointValues points = r.getPointValues(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            PointValues points = r.getPointValues(TIMESTAMP_FIELD_NAME);
             if (points != null) {
                 byte[] sortValue = points.getMaxPackedValue();
                 return LongPoint.decodeDimension(sortValue, 0);
@@ -84,10 +83,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 return Long.MIN_VALUE;
             }
         } catch (IOException e) {
-            throw new ElasticsearchException(
-                "Can't access [" + DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field for the index!",
-                e
-            );
+            throw new ElasticsearchException("Can't access [" + TIMESTAMP_FIELD_NAME + "] field for the index!", e);
         }
     }).reversed();
 
@@ -198,11 +194,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Override
     public boolean isDataStreamRelated() {
         return true;
-    }
-
-    public TimestampField getTimeStampField() {
-        // This was always fixed to @timestamp with the idea that one day this field could be configurable. This idea no longer exists.
-        return TIMESTAMP_FIELD;
     }
 
     @Override
@@ -775,7 +766,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        TIMESTAMP_FIELD.writeTo(out);
+        out.writeString(TIMESTAMP_FIELD_NAME);
         out.writeList(indices);
         out.writeVLong(generation);
         out.writeGenericMap(metadata);
@@ -806,25 +797,32 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField LIFECYCLE = new ParseField("lifecycle");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
-        assert TIMESTAMP_FIELD == args[1];
-        return new DataStream(
+    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
+        "data_stream",
+        args -> new DataStream(
             (String) args[0],
-            (List<Index>) args[2],
-            (Long) args[3],
-            (Map<String, Object>) args[4],
+            (List<Index>) args[1],
+            (Long) args[2],
+            (Map<String, Object>) args[3],
+            args[4] != null && (boolean) args[4],
             args[5] != null && (boolean) args[5],
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
-            args[8] != null && (boolean) args[8],
-            args[9] != null ? IndexMode.fromString((String) args[9]) : null,
-            DataLifecycle.isEnabled() ? (DataLifecycle) args[10] : null
-        );
-    });
+            args[8] != null ? IndexMode.fromString((String) args[8]) : null,
+            DataLifecycle.isEnabled() ? (DataLifecycle) args[9] : null
+        )
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), TimestampField.PARSER, TIMESTAMP_FIELD_FIELD);
+        final ConstructingObjectParser<String, Void> tsFieldParser = new ConstructingObjectParser<>("timestamp_field", args -> {
+            if (TIMESTAMP_FIELD_NAME.equals(args[0]) == false) {
+                throw new IllegalArgumentException("unexpected timestamp field [" + args[0] + "]");
+            }
+            return TIMESTAMP_FIELD_NAME;
+        });
+        tsFieldParser.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
+        PARSER.declareObject((f, v) -> { assert v == TIMESTAMP_FIELD_NAME; }, tsFieldParser, TIMESTAMP_FIELD_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA_FIELD);
@@ -854,7 +852,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), TIMESTAMP_FIELD);
+        builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName())
+            .startObject()
+            .field(NAME_FIELD.getPreferredName(), TIMESTAMP_FIELD_NAME)
+            .endObject();
         builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
         if (metadata != null) {
@@ -947,7 +948,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
-        Set.of(TimestampField.FIXED_TIMESTAMP_FIELD),
+        Set.of(TIMESTAMP_FIELD_NAME),
         null,
         false
     );
@@ -992,71 +993,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             };
         } catch (Exception e) {
             throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
-        }
-    }
-
-    public static final class TimestampField implements Writeable, ToXContentObject {
-
-        public static final String FIXED_TIMESTAMP_FIELD = "@timestamp";
-
-        static ParseField NAME_FIELD = new ParseField("name");
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<TimestampField, Void> PARSER = new ConstructingObjectParser<>(
-            "timestamp_field",
-            args -> {
-                if (FIXED_TIMESTAMP_FIELD.equals(args[0]) == false) {
-                    throw new IllegalArgumentException("unexpected timestamp field [" + args[0] + "]");
-                }
-                return TIMESTAMP_FIELD;
-            }
-        );
-
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        }
-
-        private final String name;
-
-        public TimestampField(String name) {
-            if (FIXED_TIMESTAMP_FIELD.equals(name) == false) {
-                throw new IllegalArgumentException("unexpected timestamp field [" + name + "]");
-            }
-            this.name = name;
-        }
-
-        public TimestampField(StreamInput in) throws IOException {
-            this(in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(NAME_FIELD.getPreferredName(), name);
-            builder.endObject();
-            return builder;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            TimestampField that = (TimestampField) o;
-            return name.equals(that.name);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name);
         }
     }
 

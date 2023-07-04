@@ -236,9 +236,7 @@ public class SslDiagnostics {
                     if (hostnames.isEmpty()) {
                         message.append("; the certificate does not have any DNS/IP subject alternative names");
                     } else {
-                        message.append("; the certificate has subject alternative names [")
-                            .append(hostnames.stream().collect(Collectors.joining(",")))
-                            .append("]");
+                        message.append("; the certificate has subject alternative names [").append(String.join(",", hostnames)).append("]");
                     }
                 }
             } catch (CertificateParsingException e) {

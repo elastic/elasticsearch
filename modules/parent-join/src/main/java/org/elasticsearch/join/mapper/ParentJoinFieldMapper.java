@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A {@link FieldMapper} that creates hierarchical joins (parent-join) between documents in the same index.
@@ -324,7 +323,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             .map(mappingLookup::getFieldType)
             .filter(ft -> ft instanceof JoinFieldType)
             .map(MappedFieldType::name)
-            .collect(Collectors.toList());
+            .toList();
         if (joinFields.size() > 1) {
             throw new IllegalArgumentException("Only one [parent-join] field can be defined per index, got " + joinFields);
         }

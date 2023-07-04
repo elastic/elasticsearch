@@ -171,7 +171,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .keystore("xpack.security.authc.realms.jwt.op-jwt.client_authentication.shared_secret", "jwt-realm-shared-secret")
         .configFile("testnode.jks", Resource.fromClasspath("ssl/testnode.jks"))
         .configFile("op-jwks.json", Resource.fromClasspath("op-jwks.json"))
-        .user("x_pack_rest_user", "x-pack-test-password", "superuser")
+        .user("x_pack_rest_user", "x-pack-test-password", "superuser", false)
         .build();
 
     @Override

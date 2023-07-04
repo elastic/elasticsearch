@@ -44,9 +44,12 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -471,6 +474,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 }
 
                 LOGGER.info("Creating users for node '{}'", name);
+                final Set<String> operators = new HashSet<>();
                 for (User user : spec.getUsers()) {
                     runToolScript(
                         "elasticsearch-users",
@@ -482,6 +486,24 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                         "-r",
                         user.getRole()
                     );
+                    if (user.isOperator()) {
+                        operators.add(user.getUsername());
+                    }
+                }
+
+                if (operators.isEmpty() == false) {
+                    // TODO: Support service accounts here
+                    Path destination = workingDir.resolve("config").resolve("operator_users.yml");
+                    try (Writer writer = Files.newBufferedWriter(destination, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+                        writer.write(String.format(Locale.ROOT, """
+                            operator:
+                              - usernames: [%s]
+                                realm_type: "file"
+                                auth_type: "realm"
+                            """, operators.stream().collect(Collectors.joining("\",\"", "\"", "\""))));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Failed to configure operator users file " + destination, e);
+                    }
                 }
             }
         }

@@ -66,7 +66,7 @@ public class RemoteClusterSecurityMlIT extends AbstractRemoteClusterSecurityTest
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
             .rolesFile(Resource.fromClasspath("roles.yml"))
-            .user(REMOTE_ML_USER, PASS.toString(), "ml_jobs_shared_airline_data")
+            .user(REMOTE_ML_USER, PASS.toString(), "ml_jobs_shared_airline_data", false)
             .build();
     }
 

@@ -96,8 +96,8 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
     }
 
     @Override
-    public AbstractLocalClusterSpecBuilder<T> user(String username, String password, String role) {
-        this.users.add(new User(username, password, role));
+    public AbstractLocalClusterSpecBuilder<T> user(String username, String password, String role, boolean operator) {
+        this.users.add(new User(username, password, role, operator));
         return this;
     }
 

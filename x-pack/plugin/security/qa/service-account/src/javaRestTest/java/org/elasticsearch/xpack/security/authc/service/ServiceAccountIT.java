@@ -247,8 +247,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test_admin", "x-pack-test-password")
-        .user("elastic/fleet-server", "x-pack-test-password", "superuser")
-        .user("service_account_manager", "x-pack-test-password", "service_account_manager")
+        .user("elastic/fleet-server", "x-pack-test-password", "superuser", false)
+        .user("service_account_manager", "x-pack-test-password", "service_account_manager", false)
         .build();
 
     @BeforeClass

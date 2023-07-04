@@ -75,9 +75,9 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
         .configFile("node.key", Resource.fromClasspath("ssl/node.key"))
         .configFile("node.crt", Resource.fromClasspath("ssl/node.crt"))
         .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
-        .user("test_admin", PASSWORD, "superuser")
-        .user("test_data_stream_lifecycle", PASSWORD, "manage_data_stream_lifecycle")
-        .user("test_non_privileged", PASSWORD, "not_privileged")
+        .user("test_admin", PASSWORD, "superuser", false)
+        .user("test_data_stream_lifecycle", PASSWORD, "manage_data_stream_lifecycle", false)
+        .user("test_non_privileged", PASSWORD, "not_privileged", false)
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .build();
 

@@ -106,7 +106,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 return (String) REST_API_KEY_MAP_REF.get().get("encoded");
             })
             .rolesFile(Resource.fromClasspath("roles.yml"))
-            .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics")
+            .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics", false)
             .build();
     }
 

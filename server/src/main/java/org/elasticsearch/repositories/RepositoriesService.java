@@ -10,7 +10,6 @@ package org.elasticsearch.repositories;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
@@ -43,6 +42,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -100,7 +100,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
-    private final List<BiConsumer<Snapshot, Version>> preRestoreChecks;
+    private final List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks;
 
     public RepositoriesService(
         Settings settings,
@@ -109,7 +109,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Map<String, Repository.Factory> typesRegistry,
         Map<String, Repository.Factory> internalTypesRegistry,
         ThreadPool threadPool,
-        List<BiConsumer<Snapshot, Version>> preRestoreChecks
+        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
@@ -903,7 +903,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         );
     }
 
-    public List<BiConsumer<Snapshot, Version>> getPreRestoreVersionChecks() {
+    public List<BiConsumer<Snapshot, IndexVersion>> getPreRestoreVersionChecks() {
         return preRestoreChecks;
     }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsUpdater;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.Task;
@@ -185,17 +186,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             }
 
             private void reroute(final boolean updateSettingsAcked) {
-                // We're about to send a second update task, so we need to check if we're still the elected master
-                // For example the minimum_master_node could have been breached and we're no longer elected master,
-                // so we should *not* execute the reroute.
-                if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-                    logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
-                    listener.onResponse(
-                        new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(), updater.getPersistentUpdate())
-                    );
-                    return;
-                }
-
                 // The reason the reroute needs to be sent as separate update task, is that all the *cluster* settings are encapsulated in
                 // the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible to the components
                 // until the ClusterStateListener instances have been invoked, but are visible after the first update task has been
@@ -238,37 +228,28 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         });
     }
 
-    public static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
+    private static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
         protected volatile boolean reroute = false;
         protected final SettingsUpdater updater;
         protected final ClusterUpdateSettingsRequest request;
-        private final ClusterSettings clusterSettings;
 
-        public ClusterUpdateSettingsTask(
+        ClusterUpdateSettingsTask(
             final ClusterSettings clusterSettings,
             Priority priority,
             ClusterUpdateSettingsRequest request,
             ActionListener<? extends AcknowledgedResponse> listener
         ) {
             super(priority, request, listener);
-            this.clusterSettings = clusterSettings;
             this.updater = new SettingsUpdater(clusterSettings);
             this.request = request;
-        }
-
-        /**
-         * Used by the reserved state handler {@link ReservedClusterSettingsAction}
-         */
-        public ClusterUpdateSettingsTask(final ClusterSettings clusterSettings, ClusterUpdateSettingsRequest request) {
-            this(clusterSettings, Priority.IMMEDIATE, request, null);
         }
 
         @Override
         public ClusterState execute(final ClusterState currentState) {
             final ClusterState clusterState = updater.updateSettings(
                 currentState,
-                clusterSettings.upgradeSettings(request.transientSettings()),
-                clusterSettings.upgradeSettings(request.persistentSettings()),
+                request.transientSettings(),
+                request.persistentSettings(),
                 logger
             );
             reroute = clusterState != currentState;

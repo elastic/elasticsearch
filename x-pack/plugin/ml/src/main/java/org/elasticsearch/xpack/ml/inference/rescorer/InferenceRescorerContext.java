@@ -7,23 +7,18 @@
 
 package org.elasticsearch.xpack.ml.inference.rescorer;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 public class InferenceRescorerContext extends RescoreContext {
 
-    record FieldValueFetcher(String fieldName, ValueFetcher valueFetcher) {}
-
     final SearchExecutionContext executionContext;
     final LocalModel inferenceDefinition;
-    final List<FieldValueFetcher> valueFetcherList;
 
     /**
      * @param windowSize how many documents to rescore
@@ -40,16 +35,16 @@ public class InferenceRescorerContext extends RescoreContext {
         super(windowSize, rescorer);
         this.executionContext = executionContext;
         this.inferenceDefinition = inferenceDefinition;
-        if (inferenceDefinition != null) {
-            this.valueFetcherList = inferenceDefinition.inputFields().stream().map(s -> {
-                MappedFieldType mappedFieldType = executionContext.getFieldType(s);
-                if (mappedFieldType != null) {
-                    return new InferenceRescorerContext.FieldValueFetcher(s, mappedFieldType.valueFetcher(executionContext, null));
-                }
-                return null;
-            }).filter(Objects::nonNull).toList();
-        } else {
-            valueFetcherList = List.of();
+    }
+
+    List<FeatureExtractor> buildFeatureExtractors() {
+        assert this.inferenceDefinition != null;
+        List<FeatureExtractor> featureExtractors = new ArrayList<>();
+        if (this.inferenceDefinition.inputFields().isEmpty() == false) {
+            featureExtractors.add(
+                new FieldValueFeatureExtractor(new ArrayList<>(this.inferenceDefinition.inputFields()), this.executionContext)
+            );
         }
+        return featureExtractors;
     }
 }

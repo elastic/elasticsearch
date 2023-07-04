@@ -15,9 +15,11 @@ plugins {
 }
 
 group = "org.elasticsearch"
-
-targetCompatibility = 11
-sourceCompatibility = 11
+// This project contains Checkstyle rule implementations used by IDEs which use a Java 11 runtime
+java {
+  targetCompatibility = 11
+  sourceCompatibility = 11
+}
 
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes

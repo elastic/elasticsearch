@@ -7,7 +7,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-constant-keyword'
+base {
+  archivesName = 'x-pack-constant-keyword'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

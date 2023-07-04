@@ -10,7 +10,9 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
-archivesBaseName = 'x-pack-core'
+base {
+  archivesName = 'x-pack-core'
+}
 
 esplugin {
   name 'x-pack-core'

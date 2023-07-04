@@ -8,10 +8,16 @@ esplugin {
   hasNativeController false
   requiresKeystore true
 }
-archivesBaseName = 'x-pack-stack'
+base {
+  archivesName = 'x-pack-stack'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
 testImplementation(testArtifact(project(xpackModule('core'))))}
 
+<<<<<<< HEAD
 addQaCheckDependencies()
+=======
+addQaCheckDependencies(project)
+>>>>>>> b8627079b43 (Update Gradle Wrapper to 8.2 (#96686))

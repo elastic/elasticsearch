@@ -14,8 +14,13 @@ group = 'org.elasticsearch.client'
 // Not published so no need to assemble
 tasks.named("assemble").configure {  enabled = true }
 
-archivesBaseName = 'client-benchmarks'
-mainClassName = 'org.elasticsearch.client.benchmark.BenchmarkMain'
+base {
+  archivesName = 'client-benchmarks'
+}
+
+application {
+  mainClass = 'org.elasticsearch.client.benchmark.BenchmarkMain'
+}
 
 dependencies {
   api 'org.apache.commons:commons-math3:3.2'

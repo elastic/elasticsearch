@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -342,7 +341,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            List<String> names = new ArrayList<>(this.featureSets.keySet()).stream().sorted().collect(Collectors.toList());
+            List<String> names = new ArrayList<>(this.featureSets.keySet()).stream().sorted().toList();
             for (String name : names) {
                 builder.field(name, featureSets.get(name), params);
             }

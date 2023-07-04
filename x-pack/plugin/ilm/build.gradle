@@ -18,7 +18,6 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))
   testImplementation project(':modules:data-streams')
-  testImplementation project(':modules:dlm')
 }
 
 addQaCheckDependencies(project)

@@ -24,7 +24,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * Encapsulates the information that describes an index from its DLM lifecycle perspective.
+ * Encapsulates the information that describes an index from its data stream lifecycle perspective.
  */
 public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObject {
     private static final ParseField INDEX_FIELD = new ParseField("index");

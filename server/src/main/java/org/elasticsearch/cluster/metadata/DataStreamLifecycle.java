@@ -53,7 +53,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         Setting.Property.NodeScope
     );
 
-    private static final FeatureFlag DLM_FEATURE_FLAG = new FeatureFlag("dlm");
+    private static final FeatureFlag DATA_STREAM_LIFECYCLE_FEATURE_FLAG = new FeatureFlag("dlm");
 
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
@@ -86,7 +86,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     public static boolean isEnabled() {
-        return DLM_FEATURE_FLAG.isEnabled();
+        return DATA_STREAM_LIFECYCLE_FEATURE_FLAG.isEnabled();
     }
 
     @Nullable

@@ -1,7 +1,8 @@
 pr: 97319
 summary: Change pre-configured and cached analyzer components to use IndexVersion instead of Version
 area: "Analysis"
-type: refactoring
+type: breaking-java
+breaking: "Java API"
 issues: []
 highlight:
   title: Change pre-configured and cached analyzer components to use IndexVersion instead of Version

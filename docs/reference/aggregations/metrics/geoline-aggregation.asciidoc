@@ -105,10 +105,11 @@ Example usage configuring `my_location` as the point field:
 // NOTCONSOLE
 
 `sort`::
-(Required outside <<search-aggregations-metrics-geo-line-time-series,`time_series`>> aggregations)
+(Required outside <<search-aggregations-metrics-geo-line-grouping-time-series,`time_series`>> aggregations)
 
 This option specifies the name of the numeric field to use as the sort key for ordering the points.
-When the `geo_line` aggregation is nested inside a <<search-aggregations-metrics-geo-line-time-series,`time_series`>>
+When the `geo_line` aggregation is nested inside a
+<<search-aggregations-metrics-geo-line-grouping-time-series,`time_series`>>
 aggregation, this field defaults to `@timestamp`, and any other value will result in error.
 
 Example usage configuring `@timestamp` as the sort key:
@@ -310,7 +311,7 @@ in this case the same `city` field used in the previous
 <<search-aggregations-bucket-terms-aggregation,terms aggregation>>.
 This example will only work if we defined the `tour` index as a time series index using  `index.mode="time_series"`.
 
-[source,console,id=search-aggregations-metrics-geo-line-terms]
+[source,console,id=search-aggregations-metrics-geo-line-time-series]
 ----
 POST /tour/_search?filter_path=aggregations
 {

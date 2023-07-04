@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -23,20 +21,19 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingResources;
-import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingResources.Request;
-import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingResources.Response;
+import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats;
+import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats.Request;
+import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats.Response;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingResourceTracker;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
-public class TransportGetMlAutoscalingResources extends TransportMasterNodeAction<Request, Response> {
+public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Request, Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportGetMlAutoscalingResources.class);
     private final Client client;
     private final MlMemoryTracker mlMemoryTracker;
 
     @Inject
-    public TransportGetMlAutoscalingResources(
+    public TransportGetMlAutoscalingStats(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -46,7 +43,7 @@ public class TransportGetMlAutoscalingResources extends TransportMasterNodeActio
         MlMemoryTracker mlMemoryTracker
     ) {
         super(
-            GetMlAutoscalingResources.NAME,
+            GetMlAutoscalingStats.NAME,
             transportService,
             clusterService,
             threadPool,
@@ -64,7 +61,7 @@ public class TransportGetMlAutoscalingResources extends TransportMasterNodeActio
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
 
         if (mlMemoryTracker.isRecentlyRefreshed()) {
-            MlAutoscalingResourceTracker.getMlAutoscalingResources(
+            MlAutoscalingResourceTracker.getMlAutoscalingStats(
                 state,
                 client,
                 request.timeout(),
@@ -75,7 +72,7 @@ public class TransportGetMlAutoscalingResources extends TransportMasterNodeActio
             mlMemoryTracker.refresh(
                 state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE),
                 ActionListener.wrap(
-                    ignored -> MlAutoscalingResourceTracker.getMlAutoscalingResources(
+                    ignored -> MlAutoscalingResourceTracker.getMlAutoscalingStats(
                         state,
                         client,
                         request.timeout(),

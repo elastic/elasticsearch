@@ -17,19 +17,19 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingResources.Response;
+import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats.Response;
 import org.elasticsearch.xpack.core.ml.autoscaling.AutoscalingResources;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetMlAutoscalingResources extends ActionType<Response> {
+public class GetMlAutoscalingStats extends ActionType<Response> {
 
-    public static final GetMlAutoscalingResources INSTANCE = new GetMlAutoscalingResources();
+    public static final GetMlAutoscalingStats INSTANCE = new GetMlAutoscalingStats();
     public static final String NAME = "cluster:monitor/xpack/ml/autoscaling/stats/get";
 
-    public GetMlAutoscalingResources() {
+    public GetMlAutoscalingStats() {
         super(NAME, Response::new);
     }
 
@@ -66,7 +66,7 @@ public class GetMlAutoscalingResources extends ActionType<Response> {
             if (getClass() != obj.getClass()) {
                 return false;
             }
-            GetMlAutoscalingResources.Request other = (GetMlAutoscalingResources.Request) obj;
+            GetMlAutoscalingStats.Request other = (GetMlAutoscalingStats.Request) obj;
             return Objects.equals(timeout, other.timeout);
         }
     }
@@ -106,7 +106,7 @@ public class GetMlAutoscalingResources extends ActionType<Response> {
             if (getClass() != obj.getClass()) {
                 return false;
             }
-            GetMlAutoscalingResources.Response other = (GetMlAutoscalingResources.Response) obj;
+            GetMlAutoscalingStats.Response other = (GetMlAutoscalingStats.Response) obj;
             return Objects.equals(autoscalingResources, other.autoscalingResources);
         }
     }

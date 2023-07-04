@@ -34,7 +34,7 @@ public final class MlAutoscalingResourceTracker {
 
     private MlAutoscalingResourceTracker() {}
 
-    public static void getMlAutoscalingResources(
+    public static void getMlAutoscalingStats(
         ClusterState clusterState,
         Client client,
         TimeValue timeout,

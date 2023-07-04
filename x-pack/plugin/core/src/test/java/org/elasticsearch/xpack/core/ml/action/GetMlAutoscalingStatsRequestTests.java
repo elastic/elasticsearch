@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingResources.Request;
+import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats.Request;
 
 import java.io.IOException;
 
-public class GetMlAutoscalingResourcesRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class GetMlAutoscalingStatsRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Writeable.Reader<Request> instanceReader() {

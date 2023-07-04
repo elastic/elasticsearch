@@ -288,6 +288,7 @@ public class SynonymsManagementAPIService {
             synonymSetId,
             listener.delegateFailure(
                 (l1, obj) -> client.prepareDelete(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymSetId, synonymRuleId))
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .execute(new DelegatingIndexNotFoundActionListener<>(synonymSetId, l1, (l2, deleteResponse) -> {
                         if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
                             l2.onFailure(new ResourceNotFoundException("synonym rule [" + synonymRuleId + "] not found"));

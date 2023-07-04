@@ -13,8 +13,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
@@ -824,26 +822,7 @@ public final class RepositoryData {
                     indexMetaIdentifiers = parser.mapStrings();
                 }
                 case MIN_VERSION -> {
-                    IndexVersion version;
-                    switch (parser.nextToken()) {
-                        case VALUE_STRING -> {
-                            Version v = Version.fromString(parser.text());
-                            assert v.before(Version.V_8_10_0);
-                            version = IndexVersion.fromId(v.id);
-                        }
-                        case VALUE_NUMBER -> {
-                            version = IndexVersion.fromId(parser.intValue());
-                        }
-                        default -> throw new ParsingException(
-                            parser.getTokenLocation(),
-                            Strings.format(
-                                "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
-                                XContentParser.Token.VALUE_STRING,
-                                XContentParser.Token.VALUE_NUMBER,
-                                parser.nextToken()
-                            )
-                        );
-                    }
+                    IndexVersion version = parseIndexVersion(parser.nextToken(), parser);
 
                     assert SnapshotsService.useShardGenerations(version);
                     if (version.after(IndexVersion.current())) {
@@ -950,13 +929,7 @@ public final class RepositoryData {
                         HashMap::new,
                         p -> stringDeduplicator.computeIfAbsent(p.text(), Function.identity())
                     );
-                    case VERSION -> {
-                        switch (token) {
-                            case VALUE_STRING -> version = IndexVersion.fromId(Version.fromString(parser.text()).id);   // 8.9.0 or before
-                            case VALUE_NUMBER -> version = IndexVersion.fromId(parser.intValue());  // separated index version
-                            default -> throw new IllegalStateException("Unexpected token type " + token);
-                        }
-                    }
+                    case VERSION -> version = parseIndexVersion(token, parser);
                     case START_TIME_MILLIS -> {
                         assert startTimeMillis == -1;
                         startTimeMillis = parser.longValue();
@@ -976,6 +949,23 @@ public final class RepositoryData {
             snapshots.put(uuid, snapshotId);
             if (metaGenerations != null && metaGenerations.isEmpty() == false) {
                 indexMetaLookup.put(snapshotId, metaGenerations);
+            }
+        }
+    }
+
+    private static IndexVersion parseIndexVersion(XContentParser.Token token, XContentParser parser) throws IOException {
+        switch (token) {
+            case VALUE_STRING -> {
+                Version v = Version.fromString(parser.text());
+                assert v.before(Version.V_8_10_0);
+                return IndexVersion.fromId(v.id);
+            }
+            case VALUE_NUMBER -> {
+                return IndexVersion.fromId(parser.intValue());
+            }
+            default -> {
+                XContentParserUtils.throwUnknownToken(parser.currentToken(), parser);
+                throw new AssertionError(); // never reached
             }
         }
     }

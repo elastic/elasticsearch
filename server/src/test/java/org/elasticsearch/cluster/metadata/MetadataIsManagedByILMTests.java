@@ -65,7 +65,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
                 1,
                 null,
                 false,
-                new DataLifecycle()
+                new DataStreamLifecycle()
             );
             Metadata metadata = Metadata.builder().put(indexMetadata, true).put(dataStream).build();
 
@@ -88,7 +88,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
                 1,
                 null,
                 false,
-                new DataLifecycle()
+                new DataStreamLifecycle()
             );
             Metadata metadata = Metadata.builder().put(indexMetadata, true).put(dataStream).build();
 

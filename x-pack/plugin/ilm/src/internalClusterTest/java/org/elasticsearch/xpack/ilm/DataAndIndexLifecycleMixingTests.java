@@ -18,8 +18,8 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.dlm.ExplainIndexDataLifecycle;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -85,7 +85,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
-        settings.put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
+        settings.put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -163,7 +163,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
         // we'll rollover the data stream by indexing 2 documents (like ILM expects) and assert that the rollover happens once so the
         // data stream has 3 backing indices, two managed by ILM and one will be UNMANAGED
-        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), Settings.EMPTY, null, new DataLifecycle());
+        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), Settings.EMPTY, null, new DataStreamLifecycle());
 
         indexDocs(dataStreamName, 2);
 
@@ -334,7 +334,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List.of(dataStreamName + "*"),
             Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
             null,
-            new DataLifecycle()
+            new DataStreamLifecycle()
         );
 
         indexDocs(dataStreamName, 2);
@@ -387,7 +387,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List.of(dataStreamName + "*"),
             Settings.builder().put(IndexSettings.PREFER_ILM, false).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
             null,
-            new DataLifecycle()
+            new DataStreamLifecycle()
         );
 
         // note that all indices now are still managed by ILM, so we index 2 documents. the new write index will be managed by DLM
@@ -506,7 +506,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List.of(dataStreamName + "*"),
             Settings.builder().put(IndexSettings.PREFER_ILM, false).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
             null,
-            new DataLifecycle()
+            new DataStreamLifecycle()
         );
 
         indexDocs(dataStreamName, 2);
@@ -611,7 +611,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
     public void testUpdateIndexTemplateToMigrateFromDLMToILM() throws Exception {
         // starting with a data stream managed by DLM (rolling over every 1 doc)
-        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), null, null, new DataLifecycle());
+        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), null, null, new DataStreamLifecycle());
 
         // this will create the data stream and trigger a rollover so we will end up with a data stream with 2 backing indices
         indexDocs(dataStreamName, 1);
@@ -758,7 +758,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(name);
         request.indexTemplate(

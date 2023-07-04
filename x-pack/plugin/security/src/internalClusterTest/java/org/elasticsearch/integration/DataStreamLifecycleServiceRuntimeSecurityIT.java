@@ -17,8 +17,8 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -77,14 +77,14 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
-        settings.put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
+        settings.put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         return settings.build();
     }
 
     public void testRolloverLifecycleAndForceMergeAuthorized() throws Exception {
         String dataStreamName = randomDataStreamName();
         // empty lifecycle contains the default rollover
-        prepareDataStreamAndIndex(dataStreamName, new DataLifecycle());
+        prepareDataStreamAndIndex(dataStreamName, new DataStreamLifecycle());
 
         assertBusy(() -> {
             assertNoAuthzErrors();
@@ -107,7 +107,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
 
     public void testRolloverAndRetentionAuthorized() throws Exception {
         String dataStreamName = randomDataStreamName();
-        prepareDataStreamAndIndex(dataStreamName, new DataLifecycle(TimeValue.timeValueMillis(0)));
+        prepareDataStreamAndIndex(dataStreamName, new DataStreamLifecycle(TimeValue.timeValueMillis(0)));
 
         assertBusy(() -> {
             assertNoAuthzErrors();
@@ -123,7 +123,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     public void testUnauthorized() throws Exception {
         // this is an example index pattern for a system index that the data stream lifecycle does not have access for. Data stream
         // lifecycle will therefore fail at runtime with an authz exception
-        prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, new DataLifecycle());
+        prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, new DataStreamLifecycle());
 
         assertBusy(() -> {
             Map<String, String> indicesAndErrors = collectErrorsFromStoreAsMap();
@@ -168,7 +168,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         return indicesAndErrors;
     }
 
-    private void prepareDataStreamAndIndex(String dataStreamName, DataLifecycle lifecycle) throws IOException, InterruptedException,
+    private void prepareDataStreamAndIndex(String dataStreamName, DataStreamLifecycle lifecycle) throws IOException, InterruptedException,
         ExecutionException {
         putComposableIndexTemplate("id1", null, List.of(dataStreamName + "*"), null, null, lifecycle);
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
@@ -202,7 +202,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
@@ -251,7 +251,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                     SystemDataStreamDescriptor.Type.EXTERNAL,
                     new ComposableIndexTemplate(
                         List.of(SYSTEM_DATA_STREAM_NAME),
-                        new Template(Settings.EMPTY, null, null, new DataLifecycle(0)),
+                        new Template(Settings.EMPTY, null, null, new DataStreamLifecycle(0)),
                         null,
                         null,
                         null,

@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-public class DataLifecycleFeatureSetUsageTests extends AbstractWireSerializingTestCase<DataLifecycleFeatureSetUsage> {
+public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSerializingTestCase<DataLifecycleFeatureSetUsage> {
 
     @Override
     protected DataLifecycleFeatureSetUsage createTestInstance() {

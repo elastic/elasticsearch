@@ -21,8 +21,8 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.dlm.ExplainIndexDataLifecycle;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class ExplainDataLifecycleIT extends ESIntegTestCase {
+public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -69,7 +69,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
-        settings.put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
+        settings.put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         return settings.build();
     }
 
@@ -81,7 +81,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
 
     public void testExplainLifecycle() throws Exception {
         // empty lifecycle contains the default rollover
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
         String dataStreamName = "metrics-foo";
@@ -163,7 +163,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
 
     public void testExplainLifecycleForIndicesWithErrors() throws Exception {
         // empty lifecycle contains the default rollover
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
 
@@ -299,7 +299,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(

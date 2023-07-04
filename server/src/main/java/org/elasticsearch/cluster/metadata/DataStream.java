@@ -98,7 +98,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final boolean allowCustomRouting;
     private final IndexMode indexMode;
     @Nullable
-    private final DataLifecycle lifecycle;
+    private final DataStreamLifecycle lifecycle;
 
     public DataStream(
         String name,
@@ -110,7 +110,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean system,
         boolean allowCustomRouting,
         IndexMode indexMode,
-        DataLifecycle lifecycle
+        DataStreamLifecycle lifecycle
     ) {
         this(
             name,
@@ -139,7 +139,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         LongSupplier timeProvider,
         boolean allowCustomRouting,
         IndexMode indexMode,
-        DataLifecycle lifecycle
+        DataStreamLifecycle lifecycle
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
@@ -152,7 +152,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
-        this.lifecycle = DataLifecycle.isEnabled() ? lifecycle : null;
+        this.lifecycle = DataStreamLifecycle.isEnabled() ? lifecycle : null;
         assert assertConsistent(this.indices);
     }
 
@@ -331,7 +331,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     @Nullable
-    public DataLifecycle getLifecycle() {
+    public DataStreamLifecycle getLifecycle() {
         return lifecycle;
     }
 
@@ -750,7 +750,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.readBoolean(),
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0) ? in.readBoolean() : false,
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007) ? in.readOptionalWriteable(DataLifecycle::new) : null
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null
         );
     }
 
@@ -809,7 +809,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
             args[8] != null ? IndexMode.fromString((String) args[8]) : null,
-            DataLifecycle.isEnabled() ? (DataLifecycle) args[9] : null
+            DataStreamLifecycle.isEnabled() ? (DataStreamLifecycle) args[9] : null
         )
     );
 
@@ -831,8 +831,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
-        if (DataLifecycle.isEnabled()) {
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataLifecycle.fromXContent(p), LIFECYCLE);
+        if (DataStreamLifecycle.isEnabled()) {
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> DataStreamLifecycle.fromXContent(p),
+                LIFECYCLE
+            );
         }
     }
 

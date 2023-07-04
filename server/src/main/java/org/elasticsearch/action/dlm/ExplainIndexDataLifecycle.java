@@ -9,7 +9,7 @@
 package org.elasticsearch.action.dlm;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -48,7 +48,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
     @Nullable
     private final Long generationDateMillis;
     @Nullable
-    private final DataLifecycle lifecycle;
+    private final DataStreamLifecycle lifecycle;
     @Nullable
     private final String error;
     private Supplier<Long> nowSupplier = System::currentTimeMillis;
@@ -59,7 +59,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         @Nullable Long indexCreationDate,
         @Nullable Long rolloverDate,
         @Nullable TimeValue generationDate,
-        @Nullable DataLifecycle lifecycle,
+        @Nullable DataStreamLifecycle lifecycle,
         @Nullable String error
     ) {
         this.index = index;
@@ -78,7 +78,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
             this.indexCreationDate = in.readOptionalLong();
             this.rolloverDate = in.readOptionalLong();
             this.generationDateMillis = in.readOptionalLong();
-            this.lifecycle = in.readOptionalWriteable(DataLifecycle::new);
+            this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
             this.error = in.readOptionalString();
         } else {
             this.indexCreationDate = null;
@@ -198,7 +198,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         return rolloverDate;
     }
 
-    public DataLifecycle getLifecycle() {
+    public DataStreamLifecycle getLifecycle() {
         return lifecycle;
     }
 

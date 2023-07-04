@@ -27,8 +27,8 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -86,7 +86,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DataLifecycleServiceTests extends ESTestCase {
+public class DataStreamLifecycleServiceTests extends ESTestCase {
 
     private long now;
     private ThreadPool threadPool;
@@ -142,7 +142,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueMillis(0)),
+            new DataStreamLifecycle(TimeValue.timeValueMillis(0)),
             now
         );
         builder.put(dataStream);
@@ -175,7 +175,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle((TimeValue) null),
+            new DataStreamLifecycle((TimeValue) null),
             now
         );
         builder.put(dataStream);
@@ -195,7 +195,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueDays(700)),
+            new DataStreamLifecycle(TimeValue.timeValueDays(700)),
             now
         );
         builder.put(dataStream);
@@ -215,7 +215,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy").put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueMillis(0)),
+            new DataStreamLifecycle(TimeValue.timeValueMillis(0)),
             now
         );
         builder.put(dataStream);
@@ -253,7 +253,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-            new DataLifecycle(),
+            new DataStreamLifecycle(),
             now
         );
         builder.put(dataStream);
@@ -302,7 +302,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueDays(700)),
+            new DataStreamLifecycle(TimeValue.timeValueDays(700)),
             now
         );
         // all backing indices are in the error store
@@ -348,7 +348,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             numBackingIndices,
             settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
-            new DataLifecycle(TimeValue.MAX_VALUE),
+            new DataStreamLifecycle(TimeValue.MAX_VALUE),
             now
         );
         builder.put(dataStream);
@@ -459,7 +459,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             numBackingIndices,
             settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
-            new DataLifecycle(TimeValue.MAX_VALUE),
+            new DataStreamLifecycle(TimeValue.MAX_VALUE),
             now
         );
         builder.put(dataStream);
@@ -631,7 +631,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.MAX_VALUE),
+            new DataStreamLifecycle(TimeValue.MAX_VALUE),
             now
         );
         builder.put(dataStream);
@@ -799,8 +799,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
         originalRequest.flush(randomBoolean());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             new DataLifecycleService.ForceMergeRequestWrapper(originalRequest),
-            DataLifecycleServiceTests::copyForceMergeRequestWrapperRequest,
-            DataLifecycleServiceTests::mutateForceMergeRequestWrapper
+            DataStreamLifecycleServiceTests::copyForceMergeRequestWrapperRequest,
+            DataStreamLifecycleServiceTests::mutateForceMergeRequestWrapper
         );
     }
 
@@ -813,7 +813,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.MAX_VALUE),
+            new DataStreamLifecycle(TimeValue.MAX_VALUE),
             now
         );
         builder.put(dataStream);

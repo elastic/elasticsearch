@@ -115,7 +115,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             case 8 -> indexMode = randomBoolean() && indexMode != null
                 ? null
                 : randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
-            case 9 -> lifecycle = randomBoolean() && lifecycle != null ? null : new DataLifecycle(randomMillisUpToYear9999());
+            case 9 -> lifecycle = randomBoolean() && lifecycle != null ? null : new DataStreamLifecycle(randomMillisUpToYear9999());
         }
 
         return new DataStream(
@@ -1030,7 +1030,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(Version.CURRENT),
-            new DataLifecycle()
+            new DataStreamLifecycle()
         );
         Metadata metadata = builder.build();
         {
@@ -1114,7 +1114,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(Version.CURRENT),
-                new DataLifecycle()
+                new DataStreamLifecycle()
             );
             Metadata metadata = builder.build();
 
@@ -1128,7 +1128,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(Version.CURRENT),
-                new DataLifecycle(TimeValue.timeValueMillis(2500))
+                new DataStreamLifecycle(TimeValue.timeValueMillis(2500))
             );
             Metadata metadata = builder.build();
 
@@ -1146,7 +1146,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(Version.CURRENT),
-                new DataLifecycle(TimeValue.timeValueMillis(0))
+                new DataStreamLifecycle(TimeValue.timeValueMillis(0))
             );
             Metadata metadata = builder.build();
 
@@ -1167,7 +1167,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(Version.CURRENT),
-                new DataLifecycle(TimeValue.timeValueMillis(6000))
+                new DataStreamLifecycle(TimeValue.timeValueMillis(6000))
             );
             Metadata metadata = builder.build();
 
@@ -1185,7 +1185,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 Settings.builder()
                     .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-                new DataLifecycle(TimeValue.timeValueMillis(0))
+                new DataStreamLifecycle(TimeValue.timeValueMillis(0))
             );
             Metadata metadata = builder.build();
 
@@ -1214,7 +1214,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(Version.CURRENT),
-            new DataLifecycle() {
+            new DataStreamLifecycle() {
                 public TimeValue getEffectiveDataRetention() {
                     return testRetentionReference.get();
                 }
@@ -1276,7 +1276,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueMillis(0))
+            new DataStreamLifecycle(TimeValue.timeValueMillis(0))
         );
         Metadata metadata = builder.build();
 
@@ -1314,7 +1314,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 Settings.builder()
                     .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-                new DataLifecycle()
+                new DataStreamLifecycle()
             );
             Metadata metadataIlm = builderWithIlm.build();
             for (Index index : ds.getIndices()) {
@@ -1335,7 +1335,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                         .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexSettings.PREFER_ILM, false),
-                    new DataLifecycle()
+                    new DataStreamLifecycle()
                 );
                 Metadata metadataIlm = builderWithIlm.build();
                 for (Index index : ds.getIndices()) {
@@ -1371,7 +1371,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(Version.CURRENT),
-            new DataLifecycle()
+            new DataStreamLifecycle()
         );
         Metadata metadata = builder.build();
 
@@ -1394,7 +1394,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         String dataStreamName,
         List<DataStreamMetadata> creationAndRolloverTimes,
         Settings.Builder backingIndicesSettings,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) {
         int backingIndicesCount = creationAndRolloverTimes.size();
         final List<Index> backingIndices = new ArrayList<>();
@@ -1434,7 +1434,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             metadata = Map.of("key", "value");
         }
 
-        DataLifecycle lifecycle = new DataLifecycle(randomMillisUpToYear9999());
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle(randomMillisUpToYear9999());
         DataStream dataStream = new DataStream(
             dataStreamName,
             indices,

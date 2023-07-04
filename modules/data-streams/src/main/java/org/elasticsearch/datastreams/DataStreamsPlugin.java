@@ -20,7 +20,7 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -84,7 +84,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.cluster.metadata.DataLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
 public class DataStreamsPlugin extends Plugin implements ActionPlugin {
 
@@ -141,7 +141,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         pluginSettings.add(TIME_SERIES_POLL_INTERVAL);
         pluginSettings.add(LOOK_AHEAD_TIME);
 
-        if (DataLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isEnabled()) {
             pluginSettings.add(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
             pluginSettings.add(DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
             pluginSettings.add(DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
@@ -172,7 +172,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         this.updateTimeSeriesRangeService.set(updateTimeSeriesRangeService);
         components.add(this.updateTimeSeriesRangeService.get());
 
-        if (DataLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isEnabled()) {
             errorStoreInitialisationService.set(new DataLifecycleErrorStore());
             dataLifecycleInitialisationService.set(
                 new DataLifecycleService(
@@ -203,7 +203,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         actions.add(new ActionHandler<>(PromoteDataStreamAction.INSTANCE, PromoteDataStreamTransportAction.class));
         actions.add(new ActionHandler<>(ModifyDataStreamsAction.INSTANCE, ModifyDataStreamsTransportAction.class));
 
-        if (DataLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isEnabled()) {
             actions.add(new ActionHandler<>(PutDataLifecycleAction.INSTANCE, TransportPutDataLifecycleAction.class));
             actions.add(new ActionHandler<>(GetDataLifecycleAction.INSTANCE, TransportGetDataLifecycleAction.class));
             actions.add(new ActionHandler<>(DeleteDataLifecycleAction.INSTANCE, TransportDeleteDataLifecycleAction.class));
@@ -235,7 +235,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         handlers.add(new RestPromoteDataStreamAction());
         handlers.add(new RestModifyDataStreamsAction());
 
-        if (DataLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isEnabled()) {
             handlers.add(new RestPutDataLifecycleAction());
             handlers.add(new RestGetDataLifecycleAction());
             handlers.add(new RestDeleteDataLifecycleAction());

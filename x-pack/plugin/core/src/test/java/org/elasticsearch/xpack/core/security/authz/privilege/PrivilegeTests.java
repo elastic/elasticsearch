@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TcpTransport;
@@ -467,7 +467,7 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testDlmPrivileges() {
-        assumeTrue("feature flag required", DataLifecycle.isEnabled());
+        assumeTrue("feature flag required", DataStreamLifecycle.isEnabled());
         {
             Predicate<String> predicate = IndexPrivilege.MANAGE_DATA_STREAM_LIFECYCLE.predicate();
             // check indices actions

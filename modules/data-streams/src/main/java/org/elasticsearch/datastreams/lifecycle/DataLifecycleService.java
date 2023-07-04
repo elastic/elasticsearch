@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -163,7 +163,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         this.targetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
         this.targetMergePolicyFactor = DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.get(settings);
-        this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
+        this.rolloverConfiguration = clusterService.getClusterSettings()
+            .get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         this.forceMergeClusterStateUpdateTaskQueue = clusterService.createTaskQueue(
             "dlm-forcemerge-state-update",
             Priority.LOW,
@@ -179,7 +180,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING, this::updatePollInterval);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
+            .addSettingsUpdateConsumer(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING, this::updateMergePolicyFactor);
         clusterService.getClusterSettings()
@@ -230,7 +231,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
     /**
      * Iterates over the DLM managed data streams and executes the needed operations
-     * to satisfy the configured {@link DataLifecycle}.
+     * to satisfy the configured {@link DataStreamLifecycle}.
      */
     // default visibility for testing purposes
     void run(ClusterState state) {

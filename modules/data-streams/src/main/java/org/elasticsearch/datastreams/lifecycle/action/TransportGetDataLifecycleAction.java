@@ -13,8 +13,8 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -88,8 +88,8 @@ public class TransportGetDataLifecycleAction extends TransportMasterNodeReadActi
                     )
                     .sorted(Comparator.comparing(GetDataLifecycleAction.Response.DataStreamLifecycle::dataStreamName))
                     .toList(),
-                request.includeDefaults() && DataLifecycle.isEnabled()
-                    ? clusterSettings.get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
+                request.includeDefaults() && DataStreamLifecycle.isEnabled()
+                    ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
                     : null
             )
         );

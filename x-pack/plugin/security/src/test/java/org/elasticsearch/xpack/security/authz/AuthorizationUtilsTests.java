@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -122,7 +122,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
 
     public void testSwitchWithDlmOrigin() throws Exception {
         assertSwitchBasedOnOriginAndExecute(
-            DataLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN,
+            DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN,
             InternalUsers.DATA_STREAM_LIFECYCLE_USER,
             randomTransportVersion()
         );

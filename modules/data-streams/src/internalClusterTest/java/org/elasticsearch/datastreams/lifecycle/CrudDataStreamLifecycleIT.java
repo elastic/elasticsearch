@@ -9,7 +9,7 @@
 package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CrudDataLifecycleIT extends ESIntegTestCase {
+public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -42,7 +42,7 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
     }
 
     public void testGetLifecycle() throws Exception {
-        DataLifecycle lifecycle = randomLifecycle();
+        DataStreamLifecycle lifecycle = randomLifecycle();
         putComposableIndexTemplate("id1", null, List.of("with-lifecycle*"), null, null, lifecycle);
         putComposableIndexTemplate("id2", null, List.of("without-lifecycle*"), null, null, null);
         {
@@ -116,11 +116,11 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
         assertThat(responseWithRollover.getRolloverConfiguration(), notNullValue());
     }
 
-    private void assertDataLifecycle(DataLifecycle dataLifecycle, DataLifecycle expected) {
+    private void assertDataLifecycle(DataStreamLifecycle lifecycle, DataStreamLifecycle expected) {
         if (expected.equals(Template.NO_LIFECYCLE)) {
-            assertThat(dataLifecycle, nullValue());
+            assertThat(lifecycle, nullValue());
         } else {
-            assertThat(dataLifecycle, equalTo(expected));
+            assertThat(lifecycle, equalTo(expected));
         }
     }
 
@@ -157,7 +157,7 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
     }
 
     public void testDeleteLifecycle() throws Exception {
-        DataLifecycle lifecycle = new DataLifecycle(randomMillisUpToYear9999());
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle(randomMillisUpToYear9999());
         putComposableIndexTemplate("id1", null, List.of("with-lifecycle*"), null, null, lifecycle);
         putComposableIndexTemplate("id2", null, List.of("without-lifecycle*"), null, null, null);
         {

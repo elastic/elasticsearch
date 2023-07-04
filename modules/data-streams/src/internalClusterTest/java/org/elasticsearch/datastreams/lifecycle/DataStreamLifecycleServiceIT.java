@@ -29,9 +29,9 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -79,8 +79,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class DataLifecycleServiceIT extends ESIntegTestCase {
-    private static final Logger logger = LogManager.getLogger(DataLifecycleServiceIT.class);
+public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
+    private static final Logger logger = LogManager.getLogger(DataStreamLifecycleServiceIT.class);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -95,7 +95,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
-        settings.put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
+        settings.put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         return settings.build();
     }
 
@@ -107,7 +107,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
 
     public void testRolloverLifecycle() throws Exception {
         // empty lifecycle contains the default rollover
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
         String dataStreamName = "metrics-foo";
@@ -132,7 +132,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testRolloverAndRetention() throws Exception {
-        DataLifecycle lifecycle = new DataLifecycle(TimeValue.timeValueMillis(0));
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle(TimeValue.timeValueMillis(0));
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
 
@@ -163,7 +163,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
          * days ago, and one with an origination date 1 day ago. After DLM runs, we expect the one with the old origination date to have
          * been deleted, and the one with the newer origination date to remain.
          */
-        DataLifecycle lifecycle = new DataLifecycle(TimeValue.timeValueDays(7).millis());
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle(TimeValue.timeValueDays(7).millis());
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
 
@@ -226,7 +226,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testUpdatingLifecycleAppliesToAllBackingIndices() throws Exception {
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
 
@@ -277,7 +277,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
          * merging has already happened automatically. So in order to detect whether forcemerge has been called, we use a
          * SendRequestBehavior in the MockTransportService to detect it.
          */
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         disableDLM();
         String dataStreamName = "metrics-foo";
         putComposableIndexTemplate(
@@ -376,7 +376,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
 
     public void testErrorRecordingOnRollover() throws Exception {
         // empty lifecycle contains the default rollover
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         /*
          * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
          * could result in DLM's automatic forcemerge failing, which would result in an unexpected error in the error store.
@@ -462,7 +462,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     public void testErrorRecordingOnRetention() throws Exception {
         // starting with a lifecycle without retention so we can rollover the data stream and manipulate the second generation index such
         // that its retention execution fails
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
         /*
          * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
@@ -561,7 +561,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testDataLifecycleServiceConfiguresTheMergePolicy() throws Exception {
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
         putComposableIndexTemplate(
             "id1",
@@ -662,7 +662,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(

@@ -14,7 +14,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -139,13 +138,16 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
-        public record DataStreamLifecycle(String dataStreamName, @Nullable DataLifecycle lifecycle) implements Writeable, ToXContentObject {
+        public record DataStreamLifecycle(String dataStreamName, @Nullable org.elasticsearch.cluster.metadata.DataStreamLifecycle lifecycle)
+            implements
+                Writeable,
+                ToXContentObject {
 
             public static final ParseField NAME_FIELD = new ParseField("name");
             public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
 
             DataStreamLifecycle(StreamInput in) throws IOException {
-                this(in.readString(), in.readOptionalWriteable(DataLifecycle::new));
+                this(in.readString(), in.readOptionalWriteable(org.elasticsearch.cluster.metadata.DataStreamLifecycle::new));
             }
 
             @Override
@@ -189,7 +191,7 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
         }
 
         public Response(StreamInput in) throws IOException {
-            this(in.readList(DataStreamLifecycle::new), in.readOptionalWriteable(RolloverConfiguration::new));
+            this(in.readList(Response.DataStreamLifecycle::new), in.readOptionalWriteable(RolloverConfiguration::new));
         }
 
         public List<DataStreamLifecycle> getDataStreamLifecycles() {

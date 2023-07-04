@@ -1,6 +1,6 @@
 pr: 97353
 summary: Initialise ES logging in CLI
-area: "Infra/CLI, Infra/Logging"
+area: Infra/CLI
 type: bug
 issues:
  - 97350

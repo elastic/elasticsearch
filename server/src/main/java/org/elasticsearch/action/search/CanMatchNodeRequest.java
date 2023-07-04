@@ -132,7 +132,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         @Nullable String clusterAlias
     ) {
         this.source = searchRequest.source();
-        this.originalSource = searchRequest.originalSource();
+        this.originalSource = searchRequest.source();
         this.indicesOptions = indicesOptions;
         this.shards = new ArrayList<>(shards);
         this.searchType = searchRequest.searchType();
@@ -212,7 +212,6 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
             numberOfShards,
             searchType,
             source,
-            originalSource,
             requestCache,
             r.aliasFilter,
             r.indexBoost,

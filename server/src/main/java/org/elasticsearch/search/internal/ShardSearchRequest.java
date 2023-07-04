@@ -30,7 +30,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
@@ -143,7 +148,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             numberOfShards,
             searchRequest.searchType(),
             searchRequest.source(),
-            searchRequest.source(),
             searchRequest.requestCache(),
             aliasFilter,
             indexBoost,
@@ -186,7 +190,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             SearchType.QUERY_THEN_FETCH,
             null,
             null,
-            null,
             aliasFilter,
             1.0f,
             true,
@@ -208,7 +211,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         int numberOfShards,
         SearchType searchType,
         SearchSourceBuilder source,
-        SearchSourceBuilder originalSource,
         Boolean requestCache,
         AliasFilter aliasFilter,
         float indexBoost,
@@ -227,7 +229,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source(source);
-        this.originalSource(originalSource);
+        this.originalSource(source);
         this.requestCache = requestCache;
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
@@ -278,7 +280,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        originalSource = in.readOptionalWriteable(SearchSourceBuilder::new);
+        originalSource = source;
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.getTransportVersion().before(TransportVersion.V_8_500_013)) {
             // to deserialize between the 8.8 and 8.500.013 version we need to translate
             // the rank queries into sub searches if we are ranking; if there are no rank queries
@@ -373,7 +375,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        out.writeOptionalWriteable(originalSource);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)
             && out.getTransportVersion().before(TransportVersion.V_8_500_013)) {
             // to serialize between the 8.8 and 8.500.013 version we need to translate
@@ -482,7 +483,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             source = source.shallowCopy();
             source.pointInTimeBuilder(new PointInTimeBuilder(""));
         }
-        // this.originalSource = source;
         this.source = source;
     }
 

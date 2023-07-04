@@ -18,7 +18,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
-import org.elasticsearch.action.dlm.ExplainIndexDataLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -117,7 +117,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             assertThat(response.getIndices().size(), is(2));
             // we requested the explain for indices with the default include_details=false
             assertThat(response.getRolloverConfiguration(), nullValue());
-            for (ExplainIndexDataLifecycle explainIndex : response.getIndices()) {
+            for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
                 assertThat(explainIndex.isManagedByDLM(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
@@ -209,7 +209,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             assertThat(response.getIndices().size(), is(1));
             // we requested the explain for indices with the default include_details=false
             assertThat(response.getRolloverConfiguration(), nullValue());
-            for (ExplainIndexDataLifecycle explainIndex : response.getIndices()) {
+            for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
                 assertThat(explainIndex.getIndex(), is(writeIndexName));
                 assertThat(explainIndex.isManagedByDLM(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
@@ -267,7 +267,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             ).actionGet();
             assertThat(response.getIndices().size(), is(1));
             assertThat(response.getRolloverConfiguration(), nullValue());
-            for (ExplainIndexDataLifecycle explainIndex : response.getIndices()) {
+            for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
                 assertThat(explainIndex.isManagedByDLM(), is(false));
                 assertThat(explainIndex.getIndex(), is(writeIndexName));
                 assertThat(explainIndex.getIndexCreationDate(), nullValue());

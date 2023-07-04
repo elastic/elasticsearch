@@ -10,7 +10,7 @@ package org.elasticsearch.datastreams.lifecycle.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
-import org.elasticsearch.action.dlm.ExplainIndexDataLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -75,7 +75,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
     ) throws Exception {
 
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        List<ExplainIndexDataLifecycle> explainIndices = new ArrayList<>(concreteIndices.length);
+        List<ExplainIndexDataStreamLifecycle> explainIndices = new ArrayList<>(concreteIndices.length);
         Metadata metadata = state.metadata();
         for (String index : concreteIndices) {
             IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
@@ -89,13 +89,13 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             DataStream parentDataStream = indexAbstraction.getParentDataStream();
             if (parentDataStream == null
                 || parentDataStream.isIndexManagedByDataStreamLifecycle(idxMetadata.getIndex(), metadata::index) == false) {
-                explainIndices.add(new ExplainIndexDataLifecycle(index, false, null, null, null, null, null));
+                explainIndices.add(new ExplainIndexDataStreamLifecycle(index, false, null, null, null, null, null));
                 continue;
             }
 
             RolloverInfo rolloverInfo = idxMetadata.getRolloverInfos().get(parentDataStream.getName());
             TimeValue generationDate = parentDataStream.getGenerationLifecycleDate(idxMetadata);
-            ExplainIndexDataLifecycle explainIndexDataLifecycle = new ExplainIndexDataLifecycle(
+            ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
                 index,
                 true,
                 idxMetadata.getCreationDate(),
@@ -104,7 +104,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 parentDataStream.getLifecycle(),
                 errorStore.getError(index)
             );
-            explainIndices.add(explainIndexDataLifecycle);
+            explainIndices.add(explainIndexDataStreamLifecycle);
         }
 
         ClusterSettings clusterSettings = clusterService.getClusterSettings();

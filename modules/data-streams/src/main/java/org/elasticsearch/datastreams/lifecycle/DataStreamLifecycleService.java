@@ -542,7 +542,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
                 if (e instanceof SnapshotInProgressException) {
                     logger.info(
-                        "Data stream lifecycle was unable to delete index [{}] because it's currently being snapshotted. Retrying on the next DLM run",
+                        "Data stream lifecycle was unable to delete index [{}] because it's currently being snapshot. Retrying on "
+                            + "the next data stream lifecycle run",
                         targetIndex
                     );
                 } else {

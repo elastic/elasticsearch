@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.dlm;
+package org.elasticsearch.action.datastreams.lifecycle;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 /**
  * Encapsulates the information that describes an index from its DLM lifecycle perspective.
  */
-public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
+public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObject {
     private static final ParseField INDEX_FIELD = new ParseField("index");
     private static final ParseField MANAGED_BY_LIFECYCLE_FIELD = new ParseField("managed_by_lifecycle");
     private static final ParseField INDEX_CREATION_DATE_MILLIS_FIELD = new ParseField("index_creation_date_millis");
@@ -53,7 +53,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
     private final String error;
     private Supplier<Long> nowSupplier = System::currentTimeMillis;
 
-    public ExplainIndexDataLifecycle(
+    public ExplainIndexDataStreamLifecycle(
         String index,
         boolean managedByDLM,
         @Nullable Long indexCreationDate,
@@ -71,7 +71,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         this.error = error;
     }
 
-    public ExplainIndexDataLifecycle(StreamInput in) throws IOException {
+    public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
         this.index = in.readString();
         this.managedByDLM = in.readBoolean();
         if (managedByDLM) {
@@ -219,7 +219,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        ExplainIndexDataLifecycle that = (ExplainIndexDataLifecycle) o;
+        ExplainIndexDataStreamLifecycle that = (ExplainIndexDataStreamLifecycle) o;
         return managedByDLM == that.managedByDLM
             && Objects.equals(index, that.index)
             && Objects.equals(indexCreationDate, that.indexCreationDate)

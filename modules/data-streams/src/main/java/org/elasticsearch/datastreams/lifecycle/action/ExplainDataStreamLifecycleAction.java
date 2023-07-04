@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.action.dlm.ExplainIndexDataLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.collect.Iterators;
@@ -42,7 +42,7 @@ public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStre
     }
 
     /**
-     * Request explaining the DLM lifecycle for one or more indices.
+     * Request explaining the data stream lifecycle for one or more indices.
      */
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
         private String[] names;
@@ -135,22 +135,22 @@ public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStre
      */
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField INDICES_FIELD = new ParseField("indices");
-        private List<ExplainIndexDataLifecycle> indices;
+        private List<ExplainIndexDataStreamLifecycle> indices;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
 
-        public Response(List<ExplainIndexDataLifecycle> indices, @Nullable RolloverConfiguration rolloverConfiguration) {
+        public Response(List<ExplainIndexDataStreamLifecycle> indices, @Nullable RolloverConfiguration rolloverConfiguration) {
             this.indices = indices;
             this.rolloverConfiguration = rolloverConfiguration;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.indices = in.readList(ExplainIndexDataLifecycle::new);
+            this.indices = in.readList(ExplainIndexDataStreamLifecycle::new);
             this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
         }
 
-        public List<ExplainIndexDataLifecycle> getIndices() {
+        public List<ExplainIndexDataStreamLifecycle> getIndices() {
             return indices;
         }
 

@@ -27,7 +27,7 @@ public class RestExplainDataStreamLifecycleAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "dlm_explain_action";
+        return "data_stream_lifecycle_explain_action";
     }
 
     @Override

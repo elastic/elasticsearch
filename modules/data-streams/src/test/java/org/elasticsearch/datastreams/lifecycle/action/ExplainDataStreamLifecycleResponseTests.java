@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondit
 import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.action.dlm.ExplainIndexDataLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -63,7 +63,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
     public void testToXContent() throws IOException {
         long now = System.currentTimeMillis();
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
-        ExplainIndexDataLifecycle explainIndex = createRandomIndexDLMExplanation(now, lifecycle);
+        ExplainIndexDataStreamLifecycle explainIndex = createRandomIndexDLMExplanation(now, lifecycle);
         explainIndex.setNowSupplier(() -> now);
         {
             Response response = new Response(List.of(explainIndex), null);
@@ -167,7 +167,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         }
         {
             // Make sure generation_date is not present if it is null (which it is for a write index):
-            ExplainIndexDataLifecycle explainIndexWithNullGenerationDate = new ExplainIndexDataLifecycle(
+            ExplainIndexDataStreamLifecycle explainIndexWithNullGenerationDate = new ExplainIndexDataStreamLifecycle(
                 randomAlphaOfLengthBetween(10, 30),
                 true,
                 now,
@@ -213,8 +213,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         AbstractChunkedSerializingTestCase.assertChunkCount(response, ignored -> 5);
     }
 
-    private static ExplainIndexDataLifecycle createRandomIndexDLMExplanation(long now, @Nullable DataStreamLifecycle lifecycle) {
-        return new ExplainIndexDataLifecycle(
+    private static ExplainIndexDataStreamLifecycle createRandomIndexDLMExplanation(long now, @Nullable DataStreamLifecycle lifecycle) {
+        return new ExplainIndexDataStreamLifecycle(
             randomAlphaOfLengthBetween(10, 30),
             true,
             now,

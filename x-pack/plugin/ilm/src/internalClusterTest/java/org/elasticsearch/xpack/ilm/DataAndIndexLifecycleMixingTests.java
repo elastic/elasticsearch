@@ -15,7 +15,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
-import org.elasticsearch.action.dlm.ExplainIndexDataLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -207,7 +207,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex })
             ).actionGet();
             assertThat(dlmExplainResponse.getIndices().size(), is(1));
-            ExplainIndexDataLifecycle writeIndexDLMExplain = dlmExplainResponse.getIndices().get(0);
+            ExplainIndexDataStreamLifecycle writeIndexDLMExplain = dlmExplainResponse.getIndices().get(0);
             assertThat(writeIndexDLMExplain.isManagedByDLM(), is(false));
         });
 
@@ -263,7 +263,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex, writeIndex })
             ).actionGet();
             assertThat(dlmExplainResponse.getIndices().size(), is(2));
-            for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
+            for (ExplainIndexDataStreamLifecycle index : dlmExplainResponse.getIndices()) {
                 assertThat(index.isManagedByDLM(), is(true));
             }
         });
@@ -437,7 +437,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 new ExplainDataStreamLifecycleAction.Request(new String[] { writeIndex })
             ).actionGet();
             assertThat(dlmExplainResponse.getIndices().size(), is(1));
-            ExplainIndexDataLifecycle dlmExplain = dlmExplainResponse.getIndices().get(0);
+            ExplainIndexDataStreamLifecycle dlmExplain = dlmExplainResponse.getIndices().get(0);
             assertThat(dlmExplain.isManagedByDLM(), is(true));
             assertThat(dlmExplain.getIndex(), is(writeIndex));
         });
@@ -603,7 +603,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex, writeIndex })
             ).actionGet();
             assertThat(dlmExplainResponse.getIndices().size(), is(2));
-            for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
+            for (ExplainIndexDataStreamLifecycle index : dlmExplainResponse.getIndices()) {
                 assertThat(index.isManagedByDLM(), is(true));
             }
         });
@@ -635,7 +635,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 new ExplainDataStreamLifecycleAction.Request(new String[] { firstGenerationIndex, writeIndex })
             ).actionGet();
             assertThat(dlmExplainResponse.getIndices().size(), is(2));
-            for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
+            for (ExplainIndexDataStreamLifecycle index : dlmExplainResponse.getIndices()) {
                 assertThat(index.isManagedByDLM(), is(true));
             }
         });
@@ -688,7 +688,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 new ExplainDataStreamLifecycleAction.Request(new String[] { firstGenerationIndex, secondGenerationIndex })
             ).actionGet();
             assertThat(dlmExplainResponse.getIndices().size(), is(2));
-            for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
+            for (ExplainIndexDataStreamLifecycle index : dlmExplainResponse.getIndices()) {
                 assertThat(index.isManagedByDLM(), is(true));
             }
 

@@ -1,0 +1,13 @@
+pr: 97319
+summary: Migrate analyzer caches to `IndexVersion`
+area: "Infra/Core, Analysis"
+type: refactoring
+issues: []
+highlight:
+  title: Migrate analyzer caches to `IndexVersion`
+  body: |-
+    Migrate pre-built analyzers and caches to use `IndexVersion` rather than
+    `Version`.
+
+    This changes some APIs that are used by plugins & other external code.
+  notable: true

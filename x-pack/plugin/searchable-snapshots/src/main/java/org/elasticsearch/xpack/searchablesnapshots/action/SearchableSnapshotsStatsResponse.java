@@ -94,7 +94,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
                 .map(ShardRouting::index)
                 .sorted(Index.COMPARE_BY_NAME)
                 .distinct()
-                .collect(toList());
+                .toList();
 
             for (Index index : indices) {
                 builder.startObject(index.getName());
@@ -117,7 +117,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
                             List<SearchableSnapshotShardStats> listOfStats = getStats().stream()
                                 .filter(dirStats -> dirStats.getShardRouting().index().equals(index))
                                 .sorted(Comparator.comparingInt(dir -> dir.getShardRouting().getId()))
-                                .collect(Collectors.toList());
+                                .toList();
 
                             int minShard = listOfStats.stream()
                                 .map(stat -> stat.getShardRouting().getId())

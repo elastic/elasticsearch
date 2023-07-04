@@ -135,7 +135,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -177,7 +177,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -208,7 +208,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -239,7 +239,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -300,7 +300,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -329,7 +329,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                             0L,
                             Collections.emptyMap()
                         ),
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         new ActionListener<>() {
                             @Override
                             public void onResponse(RepositoryData repositoryData) {

@@ -199,8 +199,10 @@ gradlePlugin {
  *****************************************************************************/
 
 def minCompilerJava = versions.get("minimumCompilerJava")
-targetCompatibility = minCompilerJava
-sourceCompatibility = minCompilerJava
+java {
+  targetCompatibility = minCompilerJava
+  sourceCompatibility = minCompilerJava
+}
 
 if (JavaVersion.current() < JavaVersion.toVersion(minCompilerJava)) {
   throw new GradleException("Java ${minCompilerJava} is required to build Elasticsearch but current Java is version ${JavaVersion.current()}.")
@@ -240,7 +242,7 @@ dependencies {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
-    integTestImplementation('org.ow2.asm:asm:9.4')
+    integTestImplementation('org.ow2.asm:asm:9.5')
     api("org.yaml:snakeyaml") {
       version { strictly(versions.snakeyaml) }
     }

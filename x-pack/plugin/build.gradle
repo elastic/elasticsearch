@@ -8,7 +8,9 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
-archivesBaseName = 'x-pack'
+base {
+  archivesName = 'x-pack'
+}
 
 dependencies {
   testImplementation project(xpackModule('core'))

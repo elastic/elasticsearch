@@ -328,7 +328,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         List<Exception> exceptions = Stream.concat(
             taskOperationFailures.stream().map(TaskOperationFailure::getCause),
             elasticsearchExceptions.stream()
-        ).collect(Collectors.toList());
+        ).toList();
 
         assert exceptions.size() > 0 : "buildException called, but no exception found";
         assert exceptions.get(0) != null : "exception must not be null";

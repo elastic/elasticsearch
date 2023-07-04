@@ -17,4 +17,4 @@ highlight:
     in the IndexVersion class.
     Starting in 8.10, IndexVersion is versioned independently of node version, and will be a simple incrementing number.
     For more information on how to use IndexVersion and other version types, please see the contributing guide.
-  notable: true
+  notable: false

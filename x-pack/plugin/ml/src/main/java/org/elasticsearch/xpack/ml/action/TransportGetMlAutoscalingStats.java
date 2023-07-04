@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats;
@@ -59,11 +61,13 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, parentTaskId);
 
         if (mlMemoryTracker.isRecentlyRefreshed()) {
             MlAutoscalingResourceTracker.getMlAutoscalingStats(
                 state,
-                client,
+                parentTaskAssigningClient,
                 request.timeout(),
                 mlMemoryTracker,
                 ActionListener.wrap(autoscalingResources -> listener.onResponse(new Response(autoscalingResources)), listener::onFailure)
@@ -74,7 +78,7 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
                 ActionListener.wrap(
                     ignored -> MlAutoscalingResourceTracker.getMlAutoscalingStats(
                         state,
-                        client,
+                        parentTaskAssigningClient,
                         request.timeout(),
                         mlMemoryTracker,
                         ActionListener.wrap(

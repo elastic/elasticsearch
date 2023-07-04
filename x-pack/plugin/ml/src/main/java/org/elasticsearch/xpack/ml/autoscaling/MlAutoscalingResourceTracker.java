@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.client.internal.Client;
@@ -31,6 +33,7 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
  * backend for new kubernetes based autoscaler.
  */
 public final class MlAutoscalingResourceTracker {
+    private static final Logger logger = LogManager.getLogger(MlAutoscalingResourceTracker.class);
 
     private MlAutoscalingResourceTracker() {}
 
@@ -98,43 +101,51 @@ public final class MlAutoscalingResourceTracker {
 
         final MlAutoscalingContext autoscalingContext = new MlAutoscalingContext(clusterState);
 
+        // anomaly detection
         for (var task : autoscalingContext.anomalyDetectionTasks) {
             String jobId = ((OpenJobAction.JobParams) task.getParams()).getJobId();
+            Long jobMemory = mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId);
+
+            if (jobMemory == null) {
+                // TODO: this indicates a bug and probably we should indicate that the result is incomplete
+                logger.debug("could not find memory requirement for job [{}], skipping", jobId);
+                continue;
+            }
+
             if (AWAITING_LAZY_ASSIGNMENT.equals(task.getAssignment())) {
                 extraSingleNodeModelMemoryInBytes = Math.max(
                     extraSingleNodeModelMemoryInBytes,
-                    mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId)
+                    jobMemory
                 );
                 extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, 1);
                 ++extraProcessors;
             } else {
-                modelMemoryBytesSum += mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId);
+                modelMemoryBytesSum += jobMemory;
                 nodesWithRunningJobs.add(task.getExecutorNode());
                 minNodes = 1;
             }
         }
+
+        // trained models
         for (var modelAssignment : autoscalingContext.modelAssignments.entrySet()) {
+            final int numberOfAllocations = modelAssignment.getValue().getTaskParams().getNumberOfAllocations();
+            final int numberOfThreadsPerAllocation = modelAssignment.getValue().getTaskParams().getThreadsPerAllocation();
+            final long estimatedMemoryUsage = modelAssignment.getValue().getTaskParams().estimateMemoryUsageBytes();
+
             if (AssignmentState.STARTING.equals(modelAssignment.getValue().getAssignmentState())
                 && modelAssignment.getValue().getNodeRoutingTable().isEmpty()) {
+
                 extraSingleNodeModelMemoryInBytes = Math.max(
                     extraSingleNodeModelMemoryInBytes,
-                    modelAssignment.getValue().getTaskParams().estimateMemoryUsageBytes()
+                    estimatedMemoryUsage
                 );
-                final int unassignedProcessors = modelAssignment.getValue().getTaskParams().getNumberOfAllocations() * modelAssignment
-                    .getValue()
-                    .getTaskParams()
-                    .getThreadsPerAllocation();
 
-                extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, unassignedProcessors);
-
-                extraProcessors += unassignedProcessors;
+                extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
+                extraProcessors += numberOfAllocations * numberOfThreadsPerAllocation;
             } else {
-                modelMemoryBytesSum += modelAssignment.getValue().getTaskParams().estimateMemoryUsageBytes();
+                modelMemoryBytesSum += estimatedMemoryUsage;
 
-                final int assignedProcessors = modelAssignment.getValue().getTaskParams().getNumberOfAllocations() * modelAssignment
-                    .getValue()
-                    .getTaskParams()
-                    .getThreadsPerAllocation();
+                final int assignedProcessors = numberOfAllocations * numberOfThreadsPerAllocation;
 
                 // min(3, max(number of allocations over all deployed models), as this is always 3
                 minNodes = Math.min(3, Math.max(minNodes, assignedProcessors));

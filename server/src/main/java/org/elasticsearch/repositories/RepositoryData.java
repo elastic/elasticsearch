@@ -954,19 +954,13 @@ public final class RepositoryData {
     }
 
     private static IndexVersion parseIndexVersion(XContentParser.Token token, XContentParser parser) throws IOException {
-        switch (token) {
-            case VALUE_STRING -> {
-                Version v = Version.fromString(parser.text());
-                assert v.before(Version.V_8_10_0);
-                return IndexVersion.fromId(v.id);
-            }
-            case VALUE_NUMBER -> {
-                return IndexVersion.fromId(parser.intValue());
-            }
-            default -> {
-                XContentParserUtils.throwUnknownToken(parser.currentToken(), parser);
-                throw new AssertionError(); // never reached
-            }
+        if (token == XContentParser.Token.VALUE_NUMBER) {
+            return IndexVersion.fromId(parser.intValue());
+        } else {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
+            Version v = Version.fromString(parser.text());
+            assert v.before(Version.V_8_10_0);
+            return IndexVersion.fromId(v.id);
         }
     }
 

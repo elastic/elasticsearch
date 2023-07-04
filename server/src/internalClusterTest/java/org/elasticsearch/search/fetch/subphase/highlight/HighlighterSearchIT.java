@@ -3906,6 +3906,79 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>constant_value</em>"));
     }
 
+    public void testDoubleConstantKeywordNestedQueriesBothHighlighted() throws Exception {
+        String index = "test";
+
+        prepareCreate(index).setMapping("""
+            {
+            	"properties": {
+            		"foo": {
+            			"type": "text"
+            		},
+            		"test_constant_keyword_field_1": {
+                        "type": "constant_keyword",
+                        "value": "constant_value_1"
+            		},
+            		"test_constant_keyword_field_2": {
+                        "type": "constant_keyword",
+                        "value": "constant_value_2"
+            		},
+            		"another_constant_field": {
+                        "type": "keyword"
+            		}
+            	}
+            }
+            """).get();
+
+        XContentBuilder document = jsonBuilder().startObject().field("foo", "bar").endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(
+            boolQuery().filter(matchQuery("test_constant_keyword_field_1", "constant_value_1"))
+                .should(matchQuery("test_constant_keyword_field_2", "constant_value_2"))
+        );
+
+        assertNoFailures(search);
+        assertHighlight(search, 0, "test_constant_keyword_field_1", 0, 1, equalTo("<em>constant_value_1</em>"));
+        assertHighlight(search, 0, "test_constant_keyword_field_2", 0, 1, equalTo("<em>constant_value_2</em>"));
+    }
+
+    public void testDoubleConstantKeywordNestedQueriesJustOneHighlighted() throws Exception {
+        String index = "test";
+
+        prepareCreate(index).setMapping("""
+            {
+            	"properties": {
+            		"foo": {
+            			"type": "text"
+            		},
+            		"test_constant_keyword_field_1": {
+                        "type": "constant_keyword",
+                        "value": "constant_value_1"
+            		},
+            		"test_constant_keyword_field_2": {
+                        "type": "constant_keyword",
+                        "value": "constant_value_2"
+            		},
+            		"another_constant_field": {
+                        "type": "keyword"
+            		}
+            	}
+            }
+            """).get();
+
+        XContentBuilder document = jsonBuilder().startObject().field("foo", "bar").endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(
+            boolQuery().filter(matchQuery("test_constant_keyword_field_1", "constant_value_1"))
+        );
+
+        assertNoFailures(search);
+        assertHighlight(search, 0, "test_constant_keyword_field_1", 0, 1, equalTo("<em>constant_value_1</em>"));
+        assertNotHighlighted(search, 0, "test_constant_keyword_field_2");
+    }
+
     private XContentBuilder prepareConstantKeywordMappings(String constantKeywordFieldName, String constantValue) throws IOException {
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();

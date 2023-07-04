@@ -26,10 +26,12 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
@@ -408,5 +410,19 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
+    }
+
+    @Override
+    public Query toHighlightQuery(String fieldName) {
+        return Stream.of(filterClauses, shouldClauses, mustClauses)
+            .flatMap(Collection::stream)
+            .toList()
+            .stream()
+            .map(qb -> qb.toHighlightQuery(fieldName))
+            .filter(Objects::nonNull)
+            .toList()
+            .stream()
+            .findFirst()
+            .orElse(null);
     }
 }

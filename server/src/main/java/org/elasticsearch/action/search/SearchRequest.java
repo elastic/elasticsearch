@@ -78,6 +78,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private SearchSourceBuilder source;
 
+    private SearchSourceBuilder originalSource;
+
     private Boolean requestCache;
 
     private Boolean allowPartialSearchResults;
@@ -216,6 +218,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.scroll = searchRequest.scroll;
         this.searchType = searchRequest.searchType;
         this.source = searchRequest.source;
+        this.originalSource = searchRequest.originalSource;
         this.localClusterAlias = localClusterAlias;
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
@@ -239,6 +242,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         preference = in.readOptionalString();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
+        originalSource = in.readOptionalWriteable(SearchSourceBuilder::new);
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();
@@ -288,6 +292,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalString(preference);
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
+        out.writeOptionalWriteable(originalSource);
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
@@ -606,12 +611,26 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.source = Objects.requireNonNull(sourceBuilder, "source must not be null");
         return this;
     }
+    /**
+     * The source of the search request.
+     */
+    public SearchRequest originalSource(SearchSourceBuilder originalSourceBuilder) {
+        this.originalSource = Objects.requireNonNull(originalSourceBuilder, "originalSource must not be null");
+        return this;
+    }
 
     /**
      * The search source to execute.
      */
     public SearchSourceBuilder source() {
         return source;
+    }
+
+    /**
+     * The original source.
+     */
+    public SearchSourceBuilder originalSource() {
+        return originalSource;
     }
 
     public PointInTimeBuilder pointInTimeBuilder() {
@@ -904,6 +923,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(routing, that.routing)
             && Objects.equals(preference, that.preference)
             && Objects.equals(source, that.source)
+            && Objects.equals(originalSource, that.originalSource)
             && Objects.equals(requestCache, that.requestCache)
             && Objects.equals(scroll, that.scroll)
             && Objects.equals(batchedReduceSize, that.batchedReduceSize)
@@ -926,6 +946,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             routing,
             preference,
             source,
+            originalSource,
             requestCache,
             scroll,
             indicesOptions,
@@ -976,6 +997,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + ccsMinimizeRoundtrips
             + ", source="
             + source
+            + ", originalSource="
+            + originalSource
             + '}';
     }
 }

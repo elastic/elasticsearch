@@ -8,10 +8,12 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -250,5 +252,13 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
+    }
+
+    @Override
+    public Query toHighlightQuery(String fieldName) {
+        if (this.fieldName.equals(fieldName)) {
+            return new WildcardQuery(new Term(fieldName, value));
+        }
+        return super.toHighlightQuery(fieldName);
     }
 }

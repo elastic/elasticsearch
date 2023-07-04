@@ -31,13 +31,13 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Action for explaining the DLM lifecycle status for one or more indices.
+ * Action for explaining the data stream lifecycle status for one or more indices.
  */
-public class ExplainDataLifecycleAction extends ActionType<ExplainDataLifecycleAction.Response> {
-    public static final ExplainDataLifecycleAction INSTANCE = new ExplainDataLifecycleAction();
+public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStreamLifecycleAction.Response> {
+    public static final ExplainDataStreamLifecycleAction INSTANCE = new ExplainDataStreamLifecycleAction();
     public static final String NAME = "indices:admin/data_stream/lifecycle/explain";
 
-    public ExplainDataLifecycleAction() {
+    public ExplainDataStreamLifecycleAction() {
         super(NAME, Response::new);
     }
 
@@ -131,7 +131,7 @@ public class ExplainDataLifecycleAction extends ActionType<ExplainDataLifecycleA
     }
 
     /**
-     * Class representing the response for the explain DLM lifecycle action for one or more indices.
+     * Class representing the response for the explain of the data stream lifecycle action for one or more indices.
      */
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField INDICES_FIELD = new ParseField("indices");

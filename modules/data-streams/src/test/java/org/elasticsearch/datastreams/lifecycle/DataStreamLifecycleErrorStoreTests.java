@@ -21,11 +21,11 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
 
-    private DataLifecycleErrorStore errorStore;
+    private DataStreamLifecycleErrorStore errorStore;
 
     @Before
     public void setupServices() {
-        errorStore = new DataLifecycleErrorStore();
+        errorStore = new DataStreamLifecycleErrorStore();
     }
 
     public void testRecordAndRetrieveError() {

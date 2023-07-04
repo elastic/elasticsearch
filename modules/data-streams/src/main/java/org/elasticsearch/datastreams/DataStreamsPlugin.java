@@ -40,20 +40,20 @@ import org.elasticsearch.datastreams.action.GetDataStreamsTransportAction;
 import org.elasticsearch.datastreams.action.MigrateToDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.ModifyDataStreamsTransportAction;
 import org.elasticsearch.datastreams.action.PromoteDataStreamTransportAction;
-import org.elasticsearch.datastreams.lifecycle.DataLifecycleErrorStore;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.datastreams.lifecycle.action.DeleteDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.ExplainDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.GetDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.TransportDeleteDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.TransportExplainDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.TransportGetDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.TransportPutDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.TransportDeleteDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.TransportExplainDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.TransportGetDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.TransportPutDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.datastreams.rest.RestDeleteDataStreamAction;
@@ -107,7 +107,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
     );
     // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
     private final SetOnce<UpdateTimeSeriesRangeService> updateTimeSeriesRangeService = new SetOnce<>();
-    private final SetOnce<DataLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
+    private final SetOnce<DataStreamLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
 
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
 
@@ -173,7 +173,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         components.add(this.updateTimeSeriesRangeService.get());
 
         if (DataStreamLifecycle.isEnabled()) {
-            errorStoreInitialisationService.set(new DataLifecycleErrorStore());
+            errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore());
             dataLifecycleInitialisationService.set(
                 new DataStreamLifecycleService(
                     settings,
@@ -204,10 +204,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         actions.add(new ActionHandler<>(ModifyDataStreamsAction.INSTANCE, ModifyDataStreamsTransportAction.class));
 
         if (DataStreamLifecycle.isEnabled()) {
-            actions.add(new ActionHandler<>(PutDataLifecycleAction.INSTANCE, TransportPutDataLifecycleAction.class));
-            actions.add(new ActionHandler<>(GetDataLifecycleAction.INSTANCE, TransportGetDataLifecycleAction.class));
-            actions.add(new ActionHandler<>(DeleteDataLifecycleAction.INSTANCE, TransportDeleteDataLifecycleAction.class));
-            actions.add(new ActionHandler<>(ExplainDataLifecycleAction.INSTANCE, TransportExplainDataLifecycleAction.class));
+            actions.add(new ActionHandler<>(PutDataStreamLifecycleAction.INSTANCE, TransportPutDataStreamLifecycleAction.class));
+            actions.add(new ActionHandler<>(GetDataStreamLifecycleAction.INSTANCE, TransportGetDataStreamLifecycleAction.class));
+            actions.add(new ActionHandler<>(DeleteDataStreamLifecycleAction.INSTANCE, TransportDeleteDataStreamLifecycleAction.class));
+            actions.add(new ActionHandler<>(ExplainDataStreamLifecycleAction.INSTANCE, TransportExplainDataStreamLifecycleAction.class));
         }
         return actions;
     }
@@ -236,10 +236,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         handlers.add(new RestModifyDataStreamsAction());
 
         if (DataStreamLifecycle.isEnabled()) {
-            handlers.add(new RestPutDataLifecycleAction());
-            handlers.add(new RestGetDataLifecycleAction());
-            handlers.add(new RestDeleteDataLifecycleAction());
-            handlers.add(new RestExplainDataLifecycleAction());
+            handlers.add(new RestPutDataStreamLifecycleAction());
+            handlers.add(new RestGetDataStreamLifecycleAction());
+            handlers.add(new RestDeleteDataStreamLifecycleAction());
+            handlers.add(new RestExplainDataStreamLifecycleAction());
         }
         return handlers;
     }

@@ -118,7 +118,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
     private final LongSupplier nowSupplier;
     private final Clock clock;
-    private final DataLifecycleErrorStore errorStore;
+    private final DataStreamLifecycleErrorStore errorStore;
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
     private volatile RolloverConfiguration rolloverConfiguration;
@@ -149,7 +149,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Clock clock,
         ThreadPool threadPool,
         LongSupplier nowSupplier,
-        DataLifecycleErrorStore errorStore
+        DataStreamLifecycleErrorStore errorStore
     ) {
         this.settings = settings;
         this.client = client;
@@ -652,9 +652,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     static class ErrorRecordingActionListener implements ActionListener<Void> {
         private final String targetIndex;
-        private final DataLifecycleErrorStore errorStore;
+        private final DataStreamLifecycleErrorStore errorStore;
 
-        ErrorRecordingActionListener(String targetIndex, DataLifecycleErrorStore errorStore) {
+        ErrorRecordingActionListener(String targetIndex, DataStreamLifecycleErrorStore errorStore) {
             this.targetIndex = targetIndex;
             this.errorStore = errorStore;
         }
@@ -734,7 +734,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     // public visibility for testing
-    public DataLifecycleErrorStore getErrorStore() {
+    public DataStreamLifecycleErrorStore getErrorStore() {
         return errorStore;
     }
 

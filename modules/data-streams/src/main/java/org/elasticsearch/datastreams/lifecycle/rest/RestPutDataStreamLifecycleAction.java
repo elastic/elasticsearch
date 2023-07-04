@@ -10,7 +10,7 @@ package org.elasticsearch.datastreams.lifecycle.rest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -24,7 +24,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestPutDataLifecycleAction extends BaseRestHandler {
+public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
 
     @Override
     public String getName() {
@@ -39,12 +39,16 @@ public class RestPutDataLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            PutDataLifecycleAction.Request putLifecycleRequest = PutDataLifecycleAction.Request.parseRequest(parser);
+            PutDataStreamLifecycleAction.Request putLifecycleRequest = PutDataStreamLifecycleAction.Request.parseRequest(parser);
             putLifecycleRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));
             putLifecycleRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLifecycleRequest.masterNodeTimeout()));
             putLifecycleRequest.timeout(request.paramAsTime("timeout", putLifecycleRequest.timeout()));
             putLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, putLifecycleRequest.indicesOptions()));
-            return channel -> client.execute(PutDataLifecycleAction.INSTANCE, putLifecycleRequest, new RestToXContentListener<>(channel));
+            return channel -> client.execute(
+                PutDataStreamLifecycleAction.INSTANCE,
+                putLifecycleRequest,
+                new RestToXContentListener<>(channel)
+            );
         }
     }
 }

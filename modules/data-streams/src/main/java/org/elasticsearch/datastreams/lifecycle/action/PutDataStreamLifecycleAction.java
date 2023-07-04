@@ -32,14 +32,14 @@ import java.util.Objects;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_RETENTION_FIELD;
 
 /**
- * Sets the data lifecycle that was provided in the request to the requested data streams.
+ * Sets the data stream lifecycle that was provided in the request to the requested data streams.
  */
-public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
+public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedResponse> {
 
-    public static final PutDataLifecycleAction INSTANCE = new PutDataLifecycleAction();
+    public static final PutDataStreamLifecycleAction INSTANCE = new PutDataStreamLifecycleAction();
     public static final String NAME = "indices:admin/data_stream/lifecycle/put";
 
-    private PutDataLifecycleAction() {
+    private PutDataStreamLifecycleAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 

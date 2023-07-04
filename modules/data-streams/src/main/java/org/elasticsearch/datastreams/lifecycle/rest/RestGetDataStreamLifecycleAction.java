@@ -10,7 +10,7 @@ package org.elasticsearch.datastreams.lifecycle.rest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.datastreams.lifecycle.action.GetDataLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -22,7 +22,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestGetDataLifecycleAction extends BaseRestHandler {
+public class RestGetDataStreamLifecycleAction extends BaseRestHandler {
 
     @Override
     public String getName() {
@@ -36,13 +36,13 @@ public class RestGetDataLifecycleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        GetDataLifecycleAction.Request getDataLifecycleRequest = new GetDataLifecycleAction.Request(
+        GetDataStreamLifecycleAction.Request getDataLifecycleRequest = new GetDataStreamLifecycleAction.Request(
             Strings.splitStringByCommaToArray(request.param("name"))
         );
         getDataLifecycleRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getDataLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, getDataLifecycleRequest.indicesOptions()));
         return channel -> client.execute(
-            GetDataLifecycleAction.INSTANCE,
+            GetDataStreamLifecycleAction.INSTANCE,
             getDataLifecycleRequest,
             new RestChunkedToXContentListener<>(channel)
         );

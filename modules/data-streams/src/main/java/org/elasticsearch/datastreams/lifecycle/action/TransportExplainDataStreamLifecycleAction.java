@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.datastreams.lifecycle.DataLifecycleErrorStore;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -35,32 +35,32 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Transport action handling the explain DLM lifecycle requests for one or more DLM managed indices.
+ * Transport action handling the explain the data stream lifecycle requests for one or more data stream lifecycle managed indices.
  */
-public class TransportExplainDataLifecycleAction extends TransportMasterNodeReadAction<
-    ExplainDataLifecycleAction.Request,
-    ExplainDataLifecycleAction.Response> {
+public class TransportExplainDataStreamLifecycleAction extends TransportMasterNodeReadAction<
+    ExplainDataStreamLifecycleAction.Request,
+    ExplainDataStreamLifecycleAction.Response> {
 
-    private final DataLifecycleErrorStore errorStore;
+    private final DataStreamLifecycleErrorStore errorStore;
 
     @Inject
-    public TransportExplainDataLifecycleAction(
+    public TransportExplainDataStreamLifecycleAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DataLifecycleErrorStore dataLifecycleServiceErrorStore
+        DataStreamLifecycleErrorStore dataLifecycleServiceErrorStore
     ) {
         super(
-            ExplainDataLifecycleAction.NAME,
+            ExplainDataStreamLifecycleAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            ExplainDataLifecycleAction.Request::new,
+            ExplainDataStreamLifecycleAction.Request::new,
             indexNameExpressionResolver,
-            ExplainDataLifecycleAction.Response::new,
+            ExplainDataStreamLifecycleAction.Response::new,
             ThreadPool.Names.MANAGEMENT
         );
         this.errorStore = dataLifecycleServiceErrorStore;
@@ -69,9 +69,9 @@ public class TransportExplainDataLifecycleAction extends TransportMasterNodeRead
     @Override
     protected void masterOperation(
         Task task,
-        ExplainDataLifecycleAction.Request request,
+        ExplainDataStreamLifecycleAction.Request request,
         ClusterState state,
-        ActionListener<ExplainDataLifecycleAction.Response> listener
+        ActionListener<ExplainDataStreamLifecycleAction.Response> listener
     ) throws Exception {
 
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
@@ -109,7 +109,7 @@ public class TransportExplainDataLifecycleAction extends TransportMasterNodeRead
 
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         listener.onResponse(
-            new ExplainDataLifecycleAction.Response(
+            new ExplainDataStreamLifecycleAction.Response(
                 explainIndices,
                 request.includeDefaults() && DataStreamLifecycle.isEnabled()
                     ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
@@ -119,7 +119,7 @@ public class TransportExplainDataLifecycleAction extends TransportMasterNodeRead
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ExplainDataLifecycleAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(ExplainDataStreamLifecycleAction.Request request, ClusterState state) {
         return state.blocks()
             .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }

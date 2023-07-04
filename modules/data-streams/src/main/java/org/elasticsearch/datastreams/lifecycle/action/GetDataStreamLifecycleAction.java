@@ -34,12 +34,12 @@ import java.util.Objects;
 /**
  * This action retrieves the data lifecycle from every data stream that has a data lifecycle configured.
  */
-public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Response> {
+public class GetDataStreamLifecycleAction extends ActionType<GetDataStreamLifecycleAction.Response> {
 
-    public static final GetDataLifecycleAction INSTANCE = new GetDataLifecycleAction();
+    public static final GetDataStreamLifecycleAction INSTANCE = new GetDataStreamLifecycleAction();
     public static final String NAME = "indices:admin/data_stream/lifecycle/get";
 
-    private GetDataLifecycleAction() {
+    private GetDataStreamLifecycleAction() {
         super(NAME, Response::new);
     }
 

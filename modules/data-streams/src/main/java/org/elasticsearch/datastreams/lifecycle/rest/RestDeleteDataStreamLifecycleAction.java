@@ -10,7 +10,7 @@ package org.elasticsearch.datastreams.lifecycle.rest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.datastreams.lifecycle.action.DeleteDataLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -22,7 +22,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestDeleteDataLifecycleAction extends BaseRestHandler {
+public class RestDeleteDataStreamLifecycleAction extends BaseRestHandler {
 
     @Override
     public String getName() {
@@ -36,12 +36,12 @@ public class RestDeleteDataLifecycleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        DeleteDataLifecycleAction.Request deleteDataLifecycleRequest = new DeleteDataLifecycleAction.Request(
+        DeleteDataStreamLifecycleAction.Request deleteDataLifecycleRequest = new DeleteDataStreamLifecycleAction.Request(
             Strings.splitStringByCommaToArray(request.param("name"))
         );
         deleteDataLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteDataLifecycleRequest.indicesOptions()));
         return channel -> client.execute(
-            DeleteDataLifecycleAction.INSTANCE,
+            DeleteDataStreamLifecycleAction.INSTANCE,
             deleteDataLifecycleRequest,
             new RestToXContentListener<>(channel)
         );

@@ -28,7 +28,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.action.ExplainDataLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
@@ -105,13 +105,15 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         });
 
         {
-            ExplainDataLifecycleAction.Request explainIndicesRequest = new ExplainDataLifecycleAction.Request(
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
                 new String[] {
                     DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                     DataStream.getDefaultBackingIndexName(dataStreamName, 2) }
             );
-            ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
-                .actionGet();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
             assertThat(response.getIndices().size(), is(2));
             // we requested the explain for indices with the default include_details=false
             assertThat(response.getRolloverConfiguration(), nullValue());
@@ -143,14 +145,16 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         {
             // let's also explain with include_defaults=true
-            ExplainDataLifecycleAction.Request explainIndicesRequest = new ExplainDataLifecycleAction.Request(
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
                 new String[] {
                     DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                     DataStream.getDefaultBackingIndexName(dataStreamName, 2) },
                 true
             );
-            ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
-                .actionGet();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
             assertThat(response.getIndices().size(), is(2));
             RolloverConfiguration rolloverConfiguration = response.getRolloverConfiguration();
             assertThat(rolloverConfiguration, notNullValue());
@@ -195,11 +199,13 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         assertBusy(() -> {
-            ExplainDataLifecycleAction.Request explainIndicesRequest = new ExplainDataLifecycleAction.Request(
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
                 new String[] { writeIndexName }
             );
-            ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
-                .actionGet();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
             assertThat(response.getIndices().size(), is(1));
             // we requested the explain for indices with the default include_details=false
             assertThat(response.getRolloverConfiguration(), nullValue());
@@ -222,11 +228,13 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().putNull("*"));
 
         assertBusy(() -> {
-            ExplainDataLifecycleAction.Request explainIndicesRequest = new ExplainDataLifecycleAction.Request(
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
                 new String[] { writeIndexName }
             );
-            ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
-                .actionGet();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
             assertThat(response.getIndices().size(), is(1));
             if (internalCluster().numDataNodes() > 1) {
                 assertThat(response.getIndices().get(0).getError(), is(nullValue()));
@@ -250,11 +258,13 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         assertBusy(() -> {
-            ExplainDataLifecycleAction.Request explainIndicesRequest = new ExplainDataLifecycleAction.Request(
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
                 new String[] { writeIndexName }
             );
-            ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
-                .actionGet();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
             assertThat(response.getIndices().size(), is(1));
             assertThat(response.getRolloverConfiguration(), nullValue());
             for (ExplainIndexDataLifecycle explainIndex : response.getIndices()) {

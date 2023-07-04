@@ -27,8 +27,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.datastreams.lifecycle.action.ExplainDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -202,9 +202,9 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse thirdGenerationExplain = explainResponse.getIndexResponses().get(thirdGenerationIndex);
             assertThat(thirdGenerationExplain.managedByILM(), is(false));
 
-            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
-                ExplainDataLifecycleAction.INSTANCE,
-                new ExplainDataLifecycleAction.Request(new String[] { thirdGenerationIndex })
+            ExplainDataStreamLifecycleAction.Response dlmExplainResponse = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex })
             ).actionGet();
             assertThat(dlmExplainResponse.getIndices().size(), is(1));
             ExplainIndexDataLifecycle writeIndexDLMExplain = dlmExplainResponse.getIndices().get(0);
@@ -213,8 +213,8 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
         // let's migrate this data stream to use DLM starting with the next generation
         client().execute(
-            PutDataLifecycleAction.INSTANCE,
-            new PutDataLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
+            PutDataStreamLifecycleAction.INSTANCE,
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
         );
 
         // at this point we should be able to rollover the data stream by indexing only one document (as DLM is configured to)
@@ -258,9 +258,9 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(thirdGenerationExplain.managedByILM(), is(false));
 
             // the write index is managed by DLM
-            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
-                ExplainDataLifecycleAction.INSTANCE,
-                new ExplainDataLifecycleAction.Request(new String[] { thirdGenerationIndex, writeIndex })
+            ExplainDataStreamLifecycleAction.Response dlmExplainResponse = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex, writeIndex })
             ).actionGet();
             assertThat(dlmExplainResponse.getIndices().size(), is(2));
             for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
@@ -377,8 +377,8 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
         // let's migrate this data stream to use DLM starting with the next generation
         client().execute(
-            PutDataLifecycleAction.INSTANCE,
-            new PutDataLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
+            PutDataStreamLifecycleAction.INSTANCE,
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
         );
 
         putComposableIndexTemplate(
@@ -432,9 +432,9 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(thirdGenerationExplain.getStep(), is(PhaseCompleteStep.NAME));
 
             // the write index is managed by DLM
-            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
-                ExplainDataLifecycleAction.INSTANCE,
-                new ExplainDataLifecycleAction.Request(new String[] { writeIndex })
+            ExplainDataStreamLifecycleAction.Response dlmExplainResponse = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { writeIndex })
             ).actionGet();
             assertThat(dlmExplainResponse.getIndices().size(), is(1));
             ExplainIndexDataLifecycle dlmExplain = dlmExplainResponse.getIndices().get(0);
@@ -552,8 +552,8 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
         // after we updated the index template to have prefer_ilm: false, so the 3rd generation index will no receive both ILM and DLM
         // configurations and because its prefer_ilm: false setting, it will switch from being managed by ILM to DLM)
         client().execute(
-            PutDataLifecycleAction.INSTANCE,
-            new PutDataLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
+            PutDataStreamLifecycleAction.INSTANCE,
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
         );
 
         // at this point, the write index of the data stream is managed by DLM and not by ILM anymore so we can just index one document
@@ -598,9 +598,9 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(thirdGenerationExplain.managedByILM(), is(false));
 
             // the write index is managed by DLM
-            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
-                ExplainDataLifecycleAction.INSTANCE,
-                new ExplainDataLifecycleAction.Request(new String[] { thirdGenerationIndex, writeIndex })
+            ExplainDataStreamLifecycleAction.Response dlmExplainResponse = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex, writeIndex })
             ).actionGet();
             assertThat(dlmExplainResponse.getIndices().size(), is(2));
             for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
@@ -630,9 +630,9 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             String writeIndex = getDefaultBackingIndexName(dataStreamName, 2);
 
             // let's check the indices are managed by DLM
-            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
-                ExplainDataLifecycleAction.INSTANCE,
-                new ExplainDataLifecycleAction.Request(new String[] { firstGenerationIndex, writeIndex })
+            ExplainDataStreamLifecycleAction.Response dlmExplainResponse = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { firstGenerationIndex, writeIndex })
             ).actionGet();
             assertThat(dlmExplainResponse.getIndices().size(), is(2));
             for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
@@ -683,9 +683,9 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             String writeIndex = getDefaultBackingIndexName(dataStreamName, 3);
 
             // let's check the previous indices are managed by DLM
-            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
-                ExplainDataLifecycleAction.INSTANCE,
-                new ExplainDataLifecycleAction.Request(new String[] { firstGenerationIndex, secondGenerationIndex })
+            ExplainDataStreamLifecycleAction.Response dlmExplainResponse = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { firstGenerationIndex, secondGenerationIndex })
             ).actionGet();
             assertThat(dlmExplainResponse.getIndices().size(), is(2));
             for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {

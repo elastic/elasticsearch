@@ -118,7 +118,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             clock,
             threadPool,
             () -> now,
-            new DataLifecycleErrorStore()
+            new DataStreamLifecycleErrorStore()
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();

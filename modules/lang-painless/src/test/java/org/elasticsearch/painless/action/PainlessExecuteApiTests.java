@@ -400,10 +400,10 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
     /**
      * When an index expression with a remote cluster name is passed into Request.ContextSetup, it
      * is parsed into separate fields - clusterAlias and index.
-     * The other tests in this suite, test without a clusterAlias prefix.
-     * This tests that innerShardOperation works the same with one present, since the clusterAlias
-     * field is only need by the initial coordinator of the action to determine where to run the
-     * action (which is not part of this test).
+     * The other tests in this suite test without a clusterAlias prefix.
+     * This test ensures that innerShardOperation works the same with one present, since the clusterAlias
+     * field is only needed by the initial coordinator of the action to determine where to run the
+     * action (which is not part of the tests in this suite).
      */
     public void testFilterExecutionContextWorksWithRemoteClusterPrefix() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);

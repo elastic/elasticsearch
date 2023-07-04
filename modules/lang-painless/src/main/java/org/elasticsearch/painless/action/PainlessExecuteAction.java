@@ -182,7 +182,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             }
 
             @Nullable // null means local cluster
-            private String clusterAlias;  // this field is not Writeable, as it is needed only on the initial receiving node
+            private final String clusterAlias;  // this field is not Writeable, as it is needed only on the initial receiving node
             private final String index;
             private final BytesReference document;
             private final QueryBuilder query;
@@ -217,7 +217,6 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
             static Tuple<String, String> parseClusterAliasAndIndex(String indexExpression) {
                 if (indexExpression == null) {
-                    // TODO: not sure what to do here - what do the current tests do when index is null?
                     return new Tuple<>(null, null);
                 }
                 String trimmed = indexExpression.trim();
@@ -242,10 +241,6 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
             public String getClusterAlias() {
                 return clusterAlias;
-            }
-
-            public void setClusterAlias(@Nullable String cluster) {
-                this.clusterAlias = cluster;
             }
 
             public String getIndex() {
@@ -286,8 +281,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                // clusterAlias is not included as only the original coordinator needs to see it and after that it is nullified
-                // before ever sending across the wire
+                // clusterAlias is not included as only the original coordinator needs to see it
+                // if forwarded to a remote cluster, the remote cluster will execute it locally
                 out.writeOptionalString(index);
                 out.writeOptionalBytesReference(document);
                 out.writeOptionalString(xContentType != null ? xContentType.mediaTypeWithoutParameters() : null);
@@ -521,7 +516,6 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 // forward to remote cluster
                 String clusterAlias = request.getContextSetup().getClusterAlias();
                 Client remoteClusterClient = transportService.getRemoteClusterService().getRemoteClusterClient(threadPool, clusterAlias);
-                request.getContextSetup().setClusterAlias(null);  // once sent to remote shard, cluster alias is "local"
                 remoteClusterClient.admin().cluster().execute(PainlessExecuteAction.INSTANCE, request, listener);
             }
         }

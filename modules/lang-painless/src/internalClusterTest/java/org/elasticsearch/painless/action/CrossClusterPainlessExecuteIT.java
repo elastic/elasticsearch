@@ -43,7 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 /**
  * Tests the PainlessExecuteAction against a local cluster with one remote cluster configured.
- * Execute action tests are run against both the local cluster and the remote cluster,
+ * Execute action tests are run against both the local cluster and the remote cluster.
  */
 public class CrossClusterPainlessExecuteIT extends AbstractMultiClustersTestCase {
 

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -59,7 +57,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class IndexNameExpressionResolver {
-    private static final Logger logger = LogManager.getLogger(IndexNameExpressionResolver.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexNameExpressionResolver.class);
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
@@ -1618,15 +1615,9 @@ public class IndexNameExpressionResolver {
             if (options.ignoreUnavailable() == false) {
                 List<String> crossClusterIndices = indexExpressions.stream().filter(index -> index.contains(":")).toList();
                 if (crossClusterIndices.size() > 0) {
-                    try {
-                        throw new IllegalArgumentException(
-                            "Cross-cluster calls are not supported in this context but remote indices were requested: "
-                                + crossClusterIndices
-                        );
-                    } catch (IllegalArgumentException e) {
-                        logger.warn("XXX stack trace", e);
-                        throw e;
-                    }
+                    throw new IllegalArgumentException(
+                        "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
+                    );
                 }
             }
         }

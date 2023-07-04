@@ -212,7 +212,7 @@ public class ShardSizesCollector implements ClusterStateListener {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn("Failed to publish node shard sizes", e);
+                logger.warn("Failed to publish all nodes shard sizes", e);
                 pendingPublication.retry(allShardSizes);
             }
         });
@@ -247,6 +247,7 @@ public class ShardSizesCollector implements ClusterStateListener {
 
                 @Override
                 public void onFailure(Exception e) {
+                    logger.warn("Failed to publish nodes shard sizes", e);
                     pendingPublication.retry(shards);
                 }
             });

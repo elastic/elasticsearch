@@ -27,7 +27,7 @@ import java.util.Objects;
 public class GetMlAutoscalingResources extends ActionType<Response> {
 
     public static final GetMlAutoscalingResources INSTANCE = new GetMlAutoscalingResources();
-    public static final String NAME = "cluster:internal/serverless/ml/get_ml_autoscaling_resources";
+    public static final String NAME = "cluster:monitor/xpack/ml/autoscaling/stats/get";
 
     public GetMlAutoscalingResources() {
         super(NAME, Response::new);

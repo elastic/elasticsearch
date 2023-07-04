@@ -177,7 +177,7 @@ public class NativeUsersStore {
                         .setSize(0)
                         .setTrackTotalHits(true)
                         .request(),
-                    listener.<SearchResponse>delegateFailure((l, response) -> l.onResponse(response.getHits().getTotalHits().value)),
+                    listener.<SearchResponse>map(response -> response.getHits().getTotalHits().value),
                     client::search
                 )
             );

@@ -1221,9 +1221,9 @@ public class RecoverySourceHandler {
                 maxSeqNoOfUpdatesOrDeletes,
                 retentionLeases,
                 mappingVersion,
-                listener.delegateFailure((l, newCheckpoint) -> {
+                listener.map(newCheckpoint -> {
                     targetLocalCheckpoint.accumulateAndGet(newCheckpoint, SequenceNumbers::max);
-                    l.onResponse(null);
+                    return null;
                 })
             );
         }

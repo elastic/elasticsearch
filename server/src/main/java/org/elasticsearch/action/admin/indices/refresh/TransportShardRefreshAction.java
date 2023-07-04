@@ -82,19 +82,19 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         IndexShard primary,
         ActionListener<PrimaryResult<ShardRefreshReplicaRequest, ReplicationResponse>> listener
     ) {
-        primary.externalRefresh(SOURCE_API, listener.delegateFailure((l, refreshResult) -> {
+        primary.externalRefresh(SOURCE_API, listener.map(refreshResult -> {
             ShardRefreshReplicaRequest replicaRequest = new ShardRefreshReplicaRequest(shardRequest.shardId(), refreshResult);
             replicaRequest.setParentTask(shardRequest.getParentTask());
             logger.trace("{} refresh request executed on primary", primary.shardId());
-            l.onResponse(new PrimaryResult<>(replicaRequest, new ReplicationResponse()));
+            return new PrimaryResult<>(replicaRequest, new ReplicationResponse());
         }));
     }
 
     @Override
     protected void shardOperationOnReplica(ShardRefreshReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        replica.externalRefresh(SOURCE_API, listener.delegateFailure((l, refreshResult) -> {
+        replica.externalRefresh(SOURCE_API, listener.map(refreshResult -> {
             logger.trace("{} refresh request executed on replica", replica.shardId());
-            l.onResponse(new ReplicaResult());
+            return new ReplicaResult();
         }));
     }
 
@@ -130,7 +130,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
                     TransportUnpromotableShardRefreshAction.NAME,
                     unpromotableReplicaRequest,
                     new ActionListenerResponseHandler<>(
-                        listener.delegateFailure((l, r) -> l.onResponse(null)),
+                        listener.map(r -> null),
                         (in) -> ActionResponse.Empty.INSTANCE,
                         ThreadPool.Names.REFRESH
                     )

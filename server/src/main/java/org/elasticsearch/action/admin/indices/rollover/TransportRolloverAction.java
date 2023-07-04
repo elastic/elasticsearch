@@ -137,7 +137,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             IndicesStatsAction.INSTANCE,
             statsRequest,
 
-            ActionListener.wrap(statsResponse -> {
+            listener.delegateFailureAndWrap((delegate, statsResponse) -> {
                 // Now that we have the stats for the cluster, we need to know the names of the index for which we should evaluate
                 // conditions, as well as what our newly created index *would* be.
                 final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
@@ -169,20 +169,20 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                 // If this is a dry run, return with the results without invoking a cluster state update
                 if (rolloverRequest.isDryRun()) {
-                    listener.onResponse(trialRolloverResponse);
+                    delegate.onResponse(trialRolloverResponse);
                     return;
                 }
 
                 // Pre-check the conditions to see whether we should submit a new cluster state task
                 if (rolloverRequest.areConditionsMet(trialConditionResults)) {
                     String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
-                    RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, listener);
+                    RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, delegate);
                     rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
                 } else {
                     // conditions not met
-                    listener.onResponse(trialRolloverResponse);
+                    delegate.onResponse(trialRolloverResponse);
                 }
-            }, listener::onFailure)
+            })
         );
     }
 

@@ -44,13 +44,13 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
         if (validationException != null) {
             listener.onFailure(validationException);
         } else {
-            rolesStore.putRole(request, request.roleDescriptor(), listener.delegateFailure((l, created) -> {
+            rolesStore.putRole(request, request.roleDescriptor(), listener.map(created -> {
                 if (created) {
                     logger.info("added role [{}]", request.name());
                 } else {
                     logger.info("updated role [{}]", request.name());
                 }
-                l.onResponse(new PutRoleResponse(created));
+                return new PutRoleResponse(created);
             }));
         }
     }

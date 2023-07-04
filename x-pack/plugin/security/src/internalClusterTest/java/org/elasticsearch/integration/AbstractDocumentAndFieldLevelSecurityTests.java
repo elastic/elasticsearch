@@ -60,7 +60,7 @@ abstract class AbstractDocumentAndFieldLevelSecurityTests extends SecurityIntegT
         final Set<String> result = new HashSet<>();
         // Nodes are chosen at random when test is executed,
         // hence we have to aggregate feature usage across all nodes in the cluster.
-        Set.of(internalCluster().getNodeNames()).stream().forEach(node -> { result.addAll(fetchFeatureUsageFromNode(client(node))); });
+        Set.of(internalCluster().getNodeNames()).forEach(node -> result.addAll(fetchFeatureUsageFromNode(client(node))));
         return result;
     }
 

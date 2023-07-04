@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -114,9 +115,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
     private static CompressedXContent randomMappings(ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate) {
         try {
             if (dataStreamTemplate != null) {
-                return new CompressedXContent(
-                    "{\"properties\":{\"" + ComposableIndexTemplate.DataStreamTemplate.getTimestampField() + "\":{\"type\":\"date\"}}}"
-                );
+                return new CompressedXContent("{\"properties\":{\"" + TIMESTAMP_FIELD_NAME + "\":{\"type\":\"date\"}}}");
             } else {
                 return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
             }

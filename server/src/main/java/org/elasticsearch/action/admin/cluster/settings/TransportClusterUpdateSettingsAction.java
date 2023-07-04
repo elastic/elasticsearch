@@ -186,17 +186,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             }
 
             private void reroute(final boolean updateSettingsAcked) {
-                // We're about to send a second update task, so we need to check if we're still the elected master
-                // For example the minimum_master_node could have been breached and we're no longer elected master,
-                // so we should *not* execute the reroute.
-                if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-                    logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
-                    listener.onResponse(
-                        new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(), updater.getPersistentUpdate())
-                    );
-                    return;
-                }
-
                 // The reason the reroute needs to be sent as separate update task, is that all the *cluster* settings are encapsulated in
                 // the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible to the components
                 // until the ClusterStateListener instances have been invoked, but are visible after the first update task has been

@@ -632,7 +632,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                             new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit, () -> {})),
                             null,
                             snapshotStatus,
-                            Version.CURRENT,
+                            IndexVersion.current(),
                             randomMillisUpToYear9999(),
                             future
                         )

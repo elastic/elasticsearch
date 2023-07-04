@@ -1076,7 +1076,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     new SnapshotIndexCommit(indexCommitRef),
                     null,
                     snapshotStatus,
-                    Version.CURRENT,
+                    IndexVersion.current(),
                     randomMillisUpToYear9999(),
                     future
                 )

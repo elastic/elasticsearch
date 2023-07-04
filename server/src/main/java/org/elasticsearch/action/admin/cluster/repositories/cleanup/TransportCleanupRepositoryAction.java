@@ -225,7 +225,11 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                     delegate,
                                     l -> blobStoreRepository.cleanup(
                                         repositoryStateId,
-                                        SnapshotsService.minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null),
+                                        SnapshotsService.minCompatibleVersion(
+                                            newState.nodes().getMaxDataNodeCompatibleIndexVersion(),
+                                            repositoryData,
+                                            null
+                                        ),
                                         ActionListener.wrap(result -> after(null, result), e -> after(e, null))
                                     )
                                 )

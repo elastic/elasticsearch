@@ -9,7 +9,9 @@ esplugin {
     classname 'org.elasticsearch.xpack.shutdown.ShutdownPlugin'
     extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-shutdown'
+base {
+  archivesName = 'x-pack-shutdown'
+}
 
 dependencies {
     compileOnly project(path: xpackModule('core'))

@@ -1,0 +1,6 @@
+pr: 97278
+summary: Fix reused/recovered bytes for files that are recovered from cache
+area: Snapshot/Restore
+type: bug
+issues:
+ - 95994

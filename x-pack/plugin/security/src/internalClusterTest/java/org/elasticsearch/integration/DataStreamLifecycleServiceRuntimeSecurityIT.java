@@ -26,7 +26,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataLifecycleErrorStore;
-import org.elasticsearch.datastreams.lifecycle.DataLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.indices.ExecutorNames;
@@ -76,7 +76,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        settings.put(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
+        settings.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
         settings.put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         return settings.build();
     }
@@ -156,9 +156,9 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     }
 
     private Map<String, String> collectErrorsFromStoreAsMap() {
-        Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
+        Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
         Map<String, String> indicesAndErrors = new HashMap<>();
-        for (DataLifecycleService lifecycleService : lifecycleServices) {
+        for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
             DataLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
             List<String> allIndices = errorStore.getAllIndices();
             for (var index : allIndices) {

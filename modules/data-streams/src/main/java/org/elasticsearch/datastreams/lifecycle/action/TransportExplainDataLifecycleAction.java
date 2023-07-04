@@ -87,7 +87,8 @@ public class TransportExplainDataLifecycleAction extends TransportMasterNodeRead
                 continue;
             }
             DataStream parentDataStream = indexAbstraction.getParentDataStream();
-            if (parentDataStream == null || parentDataStream.isIndexManagedByDLM(idxMetadata.getIndex(), metadata::index) == false) {
+            if (parentDataStream == null
+                || parentDataStream.isIndexManagedByDataStreamLifecycle(idxMetadata.getIndex(), metadata::index) == false) {
                 explainIndices.add(new ExplainIndexDataLifecycle(index, false, null, null, null, null, null));
                 continue;
             }

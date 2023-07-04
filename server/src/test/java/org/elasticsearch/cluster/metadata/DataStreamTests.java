@@ -1282,12 +1282,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             // false for indices not part of the data stream
-            assertThat(dataStream.isIndexManagedByDLM(new Index("standalone_index", "uuid"), metadata::index), is(false));
+            assertThat(dataStream.isIndexManagedByDataStreamLifecycle(new Index("standalone_index", "uuid"), metadata::index), is(false));
         }
 
         {
             // false for indices that were deleted
-            assertThat(dataStream.isIndexManagedByDLM(dataStream.getIndices().get(1), (index) -> null), is(false));
+            assertThat(dataStream.isIndexManagedByDataStreamLifecycle(dataStream.getIndices().get(1), (index) -> null), is(false));
         }
 
         {
@@ -1301,7 +1301,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 null
             );
             Metadata newMetadata = newBuilder.build();
-            assertThat(unmanagedDataStream.isIndexManagedByDLM(unmanagedDataStream.getIndices().get(1), newMetadata::index), is(false));
+            assertThat(
+                unmanagedDataStream.isIndexManagedByDataStreamLifecycle(unmanagedDataStream.getIndices().get(1), newMetadata::index),
+                is(false)
+            );
         }
 
         {
@@ -1318,7 +1321,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadataIlm = builderWithIlm.build();
             for (Index index : ds.getIndices()) {
-                assertThat(ds.isIndexManagedByDLM(index, metadataIlm::index), is(false));
+                assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm::index), is(false));
             }
         }
 
@@ -1339,7 +1342,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 );
                 Metadata metadataIlm = builderWithIlm.build();
                 for (Index index : ds.getIndices()) {
-                    assertThat(ds.isIndexManagedByDLM(index, metadataIlm::index), is(true));
+                    assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm::index), is(true));
                 }
             }
         }
@@ -1347,7 +1350,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // true otherwise
             for (Index index : dataStream.getIndices()) {
-                assertThat(dataStream.isIndexManagedByDLM(index, metadata::index), is(true));
+                assertThat(dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index), is(true));
             }
         }
     }

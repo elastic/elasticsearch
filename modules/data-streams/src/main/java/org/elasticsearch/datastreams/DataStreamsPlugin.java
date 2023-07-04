@@ -41,7 +41,7 @@ import org.elasticsearch.datastreams.action.MigrateToDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.ModifyDataStreamsTransportAction;
 import org.elasticsearch.datastreams.action.PromoteDataStreamTransportAction;
 import org.elasticsearch.datastreams.lifecycle.DataLifecycleErrorStore;
-import org.elasticsearch.datastreams.lifecycle.DataLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.ExplainDataLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataLifecycleAction;
@@ -109,7 +109,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
     private final SetOnce<UpdateTimeSeriesRangeService> updateTimeSeriesRangeService = new SetOnce<>();
     private final SetOnce<DataLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
 
-    private final SetOnce<DataLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
+    private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
 
     private final Settings settings;
 
@@ -142,9 +142,9 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         pluginSettings.add(LOOK_AHEAD_TIME);
 
         if (DataStreamLifecycle.isEnabled()) {
-            pluginSettings.add(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
-            pluginSettings.add(DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
-            pluginSettings.add(DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
+            pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
+            pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
+            pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
         }
         return pluginSettings;
     }
@@ -175,7 +175,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         if (DataStreamLifecycle.isEnabled()) {
             errorStoreInitialisationService.set(new DataLifecycleErrorStore());
             dataLifecycleInitialisationService.set(
-                new DataLifecycleService(
+                new DataStreamLifecycleService(
                     settings,
                     new OriginSettingClient(client, DATA_STREAM_LIFECYCLE_ORIGIN),
                     clusterService,

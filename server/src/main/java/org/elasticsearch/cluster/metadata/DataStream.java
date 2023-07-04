@@ -652,11 +652,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Checks if the provided backing index is managed by DLM as part of this data stream.
+     * Checks if the provided backing index is managed by the data stream lifecycle as part of this data stream.
      * If the index is not a backing index of this data stream, or we cannot supply its metadata
      * we return false.
      */
-    public boolean isIndexManagedByDLM(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
+    public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
         if (indices.contains(index) == false) {
             return false;
         }

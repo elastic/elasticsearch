@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -67,6 +68,97 @@ public class BertTokenizerTests extends ESTestCase {
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("Elastic", "##search", "fun"));
             assertArrayEquals(new int[] { 0, 1, 3 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 0, 1 }, tokenization.tokenMap());
+        }
+    }
+
+    public void testTokenizeWithTokensThatAreRemovedByStripAccents() {
+
+        List<String> vocab = List.of(
+            "Arabic",
+            ":",
+            "و, ##ق",
+            "3",
+            "ا, ##ل, ##ا, ##ز, ##د, ##ه, ##ا, ##م",
+            ".",
+            "4",
+            "There",
+            "are",
+            "2",
+            "main",
+            "types",
+            "of",
+            "non",
+            "mel",
+            "##ano",
+            "##ma",
+            "skin",
+            "cancer",
+            "basel",
+            "cell",
+            "car",
+            "##cino",
+            "(",
+            ")",
+            "BCC",
+            "SCC",
+            "and",
+            "squamous",
+            BertTokenizer.CLASS_TOKEN,
+            BertTokenizer.SEPARATOR_TOKEN,
+            BertTokenizer.MASK_TOKEN,
+            BertTokenizer.UNKNOWN_TOKEN,
+            BertTokenizer.PAD_TOKEN
+        );
+
+        String inputWithAccentsToStrip1 = "  Arabic: وَقْ 3 ُ الِازْدِهَام.4  ";
+        String inputWithAccentsToStrip2 =
+            "There are 2 main types of non melanoma skin cancer ̶̶ basal cell carcinoma (BCC) and squamous cell carcinoma (SCC).";
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(vocab, new BertTokenization(true, true, null, Tokenization.Truncate.NONE, -1))
+                .build()
+        ) {
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize(inputWithAccentsToStrip1, Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 29, 0, 1, 32, 3, 32, 5, 6, 30 }));
+
+            tokenization = tokenizer.tokenize(inputWithAccentsToStrip2, Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(
+                tokenization.tokenIds(),
+                equalTo(
+                    new int[] {
+                        29,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16,
+                        17,
+                        18,
+                        32,
+                        20,
+                        21,
+                        22,
+                        16,
+                        23,
+                        25,
+                        24,
+                        27,
+                        28,
+                        20,
+                        21,
+                        22,
+                        16,
+                        23,
+                        26,
+                        24,
+                        5,
+                        30 }
+                )
+            );
         }
     }
 

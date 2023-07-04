@@ -1,5 +1,22 @@
 pr: 94954
-summary: Asset tracking - geo_line for TSDB
+summary: Asset tracking - geo_line in time-series aggregations
 area: Geo
 type: enhancement
-issues: []
+issues: [ ]
+highlight:
+  title: Asset tracking - geo_line in time-series aggregations
+  body: |-
+    The <<search-aggregations-metrics-geo-line,`geo_line` aggregation>> builds tracks from `geo_points`.
+    It has previously needed to use large arrays in memory for collecting points into multiple buckets
+    and sorting those buckets.
+
+    With the advances made in TSDB features and the `time_series` aggregation in particular,
+    it is now possible to rely on data aggregating in both TSID and timestamp order,
+    enabling the removal of all sorting, as well as the use of only a single bucket's
+    worth of memory, a dramatic improvement in memory footprint. In addition, we can use the streaming line
+    simplifier algorithm introduced in https://github.com/elastic/elasticsearch/pull/94859 to replace the previous
+    behaviour of truncating very large tracks with the far more preferable approach of simplifying those tracks.
+
+    [role="screenshot"]
+    image::images/spatial/geogrid_h3_children.png[Kibana map with three H3 layers: cell, children and intersecting non-children]
+  notable: false

@@ -86,7 +86,7 @@ public class TypeParsersTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
 
-        IndexVersion olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
+        IndexVersion olderVersion = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
         MappingParserContext olderContext = new MappingParserContext(
             null,
             type -> typeParser,

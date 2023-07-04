@@ -8,9 +8,11 @@
 package org.elasticsearch.test.test;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 /**
  * This test ensures that after a cluster restart, the forbidPrivateIndexSettings value
@@ -25,7 +27,7 @@ public class InternalClusterForbiddenSettingIT extends ESIntegTestCase {
     }
 
     public void testRestart() throws Exception {
-        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.current());
         // create / delete an index with forbidden setting
         prepareCreate("test").setSettings(settings(version).build()).get();
         indicesAdmin().prepareDelete("test").get();
@@ -37,7 +39,7 @@ public class InternalClusterForbiddenSettingIT extends ESIntegTestCase {
     }
 
     public void testRollingRestart() throws Exception {
-        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.current());
         // create / delete an index with forbidden setting
         prepareCreate("test").setSettings(settings(version).build()).get();
         indicesAdmin().prepareDelete("test").get();

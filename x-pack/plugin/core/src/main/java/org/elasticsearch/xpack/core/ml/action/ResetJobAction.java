@@ -31,7 +31,7 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/job/reset";
     public static final ResetJobAction INSTANCE = new ResetJobAction();
 
-    public static final Version VERSION_INTRODUCED = Version.V_7_14_0;
+    public static final TransportVersion TRANSPORT_VERSION_INTRODUCED = TransportVersion.V_7_14_0;
 
     private ResetJobAction() {
         super(NAME, AcknowledgedResponse::readFrom);

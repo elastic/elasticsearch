@@ -82,8 +82,12 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
 
     public static IndexVersion getOldClusterIndexVersion() {
         var version = getOldClusterVersion();
-        assertThat("Index version needs to be added to restart test parameters", version, lessThan(org.elasticsearch.Version.V_8_10_0));
-        return IndexVersion.fromId(version.id);
+        if (version.equals(org.elasticsearch.Version.CURRENT)) {
+            return IndexVersion.current();
+        } else {
+            assertThat("Index version needs to be added to restart test parameters", version, lessThan(org.elasticsearch.Version.V_8_10_0));
+            return IndexVersion.fromId(version.id);
+        }
     }
 
     public static Version getOldClusterTestVersion() {

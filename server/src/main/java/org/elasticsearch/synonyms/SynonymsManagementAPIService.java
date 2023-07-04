@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
@@ -273,6 +274,27 @@ public class SynonymsManagementAPIService {
                             return;
                         }
                         l2.onResponse(sourceMapToSynonymRule(getResponse.getSourceAsMap()));
+                    }))
+            )
+        );
+    }
+
+    public void deleteSynonymRule(
+        String synonymSetId,
+        String synonymRuleId,
+        ActionListener<SynonymsReloadResult<AcknowledgedResponse>> listener
+    ) {
+        checkSynonymSetExists(
+            synonymSetId,
+            listener.delegateFailure(
+                (l1, obj) -> client.prepareDelete(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymSetId, synonymRuleId))
+                    .execute(new DelegatingIndexNotFoundActionListener<>(synonymSetId, l1, (l2, deleteResponse) -> {
+                        if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                            l2.onFailure(new ResourceNotFoundException("synonym rule [" + synonymRuleId + "] not found"));
+                            return;
+                        }
+
+                        reloadAnalyzers(synonymSetId, l2, AcknowledgedResponse.of(true));
                     }))
             )
         );

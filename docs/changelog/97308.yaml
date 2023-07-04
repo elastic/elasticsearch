@@ -1,6 +1,0 @@
-pr: 97308
-summary: Add `match` word to the explanation return for the Cluster Include Filter Decider
-area: Allocation
-type: enhancement
-issues:
- - 97307

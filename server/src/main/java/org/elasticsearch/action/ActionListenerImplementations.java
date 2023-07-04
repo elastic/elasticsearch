@@ -257,7 +257,7 @@ class ActionListenerImplementations {
             ActionListener<Response> {
 
         NotifyOnceActionListener(ActionListener<Response> delegate) {
-            set(delegate);
+            super(delegate);
         }
 
         @Override

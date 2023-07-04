@@ -145,10 +145,8 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     // default visibility for testing purposes
     void tryToLogHealth() {
         if (this.currentlyRunning.compareAndExchange(false, true) == false) {
-            // We ensure that the flag will only be released once when it's time
             RunOnce release = new RunOnce(() -> currentlyRunning.set(false));
             try {
-                // We can use the runAfter listener to wire the release to the current listener
                 ActionListener<List<HealthIndicatorResult>> listenerWithRelease = ActionListener.runAfter(resultsListener, release);
                 this.healthService.getHealth(this.client, null, false, 0, listenerWithRelease);
             } catch (Exception e) {
@@ -175,7 +173,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
      * @param indicatorResults the results of the Health API call that will be used as the output.
      */
     // default visibility for testing purposes
-    Map<String, Object> toLoggedFields(List<HealthIndicatorResult> indicatorResults) {
+    static Map<String, Object> convertToLoggedFields(List<HealthIndicatorResult> indicatorResults) {
         if (indicatorResults == null || indicatorResults.isEmpty()) {
             return Map.of();
         }
@@ -205,7 +203,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         @Override
         public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
             try {
-                Map<String, Object> resultsMap = toLoggedFields(healthIndicatorResults);
+                Map<String, Object> resultsMap = convertToLoggedFields(healthIndicatorResults);
 
                 // if we have a valid response, log in JSON format
                 if (resultsMap.isEmpty() == false) {

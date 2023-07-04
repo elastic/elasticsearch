@@ -40,10 +40,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -108,32 +110,28 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         return String.format(Locale.ROOT, "%s.%s.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX, key);
     }
 
-    public void testHealthPeriodicLoggerResultToMap() {
+    public void testConvertToLoggedFields() {
         var results = getTestIndicatorResults();
         var overallStatus = HealthStatus.merge(results.stream().map(HealthIndicatorResult::status));
 
-        HealthService testHealthService = getMockedHealthService();
-        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, this.clusterService, client, testHealthService);
-        testHealthPeriodicLogger.init();
+        Map<String, Object> loggerResults = HealthPeriodicLogger.convertToLoggedFields(results);
 
-        Map<String, Object> loggerResults = testHealthPeriodicLogger.toLoggedFields(results);
-
-        assertEquals(results.size() + 1, loggerResults.size());
+        assertThat(loggerResults.size(), equalTo(results.size() + 1));
 
         // test indicator status
-        assertEquals("green", loggerResults.get(makeHealthStatusString("network_latency")));
-        assertEquals("yellow", loggerResults.get(makeHealthStatusString("slow_task_assignment")));
-        assertEquals("green", loggerResults.get(makeHealthStatusString("shards_availability")));
+        assertThat(loggerResults.get(makeHealthStatusString("network_latency")), equalTo("green"));
+        assertThat(loggerResults.get(makeHealthStatusString("slow_task_assignment")), equalTo("yellow"));
+        assertThat(loggerResults.get(makeHealthStatusString("shards_availability")), equalTo("green"));
 
         // test calculated overall status
-        assertEquals(overallStatus.xContentValue(), loggerResults.get(makeHealthStatusString("overall")));
+        assertThat(loggerResults.get(makeHealthStatusString("overall")), equalTo(overallStatus.xContentValue()));
 
         // test empty results
         {
             List<HealthIndicatorResult> empty = new ArrayList<>();
-            Map<String, Object> emptyResults = testHealthPeriodicLogger.toLoggedFields(empty);
+            Map<String, Object> emptyResults = HealthPeriodicLogger.convertToLoggedFields(empty);
 
-            assertEquals(0, emptyResults.size());
+            assertThat(emptyResults.size(), equalTo(0));
         }
     }
 
@@ -185,7 +183,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         assertFalse(scheduler.scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
     }
 
-    public void testTriggeredJobCallsTryToLogHealth() {
+    public void testTriggeredJobCallsTryToLogHealth() throws Exception {
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
         ActionListener<List<HealthIndicatorResult>> testListener = new ActionListener<>() {
@@ -214,12 +212,12 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
         spyHealthPeriodicLogger.triggered(event);
 
-        assertFalse(failureCalled.get());
-        assertTrue(listenerCalled.get());
+        assertBusy(() -> assertFalse(failureCalled.get()));
+        assertBusy(() -> assertTrue(listenerCalled.get()));
     }
 
-    public void testResultFailureHandling() {
-        AtomicBoolean getHealthCalled = new AtomicBoolean(false);
+    public void testResultFailureHandling() throws Exception {
+        AtomicInteger getHealthCalled = new AtomicInteger(0);
 
         HealthService testHealthService = this.getMockedHealthService();
 
@@ -233,40 +231,38 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         // run it and call the listener's onFailure
         {
-            getHealthCalled.set(false);
             doAnswer(invocation -> {
                 ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
                 listener.onFailure(new Exception("fake failure"));
-                getHealthCalled.set(true);
+                getHealthCalled.incrementAndGet();
                 return null;
             }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
             spyHealthPeriodicLogger.triggered(event);
-            assertTrue(getHealthCalled.get());
+            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
         }
 
         // run it again and verify that the concurrency control is reset and the getHealth is called
         {
-            getHealthCalled.set(false);
             doAnswer(invocation -> {
                 ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
                 listener.onResponse(getTestIndicatorResults());
-                getHealthCalled.set(true);
+                getHealthCalled.incrementAndGet();
                 return null;
             }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
             spyHealthPeriodicLogger.triggered(event);
-            assertTrue(getHealthCalled.get());
+            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }
     }
 
-    public void testTryToLogHealthConcurrencyControlWithResults() {
-        AtomicBoolean getHealthCalled = new AtomicBoolean(false);
+    public void testTryToLogHealthConcurrencyControlWithResults() throws Exception {
+        AtomicInteger getHealthCalled = new AtomicInteger(0);
 
         HealthService testHealthService = this.getMockedHealthService();
         doAnswer(invocation -> {
             // get and call the results listener provided to getHealth
             ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
             listener.onResponse(getTestIndicatorResults());
-            getHealthCalled.set(true);
+            getHealthCalled.incrementAndGet();
             return null;
         }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
 
@@ -281,19 +277,18 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         // run it once, verify getHealth is called
         {
             spyHealthPeriodicLogger.triggered(event);
-            assertTrue(getHealthCalled.get());
+            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
         }
 
         // run it again, verify getHealth is called, because we are calling the results listener
         {
-            getHealthCalled.set(false);
             spyHealthPeriodicLogger.triggered(event);
-            assertTrue(getHealthCalled.get());
+            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }
     }
 
-    public void testTryToLogHealthConcurrencyControl() {
-        AtomicBoolean getHealthCalled = new AtomicBoolean(false);
+    public void testTryToLogHealthConcurrencyControl() throws Exception {
+        AtomicInteger getHealthCalled = new AtomicInteger(0);
 
         HealthService testHealthService = this.getMockedHealthService();
         doAnswer(invocation -> {
@@ -302,7 +297,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             assertNotNull(listener);
 
             // note that we received the getHealth call
-            getHealthCalled.set(true);
+            getHealthCalled.incrementAndGet();
             return null;
         }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
 
@@ -317,21 +312,20 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         // call it once, and verify that getHealth is called
         {
             spyHealthPeriodicLogger.triggered(event);
-            assertTrue(getHealthCalled.get());
+            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
         }
 
         // trigger it again, and verify that getHealth is not called
         // it's not called because the results listener was never called by getHealth
         // this is simulating a double invocation of getHealth, due perhaps to a lengthy getHealth call
         {
-            getHealthCalled.set(false);
             spyHealthPeriodicLogger.triggered(event);
-            assertFalse(getHealthCalled.get());
+            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
         }
     }
 
-    public void testTryToLogHealthConcurrencyControlWithException() {
-        AtomicBoolean getHealthCalled = new AtomicBoolean(false);
+    public void testTryToLogHealthConcurrencyControlWithException() throws Exception {
+        AtomicInteger getHealthCalled = new AtomicInteger(0);
 
         HealthService testHealthService = this.getMockedHealthService();
 
@@ -345,24 +339,22 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         // run it once and trigger an exception during the getHealth call
         {
-            getHealthCalled.set(false);
             doThrow(new ResourceNotFoundException("No preflight indicators")).when(testHealthService)
                 .getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
             spyHealthPeriodicLogger.triggered(event);
-            assertFalse(getHealthCalled.get());
+            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(0)));
         }
 
         // run it again and have getHealth work. This tests that the RunOnce still sets the currentlyRunning variable.
         {
-            getHealthCalled.set(false);
             doAnswer(invocation -> {
                 ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
                 listener.onResponse(getTestIndicatorResults());
-                getHealthCalled.set(true);
+                getHealthCalled.incrementAndGet();
                 return null;
             }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
             spyHealthPeriodicLogger.triggered(event);
-            assertTrue(getHealthCalled.get());
+            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
         }
     }
 

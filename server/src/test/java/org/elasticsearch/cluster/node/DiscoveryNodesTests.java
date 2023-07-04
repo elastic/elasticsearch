@@ -250,13 +250,13 @@ public class DiscoveryNodesTests extends ESTestCase {
         DiscoveryNode masterB = randomBoolean() ? null : RandomPicks.randomFrom(random(), nodesB);
 
         DiscoveryNodes.Builder builderA = DiscoveryNodes.builder();
-        nodesA.stream().forEach(builderA::add);
+        nodesA.forEach(builderA::add);
         final String masterAId = masterA == null ? null : masterA.getId();
         builderA.masterNodeId(masterAId);
         builderA.localNodeId(RandomPicks.randomFrom(random(), nodesA).getId());
 
         DiscoveryNodes.Builder builderB = DiscoveryNodes.builder();
-        nodesB.stream().forEach(builderB::add);
+        nodesB.forEach(builderB::add);
         final String masterBId = masterB == null ? null : masterB.getId();
         builderB.masterNodeId(masterBId);
         builderB.localNodeId(RandomPicks.randomFrom(random(), nodesB).getId());

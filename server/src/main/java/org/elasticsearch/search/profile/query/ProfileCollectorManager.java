@@ -13,6 +13,7 @@ import org.apache.lucene.search.CollectorManager;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,15 +22,15 @@ import java.util.stream.Collectors;
  * in an {@link InternalProfileCollector}. It delegates all the profiling to the generated collectors via {@link #getCollectorTree()}
  * and joins them up when its {@link #reduce} method is called. The profile result can
  */
-public final class ProfileCollectorManager implements CollectorManager<InternalProfileCollector, Void> {
+public final class ProfileCollectorManager<T> implements CollectorManager<InternalProfileCollector, T> {
 
-    private final CollectorManager<Collector, ?> collectorManager;
+    private final CollectorManager<Collector, T> collectorManager;
     private final String reason;
     private CollectorResult collectorTree;
 
     @SuppressWarnings("unchecked")
-    public ProfileCollectorManager(CollectorManager<? extends Collector, ?> collectorManager, String reason) {
-        this.collectorManager = (CollectorManager<Collector, ?>) collectorManager;
+    public ProfileCollectorManager(CollectorManager<? extends Collector, T> collectorManager, String reason) {
+        this.collectorManager = (CollectorManager<Collector, T>) collectorManager;
         this.reason = reason;
     }
 
@@ -38,22 +39,26 @@ public final class ProfileCollectorManager implements CollectorManager<InternalP
         return new InternalProfileCollector(collectorManager.newCollector(), reason);
     }
 
-    public Void reduce(Collection<InternalProfileCollector> profileCollectors) throws IOException {
+    public T reduce(Collection<InternalProfileCollector> profileCollectors) throws IOException {
+        assert profileCollectors.size() > 0 : "at least one collector expected";
         List<Collector> unwrapped = profileCollectors.stream()
             .map(InternalProfileCollector::getWrappedCollector)
             .collect(Collectors.toList());
-        collectorManager.reduce(unwrapped);
+        T returnValue = collectorManager.reduce(unwrapped);
 
         List<CollectorResult> resultsPerProfiler = profileCollectors.stream()
             .map(ipc -> ipc.getCollectorTree())
             .collect(Collectors.toList());
-        this.collectorTree = new CollectorResult(this.getClass().getSimpleName(), "segment_search", 0, resultsPerProfiler);
-        return null;
+
+        long totalTime = resultsPerProfiler.stream().map(CollectorResult::getTime).reduce(0L, Long::sum);
+        String collectorName = resultsPerProfiler.get(0).getName();
+        this.collectorTree = new CollectorResult(collectorName, reason, totalTime, Collections.emptyList());
+        return returnValue;
     }
 
     public CollectorResult getCollectorTree() {
         if (this.collectorTree == null) {
-            throw new IllegalStateException("A collectorTree hasn't been set yet, call reduce() before attempting to retrieve it");
+            throw new IllegalStateException("A collectorTree hasn't been set yet. Call reduce() before attempting to retrieve it");
         }
         return this.collectorTree;
     }

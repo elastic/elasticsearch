@@ -494,9 +494,13 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 if (operators.isEmpty() == false) {
                     // TODO: Support service accounts here
                     Path destination = workingDir.resolve("config").resolve("operator_users.yml");
+                    boolean fileExists = Files.exists(destination);
                     try (Writer writer = Files.newBufferedWriter(destination, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+                        // If the file already exists (the test has its own operator_users file) then don't duplicate the top-level key
+                        if (fileExists == false) {
+                            writer.write("operator:\n");
+                        }
                         writer.write(String.format(Locale.ROOT, """
-                            operator:
                               - usernames: [%s]
                                 realm_type: "file"
                                 auth_type: "realm"

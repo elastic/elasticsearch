@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.client.internal.Client;
@@ -29,9 +27,10 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
+/**
+ * backend for new kubernetes based autoscaler.
+ */
 public final class MlAutoscalingResourceTracker {
-
-    private static final Logger logger = LogManager.getLogger(MlAutoscalingResourceTracker.class);
 
     private MlAutoscalingResourceTracker() {}
 

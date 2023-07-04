@@ -14,6 +14,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -248,6 +249,36 @@ class ActionListenerImplementations {
         @Override
         public String toString() {
             return super.toString() + "/" + runBefore;
+        }
+    }
+
+    static final class NotifyOnceActionListener<Response> extends AtomicReference<ActionListener<Response>>
+        implements
+            ActionListener<Response> {
+
+        NotifyOnceActionListener(ActionListener<Response> delegate) {
+            set(delegate);
+        }
+
+        @Override
+        public void onResponse(Response response) {
+            final var acquired = getAndSet(null);
+            if (acquired != null) {
+                acquired.onResponse(response);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            final var acquired = getAndSet(null);
+            if (acquired != null) {
+                safeOnFailure(acquired, e);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "notifyOnce[" + get() + "]";
         }
     }
 }

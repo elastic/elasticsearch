@@ -34,10 +34,12 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
@@ -873,6 +875,22 @@ public abstract class IndexShardTestCase extends ESTestCase {
         );
     }
 
+    public static Releasable getOperationPermit(final IndexShard shard) {
+        return PlainActionFuture.get(future -> {
+            if (shard.routingEntry().primary()) {
+                shard.acquirePrimaryOperationPermit(future, null);
+            } else {
+                shard.acquireReplicaOperationPermit(
+                    shard.getOperationPrimaryTerm(),
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    future,
+                    null
+                );
+            }
+        }, 0, TimeUnit.NANOSECONDS);
+    }
+
     public static Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
         return getDocIdAndSeqNos(shard).stream().map(DocIdSeqNoAndSource::id).collect(Collectors.toSet());
     }
@@ -1015,7 +1033,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     /** Recover a shard from a snapshot using a given repository **/
     protected void recoverShardFromSnapshot(final IndexShard shard, final Snapshot snapshot, final Repository repository) {
-        final Version version = Version.CURRENT;
+        final IndexVersion version = IndexVersion.current();
         final ShardId shardId = shard.shardId();
         final IndexId indexId = new IndexId(shardId.getIndex().getName(), shardId.getIndex().getUUID());
         final DiscoveryNode node = getFakeDiscoNode(shard.routingEntry().currentNodeId());

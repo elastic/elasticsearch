@@ -40,6 +40,7 @@ import org.elasticsearch.dlm.rest.RestGetDataLifecycleAction;
 import org.elasticsearch.dlm.rest.RestPutDataLifecycleAction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -58,7 +59,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
+import static org.elasticsearch.cluster.metadata.DataLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
 /**
  * Plugin encapsulating Data Lifecycle Management Service.
@@ -97,7 +98,8 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         if (DataLifecycle.isEnabled() == false) {
             return List.of();
@@ -107,7 +109,7 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         dataLifecycleInitialisationService.set(
             new DataLifecycleService(
                 settings,
-                new OriginSettingClient(client, DLM_ORIGIN),
+                new OriginSettingClient(client, DATA_STREAM_LIFECYCLE_ORIGIN),
                 clusterService,
                 getClock(),
                 threadPool,
@@ -125,7 +127,11 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
             return List.of();
         }
 
-        return List.of(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
+        return List.of(
+            DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING,
+            DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING,
+            DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING
+        );
     }
 
     @Override

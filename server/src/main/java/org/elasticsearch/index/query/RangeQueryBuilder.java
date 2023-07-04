@@ -495,7 +495,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     private AbstractQueryBuilder<? extends AbstractQueryBuilder<?>> toQueryBuilder(MappedFieldType.Relation relation) {
         switch (relation) {
             case DISJOINT -> {
-                return new MatchNoneQueryBuilder();
+                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
             }
             case WITHIN -> {
                 if (from != null || to != null || format != null || timeZone != null) {

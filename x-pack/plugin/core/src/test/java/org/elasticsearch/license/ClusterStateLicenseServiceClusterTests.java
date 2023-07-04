@@ -6,16 +6,11 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Set;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -32,11 +27,6 @@ public class ClusterStateLicenseServiceClusterTests extends AbstractLicensesInte
 
     private Settings.Builder nodeSettingsBuilder(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder().put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)));
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class);
     }
 
     public void testClusterRestartWithLicense() throws Exception {

@@ -36,7 +36,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     private DenseVectorFieldType createFloatFieldType() {
         return new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.FLOAT,
             5,
             indexed,
@@ -48,7 +48,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     private DenseVectorFieldType createByteFieldType() {
         return new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.BYTE,
             5,
             true,
@@ -113,7 +113,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testFloatCreateKnnQuery() {
         DenseVectorFieldType unindexedField = new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             false,
@@ -128,7 +128,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
         DenseVectorFieldType dotProductField = new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             true,
@@ -143,7 +143,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
         DenseVectorFieldType cosineField = new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             true,
@@ -161,7 +161,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         {   // float type with 2048 dims
             DenseVectorFieldType fieldWith2048dims = new DenseVectorFieldType(
                 "f",
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 DenseVectorFieldMapper.ElementType.FLOAT,
                 2048,
                 true,
@@ -179,7 +179,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         {   // byte type with 2048 dims
             DenseVectorFieldType fieldWith2048dims = new DenseVectorFieldType(
                 "f",
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 DenseVectorFieldMapper.ElementType.BYTE,
                 2048,
                 true,
@@ -198,7 +198,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testByteCreateKnnQuery() {
         DenseVectorFieldType unindexedField = new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.BYTE,
             3,
             false,
@@ -213,7 +213,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
         DenseVectorFieldType cosineField = new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.BYTE,
             3,
             true,

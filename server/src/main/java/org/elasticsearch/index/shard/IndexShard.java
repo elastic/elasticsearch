@@ -2068,7 +2068,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mapperService() == null) {
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
-        final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TIMESTAMP_FIELD_NAME);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
             return ShardLongFieldRange.UNKNOWN; // field missing or not a date
         }
@@ -2078,7 +2078,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         final ShardLongFieldRange rawTimestampFieldRange;
         try {
-            rawTimestampFieldRange = getEngine().getRawFieldRange(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            rawTimestampFieldRange = getEngine().getRawFieldRange(DataStream.TIMESTAMP_FIELD_NAME);
             assert rawTimestampFieldRange != null;
         } catch (IOException | AlreadyClosedException e) {
             logger.debug("exception obtaining range for timestamp field", e);
@@ -3614,15 +3614,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Syncs the given location with the underlying storage unless already synced. This method might return immediately without
-     * actually fsyncing the location until the sync listener is called. Yet, unless there is already another thread fsyncing
-     * the transaction log the caller thread will be hijacked to run the fsync for all pending fsync operations.
-     * This method allows indexing threads to continue indexing without blocking on fsync calls. We ensure that there is only
-     * one thread blocking on the sync an all others can continue indexing.
+     * Syncs the given location with the underlying storage, unless already synced, as part of a write operation.
+     * <p>
+     * This method might return immediately without actually fsyncing the location until the sync listener is called. Yet, unless there is
+     * already another thread fsyncing the transaction log the caller thread will be hijacked to run the fsync for all pending fsync
+     * operations.
+     * <p>
+     * This method allows indexing threads to continue indexing without blocking on fsync calls. We ensure that there is only one thread
+     * blocking on the sync an all others can continue indexing.
+     * <p>
      * NOTE: if the syncListener throws an exception when it's processed the exception will only be logged. Users should make sure that the
      * listener handles all exception cases internally.
      */
-    public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
+    public final void syncAfterWrite(Translog.Location location, Consumer<Exception> syncListener) {
+        // TODO AwaitsFix https://github.com/elastic/elasticsearch/issues/97183
+        // assert indexShardOperationPermits.getActiveOperationsCount() != 0;
         verifyNotClosed();
         getEngine().asyncEnsureTranslogSynced(location, syncListener);
     }
@@ -3744,7 +3750,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Executes a scheduled refresh if necessary. Completes the listener with true if a refreshed was performed otherwise false.
+     * Executes a scheduled refresh if necessary. Completes the listener with true if a refresh was performed otherwise false.
      */
     public void scheduledRefresh(ActionListener<Boolean> listener) {
         ActionListener.run(listener, l -> {

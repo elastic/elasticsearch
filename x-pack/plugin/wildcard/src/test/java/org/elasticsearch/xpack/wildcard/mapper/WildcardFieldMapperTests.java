@@ -101,7 +101,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     private static final String KEYWORD_FIELD_NAME = "keyword_field";
     private static final String WILDCARD_FIELD_NAME = "wildcard_field";
-    public static final SearchExecutionContext MOCK_CONTEXT = createMockSearchExecutionContext(true, IndexVersion.CURRENT);
+    public static final SearchExecutionContext MOCK_CONTEXT = createMockSearchExecutionContext(true, IndexVersion.current());
 
     static final int MAX_FIELD_LENGTH = 30;
     static WildcardFieldMapper wildcardFieldType;
@@ -123,7 +123,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     @Before
     public void setUp() throws Exception {
-        Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.CURRENT);
+        Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.current());
         builder.ignoreAbove(MAX_FIELD_LENGTH);
         wildcardFieldType = builder.build(MapperBuilderContext.root(false));
 
@@ -132,7 +132,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(
             KEYWORD_FIELD_NAME,
-            IndexVersion.CURRENT
+            IndexVersion.current()
         );
         keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false));
 

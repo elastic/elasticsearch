@@ -827,7 +827,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             Collections.singletonList(new BytesArray("{}")),
             percolateSearcher,
             false,
-            IndexVersion.CURRENT
+            IndexVersion.current()
         );
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
         assertEquals(3L, topDocs.totalHits.value);
@@ -866,7 +866,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             Collections.singletonList(new BytesArray("{}")),
             percolateSearcher,
             false,
-            IndexVersion.CURRENT
+            IndexVersion.current()
         );
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
         assertEquals(2L, topDocs.totalHits.value);
@@ -895,7 +895,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher shardSearcher = newSearcher(directoryReader);
         shardSearcher.setQueryCache(null);
 
-        IndexVersion v = IndexVersion.CURRENT;
+        IndexVersion v = IndexVersion.current();
 
         try (Directory directory = new ByteBuffersDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
@@ -1018,7 +1018,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher shardSearcher = newSearcher(directoryReader);
         shardSearcher.setQueryCache(null);
 
-        IndexVersion v = IndexVersion.CURRENT;
+        IndexVersion v = IndexVersion.current();
         List<BytesReference> sources = Collections.singletonList(new BytesArray("{}"));
 
         MemoryIndex memoryIndex = new MemoryIndex();
@@ -1052,7 +1052,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher shardSearcher = newSearcher(directoryReader);
         shardSearcher.setQueryCache(null);
 
-        IndexVersion v = IndexVersion.CURRENT;
+        IndexVersion v = IndexVersion.current();
         List<BytesReference> sources = Collections.singletonList(new BytesArray("{}"));
 
         MemoryIndex memoryIndex = new MemoryIndex();
@@ -1101,7 +1101,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher shardSearcher = newSearcher(directoryReader);
         shardSearcher.setQueryCache(null);
 
-        IndexVersion v = IndexVersion.CURRENT;
+        IndexVersion v = IndexVersion.current();
         List<BytesReference> sources = Collections.singletonList(new BytesArray("{}"));
 
         Document document = new Document();
@@ -1125,7 +1125,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             Collections.singletonList(new BytesArray("{}")),
             percolateSearcher,
             false,
-            IndexVersion.CURRENT
+            IndexVersion.current()
         );
         Query query = requireScore ? percolateQuery : new ConstantScoreQuery(percolateQuery);
         TopDocs topDocs = shardSearcher.search(query, 100);
@@ -1211,7 +1211,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             Collections.singletonList(new BytesArray("{}")),
             percolateSearcher,
             false,
-            IndexVersion.CURRENT
+            IndexVersion.current()
         );
         return shardSearcher.search(percolateQuery, 10);
     }

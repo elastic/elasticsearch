@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.core.Strings.format;
@@ -83,7 +82,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
                     .setId(datafeedConfig.getId())
                     .build()
             )
-            .collect(Collectors.toList());
+            .toList();
         if (updates.isEmpty()) {
             return;
         }

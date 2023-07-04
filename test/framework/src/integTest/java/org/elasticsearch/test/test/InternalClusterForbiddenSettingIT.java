@@ -7,11 +7,9 @@
  */
 package org.elasticsearch.test.test;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 /**

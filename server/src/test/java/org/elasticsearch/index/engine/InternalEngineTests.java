@@ -131,7 +131,6 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogOperationsUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -6697,7 +6696,10 @@ public class InternalEngineTests extends EngineTestCase {
             .settings(
                 Settings.builder()
                     .put(defaultSettings.getSettings())
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0).id())
+                    .put(
+                        IndexMetadata.SETTING_VERSION_CREATED,
+                        IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0).id()
+                    )
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
             )
             .build();
@@ -6788,13 +6790,22 @@ public class InternalEngineTests extends EngineTestCase {
             lowestCompatiblePreviousVersion,
             IndexVersionUtils.getFirstVersion()
         )) {
-            Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion.id()).build();
+            Settings settings = Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion.id())
+                .build();
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
             try (
                 Store store = createStore(indexSettings, newDirectory());
                 InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))
             ) {
-                ParsedDocument doc = testParsedDocument("1", null, new LuceneDocument(), new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null);
+                ParsedDocument doc = testParsedDocument(
+                    "1",
+                    null,
+                    new LuceneDocument(),
+                    new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+                    null
+                );
                 engine.index(appendOnlyPrimary(doc, false, 1));
                 engine.refresh("test");
                 try (Engine.Searcher searcher = engine.acquireSearcher("test")) {

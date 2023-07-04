@@ -192,8 +192,11 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     public void testDynamicMapperWithBadMapping() throws IOException {
         {
             // in 7.x versions this will issue a deprecation warning
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0));
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersion.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+            );
             DocumentMapper mapper = createDocumentMapper(version, topMapping(b -> {
                 b.startArray("dynamic_templates");
                 {

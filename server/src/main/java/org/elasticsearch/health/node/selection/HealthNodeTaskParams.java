@@ -8,7 +8,7 @@
 
 package org.elasticsearch.health.node.selection;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -23,15 +23,15 @@ import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 /**
  * Encapsulates the parameters needed to start the health node task, currently no parameters are required.
  */
-class HealthNodeTaskParams implements PersistentTaskParams {
+public class HealthNodeTaskParams implements PersistentTaskParams {
 
-    private static final HealthNodeTaskParams INSTANCE = new HealthNodeTaskParams();
+    public static final HealthNodeTaskParams INSTANCE = new HealthNodeTaskParams();
 
     public static final ObjectParser<HealthNodeTaskParams, Void> PARSER = new ObjectParser<>(TASK_NAME, true, () -> INSTANCE);
 
     HealthNodeTaskParams() {}
 
-    HealthNodeTaskParams(StreamInput in) {}
+    HealthNodeTaskParams(StreamInput ignored) {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -46,8 +46,8 @@ class HealthNodeTaskParams implements PersistentTaskParams {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_4_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_5_0;
     }
 
     @Override

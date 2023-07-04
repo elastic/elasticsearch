@@ -154,13 +154,6 @@
                         "data": {
                           "type": "long"
                         },
-                        "stats": {
-                          "properties": {
-                            "data": {
-                              "type": "long"
-                            }
-                          }
-                        },
                         "count": {
                           "type": "long"
                         },
@@ -216,28 +209,28 @@
                       "type": "keyword"
                     }
                   }
-                },
-                "pending_task": {
+                }
+              }
+            },
+            "pending_tasks": {
+              "properties": {
+                "time_in_queue": {
                   "properties": {
-                    "time_in_queue": {
-                      "properties": {
-                        "ms": {
-                          "type": "long"
-                        }
-                      }
-                    },
-                    "source": {
-                      "ignore_above": 1024,
-                      "type": "keyword"
-                    },
-                    "priority": {
-                      "ignore_above": 1024,
-                      "type": "keyword"
-                    },
-                    "insert_order": {
+                    "ms": {
                       "type": "long"
                     }
                   }
+                },
+                "source": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "priority": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "insert_order": {
+                  "type": "long"
                 }
               }
             },
@@ -311,6 +304,10 @@
                       "type": "boolean"
                     }
                   }
+                },
+                "roles": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
                 },
                 "version": {
                   "ignore_above": 1024,
@@ -485,6 +482,49 @@
                     },
                     "indices": {
                       "properties": {
+                        "bulk": {
+                          "properties": {
+                            "operations": {
+                              "properties": {
+                                "total": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "total_size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "avg_size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "total_time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "avg_time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
                         "search": {
                           "properties": {
                             "query_total": {
@@ -732,14 +772,16 @@
                                 "usage": {
                                   "properties": {
                                     "bytes": {
-                                      "type": "long"
+                                      "ignore_above": 1024,
+                                      "type": "keyword"
                                     }
                                   }
                                 },
                                 "limit": {
                                   "properties": {
                                     "bytes": {
-                                      "type": "long"
+                                      "ignore_above": 1024,
+                                      "type": "keyword"
                                     }
                                   }
                                 }
@@ -1110,6 +1152,9 @@
               "properties": {
                 "shards": {
                   "properties": {
+                    "primaries": {
+                      "type": "long"
+                    },
                     "total": {
                       "type": "long"
                     }
@@ -1244,6 +1289,25 @@
                 },
                 "total": {
                   "properties": {
+                    "bulk": {
+                      "properties": {
+                        "avg_time_in_millis": {
+                          "type": "long"
+                        },
+                        "avg_size_in_bytes": {
+                          "type": "long"
+                        },
+                        "total_time_in_millis": {
+                          "type": "long"
+                        },
+                        "total_operations": {
+                          "type": "long"
+                        },
+                        "total_size_in_bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
                     "search": {
                       "properties": {
                         "query_total": {
@@ -1287,6 +1351,13 @@
                         },
                         "evictions": {
                           "type": "long"
+                        },
+                        "global_ordinals": {
+                          "properties": {
+                            "build_time_in_millis": {
+                              "type": "long"
+                            }
+                          }
                         }
                       }
                     },
@@ -1800,6 +1871,74 @@
                 }
               }
             },
+            "ingest_pipeline": {
+              "properties": {
+                "name": {
+                  "ignore_above": 1024,
+                  "type": "wildcard"
+                },
+                "processor": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "failed": {
+                      "type": "long"
+                    },
+                    "order_index": {
+                      "type": "long"
+                    },
+                    "time": {
+                      "properties": {
+                        "total": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "type": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "type_tag": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "total": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "failed": {
+                      "type": "long"
+                    },
+                    "time": {
+                      "properties": {
+                        "total": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "self": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
             "shard": {
               "properties": {
                 "number": {
@@ -1910,7 +2049,26 @@
                   "type": "keyword"
                 },
                 "read_exceptions": {
-                  "type": "nested"
+                  "type": "nested",
+                  "properties": {
+                    "from_seq_no": {
+                      "type": "long"
+                    },
+                    "retries": {
+                      "type": "integer"
+                    },
+                    "exception": {
+                      "type": "object",
+                      "properties": {
+                        "type" : {
+                          "type": "keyword"
+                        },
+                        "reason": {
+                          "type": "text"
+                        }
+                      }
+                    }
+                  }
                 },
                 "shard_id": {
                   "type": "long"
@@ -2116,126 +2274,6 @@
             "type": {
               "ignore_above": 1024,
               "type": "keyword"
-            },
-            "environment": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "ephemeral_id": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "hostname": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "id": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "node": {
-              "properties": {
-                "name": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                }
-              }
-            },
-            "origin": {
-              "properties": {
-                "address": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "environment": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "ephemeral_id": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "id": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "name": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "node": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword",
-                      "ignore_above": 1024
-                    }
-                  }
-                },
-                "state": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "type": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "version": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                }
-              }
-            },
-            "state": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "target": {
-              "properties": {
-                "address": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "environment": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "ephemeral_id": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "id": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "name": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "node": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword",
-                      "ignore_above": 1024
-                    }
-                  }
-                },
-                "state": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "type": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "version": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                }
-              }
-            },
-            "version": {
-              "type": "keyword",
-              "ignore_above": 1024
             }
           }
         },
@@ -2366,6 +2404,10 @@
                 "start_time_in_millis": {
                   "path": "elasticsearch.index.recovery.start_time.ms",
                   "type": "alias"
+                },
+                "total_time_in_millis": {
+                  "path": "elasticsearch.index.recovery.total_time.ms",
+                  "type": "alias"
                 }
               }
             }
@@ -2442,9 +2484,6 @@
               "type": "alias"
             }
           }
-        },
-        "version": {
-          "type": "long"
         },
         "ccr_auto_follow_stats": {
           "properties": {
@@ -2971,14 +3010,6 @@
             "name": {
               "type": "keyword",
               "ignore_above": 1024
-            },
-            "architecture": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "hostname": {
-              "type": "keyword",
-              "ignore_above": 1024
             }
           }
         },
@@ -2995,25 +3026,6 @@
         },
         "event": {
           "properties": {
-            "action": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "agent_id_status": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "category": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "code": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "created": {
-              "type": "date"
-            },
             "dataset": {
               "type": "keyword",
               "ignore_above": 1024
@@ -3021,74 +3033,7 @@
             "duration": {
               "type": "long"
             },
-            "end": {
-              "type": "date"
-            },
-            "hash": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "id": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "ingested": {
-              "type": "date"
-            },
-            "kind": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
             "module": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "original": {
-              "type": "keyword",
-              "index": false,
-              "doc_values": false,
-              "ignore_above": 1024
-            },
-            "outcome": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "provider": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "reason": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "reference": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "risk_score": {
-              "type": "float"
-            },
-            "risk_score_norm": {
-              "type": "float"
-            },
-            "sequence": {
-              "type": "long"
-            },
-            "severity": {
-              "type": "long"
-            },
-            "start": {
-              "type": "date"
-            },
-            "timezone": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "type": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "url": {
               "type": "keyword",
               "ignore_above": 1024
             }
@@ -3293,6 +3238,7 @@
       }
     },
     "settings": {
+      "index.auto_expand_replicas": "0-1",
       "index.mapping.total_fields.limit": 2000,
       "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }

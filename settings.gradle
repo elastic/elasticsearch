@@ -1,19 +1,48 @@
+import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+
 pluginManagement {
   repositories {
     mavenCentral()
     gradlePluginPortal()
   }
+
+  includeBuild "build-conventions"
+  includeBuild "build-tools"
+  includeBuild "build-tools-internal"
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.8.1"
+  id "com.gradle.enterprise" version "3.13.1"
+  id 'elasticsearch.java-toolchain'
 }
 
-includeBuild "build-conventions"
-includeBuild "build-tools"
-includeBuild "build-tools-internal"
-
 rootProject.name = "elasticsearch"
+
+dependencyResolutionManagement {
+  versionCatalogs {
+    buildLibs {
+      from(files("gradle/build.versions.toml"))
+    }
+  }
+}
+
+toolchainManagement {
+  jvm {
+    javaRepositories {
+      repository('bundledOracleOpendJdk') {
+        resolverClass = OracleOpenJdkToolchainResolver
+      }
+      repository('adoptiumJdks') {
+        resolverClass = AdoptiumJdkToolchainResolver
+      }
+      repository('archivedOracleJdks') {
+        resolverClass = ArchivedOracleJdkToolchainResolver
+      }
+    }
+  }
+}
 
 List projects = [
   'rest-api-spec',
@@ -75,8 +104,9 @@ List projects = [
   'test:fixtures:url-fixture',
   'test:fixtures:nginx-fixture',
   'test:logger-usage',
-  'test:yaml-rest-runner',
-  'test:x-content'
+  'test:test-clusters',
+  'test:x-content',
+  'test:yaml-rest-runner'
 ]
 
 /**
@@ -93,6 +123,15 @@ void addSubProjects(String path, File dir) {
   if (findProject(dir) != null) return;
 
   final String projectName = "${path}:${dir.name}"
+
+  // This project has a problem with availability of Docker images after
+  // release. Disabling individual tasks is tricky because it uses test
+  // fixtures, so instead just skip the project entirely until we can
+  // work out a way forward.
+  if (projectName.equals(":qa:apm")) {
+    return
+  }
+
   include projectName
   if (path.isEmpty() || path.startsWith(':example-plugins')) {
     project(projectName).projectDir = dir
@@ -116,6 +155,10 @@ project(":libs").children.each { libsProject ->
   libsProject.children.each { lp ->
     lp.name = lp.name  // for :libs:elasticsearch-x-content:impl
   }
+}
+
+project(":qa:stable-api").children.each { libsProject ->
+  libsProject.name = "elasticsearch-${libsProject.name}"
 }
 
 project(":test:external-modules").children.each { testProject ->

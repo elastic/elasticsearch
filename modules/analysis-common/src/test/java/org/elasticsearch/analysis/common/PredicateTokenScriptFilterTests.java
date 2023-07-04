@@ -9,6 +9,12 @@
 package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -17,11 +23,14 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -56,10 +65,14 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
                 return (FactoryType) factory;
             }
         };
-
+        Client client = new MockClient(Settings.EMPTY, null);
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-        plugin.createComponents(null, null, null, null, scriptService, null, null, null, null, null, null);
-        AnalysisModule module = new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(plugin));
+        plugin.createComponents(client, null, null, null, scriptService, null, null, null, null, null, null, Tracer.NOOP, null, null);
+        AnalysisModule module = new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            Collections.singletonList(plugin),
+            new StablePluginsRegistry()
+        );
 
         IndexAnalyzers analyzers = module.getAnalysisRegistry().build(idxSettings);
 
@@ -68,6 +81,22 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
             assertAnalyzesTo(analyzer, "Oh what a wonderful thing to be", new String[] { "Oh", "what", "to", "be" });
         }
 
+    }
+
+    private class MockClient extends AbstractClient {
+        MockClient(Settings settings, ThreadPool threadPool) {
+            super(settings, threadPool);
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {}
     }
 
 }

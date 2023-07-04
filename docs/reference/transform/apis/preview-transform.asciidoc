@@ -138,7 +138,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot]
 .Properties of `pivot`
 [%collapsible%open]
 ====
-
 `aggregations` or `aggs`:::
 (Required, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
@@ -183,7 +182,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 .Properties of `source`
 [%collapsible%open]
 ====
-
 `index`:::
 (Required, string or array)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
@@ -212,10 +210,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync]
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 +
-.Properties of `analysis_config`
+.Properties of `time`
 [%collapsible%open]
 =====
-
 `delay`::::
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
@@ -236,21 +233,24 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
 .Properties of `settings`
 [%collapsible%open]
 ====
-`dates_as_epoch_millis`:::
-(Optional, boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
-`docs_per_second`:::
-(Optional, float)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 `align_checkpoints`:::
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-align-checkpoints]
+`dates_as_epoch_millis`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
 `deduce_mappings`:::
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-deduce-mappings]
+`docs_per_second`:::
+(Optional, float)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 `max_page_search_size`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+`unattended`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-unattended]
 ====
 //End settings
 
@@ -258,10 +258,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max
 [[preview-transform-response]]
 == {api-response-body-title}
 
-`preview`::
-(array) An array of documents. In particular, they are the JSON representation
-of the documents that would be created in the destination index by the
-{transform}.
 
 //Begin generated_dest_index
 `generated_dest_index`::
@@ -282,6 +278,12 @@ of the documents that would be created in the destination index by the
 ====
 //End generated_dest_index
 
+`preview`::
+(array) An array of documents. In particular, they are the JSON representation
+of the documents that would be created in the destination index by the
+{transform}.
+
+
 == {api-examples-title}
 
 [source,console]
@@ -295,7 +297,8 @@ POST _transform/_preview
     "group_by": {
       "customer_id": {
         "terms": {
-          "field": "customer_id"
+          "field": "customer_id",
+          "missing_bucket": true
         }
       }
     },

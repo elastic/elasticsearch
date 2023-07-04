@@ -8,20 +8,26 @@
 
 package org.elasticsearch.repositories.blobstore;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -32,6 +38,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -40,12 +47,15 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -116,7 +126,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             String id = Integer.toString(i);
             client().prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
         }
-        client().admin().indices().prepareFlush(indexName).get();
+        indicesAdmin().prepareFlush(indexName).get();
 
         logger.info("--> create first snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -272,9 +282,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         ensureGreen("green-index");
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("red-index")
+            indicesAdmin().prepareCreate("red-index")
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), "*")
@@ -284,9 +292,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         );
 
         final long beforeStartTime = getInstanceFromNode(ThreadPool.class).absoluteTimeInMillis();
-        final CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, "test-snap-1")
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repositoryName, "test-snap-1")
             .setWaitForCompletion(true)
             .setPartial(true)
             .get();
@@ -297,7 +303,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         final Consumer<RepositoryData.SnapshotDetails> snapshotDetailsAsserter = snapshotDetails -> {
             assertThat(snapshotDetails.getSnapshotState(), equalTo(SnapshotState.PARTIAL));
-            assertThat(snapshotDetails.getVersion(), equalTo(Version.CURRENT));
+            assertThat(snapshotDetails.getVersion(), equalTo(IndexVersion.current()));
             assertThat(snapshotDetails.getStartTimeMillis(), allOf(greaterThanOrEqualTo(beforeStartTime), lessThanOrEqualTo(afterEndTime)));
             assertThat(
                 snapshotDetails.getEndTimeMillis(),
@@ -321,7 +327,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             repositoryData.withExtraDetails(
                 Collections.singletonMap(
                     snapshotId,
-                    new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, Version.CURRENT, -1, -1, null)
+                    new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, IndexVersion.current(), -1, -1, null)
                 )
             ),
             repositoryData.getGenId()
@@ -332,7 +338,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
         PlainActionFuture.<RepositoryData, Exception>get(
-            f -> repository.writeIndexGen(repositoryData, generation, Version.CURRENT, Function.identity(), f)
+            f -> repository.writeIndexGen(repositoryData, generation, IndexVersion.current(), Function.identity(), f)
         );
     }
 
@@ -377,7 +383,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 .collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
             final RepositoryData.SnapshotDetails details = new RepositoryData.SnapshotDetails(
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
-                Version.CURRENT,
+                IndexVersion.current(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -393,4 +399,55 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         return repoData;
     }
 
+    public void testEnsureUploadListenerIsResolvedWhenAFileSnapshotTaskFails() throws Exception {
+        Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
+        RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
+        final FsRepository repository = new FsRepository(
+            repositoryMetadata,
+            createEnvironment(),
+            xContentRegistry(),
+            clusterService,
+            MockBigArrays.NON_RECYCLING_INSTANCE,
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+        ) {
+            @Override
+            protected void assertSnapshotOrGenericThread() {
+                // eliminate thread name check as we create repo manually
+            }
+
+            @Override
+            protected void snapshotFile(SnapshotShardContext context, BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
+                // Randomly fail some file snapshot tasks
+                if (randomBoolean()) {
+                    throw new IOException("cannot upload file");
+                }
+            }
+        };
+        clusterService.addStateApplier(event -> repository.updateState(event.state()));
+        // Apply state once to initialize repo properly like RepositoriesService would
+        repository.updateState(clusterService.state());
+        repository.start();
+        // Generate some FileInfo, as the files that get uploaded as part of the shard snapshot
+        SnapshotShardContext context = ShardSnapshotTaskRunnerTests.dummyContext();
+        int noOfFiles = randomIntBetween(10, 100);
+        BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files = new LinkedBlockingQueue<>(noOfFiles);
+        PlainActionFuture<Void> listenerCalled = PlainActionFuture.newFuture();
+        ActionListener<Collection<Void>> allFilesUploadListener = ActionListener.running(() -> listenerCalled.onResponse(null));
+        for (int i = 0; i < noOfFiles; i++) {
+            files.add(ShardSnapshotTaskRunnerTests.dummyFileInfo());
+        }
+        repository.snapshotFiles(context, files, allFilesUploadListener);
+        listenerCalled.get();
+    }
+
+    private Environment createEnvironment() {
+        Path home = createTempDir();
+        return TestEnvironment.newEnvironment(
+            Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), home.toAbsolutePath())
+                .put(Environment.PATH_REPO_SETTING.getKey(), home.resolve("repo").toAbsolutePath())
+                .build()
+        );
+    }
 }

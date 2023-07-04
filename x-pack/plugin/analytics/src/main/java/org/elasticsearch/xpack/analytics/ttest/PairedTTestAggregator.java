@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.analytics.ttest;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.A_
 import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.B_FIELD;
 
 public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
-    private TTestStatsBuilder statsBuilder;
+    private final TTestStatsBuilder statsBuilder;
 
     PairedTTestAggregator(
         String name,
@@ -57,12 +57,12 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedNumericDoubleValues docAValues = valuesSources.getField(A_FIELD.getPreferredName(), ctx);
-        final SortedNumericDoubleValues docBValues = valuesSources.getField(B_FIELD.getPreferredName(), ctx);
+        final SortedNumericDoubleValues docAValues = valuesSources.getField(A_FIELD.getPreferredName(), aggCtx.getLeafReaderContext());
+        final SortedNumericDoubleValues docBValues = valuesSources.getField(B_FIELD.getPreferredName(), aggCtx.getLeafReaderContext());
         final CompensatedSum compDiffSum = new CompensatedSum(0, 0);
         final CompensatedSum compDiffSumOfSqr = new CompensatedSum(0, 0);
 

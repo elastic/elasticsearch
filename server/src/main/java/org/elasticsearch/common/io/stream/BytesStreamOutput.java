@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A @link {@link StreamOutput} that uses {@link BigArrays} to acquire pages of
@@ -77,10 +78,7 @@ public class BytesStreamOutput extends BytesStream {
             return;
         }
 
-        // illegal args: offset and/or length exceed array size
-        if (b.length < (offset + length)) {
-            throw new IllegalArgumentException("Illegal offset " + offset + "/length " + length + " for byte[] of length " + b.length);
-        }
+        Objects.checkFromIndexSize(offset, length, b.length);
 
         // get enough pages for new size
         ensureCapacity(((long) count) + length);
@@ -92,7 +90,6 @@ public class BytesStreamOutput extends BytesStream {
         count += length;
     }
 
-    @Override
     public void reset() {
         // shrink list of pages
         if (bytes != null && bytes.size() > PageCacheRecycler.PAGE_SIZE_IN_BYTES) {

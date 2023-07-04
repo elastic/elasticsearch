@@ -33,20 +33,25 @@ artifacts {
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-testClusters.configureEach {
-  module ':modules:mapper-extras'
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+dependencies {
+  clusterModules project(":modules:mapper-extras")
+  clusterModules project(":modules:rest-root")
+  clusterModules project(":modules:reindex")
 }
 
-tasks.named("test").configure { enabled = false }
+testClusters.configureEach {
+  requiresFeature 'es.synonyms_feature_flag_enabled', Version.fromString("8.9.0")
+}
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 
   task.skipTestsByFilePattern("**/cat*/*.yml", "Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API")
   task.skipTestsByFilePattern("**/indices.upgrade/*.yml", "upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex")
   task.skipTestsByFilePattern("**/indices.stats/60_field_usage/*/*.yml", "field usage results will be different between lucene versions")
+  task.skipTestsByFilePattern("**/search.aggregation/*.yml", "run by the aggregation module")
 
   task.skipTest("bulk/11_dynamic_templates/Dynamic templates", "Error message has changed")
+  task.skipTest("index/80_date_nanos/date_nanos requires dates after 1970 and before 2262", "Error message has changed")
   task.skipTest("indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template", "Type information about the type is removed and not passed down. The logic to check for this is also removed.")
   task.skipTest("indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template", "Type information about the type is removed and not passed down. The logic to check for this is also removed.")
   task.skipTest("delete/70_mix_typeless_typeful/DELETE with typeless API on an index that has types", "Type information about the type is removed and not passed down. The logic to check for this is also removed.");
@@ -68,20 +73,18 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("indices.stats/20_translog/Translog retention settings are deprecated", "translog settings removal is not supported under compatible api")
   task.skipTest("indices.stats/20_translog/Translog retention without soft_deletes", "translog settings removal is not supported under compatible api")
   task.skipTest("indices.stats/20_translog/Translog stats on closed indices without soft-deletes", "translog settings removal is not supported under compatible api")
-  task.skipTest("search.aggregation/370_doc_count_field/Test filters agg with doc_count", "Uses profiler for assertions which is not backwards compatible")
   task.skipTest("indices.create/10_basic/Create index without soft deletes", "Make soft-deletes mandatory in 8.0 #51122 - settings changes are note supported in Rest Api compatibility")
   task.skipTest("field_caps/30_filter/Field caps with index filter", "behaviour change after #63692 4digits dates are parsed as epoch and in quotes as year")
   task.skipTest("indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set", "#44761 bug fix")
   task.skipTest("search/340_type_query/type query", "#47207 type query throws exception in compatible mode")
-  task.skipTest("search.aggregation/210_top_hits_nested_metric/top_hits aggregation with sequence numbers", "#42809 the use nested path and filter sort throws an exception")
   task.skipTest("search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception", "#42654 cutoff_frequency, common terms are not supported. Throwing an exception")
   task.skipTest("search_shards/10_basic/Search shards aliases with and without filters", "Filter representation no longer outputs default boosts")
-  task.skipTest("search.aggregation/20_terms/string profiler via global ordinals filters implementation", "The profiler results aren't backwards compatible.")
-  task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")
-  task.skipTest("search.aggregation/20_terms/string profiler via map", "The profiler results aren't backwards compatible.")
-  task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
   task.skipTest("migration/10_get_feature_upgrade_status/Get feature upgrade status", "Awaits backport")
   task.skipTest("search/330_fetch_fields/Test disable source", "Error no longer thrown")
+  task.skipTest("search/370_profile/fetch fields", "profile output has changed")
+  task.skipTest("search/370_profile/fetch source", "profile output has changed")
+  task.skipTest("search/370_profile/fetch nested source", "profile output has changed")
+  task.skipTest("search/240_date_nanos/doc value fields are working as expected across date and date_nanos fields", "Fetching docvalues field multiple times is no longer allowed")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")

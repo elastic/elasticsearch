@@ -10,6 +10,9 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -23,6 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPreviewDatafeedAction extends BaseRestHandler {
 
     @Override
@@ -58,6 +62,10 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
                 restRequest.param(DatafeedConfig.ID.getPreferredName(), null)
             ).setStart(startTime).setEnd(endTime).build()
             : new PreviewDatafeedAction.Request(restRequest.param(DatafeedConfig.ID.getPreferredName()), startTime, endTime);
-        return channel -> client.execute(PreviewDatafeedAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            PreviewDatafeedAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

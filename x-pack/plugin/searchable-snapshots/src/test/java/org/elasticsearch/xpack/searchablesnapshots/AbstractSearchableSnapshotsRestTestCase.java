@@ -118,30 +118,21 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         logger.info("creating index [{}]", indexName);
-        createIndex(
-            indexName,
-            indexSettings != null
-                ? indexSettings
-                : Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .build(),
-            """
-                    "properties": {
-                        "field": {
-                            "type": "integer"
-                        },
-                        "text": {
-                            "type": "text",
-                            "fields": {
-                                "raw": {
-                                    "type": "keyword"
-                                }
+        createIndex(indexName, indexSettings != null ? indexSettings : indexSettings(randomIntBetween(1, 5), 0).build(), """
+                "properties": {
+                    "field": {
+                        "type": "integer"
+                    },
+                    "text": {
+                        "type": "text",
+                        "fields": {
+                            "raw": {
+                                "type": "keyword"
                             }
                         }
                     }
-                """
-        );
+                }
+            """);
         ensureGreen(indexName);
 
         logger.info("indexing [{}] documents", numDocs);
@@ -157,7 +148,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
                         long n;
                         while ((n = remainingDocs.decrementAndGet()) >= 0) {
-                            bulkBody.append(String.format(Locale.ROOT, """
+                            bulkBody.append(Strings.format("""
                                     {"index": {"_id":"%d"} }
                                     {"field": %d, "text": "Document number %d"}
                                 """, n, n, n));
@@ -253,12 +244,12 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                 String sourceOnlySnapshot = "source-only-snap-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + WRITE_REPOSITORY_NAME + '/' + sourceOnlySnapshot);
                 request.addParameter("wait_for_completion", "true");
-                request.setJsonEntity("""
+                request.setJsonEntity(Strings.format("""
                     {
                         "include_global_state": false,
                         "indices" : "%s"
                     }
-                    """.formatted(indexName));
+                    """, indexName));
 
                 final Response response = adminClient().performRequest(request);
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
@@ -476,12 +467,9 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         },
             false,
             10_000,
-            Settings.builder()
-                .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), true)
+            indexSettings(1, 0).put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), true)
                 .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()
         );
     }

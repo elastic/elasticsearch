@@ -57,7 +57,7 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
         IndexMetadata idxMeta = clusterState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return new Result(false, null);
         }
 
@@ -76,8 +76,8 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
                     Locale.ROOT,
                     "[%s] lifecycle step, as part of [%s] action, for index [%s] Is not "
                         + "completable, reason: [%s]. Abandoning execution and moving to the next fallback step [%s]",
-                    getKey().getName(),
-                    getKey().getAction(),
+                    getKey().name(),
+                    getKey().action(),
                     idxMeta.getIndex().getName(),
                     Strings.toString(stepResult.getInfomationContext()),
                     nextKeyOnThresholdBreach
@@ -94,8 +94,8 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
                     Locale.ROOT,
                     "[%s] lifecycle step, as part of [%s] action, for index [%s] executed for"
                         + " more than [%s]. Abandoning execution and moving to the next fallback step [%s]",
-                    getKey().getName(),
-                    getKey().getAction(),
+                    getKey().name(),
+                    getKey().action(),
                     idxMeta.getIndex().getName(),
                     retryThreshold,
                     nextKeyOnThresholdBreach

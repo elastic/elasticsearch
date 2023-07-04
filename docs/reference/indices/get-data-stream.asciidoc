@@ -99,6 +99,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
 +
 Defaults to `open`.
 
+`include_defaults`::
+(Optional, Boolean) Functionality in preview:[]. If `true`, return all default settings in the response.
+Defaults to `false`.
+
 [role="child_attributes"]
 [[get-data-stream-api-response-body]]
 ==== {api-response-body-title}
@@ -170,14 +174,14 @@ the stream's backing indices.
 .Values for `status`
 [%collapsible%open]
 =====
-`green`:::
+`GREEN`:::
 All shards are assigned.
 
-`yellow`:::
+`YELLOW`:::
 All primary shards are assigned, but one or more replica shards are
 unassigned.
 
-`red`:::
+`RED`:::
 One or more primary shards are unassigned, so some data is unavailable.
 =====
 
@@ -201,7 +205,7 @@ policies. To retrieve the lifecycle policy for individual backing indices,
 use the <<indices-get-settings,get index settings API>>.
 
 `hidden`::
-(Boolean) If `true`, the data stream is <<hidden,hidden>>.
+(Boolean) If `true`, the data stream is <<multi-hidden,hidden>>.
 
 `system`::
 (Boolean)
@@ -216,6 +220,25 @@ If `true`, the data stream this data stream allows custom routing on write reque
 (Boolean)
 If `true`, the data stream is created and managed by {ccr} and the local
 cluster can not write into this data stream or change its mappings.
+
+`lifecycle`::
+(object)
+Functionality in preview:[]. Contains the configuration for the data lifecycle management of this data stream.
++
+.Properties of `lifecycle`
+[%collapsible%open]
+=====
+`data_retention`::
+(string)
+If defined, every document added to this data stream will be stored at least for this time frame. Any time after this
+duration the document could be deleted. When empty, every document in this data stream will be stored indefinitely.
+
+`rollover`::
+(object)
+The conditions which will trigger the rollover of a backing index as configured by the cluster setting
+`cluster.lifecycle.default.rollover`. This property is an implementation detail and it will only be retrieved when the query
+param `include_defaults` is set to `true`. The contents of this field are subject to change.
+=====
 ====
 
 [[get-data-stream-api-example]]

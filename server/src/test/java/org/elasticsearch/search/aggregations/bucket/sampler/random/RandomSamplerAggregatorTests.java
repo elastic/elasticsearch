@@ -10,8 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
@@ -56,20 +54,19 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         long[] counts = new long[5];
         AtomicInteger integer = new AtomicInteger();
         do {
-            testCase(
-                new RandomSamplerAggregationBuilder("my_agg").subAggregation(AggregationBuilders.avg("avg").field(NUMERIC_FIELD_NAME))
-                    .setProbability(0.25),
-                new MatchAllDocsQuery(),
-                RandomSamplerAggregatorTests::writeTestDocs,
-                (InternalRandomSampler result) -> {
-                    counts[integer.get()] = result.getDocCount();
-                    if (result.getDocCount() > 0) {
-                        Avg agg = result.getAggregations().get("avg");
-                        assertThat(Strings.toString(result), agg.getValue(), allOf(not(notANumber()), IsFinite.isFinite()));
-                        avgs[integer.get()] = agg.getValue();
-                    }
-                },
-                longField(NUMERIC_FIELD_NAME)
+            testCase(RandomSamplerAggregatorTests::writeTestDocs, (InternalRandomSampler result) -> {
+                counts[integer.get()] = result.getDocCount();
+                if (result.getDocCount() > 0) {
+                    Avg agg = result.getAggregations().get("avg");
+                    assertThat(Strings.toString(result), agg.getValue(), allOf(not(notANumber()), IsFinite.isFinite()));
+                    avgs[integer.get()] = agg.getValue();
+                }
+            },
+                new AggTestConfig(
+                    new RandomSamplerAggregationBuilder("my_agg").subAggregation(AggregationBuilders.avg("avg").field(NUMERIC_FIELD_NAME))
+                        .setProbability(0.25),
+                    longField(NUMERIC_FIELD_NAME)
+                )
             );
         } while (integer.incrementAndGet() < 5);
         long avgCount = LongStream.of(counts).sum() / integer.get();
@@ -79,45 +76,55 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
     }
 
     public void testAggregationSamplingNestedAggsScaled() throws IOException {
-        testCase(
-            new RandomSamplerAggregationBuilder("my_agg").subAggregation(
-                AggregationBuilders.filter("filter_outer", QueryBuilders.termsQuery(KEYWORD_FIELD_NAME, KEYWORD_FIELD_VALUE))
-                    .subAggregation(
-                        AggregationBuilders.filter("filter_inner", QueryBuilders.termsQuery(KEYWORD_FIELD_NAME, KEYWORD_FIELD_VALUE))
-                    )
-            ).setProbability(0.25),
-            new MatchAllDocsQuery(),
-            RandomSamplerAggregatorTests::writeTestDocs,
-            (InternalRandomSampler result) -> {
-                long sampledDocCount = result.getDocCount();
-                Filter agg = result.getAggregations().get("filter_outer");
-                long outerFilterDocCount = agg.getDocCount();
-                Filter innerAgg = agg.getAggregations().get("filter_inner");
-                long innerFilterDocCount = innerAgg.getDocCount();
+        // in case 0 docs get sampled, which can rarely happen
+        // in case the test index has many segments.
+        // subaggs should be scaled along with upper level aggs
+        // sampled doc count is NOT scaled, and thus should be lower
+        testCase(RandomSamplerAggregatorTests::writeTestDocs, (InternalRandomSampler result) -> {
+            long sampledDocCount = result.getDocCount();
+            Filter agg = result.getAggregations().get("filter_outer");
+            long outerFilterDocCount = agg.getDocCount();
+            Filter innerAgg = agg.getAggregations().get("filter_inner");
+            long innerFilterDocCount = innerAgg.getDocCount();
+            if (sampledDocCount == 0) {
+                // in case 0 docs get sampled, which can rarely happen
+                // in case the test index has many segments.
+                assertThat(sampledDocCount, equalTo(0L));
+                assertThat(innerFilterDocCount, equalTo(0L));
+                assertThat(outerFilterDocCount, equalTo(0L));
+            } else {
                 // subaggs should be scaled along with upper level aggs
                 assertThat(outerFilterDocCount, equalTo(innerFilterDocCount));
                 // sampled doc count is NOT scaled, and thus should be lower
                 assertThat(outerFilterDocCount, greaterThan(sampledDocCount));
-            },
-            longField(NUMERIC_FIELD_NAME),
-            keywordField(KEYWORD_FIELD_NAME)
+            }
+        },
+            new AggTestConfig(
+                new RandomSamplerAggregationBuilder("my_agg").subAggregation(
+                    AggregationBuilders.filter("filter_outer", QueryBuilders.termsQuery(KEYWORD_FIELD_NAME, KEYWORD_FIELD_VALUE))
+                        .subAggregation(
+                            AggregationBuilders.filter("filter_inner", QueryBuilders.termsQuery(KEYWORD_FIELD_NAME, KEYWORD_FIELD_VALUE))
+                        )
+                ).setProbability(0.25),
+                longField(NUMERIC_FIELD_NAME),
+                keywordField(KEYWORD_FIELD_NAME)
+            )
         );
     }
 
     public void testAggregationSamplingOptimizedMinAndMax() throws IOException {
-        testCase(
-            new RandomSamplerAggregationBuilder("my_agg").subAggregation(AggregationBuilders.max("max").field(RANDOM_NUMERIC_FIELD_NAME))
-                .subAggregation(AggregationBuilders.min("min").field(RANDOM_NUMERIC_FIELD_NAME))
-                .setProbability(0.25),
-            new MatchAllDocsQuery(),
-            RandomSamplerAggregatorTests::writeTestDocsWithTrueMinMax,
-            (InternalRandomSampler result) -> {
-                Min min = result.getAggregations().get("min");
-                Max max = result.getAggregations().get("max");
-                assertThat(min.value(), equalTo((double) TRUE_MIN));
-                assertThat(max.value(), equalTo((double) TRUE_MAX));
-            },
-            longField(RANDOM_NUMERIC_FIELD_NAME)
+        testCase(RandomSamplerAggregatorTests::writeTestDocsWithTrueMinMax, (InternalRandomSampler result) -> {
+            Min min = result.getAggregations().get("min");
+            Max max = result.getAggregations().get("max");
+            assertThat(min.value(), equalTo((double) TRUE_MIN));
+            assertThat(max.value(), equalTo((double) TRUE_MAX));
+        },
+            new AggTestConfig(
+                new RandomSamplerAggregationBuilder("my_agg").subAggregation(
+                    AggregationBuilders.max("max").field(RANDOM_NUMERIC_FIELD_NAME)
+                ).subAggregation(AggregationBuilders.min("min").field(RANDOM_NUMERIC_FIELD_NAME)).setProbability(0.25),
+                longField(RANDOM_NUMERIC_FIELD_NAME)
+            )
         );
     }
 
@@ -134,7 +141,6 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             w.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(NUMERIC_FIELD_NAME, 1),
-                    new SortedSetDocValuesField(KEYWORD_FIELD_NAME, new BytesRef(KEYWORD_FIELD_VALUE)),
                     new KeywordFieldMapper.KeywordField(
                         KEYWORD_FIELD_NAME,
                         new BytesRef(KEYWORD_FIELD_VALUE),
@@ -147,7 +153,6 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             w.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(NUMERIC_FIELD_NAME, 2),
-                    new SortedSetDocValuesField(KEYWORD_FIELD_NAME, new BytesRef(KEYWORD_FIELD_VALUE)),
                     new KeywordFieldMapper.KeywordField(
                         KEYWORD_FIELD_NAME,
                         new BytesRef(KEYWORD_FIELD_VALUE),

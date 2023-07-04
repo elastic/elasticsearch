@@ -6,10 +6,13 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.LegacyFormatNames;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -17,6 +20,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  * Index-specific deprecation checks
@@ -25,8 +31,8 @@ public class IndexDeprecationChecks {
 
     static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
         // TODO: this check needs to be revised. It's trivially true right now.
-        Version currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
-        if (currentCompatibilityVersion.before(Version.V_7_0_0)) {
+        IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
+        if (currentCompatibilityVersion.before(IndexVersion.V_7_0_0)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Old index with a compatibility version < 7.0",
@@ -114,5 +120,135 @@ public class IndexDeprecationChecks {
             );
         }
         return null;
+    }
+
+    private static void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
+        if (indexMetadata.mapping() != null) {
+            Map<String, Object> sourceAsMap = indexMetadata.mapping().sourceAsMap();
+            checker.accept(indexMetadata.mapping(), sourceAsMap);
+        }
+    }
+
+    /**
+     * iterates through the "properties" field of mappings and returns any predicates that match in the
+     * form of issue-strings.
+     *
+     * @param type the document type
+     * @param parentMap the mapping to read properties from
+     * @param predicate the predicate to check against for issues, issue is returned if predicate evaluates to true
+     * @param fieldFormatter a function that takes a type and mapping field entry and returns a formatted field representation
+     * @return a list of issues found in fields
+     */
+    @SuppressWarnings("unchecked")
+    static List<String> findInPropertiesRecursively(
+        String type,
+        Map<String, Object> parentMap,
+        Function<Map<?, ?>, Boolean> predicate,
+        BiFunction<String, Map.Entry<?, ?>, String> fieldFormatter,
+        String fieldBeginMarker,
+        String fieldEndMarker
+    ) {
+        List<String> issues = new ArrayList<>();
+        Map<?, ?> properties = (Map<?, ?>) parentMap.get("properties");
+        if (properties == null) {
+            return issues;
+        }
+        for (Map.Entry<?, ?> entry : properties.entrySet()) {
+            Map<String, Object> valueMap = (Map<String, Object>) entry.getValue();
+            if (predicate.apply(valueMap)) {
+                issues.add(fieldBeginMarker + fieldFormatter.apply(type, entry) + fieldEndMarker);
+            }
+
+            Map<?, ?> values = (Map<?, ?>) valueMap.get("fields");
+            if (values != null) {
+                for (Map.Entry<?, ?> multifieldEntry : values.entrySet()) {
+                    Map<String, Object> multifieldValueMap = (Map<String, Object>) multifieldEntry.getValue();
+                    if (predicate.apply(multifieldValueMap)) {
+                        issues.add(
+                            fieldBeginMarker
+                                + fieldFormatter.apply(type, entry)
+                                + ", multifield: "
+                                + multifieldEntry.getKey()
+                                + fieldEndMarker
+                        );
+                    }
+                    if (multifieldValueMap.containsKey("properties")) {
+                        issues.addAll(
+                            findInPropertiesRecursively(
+                                type,
+                                multifieldValueMap,
+                                predicate,
+                                fieldFormatter,
+                                fieldBeginMarker,
+                                fieldEndMarker
+                            )
+                        );
+                    }
+                }
+            }
+            if (valueMap.containsKey("properties")) {
+                issues.addAll(findInPropertiesRecursively(type, valueMap, predicate, fieldFormatter, fieldBeginMarker, fieldEndMarker));
+            }
+        }
+
+        return issues;
+    }
+
+    static DeprecationIssue deprecatedCamelCasePattern(IndexMetadata indexMetadata) {
+        List<String> fields = new ArrayList<>();
+        fieldLevelMappingIssue(
+            indexMetadata,
+            ((mappingMetadata, sourceAsMap) -> fields.addAll(
+                findInPropertiesRecursively(
+                    mappingMetadata.type(),
+                    sourceAsMap,
+                    IndexDeprecationChecks::isDateFieldWithCamelCasePattern,
+                    IndexDeprecationChecks::changeFormatToSnakeCase,
+                    "",
+                    ""
+                )
+            ))
+        );
+
+        if (fields.size() > 0) {
+            String detailsMessageBeginning = String.join(" ", fields);
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Date fields use deprecated camel case formats",
+                "https://ela.st/es-deprecation-7-camel-case-format",
+                detailsMessageBeginning,
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    private static boolean isDateFieldWithCamelCasePattern(Map<?, ?> property) {
+        if ("date".equals(property.get("type")) && property.containsKey("format")) {
+            String[] patterns = DateFormatter.splitCombinedPatterns((String) property.get("format"));
+            for (String pattern : patterns) {
+                LegacyFormatNames format = LegacyFormatNames.forName(pattern);
+                return format != null && format.isCamelCase(pattern);
+            }
+        }
+        return false;
+    }
+
+    private static String changeFormatToSnakeCase(String type, Map.Entry<?, ?> entry) {
+        Map<?, ?> value = (Map<?, ?>) entry.getValue();
+        final String formatFieldValue = (String) value.get("format");
+        String[] patterns = DateFormatter.splitCombinedPatterns(formatFieldValue);
+        StringBuilder sb = new StringBuilder(
+            "Convert [" + entry.getKey() + "] format [" + formatFieldValue + "] " + "which contains deprecated camel case to snake case. "
+        );
+        for (String pattern : patterns) {
+            LegacyFormatNames format = LegacyFormatNames.forName(pattern);
+            if (format != null && format.isCamelCase(pattern)) {
+                sb.append("[" + pattern + "] to [" + format.getSnakeCaseName() + "]. ");
+            }
+        }
+        sb.deleteCharAt(sb.length() - 1);
+        return sb.toString();
     }
 }

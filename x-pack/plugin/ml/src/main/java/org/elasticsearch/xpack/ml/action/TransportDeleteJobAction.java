@@ -204,7 +204,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
 
         // First check that the job exists, because we don't want to audit
         // the beginning of its deletion if it didn't exist in the first place
-        jobConfigProvider.jobExists(request.getJobId(), true, jobExistsListener);
+        jobConfigProvider.jobExists(request.getJobId(), true, null, jobExistsListener);
     }
 
     private void notifyListeners(String jobId, @Nullable AcknowledgedResponse ack, @Nullable Exception error) {
@@ -380,6 +380,6 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             }
         }, listener::onFailure);
 
-        jobConfigProvider.getJob(jobId, jobListener);
+        jobConfigProvider.getJob(jobId, null, jobListener);
     }
 }

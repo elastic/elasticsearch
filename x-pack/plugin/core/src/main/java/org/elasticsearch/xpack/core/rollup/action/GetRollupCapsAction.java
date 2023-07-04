@@ -116,7 +116,7 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
         }
 
         Response(StreamInput in) throws IOException {
-            jobs = Collections.unmodifiableMap(in.readMap(StreamInput::readString, RollableIndexCaps::new));
+            jobs = in.readImmutableMap(RollableIndexCaps::new);
         }
 
         public Map<String, RollableIndexCaps> getJobs() {

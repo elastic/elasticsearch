@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.docker;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.GradleException;
@@ -23,15 +24,21 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
+
+import static java.util.function.Predicate.not;
 
 /**
  * Build service for detecting available Docker installation and checking for compatibility with Elasticsearch Docker image build
@@ -39,10 +46,13 @@ import javax.inject.Inject;
  */
 public abstract class DockerSupportService implements BuildService<DockerSupportService.Parameters> {
 
-    private static Logger LOGGER = Logging.getLogger(DockerSupportService.class);
+    private static final Logger LOGGER = Logging.getLogger(DockerSupportService.class);
     // Defines the possible locations of the Docker CLI. These will be searched in order.
-    private static String[] DOCKER_BINARIES = { "/usr/bin/docker", "/usr/local/bin/docker" };
-    private static String[] DOCKER_COMPOSE_BINARIES = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
+    private static final String[] DOCKER_BINARIES = { "/usr/bin/docker", "/usr/local/bin/docker" };
+    private static final String[] DOCKER_COMPOSE_BINARIES = {
+        "/usr/local/bin/docker-compose",
+        "/usr/bin/docker-compose",
+        "/usr/libexec/docker/cli-plugins/docker-compose" };
     private static final Version MINIMUM_DOCKER_VERSION = Version.fromString("17.05.0");
 
     private final ExecOperations execOperations;
@@ -61,10 +71,12 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     public DockerAvailability getDockerAvailability() {
         if (this.dockerAvailability == null) {
             String dockerPath = null;
+            String dockerComposePath = null;
             Result lastResult = null;
             Version version = null;
             boolean isVersionHighEnough = false;
             boolean isComposeAvailable = false;
+            Set<Architecture> supportedArchitectures = new HashSet<>();
 
             // Check if the Docker binary exists
             final Optional<String> dockerBinary = getDockerPath();
@@ -91,6 +103,26 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                         Optional<String> composePath = getDockerComposePath();
                         if (lastResult.isSuccess() && composePath.isPresent()) {
                             isComposeAvailable = runCommand(composePath.get(), "version").isSuccess();
+                            dockerComposePath = composePath.get();
+                        }
+
+                        // Now let's check if buildx is available and what supported platforms exist
+                        if (lastResult.isSuccess()) {
+                            Result buildxResult = runCommand(dockerPath, "buildx", "inspect", "--bootstrap");
+                            if (buildxResult.isSuccess()) {
+                                supportedArchitectures = buildxResult.stdout()
+                                    .lines()
+                                    .filter(l -> l.startsWith("Platforms:"))
+                                    .map(l -> l.substring(10))
+                                    .flatMap(l -> Arrays.stream(l.split(",")).filter(not(String::isBlank)))
+                                    .map(String::trim)
+                                    .map(s -> Arrays.stream(Architecture.values()).filter(a -> a.dockerPlatform.equals(s)).findAny())
+                                    .filter(Optional::isPresent)
+                                    .map(Optional::get)
+                                    .collect(Collectors.toSet());
+                            } else {
+                                supportedArchitectures = Set.of(Architecture.current());
+                            }
                         }
                     }
                 }
@@ -103,8 +135,10 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                 isComposeAvailable,
                 isVersionHighEnough,
                 dockerPath,
+                dockerComposePath,
                 version,
-                lastResult
+                lastResult,
+                supportedArchitectures
             );
         }
 
@@ -254,7 +288,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      */
     private Optional<String> getDockerPath() {
         // Check if the Docker binary exists
-        return List.of(DOCKER_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+        return Stream.of(DOCKER_BINARIES).filter(path -> new File(path).exists()).findFirst();
     }
 
     /**
@@ -265,7 +299,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      */
     private Optional<String> getDockerComposePath() {
         // Check if the Docker binary exists
-        return List.of(DOCKER_COMPOSE_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+        return Stream.of(DOCKER_COMPOSE_BINARIES).filter(path -> new File(path).exists()).findFirst();
     }
 
     private void throwDockerRequiredException(final String message) {
@@ -330,11 +364,17 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         // The path to the Docker CLI, or null
         String path,
 
+        // The path to the Docker Compose CLI, or null
+        String dockerComposePath,
+
         // The installed Docker version, or null
         Version version,
 
         // Information about the last command executes while probing Docker, or null.
-        Result lastCommand
+        Result lastCommand,
+
+        // Supported build architectures
+        Set<Architecture> supportedArchitectures
     ) {}
 
     /**

@@ -230,14 +230,17 @@ public class WatcherService {
      * @param state                     the current cluster state
      * @param postWatchesLoadedCallback the callback to be triggered, when watches where loaded successfully
      */
-    public void start(ClusterState state, Runnable postWatchesLoadedCallback) {
+    public void start(ClusterState state, Runnable postWatchesLoadedCallback, Consumer<Exception> exceptionConsumer) {
         executionService.unPause();
         processedClusterStateVersion.set(state.getVersion());
         executor.execute(wrapWatcherService(() -> {
             if (reloadInner(state, "starting", true)) {
                 postWatchesLoadedCallback.run();
             }
-        }, e -> logger.error("error starting watcher", e)));
+        }, e -> {
+            logger.error("error starting watcher", e);
+            exceptionConsumer.accept(e);
+        }));
     }
 
     /**
@@ -311,13 +314,7 @@ public class WatcherService {
         SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
         try {
-            RefreshResponse refreshResponse = client.admin()
-                .indices()
-                .refresh(new RefreshRequest(INDEX))
-                .actionGet(TimeValue.timeValueSeconds(5));
-            if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
-                throw illegalState("not all required shards have been refreshed");
-            }
+            refreshWatches(indexMetadata);
 
             // find out local shards
             String watchIndexName = indexMetadata.getIndex().getName();
@@ -326,7 +323,7 @@ public class WatcherService {
             if (routingNode == null) {
                 return Collections.emptyList();
             }
-            List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED);
+            List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
 
             // find out all allocation ids
             List<ShardRouting> watchIndexShardRoutings = clusterState.getRoutingTable().allShards(watchIndexName);
@@ -401,6 +398,17 @@ public class WatcherService {
         logger.debug("Loaded [{}] watches for execution", watches.size());
 
         return watches;
+    }
+
+    // Non private for unit testing purposes
+    void refreshWatches(IndexMetadata indexMetadata) {
+        RefreshResponse refreshResponse = client.admin()
+            .indices()
+            .refresh(new RefreshRequest(INDEX))
+            .actionGet(TimeValue.timeValueSeconds(5));
+        if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
+            throw illegalState("not all required shards have been refreshed");
+        }
     }
 
     /**

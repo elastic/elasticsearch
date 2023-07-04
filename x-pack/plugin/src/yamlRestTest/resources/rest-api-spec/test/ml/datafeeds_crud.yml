@@ -118,6 +118,7 @@ setup:
   - match: { scroll_size: 1000 }
   - is_true: query.match_all
   - match: { chunking_config: { mode: "auto" }}
+  - is_true: authorization.roles
 
 ---
 "Test put datafeed whose id is already taken":
@@ -210,6 +211,7 @@ setup:
   - match: { frequency: "2m" }
   - match: { query_delay: "0s" }
   - is_false: max_empty_searches
+  - is_true: authorization.roles
 
 ---
 "Test update datafeed to point to different job":

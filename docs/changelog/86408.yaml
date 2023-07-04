@@ -1,6 +1,0 @@
-pr: 86408
-summary: Use Windows newlines when listing plugin information on Windows
-area: Infra/Plugins
-type: bug
-issues:
- - 86352

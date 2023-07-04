@@ -1,6 +1,0 @@
-pr: 85441
-summary: Quantize geo queries to remove true negatives from search results
-area: Geo
-type: bug
-issues:
- - 40891

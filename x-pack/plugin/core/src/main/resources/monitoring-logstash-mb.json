@@ -146,10 +146,10 @@
                               "type": "nested",
                               "properties": {
                                 "name": {
-                                    "type": "keyword"
+                                  "type": "keyword"
                                 },
                                 "value": {
-                                    "type": "long"
+                                  "type": "long"
                                 }
                               }
                             }
@@ -164,13 +164,13 @@
                             "load_average": {
                               "properties": {
                                 "5m": {
-                                  "type": "long"
+                                  "type": "half_float"
                                 },
                                 "15m": {
-                                  "type": "long"
+                                  "type": "half_float"
                                 },
                                 "1m": {
-                                  "type": "long"
+                                  "type": "half_float"
                                 }
                               }
                             }
@@ -192,6 +192,9 @@
                                       "type": "long"
                                     }
                                   }
+                                },
+                                "cfs_quota_micros": {
+                                  "type": "long"
                                 }
                               }
                             },
@@ -228,6 +231,9 @@
                           "type": "long"
                         }
                       }
+                    },
+                    "timestamp": {
+                      "type": "date"
                     }
                   }
                 },
@@ -390,22 +396,6 @@
               "properties": {
                 "cpu": {
                   "properties": {
-                    "stat": {
-                      "properties": {
-                        "number_of_elapsed_periods": {
-                          "path": "logstash.node.stats.os.cgroup.cpu.stat.number_of_elapsed_periods",
-                          "type": "alias"
-                        },
-                        "number_of_times_throttled": {
-                          "path": "logstash.node.stats.os.cgroup.cpu.stat.number_of_times_throttled",
-                          "type": "alias"
-                        },
-                        "time_throttled_nanos": {
-                          "path": "logstash.node.stats.os.cgroup.cpu.stat.time_throttled_nanos",
-                          "type": "alias"
-                        }
-                      }
-                    },
                     "load_average": {
                       "properties": {
                         "5m": {
@@ -430,6 +420,30 @@
                       "properties": {
                         "usage_nanos": {
                           "path": "logstash.node.stats.os.cgroup.cpuacct.usage_nanos",
+                          "type": "alias"
+                        }
+                      }
+                    },
+                    "cpu": {
+                      "properties": {
+                        "stat": {
+                          "properties": {
+                            "number_of_elapsed_periods": {
+                              "path": "logstash.node.stats.os.cgroup.cpu.stat.number_of_elapsed_periods",
+                              "type": "alias"
+                            },
+                            "number_of_times_throttled": {
+                              "path": "logstash.node.stats.os.cgroup.cpu.stat.number_of_times_throttled",
+                              "type": "alias"
+                            },
+                            "time_throttled_nanos": {
+                              "path": "logstash.node.stats.os.cgroup.cpu.stat.time_throttled_nanos",
+                              "type": "alias"
+                            }
+                          }
+                        },
+                        "cfs_quota_micros": {
+                          "path": "logstash.node.stats.os.cgroup.cpu.cfs_quota_micros",
                           "type": "alias"
                         }
                       }
@@ -501,128 +515,12 @@
             "version": {
               "ignore_above": 1024,
               "type": "keyword"
-            },
-            "environment": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "ephemeral_id": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "node": {
-              "properties": {
-                "name": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                }
-              }
-            },
-            "origin": {
-              "properties": {
-                "address": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "environment": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "ephemeral_id": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "id": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "name": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "node": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword",
-                      "ignore_above": 1024
-                    }
-                  }
-                },
-                "state": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "type": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "version": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                }
-              }
-            },
-            "state": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "target": {
-              "properties": {
-                "address": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "environment": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "ephemeral_id": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "id": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "name": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "node": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword",
-                      "ignore_above": 1024
-                    }
-                  }
-                },
-                "state": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "type": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "version": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                }
-              }
             }
           }
         },
         "host": {
           "properties": {
-            "hostname": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
             "name": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "architecture": {
               "type": "keyword",
               "ignore_above": 1024
             }
@@ -645,25 +543,6 @@
         },
         "event": {
           "properties": {
-            "action": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "agent_id_status": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "category": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "code": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "created": {
-              "type": "date"
-            },
             "dataset": {
               "type": "keyword",
               "ignore_above": 1024
@@ -671,74 +550,7 @@
             "duration": {
               "type": "long"
             },
-            "end": {
-              "type": "date"
-            },
-            "hash": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "id": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "ingested": {
-              "type": "date"
-            },
-            "kind": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
             "module": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "original": {
-              "type": "keyword",
-              "index": false,
-              "doc_values": false,
-              "ignore_above": 1024
-            },
-            "outcome": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "provider": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "reason": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "reference": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "risk_score": {
-              "type": "float"
-            },
-            "risk_score_norm": {
-              "type": "float"
-            },
-            "sequence": {
-              "type": "long"
-            },
-            "severity": {
-              "type": "long"
-            },
-            "start": {
-              "type": "date"
-            },
-            "timezone": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "type": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "url": {
               "type": "keyword",
               "ignore_above": 1024
             }
@@ -751,6 +563,7 @@
       }
     },
     "settings": {
+      "index.auto_expand_replicas": "0-1",
       "index.mapping.total_fields.limit": 2000,
       "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }

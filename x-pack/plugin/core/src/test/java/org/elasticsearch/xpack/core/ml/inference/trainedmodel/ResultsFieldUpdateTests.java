@@ -29,6 +29,11 @@ public class ResultsFieldUpdateTests extends AbstractWireSerializingTestCase<Res
         return randomUpdate();
     }
 
+    @Override
+    protected ResultsFieldUpdate mutateInstance(ResultsFieldUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testIsSupported() {
         ResultsFieldUpdate update = new ResultsFieldUpdate("foo");
         assertTrue(update.isSupported(mock(InferenceConfig.class)));

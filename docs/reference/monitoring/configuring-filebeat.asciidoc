@@ -11,6 +11,9 @@ You can use {filebeat} to monitor the {es} log files, collect log events, and
 ship them to the monitoring cluster. Your recent logs are visible on the
 *Monitoring* page in {kib}.
 
+IMPORTANT: If you're using {agent}, do not deploy {filebeat} for log collection.
+Instead, configure the {es} integration to collect logs.
+
 //NOTE: The tagged regions are re-used in the Stack Overview.
 
 . Verify that {es} is running and that the monitoring cluster is ready to
@@ -24,14 +27,6 @@ ability to access your monitoring data. It also prevents monitoring activities
 from impacting the performance of your production cluster. See
 <<monitoring-production>>.
 
---
-
-. Enable the collection of monitoring data on your cluster.
-+
---
-include::configuring-metricbeat.asciidoc[tag=enable-collection]
-
-For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
 --
 
 . Identify which logs you want to monitor. 

@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -19,7 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -488,7 +488,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testProvideWrongId() {
         String wrongId = testCase.expectedId + "wrong";
-        Exception e = expectThrows(MapperParsingException.class, () -> parse(wrongId, mapperService(), testCase.source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> parse(wrongId, mapperService(), testCase.source));
         assertThat(
             e.getCause().getMessage(),
             equalTo(
@@ -520,7 +520,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testRoutingPathCompliant() throws IOException {
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         IndexRouting indexRouting = createIndexSettings(version, indexSettings(version)).getIndexRouting();
         int indexShard = indexShard(indexRouting);
         assertThat(indexRouting.getShard(testCase.expectedId, null), equalTo(indexShard));
@@ -536,10 +536,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
-    private Settings indexSettings(Version version) {
+    private Settings indexSettings(IndexVersion version) {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 100))
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
@@ -549,7 +549,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     private MapperService mapperService() throws IOException {
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         return createMapperService(indexSettings(version), mapping(b -> {
             b.startObject("r1").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("r2").field("type", "keyword").field("time_series_dimension", true).endObject();
@@ -585,6 +585,11 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
+    protected boolean isConfigurable() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testSourceDescription() throws IOException {
@@ -609,9 +614,6 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     private TestDocumentParserContext documentParserContext(IndexableField... fields) throws IOException {
         TestDocumentParserContext ctx = new TestDocumentParserContext(
             mapperService().mappingLookup(),
-            MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
-            null,
-            null,
             source(null, testCase.randomSource(), null)
         );
         for (IndexableField f : fields) {

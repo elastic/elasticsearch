@@ -21,6 +21,10 @@ public class PhaseCompleteStep extends Step {
         return new PhaseCompleteStep(new StepKey(phase, NAME, NAME), null);
     }
 
+    public static StepKey stepKey(String phase) {
+        return new StepKey(phase, NAME, NAME);
+    }
+
     @Override
     public boolean isRetryable() {
         // this is marker step so it doesn't make sense to be retryable

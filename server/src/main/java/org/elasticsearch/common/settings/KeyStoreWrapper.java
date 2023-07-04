@@ -25,6 +25,9 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -43,13 +46,9 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.GeneralSecurityException;
-import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Arrays;
-import java.util.Base64;
-import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -77,20 +76,25 @@ public class KeyStoreWrapper implements SecureSettings {
 
     public static final String PROMPT = "Enter password for the elasticsearch keystore : ";
 
-    /** An identifier for the type of data that may be stored in a keystore entry. */
-    private enum EntryType {
-        STRING,
-        FILE
-    }
-
     /** An entry in the keystore. The bytes are opaque and interpreted based on the entry type. */
-    private static class Entry {
+    private static class Entry implements Writeable {
         final byte[] bytes;
         final byte[] sha256Digest;
 
         Entry(byte[] bytes) {
             this.bytes = bytes;
             this.sha256Digest = MessageDigests.sha256().digest(bytes);
+        }
+
+        Entry(StreamInput input) throws IOException {
+            this.bytes = input.readByteArray();
+            this.sha256Digest = input.readByteArray();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByteArray(bytes);
+            out.writeByteArray(sha256Digest);
         }
     }
 
@@ -109,7 +113,7 @@ public class KeyStoreWrapper implements SecureSettings {
     public static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
 
     /** The oldest metadata format version that can be read. */
-    private static final int MIN_FORMAT_VERSION = 1;
+    private static final int MIN_FORMAT_VERSION = 3;
     /** Legacy versions of the metadata written before the keystore data. */
     public static final int V2_VERSION = 2;
     public static final int V3_VERSION = 3;
@@ -169,6 +173,14 @@ public class KeyStoreWrapper implements SecureSettings {
         this.formatVersion = formatVersion;
         this.hasPassword = hasPassword;
         this.dataBytes = dataBytes;
+    }
+
+    public KeyStoreWrapper(StreamInput input) throws IOException {
+        formatVersion = input.readInt();
+        hasPassword = input.readBoolean();
+        dataBytes = input.readOptionalByteArray();
+        entries.set(input.readMap(Entry::new));
+        closed = input.readBoolean();
     }
 
     /**
@@ -268,59 +280,15 @@ public class KeyStoreWrapper implements SecureSettings {
                 throw new IllegalStateException("hasPassword boolean is corrupt: " + String.format(Locale.ROOT, "%02x", hasPasswordByte));
             }
 
-            if (formatVersion <= V2_VERSION) {
-                String type = input.readString();
-                if (type.equals("PKCS12") == false) {
-                    throw new IllegalStateException("Corrupted legacy keystore string encryption algorithm");
-                }
-
-                final String stringKeyAlgo = input.readString();
-                if (stringKeyAlgo.equals("PBE") == false) {
-                    throw new IllegalStateException("Corrupted legacy keystore string encryption algorithm");
-                }
-                if (formatVersion == V2_VERSION) {
-                    final String fileKeyAlgo = input.readString();
-                    if (fileKeyAlgo.equals("PBE") == false) {
-                        throw new IllegalStateException("Corrupted legacy keystore file encryption algorithm");
-                    }
-                }
-            }
-
             final byte[] dataBytes;
-            if (formatVersion == V2_VERSION) {
-                // For v2 we had a map of strings containing the types for each setting. In v3 this map is now
-                // part of the encrypted bytes. Unfortunately we cannot seek backwards with checksum input, so
-                // we cannot just read the map and find out how long it is. So instead we read the map and
-                // store it back using java's builtin DataOutput in a byte array, along with the actual keystore bytes
-                Map<String, String> settingTypes = input.readMapOfStrings();
-                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                try (DataOutputStream output = new DataOutputStream(bytes)) {
-                    output.writeInt(settingTypes.size());
-                    for (Map.Entry<String, String> entry : settingTypes.entrySet()) {
-                        output.writeUTF(entry.getKey());
-                        output.writeUTF(entry.getValue());
-                    }
-                    final int keystoreLen;
-                    if (formatVersion < LE_VERSION) {
-                        keystoreLen = Integer.reverseBytes(input.readInt());
-                    } else {
-                        keystoreLen = input.readInt();
-                    }
-                    byte[] keystoreBytes = new byte[keystoreLen];
-                    input.readBytes(keystoreBytes, 0, keystoreLen);
-                    output.write(keystoreBytes);
-                }
-                dataBytes = bytes.toByteArray();
+            int dataBytesLen;
+            if (formatVersion < LE_VERSION) {
+                dataBytesLen = Integer.reverseBytes(input.readInt());
             } else {
-                int dataBytesLen;
-                if (formatVersion < LE_VERSION) {
-                    dataBytesLen = Integer.reverseBytes(input.readInt());
-                } else {
-                    dataBytesLen = input.readInt();
-                }
-                dataBytes = new byte[dataBytesLen];
-                input.readBytes(dataBytes, 0, dataBytesLen);
+                dataBytesLen = input.readInt();
             }
+            dataBytes = new byte[dataBytesLen];
+            input.readBytes(dataBytes, 0, dataBytesLen);
 
             CodecUtil.checkFooter(input);
             return new KeyStoreWrapper(formatVersion, hasPassword, dataBytes);
@@ -377,13 +345,6 @@ public class KeyStoreWrapper implements SecureSettings {
     public void decrypt(char[] password) throws GeneralSecurityException, IOException {
         if (entries.get() != null) {
             throw new IllegalStateException("Keystore has already been decrypted");
-        }
-        if (formatVersion <= V2_VERSION) {
-            decryptLegacyEntries();
-            if (password.length != 0) {
-                throw new IllegalArgumentException("Keystore format does not accept non-empty passwords");
-            }
-            return;
         }
 
         final byte[] salt;
@@ -460,79 +421,6 @@ public class KeyStoreWrapper implements SecureSettings {
             }
         }
         return bytes.toByteArray();
-    }
-
-    private void decryptLegacyEntries() throws GeneralSecurityException, IOException {
-        // v1 and v2 keystores never had passwords actually used, so we always use an empty password
-        KeyStore keystore = KeyStore.getInstance("PKCS12");
-        Map<String, EntryType> settingTypes = new HashMap<>();
-        ByteArrayInputStream inputBytes = new ByteArrayInputStream(dataBytes);
-        try (DataInputStream input = new DataInputStream(inputBytes)) {
-            // first read the setting types map
-            if (formatVersion == V2_VERSION) {
-                int numSettings = input.readInt();
-                for (int i = 0; i < numSettings; ++i) {
-                    String key = input.readUTF();
-                    String value = input.readUTF();
-                    settingTypes.put(key, EntryType.valueOf(value));
-                }
-            }
-            // then read the actual keystore
-            keystore.load(input, "".toCharArray());
-        }
-
-        // verify the settings metadata matches the keystore entries
-        Enumeration<String> aliases = keystore.aliases();
-        if (formatVersion == MIN_FORMAT_VERSION) {
-            while (aliases.hasMoreElements()) {
-                settingTypes.put(aliases.nextElement(), EntryType.STRING);
-            }
-        } else {
-            // verify integrity: keys in keystore match what the metadata thinks exist
-            Set<String> expectedSettings = new HashSet<>(settingTypes.keySet());
-            while (aliases.hasMoreElements()) {
-                String settingName = aliases.nextElement();
-                if (expectedSettings.remove(settingName) == false) {
-                    throw new SecurityException("Keystore has been corrupted or tampered with");
-                }
-            }
-            if (expectedSettings.isEmpty() == false) {
-                throw new SecurityException("Keystore has been corrupted or tampered with");
-            }
-        }
-
-        // fill in the entries now that we know all the types to expect
-        this.entries.set(new HashMap<>());
-        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBE");
-        KeyStore.PasswordProtection password = new KeyStore.PasswordProtection("".toCharArray());
-
-        for (Map.Entry<String, EntryType> settingEntry : settingTypes.entrySet()) {
-            String setting = settingEntry.getKey();
-            EntryType settingType = settingEntry.getValue();
-            KeyStore.SecretKeyEntry keystoreEntry = (KeyStore.SecretKeyEntry) keystore.getEntry(setting, password);
-            PBEKeySpec keySpec = (PBEKeySpec) keyFactory.getKeySpec(keystoreEntry.getSecretKey(), PBEKeySpec.class);
-            char[] chars = keySpec.getPassword();
-            keySpec.clearPassword();
-
-            final byte[] bytes;
-            if (settingType == EntryType.STRING) {
-                ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(chars));
-                bytes = Arrays.copyOfRange(byteBuffer.array(), byteBuffer.position(), byteBuffer.limit());
-                Arrays.fill(byteBuffer.array(), (byte) 0);
-            } else {
-                assert settingType == EntryType.FILE;
-                // The PBE keyspec gives us chars, we convert to bytes
-                byte[] tmpBytes = new byte[chars.length];
-                for (int i = 0; i < tmpBytes.length; ++i) {
-                    tmpBytes[i] = (byte) chars[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
-                }
-                bytes = Base64.getDecoder().decode(tmpBytes);
-                Arrays.fill(tmpBytes, (byte) 0);
-            }
-            Arrays.fill(chars, '\0');
-
-            entries.get().put(setting, new Entry(bytes));
-        }
     }
 
     /** Write the keystore to the given config directory. */
@@ -741,5 +629,15 @@ public class KeyStoreWrapper implements SecureSettings {
                 Arrays.fill(entry.bytes, (byte) 0);
             }
         }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeInt(formatVersion);
+        out.writeBoolean(hasPassword);
+        out.writeOptionalByteArray(dataBytes);
+        var entriesMap = entries.get();
+        out.writeMap((entriesMap == null) ? Map.of() : entriesMap, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeBoolean(closed);
     }
 }

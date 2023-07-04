@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -456,7 +456,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
-
+        AbstractRangeBuilder.sortRanges(ranges);
         return new GeoDistanceRangeAggregatorFactory(
             name,
             config,
@@ -502,8 +502,8 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 
 }

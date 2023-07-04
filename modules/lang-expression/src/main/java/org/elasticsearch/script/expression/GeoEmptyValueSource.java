@@ -11,8 +11,8 @@ package org.elasticsearch.script.expression;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.plain.LeafGeoPointFieldData;
 
 import java.io.IOException;
 
@@ -28,7 +28,7 @@ final class GeoEmptyValueSource extends FieldDataBasedDoubleValuesSource {
     @Override
     public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
         LeafGeoPointFieldData leafData = (LeafGeoPointFieldData) fieldData.load(leaf);
-        final MultiGeoPointValues values = leafData.getGeoPointValues();
+        final MultiGeoPointValues values = leafData.getPointValues(); // shade
         return new DoubleValues() {
             @Override
             public double doubleValue() {

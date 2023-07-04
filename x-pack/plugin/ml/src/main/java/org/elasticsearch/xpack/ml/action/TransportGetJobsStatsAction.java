@@ -21,7 +21,9 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -39,7 +41,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.task.JobTask;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -94,19 +95,28 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
 
     @Override
     protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> finalListener) {
-        logger.debug("Get stats for job [{}]", request.getJobId());
+        logger.trace("Get stats for job [{}]", request.getJobId());
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         // If there are deleted configs, but the task is still around, we probably want to return the tasks in the stats call
-        jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoMatch(), true, tasks, true, ActionListener.wrap(expandedIds -> {
-            request.setExpandedJobsIds(new ArrayList<>(expandedIds));
-            ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(
-                response -> gatherStatsForClosedJobs(request, response, finalListener),
-                finalListener::onFailure
-            );
-            super.doExecute(task, request, jobStatsListener);
-        }, finalListener::onFailure));
+        jobConfigProvider.expandJobsIds(
+            request.getJobId(),
+            request.allowNoMatch(),
+            true,
+            tasks,
+            true,
+            parentTaskId,
+            ActionListener.wrap(expandedIds -> {
+                request.setExpandedJobsIds(new ArrayList<>(expandedIds));
+                ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(
+                    response -> gatherStatsForClosedJobs(request, response, parentTaskId, finalListener),
+                    finalListener::onFailure
+                );
+                super.doExecute(task, request, jobStatsListener);
+            }, finalListener::onFailure)
+        );
     }
 
     @Override
@@ -120,7 +130,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
         for (QueryPage<JobStats> task : tasks) {
             stats.addAll(task.results());
         }
-        Collections.sort(stats, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
+        stats.sort(Comparator.comparing(JobStats::getJobId));
         return new GetJobsStatsAction.Response(
             taskOperationFailures,
             failedNodeExceptions,
@@ -129,7 +139,13 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
     }
 
     @Override
-    protected void taskOperation(GetJobsStatsAction.Request request, JobTask task, ActionListener<QueryPage<JobStats>> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        GetJobsStatsAction.Request request,
+        JobTask task,
+        ActionListener<QueryPage<JobStats>> listener
+    ) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), actionTask.getId());
         String jobId = task.getJobId();
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
@@ -142,8 +158,8 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
             JobState jobState = MlTasks.getJobState(jobId, tasks);
             String assignmentExplanation = pTask.getAssignment().getExplanation();
-            TimeValue openTime = durationToTimeValue(processManager.jobOpenTime(task));
-            jobResultsProvider.getForecastStats(jobId, forecastStats -> {
+            TimeValue openTime = processManager.jobOpenTime(task).map(value -> TimeValue.timeValueSeconds(value.getSeconds())).orElse(null);
+            jobResultsProvider.getForecastStats(jobId, parentTaskId, forecastStats -> {
                 JobStats jobStats = new JobStats(
                     jobId,
                     dataCounts,
@@ -168,6 +184,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
     void gatherStatsForClosedJobs(
         GetJobsStatsAction.Request request,
         GetJobsStatsAction.Response response,
+        TaskId parentTaskId,
         ActionListener<GetJobsStatsAction.Response> listener
     ) {
         List<String> closedJobIds = determineJobIdsWithoutLiveStats(request.getExpandedJobsIds(), response.getResponse().results());
@@ -193,11 +210,14 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             for (int i = 0; i < closedJobIds.size(); i++) {
                 int slot = i;
                 String jobId = closedJobIds.get(i);
-                jobResultsProvider.getForecastStats(jobId, forecastStats -> {
-                    threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                jobResultsProvider.getForecastStats(
+                    jobId,
+                    parentTaskId,
+                    forecastStats -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
                         .execute(
                             () -> jobResultsProvider.getDataCountsModelSizeAndTimingStats(
                                 jobId,
+                                parentTaskId,
                                 (dataCounts, modelSizeStats, timingStats) -> {
                                     JobState jobState = MlTasks.getJobState(jobId, tasks);
                                     PersistentTasksCustomMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
@@ -227,7 +247,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
                                         }
                                         List<JobStats> results = response.getResponse().results();
                                         results.addAll(jobStats.asList());
-                                        Collections.sort(results, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
+                                        results.sort(Comparator.comparing(JobStats::getJobId));
                                         listener.onResponse(
                                             new GetJobsStatsAction.Response(
                                                 response.getTaskFailures(),
@@ -239,18 +259,11 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
                                 },
                                 errorHandler
                             )
-                        );
-                }, errorHandler);
+                        ),
+                    errorHandler
+                );
             }
         });
-    }
-
-    static TimeValue durationToTimeValue(Optional<Duration> duration) {
-        if (duration.isPresent()) {
-            return TimeValue.timeValueSeconds(duration.get().getSeconds());
-        } else {
-            return null;
-        }
     }
 
     static List<String> determineJobIdsWithoutLiveStats(List<String> requestedJobIds, List<GetJobsStatsAction.Response.JobStats> stats) {

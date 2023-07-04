@@ -130,12 +130,15 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);
+        ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp, null);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, builder.build());
         jobResultsPersister = new JobResultsPersister(originSettingClient, resultsPersisterService);
-        auditor = new AnomalyDetectionAuditor(client(), clusterService);
+        // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
+        // AnomalyDetectionAuditor constructor. Instead we generate a random boolean value for that purpose.
+        boolean includeNodeInfo = randomBoolean();
+        auditor = new AnomalyDetectionAuditor(client(), clusterService, includeNodeInfo);
         waitForMlTemplates();
     }
 
@@ -468,7 +471,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
         ModelSizeStats storedModelSizeStats = new ModelSizeStats.Builder(job.getId()).setModelBytes(10L).build();
         jobResultsPersister.persistModelSizeStats(storedModelSizeStats, () -> false);
-        jobResultsPersister.commitResultWrites(job.getId());
+        jobResultsPersister.commitWrites(job.getId(), JobResultsPersister.CommitType.RESULTS);
 
         setOrThrow.get();
         assertThat(dataCountsAtomicReference.get().getJobId(), equalTo(job.getId()));
@@ -479,7 +482,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         storedTimingStats.updateStats(10);
 
         jobResultsPersister.bulkPersisterBuilder(job.getId()).persistTimingStats(storedTimingStats).executeRequest();
-        jobResultsPersister.commitResultWrites(job.getId());
+        jobResultsPersister.commitWrites(job.getId(), JobResultsPersister.CommitType.RESULTS);
 
         setOrThrow.get();
 
@@ -491,8 +494,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         storedDataCounts.incrementInputBytes(1L);
         storedDataCounts.incrementMissingFieldCount(1L);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client(), resultsPersisterService, auditor);
-        jobDataCountsPersister.persistDataCounts(job.getId(), storedDataCounts);
-        jobResultsPersister.commitResultWrites(job.getId());
+        jobDataCountsPersister.persistDataCounts(job.getId(), storedDataCounts, true);
+        jobResultsPersister.commitWrites(job.getId(), JobResultsPersister.CommitType.RESULTS);
 
         setOrThrow.get();
         assertThat(dataCountsAtomicReference.get(), equalTo(storedDataCounts));
@@ -600,7 +603,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Consumer<Exception> exceptionConsumer
     ) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.getDataCountsModelSizeAndTimingStats(jobId, (dataCounts, modelSizeStats, timingStats) -> {
+        jobProvider.getDataCountsModelSizeAndTimingStats(jobId, null, (dataCounts, modelSizeStats, timingStats) -> {
             dataCountsConsumer.accept(dataCounts);
             modelSizeStatsConsumer.accept(modelSizeStats);
             timingStatsConsumer.accept(timingStats);
@@ -793,13 +796,11 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 {"job_id":"other_job","snapshot_id":"11", "snapshot_doc_count":1,"retain":false}""", XContentType.JSON)
             .get();
 
-        client().admin()
-            .indices()
-            .prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern(), AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
+        indicesAdmin().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern(), AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
             .get();
 
         PlainActionFuture<QueryPage<ModelSnapshot>> future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_2,snap_1", future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_2,snap_1", null, future::onResponse, future::onFailure);
         List<ModelSnapshot> snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertNull(snapshots.get(0).getQuantiles());
@@ -807,7 +808,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertNull(snapshots.get(1).getQuantiles());
 
         future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*", future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*", null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
@@ -815,21 +816,21 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertNull(snapshots.get(1).getQuantiles());
 
         future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*,other_snap", future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*,other_snap", null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
         assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
 
         future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "*", future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "*", null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
         assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
 
         future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots("*", 0, 5, null, null, "min_version", false, null, future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots("*", 0, 5, null, null, "min_version", false, null, null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("11"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
@@ -887,14 +888,11 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Quantiles quantiles = new Quantiles(jobId, new Date(), "quantile-state");
         indexQuantiles(quantiles);
 
-        client().admin()
-            .indices()
-            .prepareRefresh(
-                MlMetaIndex.indexName(),
-                AnomalyDetectorsIndex.jobStateIndexPattern(),
-                AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
-            )
-            .get();
+        indicesAdmin().prepareRefresh(
+            MlMetaIndex.indexName(),
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
+        ).get();
 
         AutodetectParams params = getAutodetectParams(job.build(new Date()));
 
@@ -1046,9 +1044,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         }
     }
 
-    private void indexDataCounts(DataCounts counts, String jobId) {
+    private void indexDataCounts(DataCounts counts, String jobId) throws InterruptedException {
         JobDataCountsPersister persister = new JobDataCountsPersister(client(), resultsPersisterService, auditor);
-        persister.persistDataCounts(jobId, counts);
+        persister.persistDataCounts(jobId, counts, true);
     }
 
     private void indexFilters(List<MlFilter> filters) throws IOException {

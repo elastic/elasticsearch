@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import org.joni.exception.SyntaxException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -20,6 +21,9 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_V1;
 
 public class LogTextStructureFinder implements TextStructureFinder {
 
@@ -27,21 +31,101 @@ public class LogTextStructureFinder implements TextStructureFinder {
     private final List<String> sampleMessages;
     private final TextStructure structure;
 
-    static LogTextStructureFinder makeLogTextStructureFinder(
+    private static LogTextStructureFinder makeSingleLineLogTextStructureFinder(
         List<String> explanation,
-        String sample,
+        String[] sampleLines,
         String charsetName,
         Boolean hasByteOrderMarker,
         int lineMergeSizeLimit,
         TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) {
-        String[] sampleLines = sample.split("\n");
+        // treat each line as a single message with no timestamp field
+
+        explanation.add("Timestamp format is explicitly set to \"null\"");
+
+        List<String> sampleMessages = Arrays.asList(sampleLines);
+
+        TextStructure.Builder structureBuilder = new TextStructure.Builder(TextStructure.Format.SEMI_STRUCTURED_TEXT).setCharset(
+            charsetName
+        )
+            .setSampleStart(sampleMessages.stream().limit(2).collect(Collectors.joining("\n", "", "\n")))
+            .setHasByteOrderMarker(hasByteOrderMarker)
+            .setNumLinesAnalyzed(sampleMessages.size())
+            .setNumMessagesAnalyzed(sampleMessages.size());
+
+        Map<String, String> messageMapping = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "text");
+        SortedMap<String, Object> fieldMappings = new TreeMap<>();
+        fieldMappings.put("message", messageMapping);
+
+        SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
+        fieldStats.put("message", TextStructureUtils.calculateFieldStats(messageMapping, sampleMessages, timeoutChecker));
+
+        Map<String, String> customGrokPatternDefinitions = Map.of();
+
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(
+            explanation,
+            sampleMessages,
+            fieldMappings,
+            fieldStats,
+            customGrokPatternDefinitions,
+            timeoutChecker,
+            ECS_COMPATIBILITY_V1.equals(overrides.getEcsCompatibility())
+        );
+
+        String grokPattern = overrides.getGrokPattern();
+        if (grokPattern != null) {
+            // Since this Grok pattern came from the end user, it might contain a syntax error
+            try {
+                grokPatternCreator.validateFullLineGrokPattern(grokPattern, "");
+            } catch (SyntaxException e) {
+                throw new IllegalArgumentException("Supplied Grok pattern [" + grokPattern + "] cannot be converted to a valid regex", e);
+            }
+        } else {
+            grokPattern = grokPatternCreator.createGrokPatternFromExamples(null, null, null);
+        }
+
+        TextStructure structure = structureBuilder.setGrokPattern(grokPattern)
+            .setEcsCompatibility(overrides.getEcsCompatibility())
+            .setIngestPipeline(
+                TextStructureUtils.makeIngestPipelineDefinition(
+                    grokPattern,
+                    customGrokPatternDefinitions,
+                    null,
+                    fieldMappings,
+                    null,
+                    null,
+                    false,
+                    false,
+                    overrides.getEcsCompatibility()
+                )
+            )
+            .setMappings(Collections.singletonMap(TextStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings))
+            .setFieldStats(fieldStats)
+            .setExplanation(explanation)
+            .build();
+
+        return new LogTextStructureFinder(sampleMessages, structure);
+    }
+
+    private static LogTextStructureFinder makeMultiLineLogTextStructureFinder(
+        List<String> explanation,
+        String[] sampleLines,
+        String charsetName,
+        Boolean hasByteOrderMarker,
+        int lineMergeSizeLimit,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) {
         TimestampFormatFinder timestampFormatFinder = populateTimestampFormatFinder(explanation, sampleLines, overrides, timeoutChecker);
         switch (timestampFormatFinder.getNumMatchedFormats()) {
             case 0:
-                // Is it appropriate to treat text that is neither structured nor has
-                // a regular pattern of timestamps as a log? Probably not...
+                // To treat text as comprised of multi-line log messages we require the presence
+                // of at least one timestamp per message.
+                // In cases where it is desired to treat text that is neither structured nor has
+                // a regular pattern of timestamps as log messages we require the optional request
+                // argument "timestamp_format=null" to be passed, in which case the text will be
+                // treated as single line log messages.
                 throw new IllegalArgumentException(
                     "Could not find "
                         + ((overrides.getTimestampFormat() == null) ? "a timestamp" : "the specified timestamp format")
@@ -146,14 +230,17 @@ public class LogTextStructureFinder implements TextStructureFinder {
         fieldStats.put("message", TextStructureUtils.calculateFieldStats(messageMapping, sampleMessages, timeoutChecker));
 
         Map<String, String> customGrokPatternDefinitions = timestampFormatFinder.getCustomGrokPatternDefinitions();
+
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(
             explanation,
             sampleMessages,
             fieldMappings,
             fieldStats,
             customGrokPatternDefinitions,
-            timeoutChecker
+            timeoutChecker,
+            ECS_COMPATIBILITY_V1.equals(overrides.getEcsCompatibility())
         );
+
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
         String interimTimestampField = overrides.getTimestampField();
         String grokPattern = overrides.getGrokPattern();
@@ -191,6 +278,7 @@ public class LogTextStructureFinder implements TextStructureFinder {
             .setJavaTimestampFormats(timestampFormatFinder.getJavaTimestampFormats())
             .setNeedClientTimezone(needClientTimeZone)
             .setGrokPattern(grokPattern)
+            .setEcsCompatibility(overrides.getEcsCompatibility())
             .setIngestPipeline(
                 TextStructureUtils.makeIngestPipelineDefinition(
                     grokPattern,
@@ -200,7 +288,8 @@ public class LogTextStructureFinder implements TextStructureFinder {
                     interimTimestampField,
                     timestampFormatFinder.getJavaTimestampFormats(),
                     needClientTimeZone,
-                    timestampFormatFinder.needNanosecondPrecision()
+                    timestampFormatFinder.needNanosecondPrecision(),
+                    overrides.getEcsCompatibility()
                 )
             )
             .setMappings(Collections.singletonMap(TextStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings))
@@ -209,6 +298,39 @@ public class LogTextStructureFinder implements TextStructureFinder {
             .build();
 
         return new LogTextStructureFinder(sampleMessages, structure);
+    }
+
+    static LogTextStructureFinder makeLogTextStructureFinder(
+        List<String> explanation,
+        String sample,
+        String charsetName,
+        Boolean hasByteOrderMarker,
+        int lineMergeSizeLimit,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) {
+        String[] sampleLines = sample.split("\n");
+        if (TextStructureUtils.NULL_TIMESTAMP_FORMAT.equals(overrides.getTimestampFormat())) {
+            return makeSingleLineLogTextStructureFinder(
+                explanation,
+                sampleLines,
+                charsetName,
+                hasByteOrderMarker,
+                lineMergeSizeLimit,
+                overrides,
+                timeoutChecker
+            );
+        } else {
+            return makeMultiLineLogTextStructureFinder(
+                explanation,
+                sampleLines,
+                charsetName,
+                hasByteOrderMarker,
+                lineMergeSizeLimit,
+                overrides,
+                timeoutChecker
+            );
+        }
     }
 
     private LogTextStructureFinder(List<String> sampleMessages, TextStructure structure) {
@@ -238,7 +360,8 @@ public class LogTextStructureFinder implements TextStructureFinder {
             false,
             false,
             false,
-            timeoutChecker
+            timeoutChecker,
+            ECS_COMPATIBILITY_V1.equals(overrides.getEcsCompatibility())
         );
 
         for (String sampleLine : sampleLines) {

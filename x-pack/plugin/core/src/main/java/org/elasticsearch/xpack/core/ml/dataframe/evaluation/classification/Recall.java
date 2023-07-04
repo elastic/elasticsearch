@@ -202,7 +202,7 @@ public class Recall implements EvaluationMetric {
         }
 
         public Result(StreamInput in) throws IOException {
-            this.classes = Collections.unmodifiableList(in.readList(PerClassSingleValue::new));
+            this.classes = in.readImmutableList(PerClassSingleValue::new);
             this.avgRecall = in.readDouble();
         }
 

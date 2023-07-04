@@ -88,13 +88,13 @@ public final class TransformInternalIndex {
     public static final String BOOLEAN = "boolean";
     public static final String FLATTENED = "flattened";
 
-    public static SystemIndexDescriptor getSystemIndexDescriptor() throws IOException {
+    public static SystemIndexDescriptor getSystemIndexDescriptor(Settings transformInternalIndexAdditionalSettings) throws IOException {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
             .setPrimaryIndex(TransformInternalIndexConstants.LATEST_INDEX_NAME)
             .setDescription("Contains Transform configuration data")
             .setMappings(mappings())
-            .setSettings(settings())
+            .setSettings(settings(transformInternalIndexAdditionalSettings))
             .setVersionMetaKey("version")
             .setOrigin(TRANSFORM_ORIGIN)
             .build();
@@ -149,11 +149,13 @@ public final class TransformInternalIndex {
         return builder;
     }
 
-    public static Settings settings() {
+    public static Settings settings(Settings additionalSettings) {
+        assert additionalSettings != null;
         return Settings.builder()
             // the configurations are expected to be small
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .put(additionalSettings)
             .build();
     }
 
@@ -389,7 +391,12 @@ public final class TransformInternalIndex {
      * Without this check the data nodes will create an internal index with dynamic
      * mappings when indexing a document, but we want our own well defined mappings.
      */
-    public static void createLatestVersionedIndexIfRequired(ClusterService clusterService, Client client, ActionListener<Void> listener) {
+    public static void createLatestVersionedIndexIfRequired(
+        ClusterService clusterService,
+        Client client,
+        Settings transformInternalIndexAdditionalSettings,
+        ActionListener<Void> listener
+    ) {
         ClusterState state = clusterService.state();
         // The check for existence is against local cluster state, so very cheap
         if (hasLatestVersionedIndex(state)) {
@@ -405,7 +412,7 @@ public final class TransformInternalIndex {
         // Creating the index involves communication with the master node, so it's more expensive but much rarer
         try {
             CreateIndexRequest request = new CreateIndexRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME).settings(
-                settings()
+                settings(transformInternalIndexAdditionalSettings)
             )
                 .mapping(mappings())
                 .origin(TRANSFORM_ORIGIN)

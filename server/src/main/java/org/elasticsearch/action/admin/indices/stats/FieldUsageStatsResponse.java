@@ -9,16 +9,17 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class FieldUsageStatsResponse extends BroadcastResponse {
+public class FieldUsageStatsResponse extends ChunkedBroadcastResponse {
     private final Map<String, List<FieldUsageShardResponse>> stats;
 
     FieldUsageStatsResponse(
@@ -34,7 +35,7 @@ public class FieldUsageStatsResponse extends BroadcastResponse {
 
     FieldUsageStatsResponse(StreamInput in) throws IOException {
         super(in);
-        stats = in.readMap(StreamInput::readString, i -> i.readList(FieldUsageShardResponse::new));
+        stats = in.readMap(i -> i.readList(FieldUsageShardResponse::new));
     }
 
     @Override
@@ -48,19 +49,15 @@ public class FieldUsageStatsResponse extends BroadcastResponse {
     }
 
     @Override
-    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        final List<Map.Entry<String, List<FieldUsageShardResponse>>> sortedEntries = stats.entrySet()
-            .stream()
-            .sorted(Map.Entry.comparingByKey())
-            .toList();
-        for (Map.Entry<String, List<FieldUsageShardResponse>> entry : sortedEntries) {
+    protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
+        return stats.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(entry -> (ToXContent) (builder, p) -> {
             builder.startObject(entry.getKey());
             builder.startArray("shards");
             for (FieldUsageShardResponse resp : entry.getValue()) {
                 resp.toXContent(builder, params);
             }
             builder.endArray();
-            builder.endObject();
-        }
+            return builder.endObject();
+        }).iterator();
     }
 }

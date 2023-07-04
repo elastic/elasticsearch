@@ -63,6 +63,14 @@ You should run the analysis on a multi-node cluster of a similar size to your
 production cluster so that it can detect any problems that only arise when the
 repository is accessed by many nodes at once.
 
+If the analysis fails then {es} detected that your repository behaved
+unexpectedly. This usually means you are using a third-party storage system
+with an incorrect or incompatible implementation of the API it claims to
+support. If so, this storage system is not suitable for use as a snapshot
+repository. You will need to work with the supplier of your storage system to
+address the incompatibilities that {es} detects. See
+<<self-managed-repo-types>> for more information.
+
 If the analysis is successful this API returns details of the testing process,
 optionally including how long each operation took. You can use this information
 to determine the performance of your storage system. If any operation fails or
@@ -499,13 +507,17 @@ blob was not overwritten.
 
 `write_throttled`::
 (string)
-The length of time spent waiting for the `max_snapshot_bytes_per_sec` throttle
-while writing this blob.
+The length of time spent waiting for the `max_snapshot_bytes_per_sec` (or
+`indices.recovery.max_bytes_per_sec` if the
+<<recovery-settings-for-managed-services,recovery settings for managed services>>
+are set) throttle while writing this blob.
 
 `write_throttled_nanos`::
 (long)
-The length of time spent waiting for the `max_snapshot_bytes_per_sec` throttle
-while writing this blob, in nanoseconds.
+The length of time spent waiting for the `max_snapshot_bytes_per_sec` (or
+`indices.recovery.max_bytes_per_sec` if the
+<<recovery-settings-for-managed-services,recovery settings for managed services>>
+are set) throttle while writing this blob, in nanoseconds.
 
 `reads`::
 (array)

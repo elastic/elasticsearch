@@ -51,6 +51,7 @@ DATETIME_PARSE   |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
+DATE_FORMAT      |SCALAR
 DATE_PARSE       |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
@@ -232,6 +233,7 @@ showTables
 SHOW TABLES;
 
 catalog    |       name        |  type |  kind
+javaRestTest  |apps               |TABLE  |INDEX
 javaRestTest  |empty_mapping      |TABLE  |INDEX
 javaRestTest  |logs               |TABLE  |INDEX
 javaRestTest  |logs_nanos         |TABLE  |INDEX
@@ -283,6 +285,7 @@ showTablesLocalCatalog
 SHOW TABLES CATALOG 'javaRestTest';
 
 catalog    |       name        |  type |  kind
+javaRestTest  |apps               |TABLE  |INDEX
 javaRestTest  |empty_mapping      |TABLE  |INDEX
 javaRestTest  |logs               |TABLE  |INDEX
 javaRestTest  |logs_nanos         |TABLE  |INDEX

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import joptsimple.internal.Strings;
+
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -30,7 +32,38 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class IncludeExcludeTests extends ESTestCase {
+
+    public static IncludeExclude randomIncludeExclude() {
+        switch (randomInt(7)) {
+            case 0:
+                return new IncludeExclude("incl*de", null, null, null);
+            case 1:
+                return new IncludeExclude("incl*de", "excl*de", null, null);
+            case 2:
+                return new IncludeExclude("incl*de", null, null, new TreeSet<>(Set.of(newBytesRef("exclude"))));
+            case 3:
+                return new IncludeExclude(null, "excl*de", null, null);
+            case 4:
+                return new IncludeExclude(null, "excl*de", new TreeSet<>(Set.of(newBytesRef("include"))), null);
+            case 5:
+                return new IncludeExclude(null, null, new TreeSet<>(Set.of(newBytesRef("include"))), null);
+            case 6:
+                return new IncludeExclude(
+                    null,
+                    null,
+                    new TreeSet<>(Set.of(newBytesRef("include"))),
+                    new TreeSet<>(Set.of(newBytesRef("exclude")))
+                );
+            case 7:
+                return new IncludeExclude(null, null, null, new TreeSet<>(Set.of(newBytesRef("exclude"))));
+            default:
+                throw new IllegalArgumentException("got unexpected parameter, expected 0 <= x <= 7");
+        }
+    }
+
     public void testEmptyTermsWithOrds() throws IOException {
         IncludeExclude inexcl = new IncludeExclude(null, null, new TreeSet<>(Set.of(new BytesRef("foo"))), null);
         OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
@@ -67,7 +100,7 @@ public class IncludeExcludeTests extends ESTestCase {
             }
 
             @Override
-            public long docValueCount() {
+            public int docValueCount() {
                 return 1;
             }
 
@@ -355,5 +388,11 @@ public class IncludeExcludeTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude((String) null, null, null, null));
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(regex, null, values, null));
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(null, regex, null, values));
+    }
+
+    public void testLongIncludeExclude() {
+        String longString = Strings.repeat('a', 100000);
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(longString, null, null, null));
+        assertThat(iae.getMessage(), equalTo("failed to parse regexp due to stack overflow: " + longString));
     }
 }

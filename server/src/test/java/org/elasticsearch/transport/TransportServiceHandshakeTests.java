@@ -8,17 +8,24 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -51,12 +58,18 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         threadPool = new TestThreadPool(TransportServiceHandshakeTests.class.getSimpleName());
     }
 
-    private List<TransportService> transportServices = new ArrayList<>();
+    private final List<TransportService> transportServices = new ArrayList<>();
 
-    private NetworkHandle startServices(String nodeNameAndId, Settings settings, Version version) {
+    private TransportService startServices(
+        String nodeNameAndId,
+        Settings settings,
+        TransportVersion transportVersion,
+        VersionInformation nodeVersion,
+        TransportInterceptor transportInterceptor
+    ) {
         TcpTransport transport = new Netty4Transport(
             settings,
-            Version.CURRENT,
+            transportVersion,
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -64,7 +77,6 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             new SharedGroupFactory(settings)
         );
-        final DisruptingTransportInterceptor transportInterceptor = new DisruptingTransportInterceptor();
         TransportService transportService = new MockTransportService(
             settings,
             transport,
@@ -76,7 +88,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                 boundAddress.publishAddress(),
                 emptyMap(),
                 emptySet(),
-                version
+                nodeVersion
             ),
             null,
             Collections.emptySet()
@@ -84,7 +96,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         transportServices.add(transportService);
-        return new NetworkHandle(transportService, transportService.getLocalNode(), transportInterceptor);
+        return transportService;
     }
 
     @After
@@ -102,91 +114,121 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         threadPool = null;
     }
 
-    public void testConnectToNodeLight() throws IOException {
+    public void testConnectToNodeLight() {
         Settings settings = Settings.builder().put("cluster.name", "test").build();
 
-        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
-        NetworkHandle handleB = startServices(
+        TransportService transportServiceA = startServices(
+            "TS_A",
+            settings,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR
+        );
+        TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT)
+            TransportVersionUtils.randomCompatibleVersion(random()),
+            new VersionInformation(
+                VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersion.current()
+            ),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            "",
-            handleB.discoveryNode.getAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT.minimumCompatibilityVersion()
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
+            .address(transportServiceB.getLocalNode().getAddress())
+            .roles(emptySet())
+            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .build();
         try (
             Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
-                handleA.transportService,
+                transportServiceA,
                 discoveryNode,
                 TestProfiles.LIGHT_PROFILE
             )
         ) {
-            DiscoveryNode connectedNode = PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, fut));
+            DiscoveryNode connectedNode = PlainActionFuture.get(fut -> transportServiceA.handshake(connection, timeout, fut));
             assertNotNull(connectedNode);
             // the name and version should be updated
             assertEquals(connectedNode.getName(), "TS_B");
-            assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
-            assertFalse(handleA.transportService.nodeConnected(discoveryNode));
+            assertEquals(connectedNode.getVersion(), transportServiceB.getLocalNode().getVersion());
+            assertFalse(transportServiceA.nodeConnected(discoveryNode));
         }
     }
 
     public void testMismatchedClusterName() {
 
-        NetworkHandle handleA = startServices("TS_A", Settings.builder().put("cluster.name", "a").build(), Version.CURRENT);
-        NetworkHandle handleB = startServices("TS_B", Settings.builder().put("cluster.name", "b").build(), Version.CURRENT);
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            "",
-            handleB.discoveryNode.getAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT.minimumCompatibilityVersion()
+        TransportService transportServiceA = startServices(
+            "TS_A",
+            Settings.builder().put("cluster.name", "a").build(),
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
+        TransportService transportServiceB = startServices(
+            "TS_B",
+            Settings.builder().put("cluster.name", "b").build(),
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR
+        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
+            .address(transportServiceB.getLocalNode().getAddress())
+            .roles(emptySet())
+            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .build();
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
             try (
                 Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
-                    handleA.transportService,
+                    transportServiceA,
                     discoveryNode,
                     TestProfiles.LIGHT_PROFILE
                 )
             ) {
-                PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, fut.map(x -> null)));
+                PlainActionFuture.get(fut -> transportServiceA.handshake(connection, timeout, fut.map(x -> null)));
             }
         });
         assertThat(
             ex.getMessage(),
             containsString("handshake with [" + discoveryNode + "] failed: remote cluster name [b] does not match local cluster name [a]")
         );
-        assertFalse(handleA.transportService.nodeConnected(discoveryNode));
+        assertFalse(transportServiceA.nodeConnected(discoveryNode));
     }
 
-    public void testIncompatibleVersions() {
+    public void testIncompatibleNodeVersions() {
         Settings settings = Settings.builder().put("cluster.name", "test").build();
-        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
-        NetworkHandle handleB = startServices(
+        TransportService transportServiceA = startServices(
+            "TS_A",
+            settings,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR
+        );
+        TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion())
+            TransportVersion.MINIMUM_COMPATIBLE,
+            new VersionInformation(
+                VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()),
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersion.current()
+            ),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            "",
-            handleB.discoveryNode.getAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT.minimumCompatibilityVersion()
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
+            .address(transportServiceB.getLocalNode().getAddress())
+            .roles(emptySet())
+            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .build();
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
             try (
                 Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
-                    handleA.transportService,
+                    transportServiceA,
                     discoveryNode,
                     TestProfiles.LIGHT_PROFILE
                 )
             ) {
-                PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, fut.map(x -> null)));
+                PlainActionFuture.get(fut -> transportServiceA.handshake(connection, timeout, fut.map(x -> null)));
             }
         });
         assertThat(
@@ -195,91 +237,182 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                 "handshake with ["
                     + discoveryNode
                     + "] failed: remote node version ["
-                    + handleB.discoveryNode.getVersion()
+                    + transportServiceB.getLocalNode().getVersion()
                     + "] is incompatible with local node version ["
                     + Version.CURRENT
                     + "]"
             )
         );
-        assertFalse(handleA.transportService.nodeConnected(discoveryNode));
+        assertFalse(transportServiceA.nodeConnected(discoveryNode));
     }
 
-    public void testNodeConnectWithDifferentNodeId() {
+    public void testIncompatibleTransportVersions() {
         Settings settings = Settings.builder().put("cluster.name", "test").build();
-        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
-        NetworkHandle handleB = startServices("TS_B", settings, Version.CURRENT);
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            randomAlphaOfLength(10),
-            handleB.discoveryNode.getAddress(),
-            emptyMap(),
-            emptySet(),
-            handleB.discoveryNode.getVersion()
+        TransportService transportServiceA = startServices(
+            "TS_A",
+            settings,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        ConnectTransportException ex = expectThrows(
-            ConnectTransportException.class,
-            () -> AbstractSimpleTransportTestCase.connectToNode(handleA.transportService, discoveryNode, TestProfiles.LIGHT_PROFILE)
+        TransportService transportServiceB = startServices(
+            "TS_B",
+            settings,
+            TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE),
+            new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current()),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        assertThat(ex.getMessage(), containsString("unexpected remote node"));
-        assertFalse(handleA.transportService.nodeConnected(discoveryNode));
-    }
-
-    public void testRejectsMismatchedBuildHash() {
-        final Settings settings = Settings.builder()
-            .put("cluster.name", "a")
-            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
+            .address(transportServiceB.getLocalNode().getAddress())
+            .roles(emptySet())
+            .version(Version.CURRENT.minimumCompatibilityVersion())
             .build();
-        final NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
-        final NetworkHandle handleB = startServices("TS_B", settings, Version.CURRENT);
-        final DiscoveryNode discoveryNode = new DiscoveryNode(
-            "",
-            handleB.discoveryNode.getAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT.minimumCompatibilityVersion()
-        );
-        handleA.transportInterceptor.setModifyBuildHash(true);
-        handleB.transportInterceptor.setModifyBuildHash(true);
-        TransportSerializationException ex = expectThrows(TransportSerializationException.class, () -> {
+        expectThrows(ConnectTransportException.class, () -> {
             try (
                 Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
-                    handleA.transportService,
+                    transportServiceA,
                     discoveryNode,
                     TestProfiles.LIGHT_PROFILE
                 )
             ) {
-                PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, fut.map(x -> null)));
+                PlainActionFuture.get(fut -> transportServiceA.handshake(connection, timeout, fut.map(x -> null)));
+            }
+        });
+        // the error is exposed as a general connection exception, the actual message is in the logs
+        assertFalse(transportServiceA.nodeConnected(discoveryNode));
+    }
+
+    public void testNodeConnectWithDifferentNodeId() {
+        Settings settings = Settings.builder().put("cluster.name", "test").build();
+        TransportService transportServiceA = startServices(
+            "TS_A",
+            settings,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR
+        );
+        TransportService transportServiceB = startServices(
+            "TS_B",
+            settings,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR
+        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder(randomAlphaOfLength(10))
+            .address(transportServiceB.getLocalNode().getAddress())
+            .roles(emptySet())
+            .version(transportServiceB.getLocalNode().getVersion())
+            .build();
+        ConnectTransportException ex = expectThrows(
+            ConnectTransportException.class,
+            () -> AbstractSimpleTransportTestCase.connectToNode(transportServiceA, discoveryNode, TestProfiles.LIGHT_PROFILE)
+        );
+        assertThat(ex.getMessage(), containsString("unexpected remote node"));
+        assertFalse(transportServiceA.nodeConnected(discoveryNode));
+    }
+
+    public void testRejectsMismatchedBuildHash() {
+        final DisruptingTransportInterceptor transportInterceptorA = new DisruptingTransportInterceptor();
+        final DisruptingTransportInterceptor transportInterceptorB = new DisruptingTransportInterceptor();
+        transportInterceptorA.setModifyBuildHash(true);
+        transportInterceptorB.setModifyBuildHash(true);
+        final Settings settings = Settings.builder()
+            .put("cluster.name", "a")
+            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
+            .build();
+        final TransportService transportServiceA = startServices(
+            "TS_A",
+            settings,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
+            transportInterceptorA
+        );
+        final TransportService transportServiceB = startServices(
+            "TS_B",
+            settings,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
+            transportInterceptorB
+        );
+        final DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
+            .address(transportServiceB.getLocalNode().getAddress())
+            .roles(emptySet())
+            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .build();
+        TransportSerializationException ex = expectThrows(TransportSerializationException.class, () -> {
+            try (
+                Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
+                    transportServiceA,
+                    discoveryNode,
+                    TestProfiles.LIGHT_PROFILE
+                )
+            ) {
+                PlainActionFuture.get(fut -> transportServiceA.handshake(connection, timeout, fut.map(x -> null)));
             }
         });
         assertThat(
             ExceptionsHelper.unwrap(ex, IllegalArgumentException.class).getMessage(),
             containsString("which has an incompatible wire format")
         );
-        assertFalse(handleA.transportService.nodeConnected(discoveryNode));
+        assertFalse(transportServiceA.nodeConnected(discoveryNode));
+    }
+
+    @SuppressForbidden(reason = "Sets property for testing")
+    public void testAcceptsMismatchedServerlessBuildHash() {
+        assumeTrue("Current build needs to be a snapshot", Build.CURRENT.isSnapshot());
+        assumeTrue("Security manager needs to be disabled", System.getSecurityManager() == null);
+        System.setProperty("es.serverless", Boolean.TRUE.toString());   // security manager blocks this
+        try {
+            final DisruptingTransportInterceptor transportInterceptorA = new DisruptingTransportInterceptor();
+            final DisruptingTransportInterceptor transportInterceptorB = new DisruptingTransportInterceptor();
+            transportInterceptorA.setModifyBuildHash(true);
+            transportInterceptorB.setModifyBuildHash(true);
+            final Settings settings = Settings.builder()
+                .put("cluster.name", "a")
+                .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
+                .build();
+            final TransportService transportServiceA = startServices(
+                "TS_A",
+                settings,
+                TransportVersion.current(),
+                VersionInformation.CURRENT,
+                transportInterceptorA
+            );
+            final TransportService transportServiceB = startServices(
+                "TS_B",
+                settings,
+                TransportVersion.current(),
+                VersionInformation.CURRENT,
+                transportInterceptorB
+            );
+            AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
+            assertTrue(transportServiceA.nodeConnected(transportServiceB.getLocalNode()));
+        } finally {
+            System.clearProperty("es.serverless");
+        }
     }
 
     public void testAcceptsMismatchedBuildHashFromDifferentVersion() {
-        final NetworkHandle handleA = startServices("TS_A", Settings.builder().put("cluster.name", "a").build(), Version.CURRENT);
-        final NetworkHandle handleB = startServices(
+        final DisruptingTransportInterceptor transportInterceptorA = new DisruptingTransportInterceptor();
+        final DisruptingTransportInterceptor transportInterceptorB = new DisruptingTransportInterceptor();
+        transportInterceptorA.setModifyBuildHash(true);
+        transportInterceptorB.setModifyBuildHash(true);
+        final TransportService transportServiceA = startServices(
+            "TS_A",
+            Settings.builder().put("cluster.name", "a").build(),
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
+            transportInterceptorA
+        );
+        final TransportService transportServiceB = startServices(
             "TS_B",
             Settings.builder().put("cluster.name", "a").build(),
-            Version.CURRENT.minimumCompatibilityVersion()
+            TransportVersion.MINIMUM_COMPATIBLE,
+            new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current()),
+            transportInterceptorB
         );
-        handleA.transportInterceptor.setModifyBuildHash(true);
-        handleB.transportInterceptor.setModifyBuildHash(true);
-        AbstractSimpleTransportTestCase.connectToNode(handleA.transportService, handleB.discoveryNode, TestProfiles.LIGHT_PROFILE);
-        assertTrue(handleA.transportService.nodeConnected(handleB.discoveryNode));
-    }
-
-    private static class NetworkHandle {
-        final TransportService transportService;
-        final DiscoveryNode discoveryNode;
-        final DisruptingTransportInterceptor transportInterceptor;
-
-        NetworkHandle(TransportService transportService, DiscoveryNode discoveryNode, DisruptingTransportInterceptor transportInterceptor) {
-            this.transportService = transportService;
-            this.discoveryNode = discoveryNode;
-            this.transportInterceptor = transportInterceptor;
-        }
+        AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
+        assertTrue(transportServiceA.nodeConnected(transportServiceB.getLocalNode()));
     }
 
     private static class DisruptingTransportInterceptor implements TransportInterceptor {

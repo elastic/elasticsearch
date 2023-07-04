@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -25,7 +27,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -40,13 +41,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -55,6 +52,8 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     private static ThreadPool threadPool;
 
     private IndexShardOperationPermits permits;
+
+    private static final String REJECTING_EXECUTOR = "rejecting";
 
     @BeforeClass
     public static void setupThreadPool() {
@@ -65,7 +64,8 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             Settings.builder()
                 .put("thread_pool." + ThreadPool.Names.WRITE + ".size", writeThreadPoolSize)
                 .put("thread_pool." + ThreadPool.Names.WRITE + ".queue_size", writeThreadPoolQueueSize)
-                .build()
+                .build(),
+            new FixedExecutorBuilder(Settings.EMPTY, REJECTING_EXECUTOR, 1, 0, REJECTING_EXECUTOR, false)
         );
         assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(EsThreadPoolExecutor.class));
         assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getCorePoolSize(), equalTo(writeThreadPoolSize));
@@ -96,8 +96,6 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testAllOperationsInvoked() throws InterruptedException, TimeoutException {
         int numThreads = 10;
 
-        class DummyException extends RuntimeException {}
-
         List<PlainActionFuture<Releasable>> futures = new ArrayList<>();
         List<Thread> operationThreads = new ArrayList<>();
         CountDownLatch latch = new CountDownLatch(numThreads / 4);
@@ -105,30 +103,17 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         for (int i = 0; i < numThreads; i++) {
             // the write thread pool uses a bounded size and can get rejections, see setupThreadPool
             String threadPoolName = randomFrom(ThreadPool.Names.WRITE, ThreadPool.Names.GENERIC);
-            boolean failingListener = randomBoolean();
             PlainActionFuture<Releasable> future = new PlainActionFuture<Releasable>() {
                 @Override
                 public void onResponse(Releasable releasable) {
                     releasable.close();
-                    if (failingListener) {
-                        throw new DummyException();
-                    } else {
-                        super.onResponse(releasable);
-                    }
+                    super.onResponse(releasable);
                 }
             };
-            Thread thread = new Thread() {
-                public void run() {
-                    latch.countDown();
-                    try {
-                        permits.acquire(future, threadPoolName, forceExecution, "");
-                    } catch (DummyException dummyException) {
-                        // ok, notify future
-                        assertTrue(failingListener);
-                        future.onFailure(dummyException);
-                    }
-                }
-            };
+            Thread thread = new Thread(() -> {
+                latch.countDown();
+                permits.acquire(future, threadPoolName, forceExecution);
+            });
             futures.add(future);
             operationThreads.add(thread);
         }
@@ -159,11 +144,10 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 if (closeAfterBlocking) {
                     assertThat(
                         e.getCause(),
-                        either(instanceOf(DummyException.class)).or(instanceOf(EsRejectedExecutionException.class))
-                            .or(instanceOf(IndexShardClosedException.class))
+                        either(instanceOf(EsRejectedExecutionException.class)).or(instanceOf(IndexShardClosedException.class))
                     );
                 } else {
-                    assertThat(e.getCause(), either(instanceOf(DummyException.class)).or(instanceOf(EsRejectedExecutionException.class)));
+                    assertThat(e.getCause(), instanceOf(EsRejectedExecutionException.class));
                 }
             }
         }
@@ -177,7 +161,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     public void testOperationsInvokedImmediatelyIfNoBlock() throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
-        permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
+        permits.acquire(future, ThreadPool.Names.GENERIC, true);
         assertTrue(future.isDone());
         future.get().close();
     }
@@ -185,7 +169,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testOperationsIfClosed() {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
         permits.close();
-        permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
+        permits.acquire(future, ThreadPool.Names.GENERIC, true);
         ExecutionException exception = expectThrows(ExecutionException.class, future::get);
         assertThat(exception.getCause(), instanceOf(IndexShardClosedException.class));
     }
@@ -206,7 +190,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
         try (Releasable ignored = blockAndWait()) {
-            permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
+            permits.acquire(future, ThreadPool.Names.GENERIC, true);
             assertFalse(future.isDone());
         }
         future.get(1, TimeUnit.HOURS).close();
@@ -218,7 +202,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         final CountDownLatch releaseBlock = new CountDownLatch(1);
         final AtomicBoolean blocked = new AtomicBoolean();
         try (Releasable ignored = blockAndWait()) {
-            permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
+            permits.acquire(future, ThreadPool.Names.GENERIC, true);
 
             permits.blockOperations(wrap(() -> {
                 blocked.set(true);
@@ -279,12 +263,12 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         try (Releasable ignored = blockAndWait()) {
             // we preserve the thread context here so that we have a different context in the call to acquire than the context present
             // when the releasable is closed
-            try (ThreadContext.StoredContext ignore = context.newStoredContext(false)) {
+            try (ThreadContext.StoredContext ignore = context.newStoredContext()) {
                 context.putHeader("foo", "bar");
                 context.putTransient("bar", "baz");
                 // test both with and without a executor name
-                permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
-                permits.acquire(future2, null, true, "");
+                permits.acquire(future, ThreadPool.Names.GENERIC, true);
+                permits.acquire(future2, null, true);
             }
             assertFalse(future.isDone());
         }
@@ -357,7 +341,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             public void onFailure(Exception e) {
 
             }
-        }, ThreadPool.Names.GENERIC, false, ""));
+        }, ThreadPool.Names.GENERIC, false));
         thread.start();
         assertFalse(delayed.get());
         releaseBlock.countDown();
@@ -407,7 +391,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 public void onFailure(Exception e) {
                     throw new RuntimeException(e);
                 }
-            }, ThreadPool.Names.GENERIC, false, "");
+            }, ThreadPool.Names.GENERIC, false);
         });
         secondOperationThread.start();
 
@@ -453,7 +437,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                     public void onFailure(Exception e) {
 
                     }
-                }, ThreadPool.Names.GENERIC, false, "");
+                }, ThreadPool.Names.GENERIC, false);
             });
             thread.start();
             threads.add(thread);
@@ -492,8 +476,8 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
          */
         assertBusy(() -> {
             for (final ThreadPoolStats.Stats stats : threadPool.stats()) {
-                if (ThreadPool.Names.GENERIC.equals(stats.getName())) {
-                    assertThat("Expected no active threads in GENERIC pool", stats.getActive(), equalTo(0));
+                if (ThreadPool.Names.GENERIC.equals(stats.name())) {
+                    assertThat("Expected no active threads in GENERIC pool", stats.active(), equalTo(0));
                     return;
                 }
             }
@@ -503,12 +487,12 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     public void testActiveOperationsCount() throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> future1 = new PlainActionFuture<>();
-        permits.acquire(future1, ThreadPool.Names.GENERIC, true, "");
+        permits.acquire(future1, ThreadPool.Names.GENERIC, true);
         assertTrue(future1.isDone());
         assertThat(permits.getActiveOperationsCount(), equalTo(1));
 
         PlainActionFuture<Releasable> future2 = new PlainActionFuture<>();
-        permits.acquire(future2, ThreadPool.Names.GENERIC, true, "");
+        permits.acquire(future2, ThreadPool.Names.GENERIC, true);
         assertTrue(future2.isDone());
         assertThat(permits.getActiveOperationsCount(), equalTo(2));
 
@@ -524,33 +508,84 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
 
         PlainActionFuture<Releasable> future3 = new PlainActionFuture<>();
-        permits.acquire(future3, ThreadPool.Names.GENERIC, true, "");
+        permits.acquire(future3, ThreadPool.Names.GENERIC, true);
         assertTrue(future3.isDone());
         assertThat(permits.getActiveOperationsCount(), equalTo(1));
         future3.get().close();
         assertThat(permits.getActiveOperationsCount(), equalTo(0));
     }
 
-    public void testAsyncBlockOperationsOnFailure() throws InterruptedException {
-        final AtomicReference<Exception> reference = new AtomicReference<>();
-        final CountDownLatch onFailureLatch = new CountDownLatch(1);
-        permits.blockOperations(new ActionListener<Releasable>() {
-            @Override
-            public void onResponse(Releasable releasable) {
-                try (Releasable ignored = releasable) {
-                    throw new RuntimeException("simulated");
-                }
+    public void testAsyncBlockOperationsOnRejection() {
+        final PlainActionFuture<Void> threadBlock = new PlainActionFuture<>();
+        try (
+            Releasable firstPermit = PlainActionFuture.get(f -> permits.acquire(f, ThreadPool.Names.GENERIC, false), 0, TimeUnit.SECONDS)
+        ) {
+            assertNotNull(firstPermit);
+
+            threadPool.executor(REJECTING_EXECUTOR).execute(threadBlock::actionGet);
+            expectThrows(
+                EsRejectedExecutionException.class,
+                () -> PlainActionFuture.<Releasable, RuntimeException>get(
+                    f -> permits.blockOperations(f, 1, TimeUnit.HOURS, REJECTING_EXECUTOR)
+                )
+            );
+
+            // ensure that the exception means no block was put in place
+            try (
+                Releasable secondPermit = PlainActionFuture.get(
+                    f -> permits.acquire(f, ThreadPool.Names.GENERIC, false),
+                    0,
+                    TimeUnit.SECONDS
+                )
+            ) {
+                assertNotNull(secondPermit);
+            }
+        } finally {
+            threadBlock.onResponse(null);
+        }
+
+        // ensure that another block can still be acquired
+        try (Releasable block = PlainActionFuture.get(f -> permits.blockOperations(f, 1, TimeUnit.HOURS, ThreadPool.Names.GENERIC))) {
+            assertNotNull(block);
+        }
+    }
+
+    public void testAsyncBlockOperationsOnTimeout() {
+        final PlainActionFuture<Void> threadBlock = new PlainActionFuture<>();
+        try (
+            Releasable firstPermit = PlainActionFuture.get(f -> permits.acquire(f, ThreadPool.Names.GENERIC, false), 0, TimeUnit.SECONDS)
+        ) {
+            assertNotNull(firstPermit);
+
+            assertEquals(
+                "timeout while blocking operations after [0s]",
+                expectThrows(
+                    ElasticsearchTimeoutException.class,
+                    () -> PlainActionFuture.<Releasable, RuntimeException>get(
+                        f -> permits.blockOperations(f, 0, TimeUnit.SECONDS, ThreadPool.Names.GENERIC)
+                    )
+                ).getMessage()
+            );
+
+            // ensure that the exception means no block was put in place
+            try (
+                Releasable secondPermit = PlainActionFuture.get(
+                    f -> permits.acquire(f, ThreadPool.Names.GENERIC, false),
+                    0,
+                    TimeUnit.SECONDS
+                )
+            ) {
+                assertNotNull(secondPermit);
             }
 
-            @Override
-            public void onFailure(final Exception e) {
-                reference.set(e);
-                onFailureLatch.countDown();
-            }
-        }, 10, TimeUnit.MINUTES, ThreadPool.Names.GENERIC);
-        onFailureLatch.await();
-        assertThat(reference.get(), instanceOf(RuntimeException.class));
-        assertThat(reference.get(), hasToString(containsString("simulated")));
+        } finally {
+            threadBlock.onResponse(null);
+        }
+
+        // ensure that another block can still be acquired
+        try (Releasable block = PlainActionFuture.get(f -> permits.blockOperations(f, 1, TimeUnit.HOURS, ThreadPool.Names.GENERIC))) {
+            assertNotNull(block);
+        }
     }
 
     public void testTimeout() throws BrokenBarrierException, InterruptedException {
@@ -604,7 +639,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 public void onFailure(Exception e) {
                     assert false;
                 }
-            }, ThreadPool.Names.GENERIC, false, "")
+            }, ThreadPool.Names.GENERIC, false)
         );
         assertThat(e, hasToString(containsString("failed to obtain permit but operations are not delayed")));
         permits.semaphore.release(IndexShardOperationPermits.TOTAL_PERMITS);
@@ -654,38 +689,8 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 public void onFailure(Exception e) {
                     throw new RuntimeException(e);
                 }
-            }, ThreadPool.Names.GENERIC, false, "");
+            }, ThreadPool.Names.GENERIC, false);
         };
-    }
-
-    public void testPermitTraceCapturing() throws ExecutionException, InterruptedException {
-        final PlainActionFuture<Releasable> listener1 = new PlainActionFuture<>();
-        permits.acquire(listener1, null, false, "listener1");
-        final PlainActionFuture<Releasable> listener2 = new PlainActionFuture<>();
-        permits.acquire(listener2, null, false, "listener2");
-
-        assertThat(permits.getActiveOperationsCount(), equalTo(2));
-        List<String> messages = permits.getActiveOperations().stream().toList();
-        assertThat(messages, hasSize(2));
-        assertThat(messages, containsInAnyOrder(Arrays.asList(containsString("listener1"), containsString("listener2"))));
-
-        if (randomBoolean()) {
-            listener1.get().close();
-            assertThat(permits.getActiveOperationsCount(), equalTo(1));
-            messages = permits.getActiveOperations().stream().toList();
-            assertThat(messages, hasSize(1));
-            assertThat(messages, contains(containsString("listener2")));
-            listener2.get().close();
-        } else {
-            listener2.get().close();
-            assertThat(permits.getActiveOperationsCount(), equalTo(1));
-            messages = permits.getActiveOperations().stream().toList();
-            assertThat(messages, hasSize(1));
-            assertThat(messages, contains(containsString("listener1")));
-            listener1.get().close();
-        }
-        assertThat(permits.getActiveOperationsCount(), equalTo(0));
-        assertThat(permits.getActiveOperations(), emptyIterable());
     }
 
     private static ActionListener<Releasable> wrap(final CheckedRunnable<Exception> onResponse) {

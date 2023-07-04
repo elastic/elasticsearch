@@ -11,18 +11,26 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
@@ -35,9 +43,13 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
@@ -46,6 +58,9 @@ import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -70,6 +85,15 @@ import static org.hamcrest.Matchers.nullValue;
  * Base class of ML integration tests that use a native data_frame_analytics process
  */
 abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTestCase {
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedXContents());
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        entries.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        return new NamedXContentRegistry(entries);
+    }
 
     protected PutDataFrameAnalyticsAction.Response putAnalytics(DataFrameAnalyticsConfig config) {
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
@@ -124,7 +148,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected ExplainDataFrameAnalyticsAction.Response explainDataFrame(DataFrameAnalyticsConfig config) {
-        PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
+        ExplainDataFrameAnalyticsAction.Request request = new ExplainDataFrameAnalyticsAction.Request(config);
         return client().execute(ExplainDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
 
@@ -249,7 +273,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected Collection<PersistentTasksCustomMetadata.PersistentTask<?>> analyticsTaskList() {
-        ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
+        ClusterState masterClusterState = clusterAdmin().prepareState().all().get().getState();
         PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         return persistentTasks != null
             ? persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> true)
@@ -257,7 +281,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected List<TaskInfo> analyticsAssignedTaskList() {
-        return client().admin().cluster().prepareListTasks().setActions(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME + "[c]").get().getTasks();
+        return clusterAdmin().prepareListTasks().setActions(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME + "[c]").get().getTasks();
     }
 
     protected void waitUntilSomeProgressHasBeenMadeForPhase(String jobId, String phase) throws Exception {
@@ -269,12 +293,58 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         }, 60, TimeUnit.SECONDS);
     }
 
+    protected String getModelId(String jobId) {
+        SearchResponse searchResponse = client().prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId)))
+            .get();
+        assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+        return searchResponse.getHits().getHits()[0].getId();
+
+    }
+
+    protected TrainedModelMetadata getModelMetadata(String modelId) {
+        SearchResponse response = client().prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("model_id", modelId))
+                    .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelMetadata.NAME))
+            )
+            .setSize(1)
+            .get();
+
+        assertThat(response.getHits().getHits(), arrayWithSize(1));
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY,
+                response.getHits().getHits()[0].getSourceRef(),
+                XContentType.JSON
+            )
+        ) {
+            return TrainedModelMetadata.LENIENT_PARSER.apply(parser, null);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    protected TrainedModelDefinition getModelDefinition(String modelId) throws IOException {
+        GetTrainedModelsAction.Request request = new GetTrainedModelsAction.Request(
+            modelId,
+            Collections.emptyList(),
+            Collections.singleton(GetTrainedModelsAction.Includes.DEFINITION)
+        );
+        GetTrainedModelsAction.Response response = client().execute(GetTrainedModelsAction.INSTANCE, request).actionGet();
+        assertThat(response.getResources().results().size(), equalTo(1));
+        TrainedModelConfig modelConfig = response.getResources().results().get(0);
+        modelConfig.ensureParsedDefinition(xContentRegistry());
+        return modelConfig.getModelDefinition();
+    }
+
     /**
      * Asserts whether the audit messages fetched from index match provided prefixes.
      * More specifically, in order to pass:
-     *  1. the number of fetched messages must equal the number of provided prefixes
+     * 1. the number of fetched messages must equal the number of provided prefixes
      * AND
-     *  2. each fetched message must start with the corresponding prefix
+     * 2. each fetched message must start with the corresponding prefix
      */
     protected static void assertThatAuditMessagesMatch(String configId, String... expectedAuditMessagePrefixes) throws Exception {
         // Make sure we wrote to the audit

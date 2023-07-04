@@ -13,6 +13,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -547,11 +548,10 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertAcked(
             prepareCreate("index1").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
         );
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index1")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH),
+            "index1"
+        );
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("index1", "parent", "1", null));
         requests.add(createIndexRequest("index1", "child", "2", "1", "field", "value1"));
@@ -675,12 +675,7 @@ public class InnerHitsIT extends ParentChildTestCase {
             e.getCause().getMessage(),
             containsString("the inner hit definition's [_name]'s from + size must be less than or equal to: [100] but was [110]")
         );
-
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index1")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "index1");
         response = client().prepareSearch("index1")
             .setQuery(
                 hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)

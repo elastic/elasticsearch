@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -18,6 +20,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -26,18 +30,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<ComponentTemplate> {
     @Override
     protected ComponentTemplate makeTestChanges(ComponentTemplate testInstance) {
-        try {
-            return mutateInstance(testInstance);
-        } catch (IOException e) {
-            logger.error(e);
-            fail("mutating should not throw an exception, but got: " + e);
-            return null;
-        }
+        return mutateInstance(testInstance);
     }
 
     @Override
@@ -57,13 +56,20 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
 
     @Override
     protected ComponentTemplate createTestInstance() {
-        return randomInstance();
+        return randomInstance(true);
     }
 
+    // In many cases the index template is used with indices adding lifecycle would render it invalid that's why we
+    // do not always want to randomly add a lifecycle.
     public static ComponentTemplate randomInstance() {
+        return randomInstance(false);
+    }
+
+    public static ComponentTemplate randomInstance(boolean lifecycleAllowed) {
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
+        DataLifecycle lifecycle = null;
         if (randomBoolean()) {
             settings = randomSettings();
         }
@@ -73,7 +79,10 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        Template template = new Template(settings, mappings, aliases);
+        if (randomBoolean() && lifecycleAllowed) {
+            lifecycle = randomLifecycle();
+        }
+        Template template = new Template(settings, mappings, aliases, lifecycle);
 
         Map<String, Object> meta = null;
         if (randomBoolean()) {
@@ -103,14 +112,15 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     private static Settings randomSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
+        return indexSettings(randomIntBetween(1, 10), randomIntBetween(0, 5)).put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
             .put(IndexMetadata.SETTING_PRIORITY, randomIntBetween(0, 100000))
             .build();
+    }
+
+    private static DataLifecycle randomLifecycle() {
+        return rarely() ? Template.NO_LIFECYCLE : DataLifecycleTests.randomLifecycle();
     }
 
     private static Map<String, Object> randomMeta() {
@@ -125,67 +135,70 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     @Override
-    protected ComponentTemplate mutateInstance(ComponentTemplate orig) throws IOException {
+    protected ComponentTemplate mutateInstance(ComponentTemplate orig) {
         return mutateTemplate(orig);
     }
 
     public static ComponentTemplate mutateTemplate(ComponentTemplate orig) {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                switch (randomIntBetween(0, 2)) {
-                    case 0 -> {
-                        Template ot = orig.template();
-                        return new ComponentTemplate(
-                            new Template(
-                                randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
-                                ot.mappings(),
-                                ot.aliases()
-                            ),
-                            orig.version(),
-                            orig.metadata()
-                        );
-                    }
-                    case 1 -> {
-                        Template ot2 = orig.template();
-                        return new ComponentTemplate(
-                            new Template(
-                                ot2.settings(),
-                                randomValueOtherThan(ot2.mappings(), ComponentTemplateTests::randomMappings),
-                                ot2.aliases()
-                            ),
-                            orig.version(),
-                            orig.metadata()
-                        );
-                    }
-                    case 2 -> {
-                        Template ot3 = orig.template();
-                        return new ComponentTemplate(
-                            new Template(
-                                ot3.settings(),
-                                ot3.mappings(),
-                                randomValueOtherThan(ot3.aliases(), ComponentTemplateTests::randomAliases)
-                            ),
-                            orig.version(),
-                            orig.metadata()
-                        );
-                    }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> {
+                Template ot = orig.template();
+                yield switch (randomIntBetween(0, 3)) {
+                    case 0 -> new ComponentTemplate(
+                        new Template(
+                            randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
+                            ot.mappings(),
+                            ot.aliases(),
+                            ot.lifecycle()
+                        ),
+                        orig.version(),
+                        orig.metadata()
+                    );
+                    case 1 -> new ComponentTemplate(
+                        new Template(
+                            ot.settings(),
+                            randomValueOtherThan(ot.mappings(), ComponentTemplateTests::randomMappings),
+                            ot.aliases(),
+                            ot.lifecycle()
+                        ),
+                        orig.version(),
+                        orig.metadata()
+                    );
+                    case 2 -> new ComponentTemplate(
+                        new Template(
+                            ot.settings(),
+                            ot.mappings(),
+                            randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases),
+                            ot.lifecycle()
+                        ),
+                        orig.version(),
+                        orig.metadata()
+                    );
+                    case 3 -> new ComponentTemplate(
+                        new Template(
+                            ot.settings(),
+                            ot.mappings(),
+                            ot.aliases(),
+                            randomValueOtherThan(ot.lifecycle(), ComponentTemplateTests::randomLifecycle)
+                        ),
+                        orig.version(),
+                        orig.metadata()
+                    );
                     default -> throw new IllegalStateException("illegal randomization branch");
-                }
-            case 1:
-                return new ComponentTemplate(
-                    orig.template(),
-                    randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
-                    orig.metadata()
-                );
-            case 2:
-                return new ComponentTemplate(
-                    orig.template(),
-                    orig.version(),
-                    randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta)
-                );
-            default:
-                throw new IllegalStateException("illegal randomization branch");
-        }
+                };
+            }
+            case 1 -> new ComponentTemplate(
+                orig.template(),
+                randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
+                orig.metadata()
+            );
+            case 2 -> new ComponentTemplate(
+                orig.template(),
+                orig.version(),
+                randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta)
+            );
+            default -> throw new IllegalStateException("illegal randomization branch");
+        };
     }
 
     public void testMappingsEquals() throws IOException {
@@ -206,31 +219,65 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
 
         {
             String randomString = randomAlphaOfLength(10);
-            CompressedXContent m1 = new CompressedXContent("""
+            CompressedXContent m1 = new CompressedXContent(Strings.format("""
                 {"properties":{"%s":{"type":"keyword"}}}
-                """.formatted(randomString));
-            CompressedXContent m2 = new CompressedXContent("""
+                """, randomString));
+            CompressedXContent m2 = new CompressedXContent(Strings.format("""
                 {"properties":{"%s":{"type":"keyword"}}}
-                """.formatted(randomString));
+                """, randomString));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(true));
         }
 
         {
             CompressedXContent m1 = randomMappings();
-            CompressedXContent m2 = new CompressedXContent("""
+            CompressedXContent m2 = new CompressedXContent(Strings.format("""
                 {"properties":{"%s":{"type":"keyword"}}}
-                """.formatted(randomAlphaOfLength(10)));
+                """, randomAlphaOfLength(10)));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(false));
         }
 
         {
-            Map<String, Object> map = XContentHelper.convertToMap(new BytesArray("""
+            Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(Strings.format("""
                 {"%s":{"properties":{"%s":{"type":"keyword"}}}}
-                """.formatted(MapperService.SINGLE_MAPPING_NAME, randomAlphaOfLength(10))), true, XContentType.JSON).v2();
+                """, MapperService.SINGLE_MAPPING_NAME, randomAlphaOfLength(10))), true, XContentType.JSON).v2();
             Map<String, Object> reduceMap = Template.reduceMapping(map);
             CompressedXContent m1 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(map)));
             CompressedXContent m2 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(reduceMap)));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(true));
+        }
+    }
+
+    public void testXContentSerializationWithRollover() throws IOException {
+        Settings settings = null;
+        CompressedXContent mappings = null;
+        Map<String, AliasMetadata> aliases = null;
+        if (randomBoolean()) {
+            settings = randomSettings();
+        }
+        if (randomBoolean()) {
+            mappings = randomMappings();
+        }
+        if (randomBoolean()) {
+            aliases = randomAliases();
+        }
+        DataLifecycle lifecycle = new DataLifecycle(randomMillisUpToYear9999());
+        ComponentTemplate template = new ComponentTemplate(
+            new Template(settings, mappings, aliases, lifecycle),
+            randomNonNegativeLong(),
+            null
+        );
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
+            template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
+            String serialized = Strings.toString(builder);
+            assertThat(serialized, containsString("rollover"));
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention())
+                .getConditions()
+                .keySet()) {
+                assertThat(serialized, containsString(label));
+            }
         }
     }
 }

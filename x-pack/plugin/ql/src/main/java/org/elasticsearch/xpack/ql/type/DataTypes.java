@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.ql.type;
 
 import java.math.BigInteger;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
@@ -44,6 +44,8 @@ public final class DataTypes {
     public static final DataType DATETIME         = new DataType("DATETIME", "date",        Long.BYTES,  false, false, true);
     // ip
     public static final DataType IP               = new DataType("ip",                45,                false, false, true);
+    // version
+    public static final DataType VERSION          = new DataType("version",           Integer.MAX_VALUE, false, false, true);
     // binary
     public static final DataType BINARY           = new DataType("binary",            Integer.MAX_VALUE, false, false, true);
     // complex types
@@ -51,7 +53,7 @@ public final class DataTypes {
     public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
     //end::noformat
 
-    private static final Collection<DataType> TYPES = Arrays.asList(
+    private static final Collection<DataType> TYPES = Stream.of(
         UNSUPPORTED,
         NULL,
         BOOLEAN,
@@ -68,10 +70,11 @@ public final class DataTypes {
         TEXT,
         DATETIME,
         IP,
+        VERSION,
         BINARY,
         OBJECT,
         NESTED
-    ).stream().sorted(Comparator.comparing(DataType::typeName)).toList();
+    ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 

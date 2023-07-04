@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.TreeMap;
 
 public final class RandomDocumentPicks {
@@ -57,21 +58,40 @@ public final class RandomDocumentPicks {
 
     /**
      * Returns a randomly selected existing field name out of the fields that are contained
-     * in the document provided as an argument.
+     * in the document provided as an argument.  Does not return the _version field unless it is the only
+     * field.
      */
     public static String randomExistingFieldName(Random random, IngestDocument ingestDocument) {
         Map<String, Object> source = new TreeMap<>(ingestDocument.getSourceAndMetadata());
-        Map.Entry<String, Object> randomEntry = RandomPicks.randomFrom(random, source.entrySet());
+        Map.Entry<String, Object> randomEntry = getRandomEntry(random, source.entrySet());
         String key = randomEntry.getKey();
         while (randomEntry.getValue() instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) randomEntry.getValue();
+            // we have reached an empty map hence the max depth we can reach
+            if (map.isEmpty()) {
+                break;
+            }
             Map<String, Object> treeMap = new TreeMap<>(map);
             randomEntry = RandomPicks.randomFrom(random, treeMap.entrySet());
             key += "." + randomEntry.getKey();
         }
         assert ingestDocument.getFieldValue(key, Object.class) != null;
         return key;
+    }
+
+    /**
+     * Return a random entry from a set as long as the entry is not _version.  Returns _version only if it is the only entry.
+     * Since _verison has special validation, tests should test it explicitly rather than randomly
+     */
+    static Map.Entry<String, Object> getRandomEntry(Random random, Set<Map.Entry<String, Object>> entrySet) {
+        Map.Entry<String, Object> randomEntry = RandomPicks.randomFrom(random, entrySet);
+        String key = randomEntry.getKey();
+        while (IngestDocument.Metadata.VERSION.getFieldName().equals(key) && entrySet.size() > 1) {
+            randomEntry = RandomPicks.randomFrom(random, entrySet);
+            key = randomEntry.getKey();
+        }
+        return randomEntry;
     }
 
     /**

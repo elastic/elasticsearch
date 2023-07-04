@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,7 +60,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            NO_OP_SETTINGS_VALIDATOR
+            NO_OP_SETTINGS_VALIDATOR,
+            mock(AllocationService.class)
         );
 
         final ClusterBlocks blocks = ClusterBlocks.builder()
@@ -83,7 +85,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            NO_OP_SETTINGS_VALIDATOR
+            NO_OP_SETTINGS_VALIDATOR,
+            mock(AllocationService.class)
         );
 
         final ClusterBlocks blocks = ClusterBlocks.builder().build();
@@ -106,7 +109,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            validator
+            validator,
+            mock(AllocationService.class)
         );
 
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).build();
@@ -143,7 +147,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
                 .stream()
                 .map(DesiredNodeWithStatus::desiredNode)
                 .toList();
-            request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes);
+            request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes, false);
         } else {
             request = randomUpdateDesiredNodesRequest();
         }
@@ -176,7 +180,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final UpdateDesiredNodesRequest equivalentDesiredNodesRequest = new UpdateDesiredNodesRequest(
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
-            equivalentDesiredNodesList
+            equivalentDesiredNodesList,
+            updateDesiredNodesRequest.isDryRun()
         );
 
         assertSame(
@@ -192,7 +197,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version(),
-            randomList(1, 10, DesiredNodesTestCase::randomDesiredNode)
+            randomList(1, 10, DesiredNodesTestCase::randomDesiredNode),
+            false
         );
 
         IllegalArgumentException exception = expectThrows(
@@ -208,7 +214,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version() - 1,
-            List.copyOf(latestDesiredNodes.nodes().stream().map(DesiredNodeWithStatus::desiredNode).toList())
+            List.copyOf(latestDesiredNodes.nodes().stream().map(DesiredNodeWithStatus::desiredNode).toList()),
+            false
         );
 
         VersionConflictException exception = expectThrows(

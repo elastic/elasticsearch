@@ -13,6 +13,8 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
@@ -37,6 +39,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestCatTransformAction extends AbstractCatAction {
 
     @Override
@@ -59,7 +62,7 @@ public class RestCatTransformAction extends AbstractCatAction {
         GetTransformAction.Request request = new GetTransformAction.Request(id);
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
 
-        GetTransformStatsAction.Request statsRequest = new GetTransformStatsAction.Request(id);
+        GetTransformStatsAction.Request statsRequest = new GetTransformStatsAction.Request(id, null);
         statsRequest.setAllowNoMatch(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
 
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {

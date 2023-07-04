@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
-import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
+import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Deployment;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 
 import java.util.List;
@@ -16,27 +16,27 @@ import java.util.stream.Collectors;
 
 public class PreserveOneAllocation extends AbstractPreserveAllocations {
 
-    protected PreserveOneAllocation(List<Node> nodes, List<Model> models) {
-        super(nodes, models);
+    protected PreserveOneAllocation(List<Node> nodes, List<AssignmentPlan.Deployment> deployments) {
+        super(nodes, deployments);
     }
 
     @Override
-    protected int calculateUsedCores(Node n, Model m) {
+    protected int calculateUsedCores(Node n, AssignmentPlan.Deployment m) {
         return m.threadsPerAllocation();
     }
 
     @Override
-    protected Map<String, Integer> calculateAllocationsPerNodeToPreserve(Model m) {
-        return m.currentAllocationByNodeId().entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue() - 1));
+    protected Map<String, Integer> calculateAllocationsPerNodeToPreserve(Deployment m) {
+        return m.currentAllocationsByNodeId().entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue() - 1));
     }
 
     @Override
-    protected int calculatePreservedAllocations(Model m) {
-        return (int) m.currentAllocationByNodeId().values().stream().filter(v -> v > 0).count();
+    protected int calculatePreservedAllocations(AssignmentPlan.Deployment m) {
+        return (int) m.currentAllocationsByNodeId().values().stream().filter(v -> v > 0).count();
     }
 
     @Override
-    protected int addPreservedAllocations(Node n, Model m) {
+    protected int addPreservedAllocations(Node n, AssignmentPlan.Deployment m) {
         return 1;
     }
 }

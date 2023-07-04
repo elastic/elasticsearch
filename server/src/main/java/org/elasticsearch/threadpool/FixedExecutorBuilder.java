@@ -28,7 +28,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
 
     private final Setting<Integer> sizeSetting;
     private final Setting<Integer> queueSizeSetting;
-    private final boolean trackEWMA;
+    private final boolean trackExecutionTime;
 
     /**
      * Construct a fixed executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
@@ -37,10 +37,16 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
      * @param name      the name of the executor
      * @param size      the fixed number of threads
      * @param queueSize the size of the backing queue, -1 for unbounded
-     * @param trackEWMA whether to track the exponentially weighted moving average of the task execution time
+     * @param trackExecutionTime whether to track statics about task execution time
      */
-    FixedExecutorBuilder(final Settings settings, final String name, final int size, final int queueSize, final boolean trackEWMA) {
-        this(settings, name, size, queueSize, "thread_pool." + name, trackEWMA);
+    FixedExecutorBuilder(
+        final Settings settings,
+        final String name,
+        final int size,
+        final int queueSize,
+        final boolean trackExecutionTime
+    ) {
+        this(settings, name, size, queueSize, "thread_pool." + name, trackExecutionTime);
     }
 
     /**
@@ -51,7 +57,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
      * @param size      the fixed number of threads
      * @param queueSize the size of the backing queue, -1 for unbounded
      * @param prefix    the prefix for the settings keys
-     * @param trackEWMA whether to track the exponentially weighted moving average of the task execution time
+     * @param trackExecutionTime whether to track statics about task execution time
      */
     public FixedExecutorBuilder(
         final Settings settings,
@@ -59,19 +65,19 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         final int size,
         final int queueSize,
         final String prefix,
-        final boolean trackEWMA
+        final boolean trackExecutionTime
     ) {
         super(name);
         final String sizeKey = settingsKey(prefix, "size");
         this.sizeSetting = new Setting<>(
             sizeKey,
-            s -> Integer.toString(size),
+            Integer.toString(size),
             s -> Setting.parseInt(s, 1, applyHardSizeLimit(settings, name), sizeKey),
             Setting.Property.NodeScope
         );
         final String queueSizeKey = settingsKey(prefix, "queue_size");
         this.queueSizeSetting = Setting.intSetting(queueSizeKey, queueSize, Setting.Property.NodeScope);
-        this.trackEWMA = trackEWMA;
+        this.trackExecutionTime = trackExecutionTime;
     }
 
     @Override
@@ -98,7 +104,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
             queueSize,
             threadFactory,
             threadContext,
-            trackEWMA
+            trackExecutionTime
         );
         final ThreadPool.Info info = new ThreadPool.Info(
             name(),

@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -98,8 +100,17 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                 licenseState,
                 securityContext,
                 threadPool,
-                ActionListener.wrap(
-                    createdDatafeed -> listener.onResponse(jobCreated),
+                ActionListener.wrap(createdDatafeed -> {
+                    // We might need to add the authorization info to the embedded datafeed config in the response
+                    if (createdDatafeed.getResponse().getHeaders().isEmpty()) {
+                        listener.onResponse(jobCreated);
+                    } else {
+                        Job.Builder finalJobBuilder = new Job.Builder(jobCreated.getResponse()).setDatafeed(
+                            new DatafeedConfig.Builder(createdDatafeed.getResponse())
+                        );
+                        listener.onResponse(new PutJobAction.Response(finalJobBuilder.build()));
+                    }
+                },
                     failed -> jobManager.deleteJob(
                         new DeleteJobAction.Request(request.getJobBuilder().getId()),
                         state,

@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -39,10 +38,8 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
 
     private void testSearchAndRelocateConcurrently(final int numberOfReplicas) throws Exception {
         final int numShards = between(1, 20);
-        client().admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
+        indicesAdmin().prepareCreate("test")
+            .setSettings(indexSettings(numShards, numberOfReplicas))
             .setMapping("loc", "type=geo_point", "test", "type=text")
             .get();
         ensureGreen();
@@ -120,15 +117,13 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                 threads[j].start();
             }
             allowNodes("test", between(1, 3));
-            client().admin().cluster().prepareReroute().get();
+            clusterAdmin().prepareReroute().get();
             stop.set(true);
             for (int j = 0; j < threads.length; j++) {
                 threads[j].join();
             }
             // this might time out on some machines if they are really busy and you hit lots of throttling
-            ClusterHealthResponse resp = client().admin()
-                .cluster()
-                .prepareHealth()
+            ClusterHealthResponse resp = clusterAdmin().prepareHealth()
                 .setWaitForYellowStatus()
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForEvents(Priority.LANGUID)

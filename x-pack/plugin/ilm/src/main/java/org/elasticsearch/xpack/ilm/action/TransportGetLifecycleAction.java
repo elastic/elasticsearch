@@ -15,9 +15,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,11 +33,11 @@ import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Response;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class TransportGetLifecycleAction extends TransportMasterNodeAction<Request, Response> {
-
-    private final MetadataIndexTemplateService templateService;
 
     @Inject
     public TransportGetLifecycleAction(
@@ -44,8 +45,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        MetadataIndexTemplateService metadataIndexTemplateService
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             GetLifecycleAction.NAME,
@@ -56,13 +56,18 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
             Request::new,
             indexNameExpressionResolver,
             Response::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT
         );
-        this.templateService = metadataIndexTemplateService;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+        assert task instanceof CancellableTask : "get lifecycle requests should be cancellable";
+        final CancellableTask cancellableTask = (CancellableTask) task;
+        if (cancellableTask.notifyIfCancelled(listener)) {
+            return;
+        }
+
         IndexLifecycleMetadata metadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
             if (request.getPolicyNames().length == 0) {
@@ -73,29 +78,47 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                 );
             }
         } else {
-            List<LifecyclePolicyResponseItem> requestedPolicies;
-            // if no policies explicitly provided, behave as if `*` was specified
+            List<String> names;
             if (request.getPolicyNames().length == 0) {
-                requestedPolicies = new ArrayList<>(metadata.getPolicyMetadatas().size());
-                for (LifecyclePolicyMetadata policyMetadata : metadata.getPolicyMetadatas().values()) {
-                    requestedPolicies.add(
-                        new LifecyclePolicyResponseItem(
-                            policyMetadata.getPolicy(),
-                            policyMetadata.getVersion(),
-                            policyMetadata.getModifiedDateString(),
-                            LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())
-                        )
-                    );
-                }
+                names = List.of("*");
             } else {
-                requestedPolicies = new ArrayList<>(request.getPolicyNames().length);
-                for (String name : request.getPolicyNames()) {
+                names = Arrays.asList(request.getPolicyNames());
+            }
+
+            if (names.size() > 1 && names.stream().anyMatch(Regex::isSimpleMatchPattern)) {
+                throw new IllegalArgumentException(
+                    "wildcard only supports a single value, please use comma-separated values or a single wildcard value"
+                );
+            }
+
+            Map<String, LifecyclePolicyResponseItem> policyResponseItemMap = new LinkedHashMap<>();
+            for (String name : names) {
+                if (Regex.isSimpleMatchPattern(name)) {
+                    for (Map.Entry<String, LifecyclePolicyMetadata> entry : metadata.getPolicyMetadatas().entrySet()) {
+                        if (cancellableTask.notifyIfCancelled(listener)) {
+                            return;
+                        }
+                        LifecyclePolicyMetadata policyMetadata = entry.getValue();
+                        if (Regex.simpleMatch(name, entry.getKey())) {
+                            policyResponseItemMap.put(
+                                entry.getKey(),
+                                new LifecyclePolicyResponseItem(
+                                    policyMetadata.getPolicy(),
+                                    policyMetadata.getVersion(),
+                                    policyMetadata.getModifiedDateString(),
+                                    LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())
+                                )
+                            );
+                        }
+                    }
+                } else {
                     LifecyclePolicyMetadata policyMetadata = metadata.getPolicyMetadatas().get(name);
                     if (policyMetadata == null) {
                         listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", name));
                         return;
                     }
-                    requestedPolicies.add(
+                    policyResponseItemMap.put(
+                        name,
                         new LifecyclePolicyResponseItem(
                             policyMetadata.getPolicy(),
                             policyMetadata.getVersion(),
@@ -105,6 +128,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                     );
                 }
             }
+            List<LifecyclePolicyResponseItem> requestedPolicies = new ArrayList<>(policyResponseItemMap.values());
             listener.onResponse(new Response(requestedPolicies));
         }
     }

@@ -90,7 +90,6 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
-                    true,
                     new FieldPermissions(fieldPermissionDef(new String[] {}, null)),
                     DocumentPermissions.allowAll()
                 );

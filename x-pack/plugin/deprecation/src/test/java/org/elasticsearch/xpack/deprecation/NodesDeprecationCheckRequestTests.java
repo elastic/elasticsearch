@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class NodesDeprecationCheckRequestTests extends AbstractWireSerializingTestCase<NodesDeprecationCheckRequest> {
 
     @Override
@@ -20,7 +18,7 @@ public class NodesDeprecationCheckRequestTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected NodesDeprecationCheckRequest mutateInstance(NodesDeprecationCheckRequest instance) throws IOException {
+    protected NodesDeprecationCheckRequest mutateInstance(NodesDeprecationCheckRequest instance) {
         int newSize = randomValueOtherThan(instance.nodesIds().length, () -> randomIntBetween(0, 10));
         String[] newNodeIds = randomArray(newSize, newSize, String[]::new, () -> randomAlphaOfLengthBetween(5, 10));
         return new NodesDeprecationCheckRequest(newNodeIds);

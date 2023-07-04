@@ -22,7 +22,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -36,7 +35,6 @@ import java.util.function.LongSupplier;
 public class MasterHistoryService {
     private final TransportService transportService;
     private final MasterHistory localMasterHistory;
-    private final ClusterService clusterService;
     private final LongSupplier currentTimeMillisSupplier;
     private final TimeValue acceptableRemoteHistoryAge;
     /*
@@ -62,7 +60,6 @@ public class MasterHistoryService {
     public MasterHistoryService(TransportService transportService, ThreadPool threadPool, ClusterService clusterService) {
         this.transportService = transportService;
         this.localMasterHistory = new MasterHistory(threadPool, clusterService);
-        this.clusterService = clusterService;
         this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
         this.acceptableRemoteHistoryAge = REMOTE_HISTORY_TIME_TO_LIVE_SETTING.get(clusterService.getSettings());
     }
@@ -79,7 +76,7 @@ public class MasterHistoryService {
     /**
      * This method returns a static view of the MasterHistory on a remote node. This MasterHistory is static in that it will not be
      * updated even if the ClusterState is updated on this node or the remote node. The history is retrieved asynchronously, and only if
-     * requestRemoteMasterHistory has been called for this node. If anything has gone wrong fetching it, the exception returned by the
+     * refreshRemoteMasterHistory has been called for this node. If anything has gone wrong fetching it, the exception returned by the
      * remote machine will be thrown here. If the remote history has not been fetched or if something went wrong and there was no exception,
      * the returned value will be null. If the remote history is old enough to be considered stale (that is, older than
      * MAX_USABLE_REMOTE_HISTORY_AGE_SETTING), then the returned value will be null.
@@ -114,8 +111,8 @@ public class MasterHistoryService {
      * @param node The node whose view of the master history we want to fetch
      */
     public void refreshRemoteMasterHistory(DiscoveryNode node) {
-        Version minSupportedVersion = Version.V_8_3_0;
-        if (node.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.3.0
+        Version minSupportedVersion = Version.V_8_4_0;
+        if (node.getVersion().before(minSupportedVersion)) { // This was introduced in 8.3.0 (and the action name changed in 8.4.0)
             logger.trace(
                 "Cannot get master history for {} because it is at version {} and {} is required",
                 node,
@@ -128,7 +125,6 @@ public class MasterHistoryService {
         transportService.connectToNode(
             // Note: This connection must be explicitly closed below
             node,
-            ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
             new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable releasable) {

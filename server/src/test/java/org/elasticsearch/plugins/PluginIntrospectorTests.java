@@ -11,9 +11,12 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -21,6 +24,7 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
@@ -33,6 +37,7 @@ import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -49,6 +54,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class PluginIntrospectorTests extends ESTestCase {
 
@@ -145,8 +151,8 @@ public class PluginIntrospectorTests extends ESTestCase {
             }
 
             @Override
-            public RecoveryPlannerService createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
-                return null;
+            public Optional<RecoveryPlannerService> createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
+                return Optional.empty();
             }
 
             @Override
@@ -264,7 +270,10 @@ public class PluginIntrospectorTests extends ESTestCase {
                 NodeEnvironment nodeEnvironment,
                 NamedWriteableRegistry namedWriteableRegistry,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                Supplier<RepositoriesService> repositoriesServiceSupplier
+                Supplier<RepositoriesService> repositoriesServiceSupplier,
+                Tracer tracer,
+                AllocationService allocationService,
+                IndicesService indicesService
             ) {
                 return null;
             }
@@ -329,12 +338,7 @@ public class PluginIntrospectorTests extends ESTestCase {
                 return null;
             }
         }
-        class SubBazIngestPlugin extends BazIngestPlugin {
-            @Override
-            public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-                return null;
-            }
-        }
+        class SubBazIngestPlugin extends BazIngestPlugin {}
 
         assertThat(pluginIntrospector.overriddenMethods(BazIngestPlugin.class), contains("getProcessors"));
         assertThat(pluginIntrospector.overriddenMethods(SubBazIngestPlugin.class), contains("getProcessors"));
@@ -372,5 +376,21 @@ public class PluginIntrospectorTests extends ESTestCase {
 
         assertThat(pluginIntrospector.overriddenMethods(AbstractShutdownAwarePlugin.class), empty());
         assertThat(pluginIntrospector.interfaces(AbstractShutdownAwarePlugin.class), contains("ShutdownAwarePlugin"));
+    }
+
+    public void testDeprecatedInterface() {
+        class DeprecatedPlugin extends Plugin implements NetworkPlugin {}
+        assertThat(pluginIntrospector.deprecatedInterfaces(DeprecatedPlugin.class), contains("NetworkPlugin"));
+    }
+
+    public void testDeprecatedMethod() {
+        class TestClusterPlugin extends Plugin implements ClusterPlugin {
+            @SuppressWarnings("removal")
+            @Override
+            public Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
+                return Map.of();
+            }
+        }
+        assertThat(pluginIntrospector.deprecatedMethods(TestClusterPlugin.class), hasEntry("getShardsAllocators", "ClusterPlugin"));
     }
 }

@@ -23,6 +23,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 public class RemoveMatchTests extends TransformTests {
 
     private static final YAMLFactory YAML_FACTORY = new YAMLFactory();

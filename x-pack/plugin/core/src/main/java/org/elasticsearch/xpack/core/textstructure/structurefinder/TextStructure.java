@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.core.textstructure.structurefinder;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -24,6 +26,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
+
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
 
 /**
  * Stores the determined file format.
@@ -84,6 +88,7 @@ public class TextStructure implements ToXContentObject, Writeable {
     public static final ParseField QUOTE = new ParseField("quote");
     public static final ParseField SHOULD_TRIM_FIELDS = new ParseField("should_trim_fields");
     public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
+    public static final ParseField ECS_COMPATIBILITY = new ParseField("ecs_compatibility");
     public static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
     public static final ParseField JODA_TIMESTAMP_FORMATS = new ParseField("joda_timestamp_formats");
     public static final ParseField JAVA_TIMESTAMP_FORMATS = new ParseField("java_timestamp_formats");
@@ -110,6 +115,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         PARSER.declareString((p, c) -> p.setQuote(c.charAt(0)), QUOTE);
         PARSER.declareBoolean(Builder::setShouldTrimFields, SHOULD_TRIM_FIELDS);
         PARSER.declareString(Builder::setGrokPattern, GROK_PATTERN);
+        PARSER.declareString(Builder::setEcsCompatibility, ECS_COMPATIBILITY);
         PARSER.declareString(Builder::setTimestampField, TIMESTAMP_FIELD);
         PARSER.declareStringArray(Builder::setJodaTimestampFormats, JODA_TIMESTAMP_FORMATS);
         PARSER.declareStringArray(Builder::setJavaTimestampFormats, JAVA_TIMESTAMP_FORMATS);
@@ -126,6 +132,10 @@ public class TextStructure implements ToXContentObject, Writeable {
         PARSER.declareStringArray(Builder::setExplanation, EXPLANATION);
     }
 
+    private static String getNonNullEcsCompatibilityString(String ecsCompatibility) {
+        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? ECS_COMPATIBILITY_DISABLED : ecsCompatibility;
+    }
+
     private final int numLinesAnalyzed;
     private final int numMessagesAnalyzed;
     private final String sampleStart;
@@ -140,6 +150,7 @@ public class TextStructure implements ToXContentObject, Writeable {
     private final Character quote;
     private final Boolean shouldTrimFields;
     private final String grokPattern;
+    private final String ecsCompatibility;
     private final List<String> jodaTimestampFormats;
     private final List<String> javaTimestampFormats;
     private final String timestampField;
@@ -164,6 +175,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         Character quote,
         Boolean shouldTrimFields,
         String grokPattern,
+        String ecsCompatibility,
         String timestampField,
         List<String> jodaTimestampFormats,
         List<String> javaTimestampFormats,
@@ -188,6 +200,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         this.quote = quote;
         this.shouldTrimFields = shouldTrimFields;
         this.grokPattern = grokPattern;
+        this.ecsCompatibility = getNonNullEcsCompatibilityString(ecsCompatibility);
         this.timestampField = timestampField;
         this.jodaTimestampFormats = (jodaTimestampFormats == null) ? null : List.copyOf(jodaTimestampFormats);
         this.javaTimestampFormats = (javaTimestampFormats == null) ? null : List.copyOf(javaTimestampFormats);
@@ -207,20 +220,25 @@ public class TextStructure implements ToXContentObject, Writeable {
         format = in.readEnum(Format.class);
         multilineStartPattern = in.readOptionalString();
         excludeLinesPattern = in.readOptionalString();
-        columnNames = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
+        columnNames = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
         hasHeaderRow = in.readOptionalBoolean();
         delimiter = in.readBoolean() ? (char) in.readVInt() : null;
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        jodaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
-        javaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
+            ecsCompatibility = getNonNullEcsCompatibilityString(in.readString());
+        } else {
+            ecsCompatibility = getNonNullEcsCompatibilityString(null);
+        }
+        jodaTimestampFormats = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
+        javaTimestampFormats = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
         timestampField = in.readOptionalString();
         needClientTimezone = in.readBoolean();
         mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap()));
         ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readMap()) : null;
-        fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(StreamInput::readString, FieldStats::new)));
-        explanation = Collections.unmodifiableList(in.readStringList());
+        fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(FieldStats::new)));
+        explanation = in.readImmutableList(StreamInput::readString);
     }
 
     @Override
@@ -254,6 +272,9 @@ public class TextStructure implements ToXContentObject, Writeable {
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
+            out.writeString(ecsCompatibility);
+        }
         if (jodaTimestampFormats == null) {
             out.writeBoolean(false);
         } else {
@@ -335,6 +356,10 @@ public class TextStructure implements ToXContentObject, Writeable {
         return grokPattern;
     }
 
+    public String getEcsCompatibility() {
+        return ecsCompatibility;
+    }
+
     public String getTimestampField() {
         return timestampField;
     }
@@ -403,6 +428,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         if (grokPattern != null && grokPattern.isEmpty() == false) {
             builder.field(GROK_PATTERN.getPreferredName(), grokPattern);
         }
+        builder.field(ECS_COMPATIBILITY.getPreferredName(), ecsCompatibility);
         if (timestampField != null && timestampField.isEmpty() == false) {
             builder.field(TIMESTAMP_FIELD.getPreferredName(), timestampField);
         }
@@ -450,6 +476,7 @@ public class TextStructure implements ToXContentObject, Writeable {
             quote,
             shouldTrimFields,
             grokPattern,
+            ecsCompatibility,
             timestampField,
             jodaTimestampFormats,
             javaTimestampFormats,
@@ -486,6 +513,7 @@ public class TextStructure implements ToXContentObject, Writeable {
             && Objects.equals(this.quote, that.quote)
             && Objects.equals(this.shouldTrimFields, that.shouldTrimFields)
             && Objects.equals(this.grokPattern, that.grokPattern)
+            && Objects.equals(this.ecsCompatibility, that.ecsCompatibility)
             && Objects.equals(this.timestampField, that.timestampField)
             && Objects.equals(this.jodaTimestampFormats, that.jodaTimestampFormats)
             && Objects.equals(this.javaTimestampFormats, that.javaTimestampFormats)
@@ -511,6 +539,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         private Character quote;
         private Boolean shouldTrimFields;
         private String grokPattern;
+        private String ecsCompatibility;
         private String timestampField;
         private List<String> jodaTimestampFormats;
         private List<String> javaTimestampFormats;
@@ -595,6 +624,11 @@ public class TextStructure implements ToXContentObject, Writeable {
 
         public Builder setGrokPattern(String grokPattern) {
             this.grokPattern = grokPattern;
+            return this;
+        }
+
+        public Builder setEcsCompatibility(String ecsCompatibility) {
+            this.ecsCompatibility = ecsCompatibility;
             return this;
         }
 
@@ -721,6 +755,16 @@ public class TextStructure implements ToXContentObject, Writeable {
                     if (grokPattern == null || grokPattern.isEmpty()) {
                         throw new IllegalArgumentException("Grok pattern must be specified for [" + format + "] structures.");
                     }
+                    if (ecsCompatibility != null
+                        && ecsCompatibility.isEmpty() == false
+                        && GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+                        throw new IllegalArgumentException(
+                            ECS_COMPATIBILITY.getPreferredName()
+                                + "] must be one of ["
+                                + String.join(", ", GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES)
+                                + "] if specified"
+                        );
+                    }
                     break;
                 default:
                     throw new IllegalStateException("enum value [" + format + "] missing from switch.");
@@ -769,6 +813,7 @@ public class TextStructure implements ToXContentObject, Writeable {
                 quote,
                 shouldTrimFields,
                 grokPattern,
+                ecsCompatibility,
                 timestampField,
                 jodaTimestampFormats,
                 javaTimestampFormats,

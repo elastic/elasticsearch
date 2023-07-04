@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
@@ -64,7 +65,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -326,7 +326,7 @@ public class DataFrameAnalyticsConfigProvider {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            new ActionListener.Delegating<SearchResponse, List<DataFrameAnalyticsConfig>>(listener) {
+            new DelegatingActionListener<SearchResponse, List<DataFrameAnalyticsConfig>>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     SearchHit[] hits = searchResponse.getHits().getHits();
@@ -345,7 +345,7 @@ public class DataFrameAnalyticsConfigProvider {
                     }
 
                     Set<String> tasksWithoutConfigs = new HashSet<>(jobsWithTask);
-                    tasksWithoutConfigs.removeAll(configs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toList()));
+                    configs.stream().map(DataFrameAnalyticsConfig::getId).toList().forEach(tasksWithoutConfigs::remove);
                     if (tasksWithoutConfigs.isEmpty() == false) {
                         logger.warn("Data frame analytics tasks {} have no configs", tasksWithoutConfigs);
                     }

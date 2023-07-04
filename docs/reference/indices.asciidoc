@@ -20,7 +20,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-rollover-index>>
 * <<unfreeze-index-api>>
 * <<indices-resolve-index-api>>
-
+* <<indices-downsample-data-stream>>
 
 [discrete]
 [[mapping-management]]

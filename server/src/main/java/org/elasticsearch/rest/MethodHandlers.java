@@ -32,6 +32,10 @@ final class MethodHandlers {
         this.methodHandlers = new HashMap<>(2, 1);
     }
 
+    public String getPath() {
+        return path;
+    }
+
     /**
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.

@@ -9,8 +9,10 @@
 package org.elasticsearch.painless.lookup;
 
 import java.lang.invoke.MethodHandle;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -44,17 +46,7 @@ public final class PainlessLookup {
         Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
         Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings
     ) {
-
-        Objects.requireNonNull(javaClassNamesToClasses);
-        Objects.requireNonNull(canonicalClassNamesToClasses);
-        Objects.requireNonNull(classesToPainlessClasses);
-        Objects.requireNonNull(classesToDirectSubClasses);
-
-        Objects.requireNonNull(painlessMethodKeysToImportedPainlessMethods);
-        Objects.requireNonNull(painlessMethodKeysToPainlessClassBindings);
-        Objects.requireNonNull(painlessMethodKeysToPainlessInstanceBindings);
-
-        this.javaClassNamesToClasses = javaClassNamesToClasses;
+        this.javaClassNamesToClasses = Map.copyOf(javaClassNamesToClasses);
         this.canonicalClassNamesToClasses = Map.copyOf(canonicalClassNamesToClasses);
         this.classesToPainlessClasses = Map.copyOf(classesToPainlessClasses);
         this.classesToDirectSubClasses = Map.copyOf(classesToDirectSubClasses);
@@ -200,12 +192,12 @@ public final class PainlessLookup {
         }
 
         String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
-        List<Class<?>> subClasses = new ArrayList<>(classesToDirectSubClasses.get(targetClass));
+        Deque<Class<?>> subClasses = new ArrayDeque<>(classesToDirectSubClasses.get(targetClass));
         Set<Class<?>> resolvedSubClasses = new HashSet<>();
         List<PainlessMethod> subMethods = null;
 
-        while (subClasses.isEmpty() == false) {
-            Class<?> subClass = subClasses.remove(0);
+        Class<?> subClass;
+        while ((subClass = subClasses.pollFirst()) != null) {
 
             if (resolvedSubClasses.add(subClass)) {
                 subClasses.addAll(classesToDirectSubClasses.get(subClass));
@@ -354,10 +346,10 @@ public final class PainlessLookup {
         Set<Class<?>> resolvedInterfaces = new HashSet<>();
 
         while (currentTargetClass != null) {
-            List<Class<?>> targetInterfaces = new ArrayList<>(Arrays.asList(currentTargetClass.getInterfaces()));
+            Deque<Class<?>> targetInterfaces = new ArrayDeque<>(Arrays.asList(currentTargetClass.getInterfaces()));
 
-            while (targetInterfaces.isEmpty() == false) {
-                Class<?> targetInterface = targetInterfaces.remove(0);
+            Class<?> targetInterface;
+            while ((targetInterface = targetInterfaces.pollFirst()) != null) {
 
                 if (resolvedInterfaces.add(targetInterface)) {
                     PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetInterface);
@@ -368,9 +360,8 @@ public final class PainlessLookup {
                         if (painlessObject != null) {
                             return painlessObject;
                         }
-
-                        targetInterfaces.addAll(Arrays.asList(targetInterface.getInterfaces()));
                     }
+                    targetInterfaces.addAll(Arrays.asList(targetInterface.getInterfaces()));
                 }
             }
 

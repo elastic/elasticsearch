@@ -40,9 +40,7 @@ public class EqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
     public void testCancellation() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
                 .get()
         );

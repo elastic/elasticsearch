@@ -8,6 +8,6 @@ if (boxId != null) {
 } else {
   // box id was not supplied, so disable the distro tests
   tasks.withType(GradleDistroTestTask).configureEach {
-    onlyIf { false }
+    onlyIf("Project property vagrant.windows-2012r2.id set") { false }
   }
 }

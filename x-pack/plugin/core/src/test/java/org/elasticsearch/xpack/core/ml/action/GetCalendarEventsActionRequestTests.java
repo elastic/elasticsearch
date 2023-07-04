@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
-public class GetCalendarEventsActionRequestTests extends AbstractSerializingTestCase<GetCalendarEventsAction.Request> {
+public class GetCalendarEventsActionRequestTests extends AbstractXContentSerializingTestCase<GetCalendarEventsAction.Request> {
 
     @Override
     protected GetCalendarEventsAction.Request createTestInstance() {
@@ -34,6 +34,11 @@ public class GetCalendarEventsActionRequestTests extends AbstractSerializingTest
     }
 
     @Override
+    protected GetCalendarEventsAction.Request mutateInstance(GetCalendarEventsAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<GetCalendarEventsAction.Request> instanceReader() {
         return GetCalendarEventsAction.Request::new;
     }
@@ -41,11 +46,6 @@ public class GetCalendarEventsActionRequestTests extends AbstractSerializingTest
     @Override
     protected GetCalendarEventsAction.Request doParseInstance(XContentParser parser) {
         return GetCalendarEventsAction.Request.parseRequest(null, parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     public void testValidate() {

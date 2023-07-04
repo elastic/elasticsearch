@@ -28,12 +28,15 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsUpdater;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
@@ -128,6 +131,17 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         return true;
     }
 
+    @Override
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedClusterSettingsAction.NAME);
+    }
+
+    @Override
+    public Set<String> modifiedKeys(ClusterUpdateSettingsRequest request) {
+        Settings allSettings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
+        return allSettings.keySet();
+    }
+
     private static final String UPDATE_TASK_SOURCE = "cluster_update_settings";
     private static final String REROUTE_TASK_SOURCE = "reroute_after_cluster_update_settings";
 
@@ -146,7 +160,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
             @Override
             public void onAllNodesAcked() {
-                if (changed) {
+                if (reroute) {
                     reroute(true);
                 } else {
                     super.onAllNodesAcked();
@@ -155,8 +169,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
             @Override
             public void onAckFailure(Exception e) {
-                if (changed) {
-                    reroute(true);
+                if (reroute) {
+                    reroute(false);
                 } else {
                     super.onAckFailure(e);
                 }
@@ -164,7 +178,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
             @Override
             public void onAckTimeout() {
-                if (changed) {
+                if (reroute) {
                     reroute(false);
                 } else {
                     super.onAckTimeout();
@@ -172,24 +186,13 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             }
 
             private void reroute(final boolean updateSettingsAcked) {
-                // We're about to send a second update task, so we need to check if we're still the elected master
-                // For example the minimum_master_node could have been breached and we're no longer elected master,
-                // so we should *not* execute the reroute.
-                if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-                    logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
-                    listener.onResponse(
-                        new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(), updater.getPersistentUpdate())
-                    );
-                    return;
-                }
-
-                // The reason the reroute needs to be send as separate update task, is that all the *cluster* settings are encapsulated in
+                // The reason the reroute needs to be sent as separate update task, is that all the *cluster* settings are encapsulated in
                 // the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible to the components
                 // until the ClusterStateListener instances have been invoked, but are visible after the first update task has been
                 // completed.
                 clusterService.getRerouteService().reroute(REROUTE_TASK_SOURCE, Priority.URGENT, new ActionListener<>() {
                     @Override
-                    public void onResponse(ClusterState clusterState) {
+                    public void onResponse(Void ignored) {
                         listener.onResponse(
                             new ClusterUpdateSettingsResponse(
                                 updateSettingsAcked,
@@ -225,20 +228,18 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         });
     }
 
-    public static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
-        protected volatile boolean changed = false;
+    private static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
+        protected volatile boolean reroute = false;
         protected final SettingsUpdater updater;
         protected final ClusterUpdateSettingsRequest request;
-        private final ClusterSettings clusterSettings;
 
-        public ClusterUpdateSettingsTask(
+        ClusterUpdateSettingsTask(
             final ClusterSettings clusterSettings,
             Priority priority,
             ClusterUpdateSettingsRequest request,
             ActionListener<? extends AcknowledgedResponse> listener
         ) {
             super(priority, request, listener);
-            this.clusterSettings = clusterSettings;
             this.updater = new SettingsUpdater(clusterSettings);
             this.request = request;
         }
@@ -247,11 +248,11 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         public ClusterState execute(final ClusterState currentState) {
             final ClusterState clusterState = updater.updateSettings(
                 currentState,
-                clusterSettings.upgradeSettings(request.transientSettings()),
-                clusterSettings.upgradeSettings(request.persistentSettings()),
+                request.transientSettings(),
+                request.persistentSettings(),
                 logger
             );
-            changed = clusterState != currentState;
+            reroute = clusterState != currentState;
             return clusterState;
         }
     }

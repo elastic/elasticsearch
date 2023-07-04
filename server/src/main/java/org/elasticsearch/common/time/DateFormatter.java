@@ -9,6 +9,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersion;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -99,6 +100,10 @@ public interface DateFormatter {
     DateMathParser toDateMathParser();
 
     static DateFormatter forPattern(String input) {
+        return forPattern(input, IndexVersion.current());
+    }
+
+    static DateFormatter forPattern(String input, IndexVersion supportedVersion) {
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
@@ -108,10 +113,14 @@ public interface DateFormatter {
             input = input.substring(1);
         }
 
-        List<DateFormatter> formatters = new ArrayList<>();
-        for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
-            if (Strings.hasLength(pattern) == false) {
-                throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
+        // forPattern can be hot (e.g. executing a date processor on each document in a 1000 document bulk index request),
+        // so this is a for each loop instead of the equivalent stream pipeline
+        String[] patterns = splitCombinedPatterns(input);
+        List<DateFormatter> formatters = new ArrayList<>(patterns.length);
+        for (String pattern : patterns) {
+            // make sure we still support camel case for indices created before 8.0
+            if (supportedVersion.before(IndexVersion.V_8_0_0)) {
+                pattern = LegacyFormatNames.camelCaseToSnakeCase(pattern);
             }
             formatters.add(DateFormatters.forPattern(pattern));
         }
@@ -121,5 +130,15 @@ public interface DateFormatter {
         }
 
         return JavaDateFormatter.combined(input, formatters);
+    }
+
+    static String[] splitCombinedPatterns(String input) {
+        String[] patterns = Strings.delimitedListToStringArray(input, "||");
+        for (String pattern : patterns) {
+            if (Strings.hasLength(pattern) == false) {
+                throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
+            }
+        }
+        return patterns;
     }
 }

@@ -14,7 +14,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -22,9 +21,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
@@ -49,12 +45,17 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
+import org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -65,7 +66,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.ingest.IngestDocument.INGEST_KEY;
-import static org.elasticsearch.ingest.Pipeline.PROCESSORS_KEY;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.MODEL_ID_RESULTS_FIELD;
@@ -154,7 +154,7 @@ public class InferenceProcessor extends AbstractProcessor {
             fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
         }
         LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-        return new InferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
+        return InferModelAction.Request.forIngestDocs(modelId, List.of(fields), inferenceConfig, previouslyLicensed);
     }
 
     void auditWarningAboutLicenseIfNecessary() {
@@ -176,7 +176,7 @@ public class InferenceProcessor extends AbstractProcessor {
             response.getInferenceResults().get(0),
             ingestDocument,
             targetField,
-            response.getModelId() != null ? response.getModelId() : modelId
+            response.getId() != null ? response.getId() : modelId
         );
     }
 
@@ -192,9 +192,6 @@ public class InferenceProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory, Consumer<ClusterState> {
 
-        private static final String FOREACH_PROCESSOR_NAME = "foreach";
-        // Any more than 10 nestings of processors, we stop searching for inference processor definitions
-        private static final int MAX_INFERENCE_PROCESSOR_SEARCH_RECURSIONS = 10;
         private static final Logger logger = LogManager.getLogger(Factory.class);
 
         private final Client client;
@@ -203,96 +200,22 @@ public class InferenceProcessor extends AbstractProcessor {
         private volatile int maxIngestProcessors;
         private volatile Version minNodeVersion = Version.CURRENT;
 
-        public Factory(Client client, ClusterService clusterService, Settings settings) {
+        public Factory(Client client, ClusterService clusterService, Settings settings, boolean includeNodeInfo) {
             this.client = client;
             this.maxIngestProcessors = MAX_INFERENCE_PROCESSORS.get(settings);
-            this.auditor = new InferenceAuditor(client, clusterService);
+            this.auditor = new InferenceAuditor(client, clusterService, includeNodeInfo);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_INFERENCE_PROCESSORS, this::setMaxIngestProcessors);
         }
 
         @Override
         public void accept(ClusterState state) {
             minNodeVersion = state.nodes().getMinNodeVersion();
-            currentInferenceProcessors = countNumberInferenceProcessors(state);
-        }
-
-        public static int countNumberInferenceProcessors(ClusterState state) {
-            Metadata metadata = state.getMetadata();
-            if (metadata == null) {
-                return 0;
+            try {
+                currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(state);
+            } catch (Exception ex) {
+                // We cannot throw any exception here. It might break other pipelines.
+                logger.debug("failed gathering processors for pipelines", ex);
             }
-            IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
-            if (ingestMetadata == null) {
-                return 0;
-            }
-
-            int count = 0;
-            for (PipelineConfiguration configuration : ingestMetadata.getPipelines().values()) {
-                Map<String, Object> configMap = configuration.getConfigAsMap();
-                try {
-                    List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
-                    for (Map<String, Object> processorConfigWithKey : processorConfigs) {
-                        for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
-                            count += numInferenceProcessors(entry.getKey(), entry.getValue());
-                        }
-                    }
-                    // We cannot throw any exception here. It might break other pipelines.
-                } catch (Exception ex) {
-                    logger.debug(() -> "failed gathering processors for pipeline [" + configuration.getId() + "]", ex);
-                }
-            }
-            return count;
-        }
-
-        @SuppressWarnings("unchecked")
-        static int numInferenceProcessors(String processorType, Object processorDefinition) {
-            return numInferenceProcessors(processorType, (Map<String, Object>) processorDefinition, 0);
-        }
-
-        @SuppressWarnings("unchecked")
-        static int numInferenceProcessors(String processorType, Map<String, Object> processorDefinition, int level) {
-            int count = 0;
-            // arbitrary, but we must limit this somehow
-            if (level > MAX_INFERENCE_PROCESSOR_SEARCH_RECURSIONS) {
-                return count;
-            }
-            if (processorType == null || processorDefinition == null) {
-                return count;
-            }
-            if (TYPE.equals(processorType)) {
-                count++;
-            }
-            if (FOREACH_PROCESSOR_NAME.equals(processorType)) {
-                Map<String, Object> innerProcessor = (Map<String, Object>) processorDefinition.get("processor");
-                if (innerProcessor != null) {
-                    // a foreach processor should only have a SINGLE nested processor. Iteration is for simplicity's sake.
-                    for (Map.Entry<String, Object> innerProcessorWithName : innerProcessor.entrySet()) {
-                        count += numInferenceProcessors(
-                            innerProcessorWithName.getKey(),
-                            (Map<String, Object>) innerProcessorWithName.getValue(),
-                            level + 1
-                        );
-                    }
-                }
-            }
-            if (processorDefinition.containsKey(Pipeline.ON_FAILURE_KEY)) {
-                List<Map<String, Object>> onFailureConfigs = ConfigurationUtils.readList(
-                    null,
-                    null,
-                    processorDefinition,
-                    Pipeline.ON_FAILURE_KEY
-                );
-                count += onFailureConfigs.stream()
-                    .flatMap(map -> map.entrySet().stream())
-                    .mapToInt(entry -> numInferenceProcessors(entry.getKey(), (Map<String, Object>) entry.getValue(), level + 1))
-                    .sum();
-            }
-            return count;
-        }
-
-        // Used for testing
-        int numInferenceProcessors() {
-            return currentInferenceProcessors;
         }
 
         @Override
@@ -393,6 +316,12 @@ public class InferenceProcessor extends AbstractProcessor {
             } else if (configMap.containsKey(TextEmbeddingConfig.NAME)) {
                 checkNlpSupported(TextEmbeddingConfig.NAME);
                 return TextEmbeddingConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextExpansionConfig.NAME)) {
+                checkNlpSupported(TextExpansionConfig.NAME);
+                return TextExpansionConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextSimilarityConfig.NAME)) {
+                checkNlpSupported(TextSimilarityConfig.NAME);
+                return TextSimilarityConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
                 checkNlpSupported(ZeroShotClassificationConfig.NAME);
                 return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
@@ -409,8 +338,11 @@ public class InferenceProcessor extends AbstractProcessor {
                         FillMaskConfig.NAME,
                         NerConfig.NAME,
                         PassThroughConfig.NAME,
+                        QuestionAnsweringConfig.NAME,
                         TextClassificationConfig.NAME,
                         TextEmbeddingConfig.NAME,
+                        TextExpansionConfigUpdate.NAME,
+                        TextSimilarityConfig.NAME,
                         ZeroShotClassificationConfig.NAME
                     )
                 );
@@ -431,12 +363,12 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         void checkSupportedVersion(InferenceConfig config) {
-            if (config.getMinimalSupportedVersion().after(minNodeVersion)) {
+            if (config.getMinimalSupportedNodeVersion().after(minNodeVersion)) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(
                         Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
                         config.getName(),
-                        config.getMinimalSupportedVersion(),
+                        config.getMinimalSupportedNodeVersion(),
                         minNodeVersion
                     )
                 );

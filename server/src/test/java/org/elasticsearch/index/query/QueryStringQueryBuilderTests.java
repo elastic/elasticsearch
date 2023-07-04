@@ -21,12 +21,12 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -65,7 +65,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -532,7 +532,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createSearchExecutionContext(), TEXT_FIELD_NAME);
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             Query query = queryParser.parse("first foo-bar-foobar* last");
             Query expectedQuery = new BooleanQuery.Builder().add(
@@ -572,7 +572,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createSearchExecutionContext(), TEXT_FIELD_NAME);
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             queryParser.setForceAnalyzer(new MockRepeatAnalyzer());
             Query query = queryParser.parse("first foo-bar-foobar* last");
@@ -631,10 +631,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createSearchExecutionContext(), TEXT_FIELD_NAME);
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             queryParser.setForceAnalyzer(new MockSynonymAnalyzer());
             queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
@@ -770,7 +770,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         builder.endObject();
 
-        QueryBuilder queryBuilder = parseInnerQueryBuilder(createParser(builder));
+        QueryBuilder queryBuilder = parseTopLevelQuery(createParser(builder));
         TooComplexToDeterminizeException e = expectThrows(
             TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createSearchExecutionContext())
@@ -873,25 +873,25 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testTimezone() throws Exception {
-        String queryAsString = """
+        String queryAsString = Strings.format("""
             {
                 "query_string":{
                     "time_zone":"Europe/Paris",
                     "query":"%s:[2012 TO 2014]"
                 }
-            }""".formatted(DATE_FIELD_NAME);
+            }""", DATE_FIELD_NAME);
         QueryBuilder queryBuilder = parseQuery(queryAsString);
         assertThat(queryBuilder, instanceOf(QueryStringQueryBuilder.class));
         QueryStringQueryBuilder queryStringQueryBuilder = (QueryStringQueryBuilder) queryBuilder;
         assertThat(queryStringQueryBuilder.timeZone(), equalTo(ZoneId.of("Europe/Paris")));
 
-        String invalidQueryAsString = """
+        String invalidQueryAsString = Strings.format("""
             {
                 "query_string":{
                     "time_zone":"This timezone does not exist",
                     "query":"%s:[2012 TO 2014]"
                 }
-            }""".formatted(DATE_FIELD_NAME);
+            }""", DATE_FIELD_NAME);
         expectThrows(DateTimeException.class, () -> parseQuery(invalidQueryAsString));
     }
 
@@ -1041,7 +1041,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(TEXT_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
         if (context.getFieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms()) {
-            assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
+            assertThat(query, equalTo(new ConstantScoreQuery(new FieldExistsQuery(TEXT_FIELD_NAME))));
         } else {
             assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));
         }
@@ -1051,7 +1051,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
             query = queryBuilder.toQuery(context);
             if (context.getFieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms()) {
-                assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
+                assertThat(query, equalTo(new ConstantScoreQuery(new FieldExistsQuery(TEXT_FIELD_NAME))));
             } else {
                 assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));
             }

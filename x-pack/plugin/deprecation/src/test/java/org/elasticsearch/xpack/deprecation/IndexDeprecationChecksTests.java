@@ -12,20 +12,23 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
 public class IndexDeprecationChecksTests extends ESTestCase {
     public void testOldIndicesCheck() {
-        Version createdWith = Version.fromString("1.0.0");
+        IndexVersion createdWith = IndexVersion.fromId(1000099);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(createdWith))
             .numberOfShards(1)
@@ -144,5 +147,35 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testCamelCaseDeprecation() throws IOException {
+        String simpleMapping = "{\n\"_doc\": {"
+            + "\"properties\" : {\n"
+            + "   \"date_time_field\" : {\n"
+            + "       \"type\" : \"date\",\n"
+            + "       \"format\" : \"strictDateOptionalTime\"\n"
+            + "       }\n"
+            + "   }"
+            + "} }";
+
+        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(Version.V_7_0_0))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .putMapping(simpleMapping)
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Date fields use deprecated camel case formats",
+            "https://ela.st/es-deprecation-7-camel-case-format",
+            "Convert [date_time_field] format [strictDateOptionalTime] "
+                + "which contains deprecated camel case to snake case. [strictDateOptionalTime] to [strict_date_optional_time].",
+            false,
+            null
+        );
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        assertThat(issues, hasItem(expected));
     }
 }

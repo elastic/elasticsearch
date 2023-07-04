@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -102,7 +101,7 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<List<String>> RP_REQUESTED_SCOPES = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "rp.requested_scopes",
-        key -> Setting.listSetting(key, Collections.singletonList("openid"), Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, List.of("openid"), Setting.Property.NodeScope)
     );
     public static final Setting.AffixSetting<String> RP_CLIENT_AUTH_METHOD = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
@@ -214,6 +213,12 @@ public class OpenIdConnectRealmSettings {
         key -> Setting.intSetting(key, 200, Setting.Property.NodeScope)
     );
 
+    public static final Setting.AffixSetting<Boolean> HTTP_TCP_KEEP_ALIVE = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "http.tcp.keep_alive",
+        key -> Setting.boolSetting(key, true, Setting.Property.NodeScope)
+    );
+
     public static final Setting.AffixSetting<TimeValue> HTTP_CONNECTION_POOL_TTL = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "http.connection_pool_ttl",
@@ -314,6 +319,7 @@ public class OpenIdConnectRealmSettings {
             HTTP_SOCKET_TIMEOUT,
             HTTP_MAX_CONNECTIONS,
             HTTP_MAX_ENDPOINT_CONNECTIONS,
+            HTTP_TCP_KEEP_ALIVE,
             HTTP_CONNECTION_POOL_TTL,
             HTTP_PROXY_HOST,
             HTTP_PROXY_PORT,

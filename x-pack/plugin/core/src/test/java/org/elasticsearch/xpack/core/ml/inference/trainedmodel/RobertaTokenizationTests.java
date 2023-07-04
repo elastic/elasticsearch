@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -18,6 +18,19 @@ import java.io.IOException;
 public class RobertaTokenizationTests extends AbstractBWCSerializationTestCase<RobertaTokenization> {
 
     private boolean lenient;
+
+    public static RobertaTokenization mutateForVersion(RobertaTokenization instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_2_0)) {
+            return new RobertaTokenization(
+                instance.withSpecialTokens,
+                instance.isAddPrefixSpace(),
+                instance.maxSequenceLength,
+                instance.truncate,
+                null
+            );
+        }
+        return instance;
+    }
 
     @Before
     public void chooseStrictOrLenient() {
@@ -40,8 +53,13 @@ public class RobertaTokenizationTests extends AbstractBWCSerializationTestCase<R
     }
 
     @Override
-    protected RobertaTokenization mutateInstanceForVersion(RobertaTokenization instance, Version version) {
-        return instance;
+    protected RobertaTokenization mutateInstance(RobertaTokenization instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected RobertaTokenization mutateInstanceForVersion(RobertaTokenization instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
     }
 
     public static RobertaTokenization createRandom() {

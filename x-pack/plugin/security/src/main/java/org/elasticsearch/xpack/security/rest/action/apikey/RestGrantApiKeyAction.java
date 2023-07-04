@@ -17,6 +17,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,7 +27,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBu
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,7 +40,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Rest action to create an API key on behalf of another user. Loosely mimics the API of
  * {@link org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction} combined with {@link RestCreateApiKeyAction}
  */
-public final class RestGrantApiKeyAction extends SecurityBaseRestHandler implements RestRequestFilter {
+@ServerlessScope(Scope.INTERNAL)
+public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implements RestRequestFilter {
 
     static final ObjectParser<GrantApiKeyRequest, Void> PARSER = new ObjectParser<>("grant_api_key_request", GrantApiKeyRequest::new);
     static {
@@ -57,6 +59,7 @@ public final class RestGrantApiKeyAction extends SecurityBaseRestHandler impleme
             new ParseField("access_token"),
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareString((req, str) -> req.getGrant().setRunAsUsername(str), new ParseField("run_as"));
         PARSER.declareObject(
             (req, api) -> req.setApiKeyRequest(api),
             (parser, ignore) -> CreateApiKeyRequestBuilder.parse(parser),

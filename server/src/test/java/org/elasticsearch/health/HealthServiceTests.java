@@ -9,30 +9,57 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.health.node.DiskHealthInfo;
+import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.UNKNOWN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 public class HealthServiceTests extends ESTestCase {
 
-    public void testShouldReturnGroupedIndicators() {
+    private ThreadPool threadPool;
 
-        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null, null);
+    @Before
+    public void setupThreadpool() {
+        threadPool = new TestThreadPool(HealthServiceTests.class.getSimpleName());
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        threadPool.shutdownNow();
+    }
+
+    public void testShouldReturnGroupedIndicators() throws Exception {
+
+        var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         var service = new HealthService(
             Collections.emptyList(),
@@ -40,66 +67,56 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
-            )
+            ),
+            threadPool
         );
 
-        assertThat(
-            service.getHealth(null, null, false),
-            anyOf(
-                hasItems(
-                    new HealthComponentResult("coordination", YELLOW, List.of(slowTasks, networkLatency)),
-                    new HealthComponentResult("data", GREEN, List.of(shardsAvailable))
-                ),
-                hasItems(
-                    new HealthComponentResult("coordination", YELLOW, List.of(networkLatency, slowTasks)),
-                    new HealthComponentResult("data", GREEN, List.of(shardsAvailable))
-                )
-            )
-        );
+        NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
 
-        assertThat(
-            service.getHealth("coordination", null, false),
-            anyOf(
-                hasItems(new HealthComponentResult("coordination", YELLOW, List.of(slowTasks, networkLatency))),
-                hasItems(new HealthComponentResult("coordination", YELLOW, List.of(networkLatency, slowTasks)))
-            )
-        );
-
-        assertThat(
-            service.getHealth("coordination", "slow_task_assignment", false),
-            hasItems(new HealthComponentResult("coordination", null, List.of(slowTasks)))
-        );
+        assertExpectedHealthIndicatorResults(service, client, null, slowTasks, networkLatency, shardsAvailable);
+        assertExpectedHealthIndicatorResults(service, client, "slow_task_assignment", slowTasks);
     }
 
-    public void testDuplicateIndicatorNames() {
-        // Same component, same indicator name, should throw exception:
-        var networkLatency = new HealthIndicatorResult(
-            "network_latency",
-            "coordination",
-            GREEN,
-            null,
-            null,
-            null,
-            Collections.emptyList(),
-            Collections.emptyList()
+    private void assertExpectedHealthIndicatorResults(
+        HealthService service,
+        NodeClient client,
+        String indicatorName,
+        HealthIndicatorResult... expectedHealthIndicatorResults
+    ) throws Exception {
+        AtomicBoolean onResponseCalled = new AtomicBoolean(false);
+        service.getHealth(
+            client,
+            indicatorName,
+            false,
+            1000,
+            getExpectedHealthIndicatorResultsActionListener(onResponseCalled, expectedHealthIndicatorResults)
         );
-        var slowTasks = new HealthIndicatorResult(
-            "network_latency",
-            "coordination",
-            YELLOW,
-            null,
-            null,
-            null,
-            Collections.emptyList(),
-            Collections.emptyList()
-        );
-        expectThrows(AssertionError.class, () -> HealthService.createComponentFromIndicators(List.of(networkLatency, slowTasks), true));
+        assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
     }
 
-    public void testMissingComponentOrIndicator() {
-        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null, null);
+    private ActionListener<List<HealthIndicatorResult>> getExpectedHealthIndicatorResultsActionListener(
+        AtomicBoolean onResponseCalled,
+        HealthIndicatorResult... healthIndicatorResults
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(List<HealthIndicatorResult> results) {
+                assertThat(results.size(), equalTo(healthIndicatorResults.length));
+                assertThat(results, hasItems(healthIndicatorResults));
+                onResponseCalled.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
+            }
+        };
+    }
+
+    public void testMissingIndicator() throws Exception {
+        var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         var service = new HealthService(
             Collections.emptyList(),
@@ -107,29 +124,99 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
-            )
+            ),
+            threadPool
         );
-
-        expectThrows(
+        NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
+        assertGetHealthThrowsException(
+            service,
+            client,
+            "indicator99",
+            false,
             ResourceNotFoundException.class,
-            "Did not find component component99",
-            () -> service.getHealth("component99", null, false)
-        );
-
-        expectThrows(
-            ResourceNotFoundException.class,
-            "Did not find indicator indicator99 in component component1",
-            () -> service.getHealth("coordination", "indicator99", false)
+            "Did not find indicator indicator99",
+            true
         );
     }
 
-    public void testPreflightIndicatorResultsPresent() {
+    public void testValidateSize() {
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
+
+        var service = new HealthService(Collections.emptyList(), List.of(createMockHealthIndicatorService(shardsAvailable)), threadPool);
+        NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.getHealth(client, null, true, -1, ActionListener.noop())
+        );
+        assertThat(illegalArgumentException.getMessage(), is("The max number of resources must be a positive integer"));
+    }
+
+    private <T extends Throwable> void assertGetHealthThrowsException(
+        HealthService service,
+        NodeClient client,
+        String indicatorName,
+        boolean verbose,
+        Class<T> expectedType,
+        String expectedMessage,
+        boolean expectOnFailCalled
+    ) throws Exception {
+        AtomicBoolean onFailureCalled = new AtomicBoolean(false);
+        ActionListener<List<HealthIndicatorResult>> listener = getExpectThrowsActionListener(
+            onFailureCalled,
+            expectedType,
+            expectedMessage
+        );
+        try {
+            service.getHealth(client, indicatorName, verbose, 1000, listener);
+        } catch (Throwable t) {
+            if (expectOnFailCalled || (expectedType.isInstance(t) == false)) {
+                throw new RuntimeException("Unexpected throwable", t);
+            } else {
+                // Expected
+                if (expectedMessage != null) {
+                    assertThat(t.getMessage(), equalTo(expectedMessage));
+                }
+            }
+        }
+        if (expectOnFailCalled) {
+            assertBusy(() -> assertThat(onFailureCalled.get(), equalTo(true)));
+        }
+    }
+
+    private <T extends Throwable> ActionListener<List<HealthIndicatorResult>> getExpectThrowsActionListener(
+        AtomicBoolean onFailureCalled,
+        Class<T> expectedType,
+        String expectedMessage
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
+                fail("Expected failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (expectedType.isInstance(e)) {
+                    if (expectedMessage == null) {
+                        onFailureCalled.set(true);
+                    } else {
+                        assertThat(e.getMessage(), equalTo(expectedMessage));
+                        onFailureCalled.set(true);
+                    }
+                } else {
+                    throw new RuntimeException("Unexpected exception", e);
+                }
+            }
+        };
+    }
+
+    public void testPreflightIndicatorResultsPresent() throws Exception {
         // Preflight check
-        var hasMaster = new HealthIndicatorResult("has_master", "coordination", GREEN, null, null, null, null, null);
+        var hasMaster = new HealthIndicatorResult("has_master", GREEN, null, null, null, null);
         // Other indicators
-        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null, null);
+        var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         var service = new HealthService(
             List.of(createMockHealthIndicatorService(hasMaster)),
@@ -137,79 +224,68 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
-            )
+            ),
+            threadPool
         );
+        NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
 
-        // Get all indicators returns preflight result mixed in with appropriate component
-        List<HealthComponentResult> health = service.getHealth(null, null, false);
-        assertThat(health.size(), is(equalTo(2)));
-        {
-            HealthComponentResult component1 = health.stream()
-                .filter(result -> result.name().equals("coordination"))
-                .findAny()
-                .orElseThrow();
-            assertThat(component1.status(), is(equalTo(YELLOW)));
-            assertThat(component1.indicators(), is(notNullValue()));
-            assertThat(component1.indicators(), containsInAnyOrder(hasMaster, networkLatency, slowTasks));
-        }
-        {
-            HealthComponentResult component2 = health.stream().filter(result -> result.name().equals("data")).findAny().orElseThrow();
-            assertThat(component2.status(), is(equalTo(GREEN)));
-            assertThat(component2.indicators(), is(notNullValue()));
-            assertThat(component2.indicators(), contains(shardsAvailable));
-        }
-
-        // Getting single component returns preflight result mixed in with appropriate component
-        health = service.getHealth("coordination", null, false);
-        assertThat(health.size(), is(equalTo(1)));
-        {
-            HealthComponentResult component1 = health.stream()
-                .filter(result -> result.name().equals("coordination"))
-                .findAny()
-                .orElseThrow();
-            assertThat(component1.status(), is(equalTo(YELLOW)));
-            assertThat(component1.indicators(), is(notNullValue()));
-            assertThat(component1.indicators(), containsInAnyOrder(hasMaster, networkLatency, slowTasks));
-        }
+        // Get all indicators returns preflight result mixed in with the other indicators
+        assertExpectedHealthIndicatorResults(service, client, null, hasMaster, networkLatency, slowTasks, shardsAvailable);
 
         // Getting single indicator returns correct indicator still
-        health = service.getHealth("coordination", "slow_task_assignment", false);
-        assertThat(health.size(), is(equalTo(1)));
-        {
-            HealthComponentResult component1 = health.stream()
-                .filter(result -> result.name().equals("coordination"))
-                .findAny()
-                .orElseThrow();
-            assertThat(component1.indicators(), is(notNullValue()));
-            assertThat(component1.indicators(), contains(slowTasks));
-        }
+        assertExpectedHealthIndicatorResults(service, client, "slow_task_assignment", slowTasks);
 
         // Getting single preflight indicator returns preflight indicator correctly
-        health = service.getHealth("coordination", "has_master", false);
-        assertThat(health.size(), is(equalTo(1)));
-        {
-            HealthComponentResult component1 = health.stream()
-                .filter(result -> result.name().equals("coordination"))
-                .findAny()
-                .orElseThrow();
-            assertThat(component1.indicators(), is(notNullValue()));
-            assertThat(component1.indicators(), contains(hasMaster));
-        }
+        assertExpectedHealthIndicatorResults(service, client, "has_master", hasMaster);
+    }
+
+    public void testThatIndicatorsGetHealthInfoData() throws Exception {
+        /*
+         * This test makes sure that HealthService is passing the data returned by the FetchHealthInfoCacheAction to all of the
+         * HealthIndicatorServices except for the preflight ones.
+         */
+        // Preflight check
+        var hasMaster = new HealthIndicatorResult("has_master", GREEN, null, null, null, null);
+        // Other indicators
+        var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
+        Map<String, DiskHealthInfo> diskHealthInfoMap = new HashMap<>();
+        diskHealthInfoMap.put(
+            randomAlphaOfLength(30),
+            new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
+        );
+        HealthInfo healthInfo = new HealthInfo(diskHealthInfoMap);
+
+        var service = new HealthService(
+            // The preflight indicator does not get data because the data is not fetched until after the preflight check
+            List.of(createMockHealthIndicatorService(hasMaster, HealthInfo.EMPTY_HEALTH_INFO)),
+            List.of(
+                createMockHealthIndicatorService(networkLatency, healthInfo),
+                createMockHealthIndicatorService(slowTasks, healthInfo),
+                createMockHealthIndicatorService(shardsAvailable, healthInfo)
+            ),
+            threadPool
+        );
+        NodeClient client = getTestClient(healthInfo);
+
+        // Get all indicators returns preflight result mixed in with the other indicators
+        assertExpectedHealthIndicatorResults(service, client, null, hasMaster, networkLatency, slowTasks, shardsAvailable);
     }
 
     private void assertIndicatorIsUnknownStatus(HealthIndicatorResult result) {
         assertThat(result.status(), is(equalTo(UNKNOWN)));
-        assertThat(result.summary(), is(HealthService.UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED));
+        assertThat(result.symptom(), is(HealthService.UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED));
     }
 
-    public void testPreflightIndicatorFailureTriggersUnknownResults() {
+    public void testPreflightIndicatorFailureTriggersUnknownResults() throws Exception {
         // Preflight checks
-        var hasMaster = new HealthIndicatorResult("has_master", "coordination", RED, null, null, null, null, null);
-        var hasStorage = new HealthIndicatorResult("has_storage", "data", GREEN, null, null, null, null, null);
+        var hasMaster = new HealthIndicatorResult("has_master", RED, null, null, null, null);
+        var hasStorage = new HealthIndicatorResult("has_storage", GREEN, null, null, null, null);
         // Other indicators
-        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null, null);
+        var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         var service = new HealthService(
             List.of(createMockHealthIndicatorService(hasMaster), createMockHealthIndicatorService(hasStorage)),
@@ -217,96 +293,85 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
-            )
+            ),
+            threadPool
         );
-
-        List<HealthComponentResult> health = service.getHealth(null, null, false);
-        assertThat(health.size(), is(equalTo(2)));
+        NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
         {
-            HealthComponentResult component1 = health.stream()
-                .filter(result -> result.name().equals("coordination"))
-                .findAny()
-                .orElseThrow();
-            // RED because hasMaster was RED
-            assertThat(component1.status(), is(equalTo(RED)));
-            assertThat(component1.indicators(), is(notNullValue()));
-            assertThat(component1.indicators().size(), is(equalTo(3)));
-            // Preflight 1 should be returned as is
-            HealthIndicatorResult hasMasterResult = component1.findIndicator("has_master");
-            assertThat(hasMasterResult, is(equalTo(hasMaster)));
-            // Indicator 1 should be UNKNOWN
-            HealthIndicatorResult networkLatencyResult = component1.findIndicator("network_latency");
-            assertIndicatorIsUnknownStatus(networkLatencyResult);
-            // Indicator 2 should be UNKNOWN
-            HealthIndicatorResult slowTasksResult = component1.findIndicator("slow_task_assignment");
-            assertIndicatorIsUnknownStatus(slowTasksResult);
-        }
-        {
-            HealthComponentResult component2 = health.stream().filter(result -> result.name().equals("data")).findAny().orElseThrow();
-            // UNKNOWN because shardsAvailable will be marked UNKNOWN because hasMaster is RED
-            assertThat(component2.status(), is(equalTo(UNKNOWN)));
-            assertThat(component2.indicators(), is(notNullValue()));
-            assertThat(component2.indicators().size(), is(equalTo(2)));
-            // Preflight 2 should be returned as is
-            HealthIndicatorResult hasStorageResult = component2.findIndicator("has_storage");
-            assertThat(hasStorageResult, is(equalTo(hasStorage)));
-            // Indicator 3 should be UNKNOWN
-            HealthIndicatorResult shardsAvailableResult = component2.findIndicator("shards_availability");
-            assertIndicatorIsUnknownStatus(shardsAvailableResult);
+            List<HealthIndicatorResult> health = getHealthIndicatorResults(service, client, null);
+            assertThat(health.size(), is(equalTo(5)));
+            // Preflight indicators unchanged; posflight all say
+            List<String> nonPreflightNames = Stream.of(networkLatency, slowTasks, shardsAvailable)
+                .map(HealthIndicatorResult::name)
+                .toList();
+            health.stream()
+                .filter(healthIndicatorResult -> nonPreflightNames.contains(healthIndicatorResult.name()))
+                .forEach(this::assertIndicatorIsUnknownStatus);
+            List<HealthIndicatorResult> preflightResults = List.of(hasMaster, hasStorage);
+            preflightResults.forEach(healthIndicatorResult -> assertTrue(health.contains(healthIndicatorResult)));
         }
 
-        health = service.getHealth("coordination", null, false);
-        assertThat(health.size(), is(equalTo(1)));
         {
-            HealthComponentResult component1 = health.stream()
-                .filter(result -> result.name().equals("coordination"))
-                .findAny()
-                .orElseThrow();
-            // RED because hasMaster was RED
-            assertThat(component1.status(), is(equalTo(RED)));
-            assertThat(component1.indicators(), is(notNullValue()));
-            assertThat(component1.indicators().size(), is(equalTo(3)));
-            // Preflight 1 should be returned as is
-            HealthIndicatorResult hasMasterResult = component1.findIndicator("has_master");
-            assertThat(hasMasterResult, is(equalTo(hasMaster)));
-            // Indicator 1 should be UNKNOWN
-            HealthIndicatorResult networkLatencyResult = component1.findIndicator("network_latency");
-            assertIndicatorIsUnknownStatus(networkLatencyResult);
-            // Indicator 2 should be UNKNOWN
-            HealthIndicatorResult slowTasksResult = component1.findIndicator("slow_task_assignment");
-            assertIndicatorIsUnknownStatus(slowTasksResult);
+            List<HealthIndicatorResult> health = getHealthIndicatorResults(service, client, "slow_task_assignment");
+            assertThat(health.size(), is(equalTo(1)));
+            assertIndicatorIsUnknownStatus(health.get(0));
         }
 
-        health = service.getHealth("coordination", "slow_task_assignment", false);
-        assertThat(health.size(), is(equalTo(1)));
         {
-            HealthComponentResult component1 = health.stream()
-                .filter(result -> result.name().equals("coordination"))
-                .findAny()
-                .orElseThrow();
-            assertThat(component1.indicators(), is(notNullValue()));
-            assertThat(component1.indicators().size(), is(equalTo(1)));
-            // Indicator 2 should be UNKNOWN
-            HealthIndicatorResult slowTasksResult = component1.findIndicator("slow_task_assignment");
-            assertIndicatorIsUnknownStatus(slowTasksResult);
-        }
-
-        health = service.getHealth("coordination", "has_master", false);
-        assertThat(health.size(), is(equalTo(1)));
-        {
-            HealthComponentResult component1 = health.stream()
-                .filter(result -> result.name().equals("coordination"))
-                .findAny()
-                .orElseThrow();
-            assertThat(component1.indicators(), is(notNullValue()));
-            assertThat(component1.indicators().size(), is(equalTo(1)));
-            // Preflight 1 should be returned as is
-            HealthIndicatorResult hasMasterResult = component1.findIndicator("has_master");
-            assertThat(hasMasterResult, is(equalTo(hasMaster)));
+            List<HealthIndicatorResult> health = getHealthIndicatorResults(service, client, "has_master");
+            assertThat(health.size(), is(equalTo(1)));
+            assertThat(health.get(0), is(equalTo(hasMaster)));
         }
     }
 
+    private List<HealthIndicatorResult> getHealthIndicatorResults(HealthService service, NodeClient client, String indicatorName)
+        throws Exception {
+        AtomicReference<List<HealthIndicatorResult>> resultReference = new AtomicReference<>();
+        ActionListener<List<HealthIndicatorResult>> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
+                resultReference.set(healthIndicatorResults);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
+            }
+        };
+        service.getHealth(client, indicatorName, false, 1000, listener);
+        assertBusy(() -> assertNotNull(resultReference.get()));
+        return resultReference.get();
+    }
+
+    /**
+     * This returns a mocked NodeClient that will return the given HealthInfo if the FetchHealthInfoCacheAction is called.
+     * @param healthInfo The HealthInfo that will be returned if this client calls the FetchHealthInfoCacheAction
+     * @return A mocked NodeClient
+     */
+    @SuppressWarnings("unchecked")
+    private NodeClient getTestClient(HealthInfo healthInfo) {
+        NodeClient client = mock(NodeClient.class);
+        doAnswer(invocation -> {
+            ActionListener<FetchHealthInfoCacheAction.Response> actionListener = invocation.getArgument(2, ActionListener.class);
+            actionListener.onResponse(new FetchHealthInfoCacheAction.Response(healthInfo));
+            return null;
+        }).when(client).doExecute(any(ActionType.class), any(), any(ActionListener.class));
+        return client;
+    }
+
     private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result) {
+        return createMockHealthIndicatorService(result, null);
+    }
+
+    /**
+     * This returns a test HealthIndicatorService
+     * @param result The HealthIndicatorResult that will be returned by the calculate method when the HealthIndicatorService returned by
+     *               this method is called
+     * @param expectedHealthInfo If this HealthInfo is not null then the returned HealthIndicatorService's calculate method will assert
+     *                           that the HealthInfo it is passed is equal to this when it is called
+     * @return A test HealthIndicatorService
+     */
+    private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result, HealthInfo expectedHealthInfo) {
         return new HealthIndicatorService() {
             @Override
             public String name() {
@@ -314,20 +379,12 @@ public class HealthServiceTests extends ESTestCase {
             }
 
             @Override
-            public String component() {
-                return result.component();
-            }
-
-            @Override
-            public String helpURL() {
-                return result.helpURL();
-            }
-
-            @Override
-            public HealthIndicatorResult calculate(boolean explain) {
+            public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
+                if (expectedHealthInfo != null) {
+                    assertThat(healthInfo, equalTo(expectedHealthInfo));
+                }
                 return result;
             }
         };
     }
-
 }

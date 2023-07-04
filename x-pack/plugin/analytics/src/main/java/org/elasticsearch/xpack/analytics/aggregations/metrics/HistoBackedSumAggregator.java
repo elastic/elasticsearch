@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -49,27 +49,21 @@ public class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleVal
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: stop expecting a null here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource() : null;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
-        if (valuesSource != null) {
-            sums = bigArrays().newDoubleArray(1, true);
-            compensations = bigArrays().newDoubleArray(1, true);
-        }
+        sums = bigArrays().newDoubleArray(1, true);
+        compensations = bigArrays().newDoubleArray(1, true);
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-        final HistogramValues values = valuesSource.getHistogramValues(ctx);
-
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
+        final HistogramValues values = valuesSource.getHistogramValues(aggCtx.getLeafReaderContext());
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -96,7 +90,7 @@ public class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleVal
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= sums.size()) {
+        if (owningBucketOrd >= sums.size()) {
             return 0.0;
         }
         return sums.get(owningBucketOrd);
@@ -104,7 +98,7 @@ public class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleVal
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= sums.size()) {
+        if (bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
         return new Sum(name, sums.get(bucket), format, metadata());
@@ -112,7 +106,7 @@ public class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleVal
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new Sum(name, 0.0, format, metadata());
+        return Sum.empty(name, format, metadata());
     }
 
     @Override

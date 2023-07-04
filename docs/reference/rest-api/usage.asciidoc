@@ -328,6 +328,17 @@ GET /_xpack/usage
     "data_streams" : 0,
     "indices_count" : 0
   },
+  "data_lifecycle" : {
+    "available": true,
+    "enabled": true,
+    "count": 0,
+    "default_rollover_used": true,
+    "retention": {
+        "minimum_millis": 0,
+        "maximum_millis": 0,
+        "average_millis": 0.0
+    }
+  },
   "data_tiers" : {
     "available" : true,
     "enabled" : true,
@@ -400,6 +411,23 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true,
     "indices_count" : 0
+  },
+  "health_api" : {
+    "available" : true,
+    "enabled" : true,
+    "invocations": {
+      "total": 0
+    }
+  },
+  "enterprise_search" : {
+    "available": true,
+    "enabled": true,
+    "search_applications" : {
+      "count": 0
+    },
+    "analytics_collections": {
+      "count": 0
+    }
   }
 }
 ------------------------------------------------------------
@@ -408,6 +436,7 @@ GET /_xpack/usage
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]
 // TESTRESPONSE[s/"policy_stats" : \[[^\]]*\]/"policy_stats" : $body.$_path/]
 // TESTRESPONSE[s/"slm" : \{[^\}]*\},/"slm" : $body.$_path,/]
+// TESTRESPONSE[s/"health_api" : \{[^\}]*\}\s*\}/"health_api" : $body.$_path/]
 // TESTRESPONSE[s/ : true/ : $body.$_path/]
 // TESTRESPONSE[s/ : false/ : $body.$_path/]
 // TESTRESPONSE[s/ : (\-)?[0-9]+/ : $body.$_path/]
@@ -419,6 +448,7 @@ GET /_xpack/usage
 // 2. Handling eql, which is disabled by default on release builds and enabled
 //    everywhere else during the initial implementation phase until its release
 // 3. Ignore the contents of the `slm` object because it might contain policies
-// 4. All of the numbers and strings on the right hand side of *every* field in
+// 4. Ignore the contents of the `health_api` object because we do not know if the api has been called or not
+// 5. All of the numbers and strings on the right hand side of *every* field in
 //    the response are ignored. So we're really only asserting things about the
 //    the shape of this response, not the values in it.

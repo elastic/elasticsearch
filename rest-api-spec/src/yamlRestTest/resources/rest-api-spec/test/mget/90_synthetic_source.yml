@@ -1,7 +1,7 @@
 keyword:
   - skip:
-      version: " - 8.2.99"
-      reason: introduced in 8.3.0
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
 
   - do:
       indices.create:
@@ -9,7 +9,7 @@ keyword:
         body:
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -45,3 +45,172 @@ keyword:
   - match:
       docs.1._source:
         kwd: bar
+
+---
+stored text:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              text:
+                type: text
+                store: true
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:
+          text: the quick brown fox
+
+  - do:
+      index:
+        index:   test
+        id:      2
+        body:
+          text: jumped over the lazy dog
+
+  - do:
+      mget:
+        index: test
+        body:
+          ids:    [1, 2]
+  - match: {docs.0._index: "test"}
+  - match: {docs.0._id: "1"}
+  - match:
+      docs.0._source:
+        text: the quick brown fox
+
+  - match: {docs.1._index: "test"}
+  - match: {docs.1._id: "2"}
+  - match:
+      docs.1._source:
+        text: jumped over the lazy dog
+
+---
+force_synthetic_source_ok:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: stored
+            properties:
+              obj:
+                properties:
+                  kwd:
+                    type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:
+          obj.kwd: foo
+
+  - do:
+      index:
+        index:   test
+        id:      2
+        body:
+          obj:
+            kwd: bar
+
+  # When _source is used in the fetch the original _source is perfect
+  - do:
+      mget:
+        index: test
+        body:
+          ids: [1, 2]
+  - match:
+      docs.0._source:
+        obj.kwd: foo
+  - match:
+      docs.1._source:
+        obj:
+          kwd: bar
+
+  # When we force synthetic source dots in field names get turned into objects
+  - do:
+      mget:
+        index: test
+        force_synthetic_source: true
+        body:
+          ids: [ 1, 2 ]
+  - match:
+      docs.0._source:
+        obj:
+          kwd: foo
+  - match:
+      docs.1._source:
+        obj:
+          kwd: bar
+
+---
+force_synthetic_source_bad_mapping:
+  - skip:
+      version: " - 8.4.99"
+      reason: message changed in 8.5
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1 # Use a single shard to get consistent error messages
+          mappings:
+            _source:
+              mode: stored
+            properties:
+              text:
+                type: text
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:
+          text: foo
+
+  - do:
+      index:
+        index:   test
+        id:      2
+        body:
+          text: bar
+
+  # When _source is used in the fetch the original _source is perfect
+  - do:
+      mget:
+        index: test
+        body:
+          ids: [ 1, 2 ]
+  - match:
+      docs.0._source:
+        text: foo
+  - match:
+      docs.1._source:
+        text: bar
+
+  # Forcing synthetic source fails because the mapping is invalid
+  - do:
+      mget:
+        index: test
+        force_synthetic_source: true
+        body:
+          ids: [ 1, 2 ]
+  - match: {docs.0.error.reason: "field [text] of type [text] doesn't support synthetic source unless it is stored or has a sub-field of type [keyword] with doc values or stored and without a normalizer"}
+  - match: {docs.1.error.reason: "field [text] of type [text] doesn't support synthetic source unless it is stored or has a sub-field of type [keyword] with doc values or stored and without a normalizer"}

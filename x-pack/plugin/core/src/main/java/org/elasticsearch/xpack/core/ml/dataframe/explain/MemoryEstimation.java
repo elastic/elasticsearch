@@ -56,8 +56,8 @@ public class MemoryEstimation implements ToXContentObject, Writeable {
     }
 
     public MemoryEstimation(StreamInput in) throws IOException {
-        this.expectedMemoryWithoutDisk = in.readOptionalWriteable(ByteSizeValue::new);
-        this.expectedMemoryWithDisk = in.readOptionalWriteable(ByteSizeValue::new);
+        this.expectedMemoryWithoutDisk = in.readOptionalWriteable(ByteSizeValue::readFrom);
+        this.expectedMemoryWithDisk = in.readOptionalWriteable(ByteSizeValue::readFrom);
     }
 
     public ByteSizeValue getExpectedMemoryWithoutDisk() {

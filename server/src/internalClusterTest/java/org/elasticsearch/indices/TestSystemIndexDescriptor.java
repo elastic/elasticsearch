@@ -54,7 +54,29 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             List.of(),
             List.of(),
             null,
+            false,
             false
+        );
+    }
+
+    TestSystemIndexDescriptor(String name, String primaryName, boolean allowsTemplates) {
+        super(
+            name + "*",
+            primaryName,
+            "Test system index",
+            getOldMappings(),
+            SETTINGS,
+            name,
+            0,
+            "version",
+            "stack",
+            Version.CURRENT.minimumCompatibilityVersion(),
+            Type.INTERNAL_MANAGED,
+            List.of(),
+            List.of(),
+            null,
+            false,
+            allowsTemplates
         );
     }
 

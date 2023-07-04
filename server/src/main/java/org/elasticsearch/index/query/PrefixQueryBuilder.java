@@ -12,7 +12,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -72,7 +72,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         fieldName = in.readString();
         value = in.readString();
         rewrite = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             caseInsensitive = in.readBoolean();
         }
     }
@@ -82,7 +82,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         out.writeString(fieldName);
         out.writeString(value);
         out.writeOptionalString(rewrite);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeBoolean(caseInsensitive);
         }
     }
@@ -186,28 +186,24 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
-        if (context != null) {
-            MappedFieldType fieldType = context.getFieldType(this.fieldName);
-            if (fieldType == null) {
-                return new MatchNoneQueryBuilder();
-            } else if (fieldType instanceof ConstantFieldType) {
-                // This logic is correct for all field types, but by only applying it to constant
-                // fields we also have the guarantee that it doesn't perform I/O, which is important
-                // since rewrites might happen on a network thread.
-                Query query = fieldType.prefixQuery(value, null, caseInsensitive, context); // the rewrite method doesn't matter
-                if (query instanceof MatchAllDocsQuery) {
-                    return new MatchAllQueryBuilder();
-                } else if (query instanceof MatchNoDocsQuery) {
-                    return new MatchNoneQueryBuilder();
-                } else {
-                    assert false : "Constant fields must produce match-all or match-none queries, got " + query;
-                }
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        MappedFieldType fieldType = context.getFieldType(this.fieldName);
+        if (fieldType == null) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+        } else if (fieldType instanceof ConstantFieldType constantFieldType) {
+            // This logic is correct for all field types, but by only applying it to constant
+            // fields we also have the guarantee that it doesn't perform I/O, which is important
+            // since rewrites might happen on a network thread.
+            Query query = constantFieldType.prefixQuery(value, caseInsensitive, context);
+            if (query instanceof MatchAllDocsQuery) {
+                return new MatchAllQueryBuilder();
+            } else if (query instanceof MatchNoDocsQuery) {
+                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+            } else {
+                assert false : "Constant fields must produce match-all or match-none queries, got " + query;
             }
         }
-
-        return super.doRewrite(queryRewriteContext);
+        return this;
     }
 
     @Override
@@ -235,7 +231,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

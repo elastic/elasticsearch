@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -70,16 +71,19 @@ public class TransportKillProcessAction extends TransportTasksAction<
         List<FailedNodeException> failedNodeExceptions
     ) {
         org.elasticsearch.ExceptionsHelper.rethrowAndSuppress(
-            taskOperationFailures.stream()
-                .map(t -> org.elasticsearch.ExceptionsHelper.convertToElastic(t.getCause()))
-                .collect(Collectors.toList())
+            taskOperationFailures.stream().map(ExceptionsHelper::taskOperationFailureToStatusException).collect(Collectors.toList())
         );
         org.elasticsearch.ExceptionsHelper.rethrowAndSuppress(failedNodeExceptions);
         return new KillProcessAction.Response(true);
     }
 
     @Override
-    protected void taskOperation(KillProcessAction.Request request, JobTask jobTask, ActionListener<KillProcessAction.Response> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        KillProcessAction.Request request,
+        JobTask jobTask,
+        ActionListener<KillProcessAction.Response> listener
+    ) {
         logger.info("[{}] Killing job", jobTask.getJobId());
         auditor.info(jobTask.getJobId(), Messages.JOB_AUDIT_KILLING);
         try {

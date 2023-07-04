@@ -8,26 +8,21 @@
 
 package org.elasticsearch.gradle.internal.precommit
 
-import org.elasticsearch.gradle.fixtures.AbstractGradlePrecommitPluginFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
-import org.junit.rules.TemporaryFolder
 import spock.lang.Shared
 import spock.lang.Unroll
 
-class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitPluginFuncTest {
+class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = TestingConventionsPrecommitPlugin.class
 
-    @ClassRule
-    @Shared
-    public TemporaryFolder repoFolder = new TemporaryFolder()
-
     @Shared
     @ClassRule
-    public LocalRepositoryFixture repository = new LocalRepositoryFixture(repoFolder)
+    public LocalRepositoryFixture repository = new LocalRepositoryFixture()
 
     def setupSpec() {
         repository.generateJar('org.apache.lucene', 'tests.util', "1.0",
@@ -79,26 +74,6 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         then:
         result.task(":testTestingConventions").outcome == TaskOutcome.UP_TO_DATE
         result.task(":testingConventions").outcome == TaskOutcome.UP_TO_DATE
-    }
-
-    def "testing convention plugin is configuration cache compatible"() {
-        given:
-        simpleJavaBuild()
-        testClazz("org.acme.valid.SomeTests", "org.apache.lucene.tests.util.LuceneTestCase") {
-            """
-            public void testMe() {
-            }
-            """
-        }
-        when:
-        def result = gradleRunner("precommit", "--configuration-cache").build()
-        then:
-        assertOutputContains(result.getOutput(), "0 problems were found storing the configuration cache.")
-
-        when:
-        result = gradleRunner("precommit", "--configuration-cache").build()
-        then:
-        assertOutputContains(result.getOutput(), "Configuration cache entry reused.")
     }
 
     def "checks base class convention"() {
@@ -199,12 +174,12 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         given:
         clazz(dir('src/yamlRestTest/java'), "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase")
         buildFile << """
-        apply plugin:'elasticsearch.internal-yaml-rest-test'
-        
+        apply plugin:'elasticsearch.legacy-yaml-rest-test'
+
         dependencies {
             yamlRestTestImplementation "org.apache.lucene:tests.util:1.0"
             yamlRestTestImplementation "org.junit:junit:4.42"
-        }    
+        }
         """
 
         clazz(dir("src/yamlRestTest/java"), "org.acme.valid.SomeMatchingIT", "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase") {
@@ -241,11 +216,11 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         buildFile << """
         import org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask
         apply plugin:'$pluginName'
-        
+
         dependencies {
             ${sourceSetName}Implementation "org.apache.lucene:tests.util:1.0"
             ${sourceSetName}Implementation "org.junit:junit:4.42"
-        }    
+        }
         tasks.withType(TestingConventionsCheckTask).configureEach {
             suffix 'IT'
             suffix 'Tests'
@@ -277,19 +252,19 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         )
 
         where:
-        pluginName                              | taskName                                | sourceSetName
-        "elasticsearch.internal-java-rest-test" | ":javaRestTestTestingConventions"       | "javaRestTest"
+        pluginName                              | taskName                                 | sourceSetName
+        "elasticsearch.legacy-java-rest-test"   | ":javaRestTestTestingConventions"        | "javaRestTest"
         "elasticsearch.internal-cluster-test"   | ":internalClusterTestTestingConventions" | "internalClusterTest"
     }
 
     private void simpleJavaBuild() {
         buildFile << """
         apply plugin:'java'
-                
+
         dependencies {
             testImplementation "org.apache.lucene:tests.util:1.0"
             testImplementation "org.junit:junit:4.42"
-        }    
+        }
         """
     }
 }

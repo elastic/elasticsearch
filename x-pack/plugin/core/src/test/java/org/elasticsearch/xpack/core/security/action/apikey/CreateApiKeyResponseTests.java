@@ -56,19 +56,12 @@ public class CreateApiKeyResponseTests extends AbstractXContentTestCase<CreateAp
     public void testEqualsHashCode() {
         CreateApiKeyResponse createApiKeyResponse = createTestInstance();
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            createApiKeyResponse,
-            (original) -> {
-                return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), original.getExpiration());
-            }
-        );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            createApiKeyResponse,
-            (original) -> {
-                return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), original.getExpiration());
-            },
-            CreateApiKeyResponseTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createApiKeyResponse, (original) -> {
+            return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), original.getExpiration());
+        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createApiKeyResponse, (original) -> {
+            return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), original.getExpiration());
+        }, CreateApiKeyResponseTests::mutateTestItem);
     }
 
     private static CreateApiKeyResponse mutateTestItem(CreateApiKeyResponse original) {

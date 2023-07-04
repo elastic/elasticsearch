@@ -6,8 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractorTests;
@@ -49,7 +48,7 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
     }
 
     @Override
-    protected SearchHitCursor mutateInstance(SearchHitCursor instance) throws IOException {
+    protected SearchHitCursor mutateInstance(SearchHitCursor instance) {
         return new SearchHitCursor(
             instance.next(),
             instance.extractors(),
@@ -58,11 +57,6 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
             instance.includeFrozen() == false,
             instance.allowPartialSearchResults() == false
         );
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Cursors.getNamedWriteables());
     }
 
     @Override
@@ -76,7 +70,7 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
     }
 
     @Override
-    protected SearchHitCursor copyInstance(SearchHitCursor instance, Version version) throws IOException {
+    protected SearchHitCursor copyInstance(SearchHitCursor instance, TransportVersion version) throws IOException {
         /* Randomly choose between internal protocol round trip and String based
          * round trips used to toXContent. */
         if (randomBoolean()) {

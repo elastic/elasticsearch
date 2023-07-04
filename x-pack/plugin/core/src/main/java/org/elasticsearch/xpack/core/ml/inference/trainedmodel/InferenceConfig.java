@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
@@ -17,10 +18,20 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
 
     boolean isTargetTypeSupported(TargetType targetType);
 
+    @Override
+    default TransportVersion getMinimalSupportedVersion() {
+        return getMinimalSupportedTransportVersion();
+    }
+
     /**
      * All nodes in the cluster must be at least this version
      */
-    Version getMinimalSupportedVersion();
+    Version getMinimalSupportedNodeVersion();
+
+    /**
+     * All communication in the cluster must use at least this version
+     */
+    TransportVersion getMinimalSupportedTransportVersion();
 
     default boolean requestingImportance() {
         return false;
@@ -29,4 +40,16 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
     String getResultsField();
 
     boolean isAllocateOnly();
+
+    default boolean supportsIngestPipeline() {
+        return true;
+    }
+
+    default boolean supportsPipelineAggregation() {
+        return true;
+    }
+
+    default boolean supportsSearchRescorer() {
+        return false;
+    }
 }

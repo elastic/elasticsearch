@@ -1,5 +1,0 @@
-pr: 84919
-summary: Block joins while applier is busy
-area: Cluster Coordination
-type: enhancement
-issues: []

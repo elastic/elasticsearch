@@ -114,6 +114,107 @@ PUT my-index-000001/_doc/1
 }
 --------------------------------------------------
 
+[NOTE]
+====
+There is a difference between configuring an array of date patterns and
+configuring multiple patterns in a single string separated by `||`. When you
+configure an array of date patterns, the pattern that matches the date in the
+first document with an unmapped date field will determine the mapping of that
+field:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "dynamic_date_formats": [ "yyyy/MM", "MM/dd/yyyy"]
+  }
+}
+
+PUT my-index-000001/_doc/1
+{
+  "create_date": "09/25/2015"
+}
+--------------------------------------------------
+
+The resulting mapping will be:
+
+////
+[source,console]
+----
+GET my-index-000001/_mapping
+----
+//TEST[continued]
+////
+
+[source,console-result]
+--------------------------------------------------
+{
+  "my-index-000001": {
+    "mappings": {
+      "dynamic_date_formats": [
+        "yyyy/MM",
+        "MM/dd/yyyy"
+      ],
+      "properties": {
+        "create_date": {
+          "type": "date",
+          "format": "MM/dd/yyyy"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+Configuring multiple patterns in a single string separated by `||` results in a
+mapping that supports any of the date formats. This enables you to index
+documents that use different formats:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "dynamic_date_formats": [ "yyyy/MM||MM/dd/yyyy"]
+  }
+}
+
+PUT my-index-000001/_doc/1
+{
+  "create_date": "09/25/2015"
+}
+--------------------------------------------------
+
+The resulting mapping will be:
+
+////
+[source,console]
+----
+GET my-index-000001/_mapping
+----
+//TEST[continued]
+////
+
+[source,console-result]
+--------------------------------------------------
+{
+  "my-index-000001": {
+    "mappings": {
+      "dynamic_date_formats": [
+        "yyyy/MM||MM/dd/yyyy"
+      ],
+      "properties": {
+        "create_date": {
+          "type": "date",
+          "format": "yyyy/MM||MM/dd/yyyy"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+====
 
 [[numeric-detection]]
 ==== Numeric detection

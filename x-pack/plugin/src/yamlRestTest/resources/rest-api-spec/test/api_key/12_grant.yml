@@ -27,6 +27,13 @@ setup:
               }
             ]
           }
+  - do:
+      security.put_role:
+        name: "api_key_grant_runas_role"
+        body: >
+          {
+            "run_as": ["api_key_grant_target_user"]
+          }
 
   - do:
       security.put_user:
@@ -47,6 +54,15 @@ setup:
             "roles" : [ "api_key_grant_target_role" ],
             "full_name" : "API key grant target user"
           }
+  - do:
+      security.put_user:
+        username: "api_key_grant_runas_user"
+        body: >
+          {
+            "password" : "x-pack-test-password-3",
+            "roles" : [ "api_key_grant_runas_role" ],
+            "full_name" : "API key grant runas user"
+          }
 
 ---
 teardown:
@@ -61,6 +77,11 @@ teardown:
         ignore: 404
 
   - do:
+      security.delete_role:
+        name: "api_key_grant_runas_role"
+        ignore: 404
+
+  - do:
       security.delete_user:
         username: "api_key_granter"
         ignore: 404
@@ -68,6 +89,11 @@ teardown:
   - do:
       security.delete_user:
         username: "api_key_grant_target_user"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "api_key_grant_runas_user"
         ignore: 404
 
 ---
@@ -213,7 +239,7 @@ teardown:
           }
   - match: { "error.type": "security_exception" }
   - match:
-      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
+      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with effective roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
 
 ---
 "Test grant api key forbidden with manage_own_api_key privilege":
@@ -262,7 +288,7 @@ teardown:
           }
   - match: { "error.type": "security_exception" }
   - match:
-      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
+      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with effective roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
 
   # Can't grant to others
   - do:
@@ -281,10 +307,90 @@ teardown:
           }
   - match: { "error.type": "security_exception" }
   - match:
-      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
+      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with effective roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
 
   - do:
       security.clear_api_key_cache:
         ids: "${api_key_id}"
 
   - match: { _nodes.failed: 0 }
+
+---
+"Test grant api key with password and run_as":
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9ncmFudGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_granter
+      security.grant_api_key:
+        body:  >
+          {
+            "api_key": {
+              "name": "my-api-key-with-password-runas"
+            },
+            "grant_type": "password",
+            "username": "api_key_grant_runas_user",
+            "password": "x-pack-test-password-3",
+            "run_as": "api_key_grant_target_user"
+          }
+  - match: { name: "my-api-key-with-password-runas" }
+  - is_true: id
+  - is_true: api_key
+  - set: { id: api_key_id }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.authenticate: {}
+
+  - match: { username: "api_key_grant_target_user" }
+  - length: { roles: 0 }
+  - match: { authentication_realm.name: "_es_api_key" }
+  - match: { authentication_realm.type: "_es_api_key" }
+  - match: { api_key.id: "${api_key_id}" }
+  - match: { api_key.name: "my-api-key-with-password-runas" }
+
+---
+"Test grant api key with access token and run_as":
+  - do:
+      security.get_token:
+        body:
+          grant_type: "password"
+          username: "api_key_grant_runas_user"
+          password: "x-pack-test-password-3"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: token }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9ncmFudGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_granter
+      security.grant_api_key:
+        body:  >
+          {
+            "api_key": {
+              "name": "my-api-key-with-access-token-runas"
+            },
+            "grant_type": "access_token",
+            "access_token": "$token",
+            "run_as": "api_key_grant_target_user"
+          }
+  - match: { name: "my-api-key-with-access-token-runas" }
+  - is_true: id
+  - is_true: api_key
+  - set: { id: api_key_id }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.authenticate: {}
+
+  - match: { username: "api_key_grant_target_user" }
+  - length: { roles: 0 }
+  - match: { authentication_realm.name: "_es_api_key" }
+  - match: { authentication_realm.type: "_es_api_key" }
+  - match: { api_key.id: "${api_key_id}" }
+  - match: { api_key.name: "my-api-key-with-access-token-runas" }

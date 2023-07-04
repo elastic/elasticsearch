@@ -8,9 +8,9 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier.DataTierSettingValidator;
 import org.elasticsearch.common.Strings;
@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_HOT;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_WARM;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.getPreferredTiersConfiguration;
@@ -120,6 +121,7 @@ public class DataTierTests extends ESTestCase {
         assertThat(getPreferredTiersConfiguration(DATA_HOT), is(DATA_HOT));
         assertThat(getPreferredTiersConfiguration(DATA_WARM), is(DATA_WARM + "," + DATA_HOT));
         assertThat(getPreferredTiersConfiguration(DATA_COLD), is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
+        assertThat(getPreferredTiersConfiguration(DATA_FROZEN), is(DATA_FROZEN));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> getPreferredTiersConfiguration("no_tier"));
         assertThat(exception.getMessage(), is("invalid data tier [no_tier]"));
     }
@@ -137,12 +139,15 @@ public class DataTierTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
+        return DiscoveryNodeUtils.builder("node_" + nodeId).name("name_" + nodeId).attributes(attributes).roles(roles).build();
     }
 
     private static List<DiscoveryNode> randomNodes(final int numNodes) {
         Set<DiscoveryNodeRole> allRoles = new HashSet<>(DiscoveryNodeRole.roles());
         allRoles.remove(DiscoveryNodeRole.DATA_ROLE);
+        // indexing and searching node role are mutually exclusive with data tiers roles
+        allRoles.remove(DiscoveryNodeRole.INDEX_ROLE);
+        allRoles.remove(DiscoveryNodeRole.SEARCH_ROLE);
         List<DiscoveryNode> nodesList = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();

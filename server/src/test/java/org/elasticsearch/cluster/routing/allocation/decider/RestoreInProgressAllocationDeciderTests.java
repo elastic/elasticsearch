@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -27,7 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -35,6 +36,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
@@ -64,7 +66,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
     public void testCannotAllocatePrimaryMissingInRestoreInProgress() {
         ClusterState clusterState = createInitialClusterState();
-        RoutingTable routingTable = RoutingTable.builder(clusterState.getRoutingTable())
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.getRoutingTable())
             .addAsRestore(clusterState.getMetadata().index("test"), createSnapshotRecoverySource("_missing"))
             .build();
 
@@ -90,7 +92,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
         RecoverySource.SnapshotRecoverySource recoverySource = createSnapshotRecoverySource("_existing");
 
         ClusterState clusterState = createInitialClusterState();
-        RoutingTable routingTable = RoutingTable.builder(clusterState.getRoutingTable())
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.getRoutingTable())
             .addAsRestore(clusterState.getMetadata().index("test"), recoverySource)
             .build();
 
@@ -139,8 +141,10 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
         }
 
-        ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shards = ImmutableOpenMap.builder();
-        shards.put(primary.shardId(), new RestoreInProgress.ShardRestoreStatus(clusterState.getNodes().getLocalNodeId(), shardState));
+        Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = Map.of(
+            primary.shardId(),
+            new RestoreInProgress.ShardRestoreStatus(clusterState.getNodes().getLocalNodeId(), shardState)
+        );
 
         Snapshot snapshot = recoverySource.snapshot();
         RestoreInProgress.State restoreState = RestoreInProgress.State.STARTED;
@@ -148,8 +152,9 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             recoverySource.restoreUUID(),
             snapshot,
             restoreState,
+            false,
             singletonList("test"),
-            shards.build()
+            shards
         );
 
         clusterState = ClusterState.builder(clusterState)
@@ -180,7 +185,9 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(newNode("master", Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)))
@@ -224,7 +231,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
         return new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             snapshot,
-            Version.CURRENT,
+            IndexVersion.current(),
             new IndexId("test", UUIDs.randomBase64UUID(random()))
         );
     }

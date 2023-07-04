@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -27,16 +28,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
  * Results of the {@link TopHitsAggregator}.
  */
 public class InternalTopHits extends InternalAggregation implements TopHits {
-    private int from;
-    private int size;
-    private TopDocsAndMaxScore topDocs;
-    private SearchHits searchHits;
+    private final int from;
+    private final int size;
+    private final TopDocsAndMaxScore topDocs;
+    private final SearchHits searchHits;
 
     public InternalTopHits(
         String name,
@@ -180,18 +182,57 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         return true;
     }
 
+    // Supported property prefixes.
+    private static final String SOURCE = "_source";
+    private static final String SORT_VALUE = "_sort";
+    private static final String SCORE = "_score";
+
     @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
-        } else {
-            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
+        if (path.size() != 1) {
+            throw new IllegalArgumentException(
+                "property paths for top_hits ["
+                    + getName()
+                    + "] can only contain a single field in _source, score or sort values, got "
+                    + path
+            );
+        }
+
+        String[] tokens = path.get(0).toLowerCase(Locale.ROOT).split(":|>|\\.");
+        if (searchHits.getHits().length > 1) {
+            throw new IllegalArgumentException("property paths for top_hits [" + getName() + "] require configuring it with size to 1");
+        }
+        SearchHit topHit = searchHits.getAt(0);
+        if (tokens[0].equals(SORT_VALUE)) {
+            Object[] sortValues = topHit.getSortValues();
+            if (sortValues != null) {
+                if (sortValues.length != 1) {
+                    throw new IllegalArgumentException(
+                        "property path for top_hits [\" + getName() + \"] requires a single sort value, got " + sortValues.length
+                    );
+                }
+                return sortValues[0];
+            }
+        } else if (tokens[0].equals(SCORE)) {
+            return topHit.getScore();
+        } else if (tokens[0].equals(SOURCE)) {
+            Map<String, Object> sourceAsMap = topHit.getSourceAsMap();
+            if (sourceAsMap != null) {
+                Object property = sourceAsMap.get(tokens[1]);
+                if (property != null) {
+                    return property;
+                }
+            }
+        }
+        throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        searchHits.toXContent(builder, params);
+        ChunkedToXContent.wrapAsToXContent(searchHits).toXContent(builder, params);
         return builder;
     }
 

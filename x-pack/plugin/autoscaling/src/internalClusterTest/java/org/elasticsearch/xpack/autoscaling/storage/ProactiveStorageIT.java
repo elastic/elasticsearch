@@ -59,7 +59,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     )
                     .toArray(IndexRequestBuilder[]::new)
             );
-            assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dsName, null)).actionGet());
+            assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dsName, null)).actionGet());
         }
         forceMerge();
         refresh();
@@ -67,7 +67,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         // just check it does not throw when not refreshed.
         capacity();
 
-        IndicesStatsResponse stats = client().admin().indices().prepareStats(dsName).clear().setStore(true).get();
+        IndicesStatsResponse stats = indicesAdmin().prepareStats(dsName).clear().setStore(true).get();
         long used = stats.getTotal().getStore().getSizeInBytes();
         long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
         // As long as usage is above low watermark, we will trigger a proactive scale up, since the simulated shards have an in-sync
@@ -90,7 +90,10 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
             response.results().get(policyName).requiredCapacity().total().storage().getBytes(),
             Matchers.greaterThanOrEqualTo(enoughSpace + used)
         );
-        assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
+        assertThat(
+            response.results().get(policyName).requiredCapacity().node().storage().getBytes(),
+            Matchers.equalTo(maxShardSize + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD + LOW_WATERMARK_BYTES)
+        );
 
         // with 0 window, we expect just current.
         putAutoscalingPolicy(
@@ -101,7 +104,10 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
         assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         assertThat(response.results().get(policyName).requiredCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
-        assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
+        assertThat(
+            response.results().get(policyName).requiredCapacity().node().storage().getBytes(),
+            Matchers.equalTo(maxShardSize + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD + LOW_WATERMARK_BYTES)
+        );
     }
 
     private void putAutoscalingPolicy(String policyName, Settings settings) {

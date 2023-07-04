@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -57,10 +56,9 @@ public class EmailService extends NotificationService<Account> {
         (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope)
     );
 
-    private static final Setting<List<String>> SETTING_DOMAIN_ALLOWLIST = Setting.listSetting(
+    private static final Setting<List<String>> SETTING_DOMAIN_ALLOWLIST = Setting.stringListSetting(
         "xpack.notification.email.account.domain_allowlist",
-        Collections.singletonList("*"),
-        String::toString,
+        List.of("*"),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -193,7 +191,7 @@ public class EmailService extends NotificationService<Account> {
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_SEND_PARTIAL, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_WAIT_ON_QUIT, (s, o) -> {}, (s, o) -> {});
         this.allowedDomains = new HashSet<>(SETTING_DOMAIN_ALLOWLIST.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(SETTING_DOMAIN_ALLOWLIST, (s) -> {});
+        clusterSettings.addSettingsUpdateConsumer(SETTING_DOMAIN_ALLOWLIST, this::updateAllowedDomains);
         // do an initial load
         reload(settings);
     }

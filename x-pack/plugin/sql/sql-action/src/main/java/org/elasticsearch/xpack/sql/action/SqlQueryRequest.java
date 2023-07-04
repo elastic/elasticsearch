@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -160,12 +160,12 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         fieldMultiValueLeniency = in.readBoolean();
         indexIncludeFrozen = in.readBoolean();
         binaryCommunication = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
             this.waitForCompletionTimeout = in.readOptionalTimeValue();
             this.keepOnCompletion = in.readBoolean();
             this.keepAlive = in.readOptionalTimeValue();
         }
-        allowPartialSearchResults = in.getVersion().onOrAfter(Version.V_8_3_0) && in.readBoolean();
+        allowPartialSearchResults = in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) && in.readBoolean();
     }
 
     /**
@@ -294,12 +294,12 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         out.writeBoolean(fieldMultiValueLeniency);
         out.writeBoolean(indexIncludeFrozen);
         out.writeOptionalBoolean(binaryCommunication);
-        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
             out.writeOptionalTimeValue(waitForCompletionTimeout);
             out.writeBoolean(keepOnCompletion);
             out.writeOptionalTimeValue(keepAlive);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
             out.writeBoolean(allowPartialSearchResults);
         }
     }
@@ -325,7 +325,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return super.equals(obj)
             && fieldMultiValueLeniency == ((SqlQueryRequest) obj).fieldMultiValueLeniency
             && indexIncludeFrozen == ((SqlQueryRequest) obj).indexIncludeFrozen
-            && binaryCommunication == ((SqlQueryRequest) obj).binaryCommunication
+            && Objects.equals(binaryCommunication, ((SqlQueryRequest) obj).binaryCommunication)
             && keepOnCompletion == ((SqlQueryRequest) obj).keepOnCompletion
             && allowPartialSearchResults == ((SqlQueryRequest) obj).allowPartialSearchResults
             && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor)

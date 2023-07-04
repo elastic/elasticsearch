@@ -9,15 +9,10 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
@@ -30,7 +25,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -117,7 +111,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             randomPrecision(),
             null,
             geoGrid -> { assertEquals(0, geoGrid.getBuckets().size()); },
-            iw -> { iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D))); }
+            iw -> {
+                iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
+            }
         );
     }
 
@@ -214,7 +210,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             gridBuilder.setGeoBoundingBox(bbox);
         }
         aggregationBuilder.subAggregation(gridBuilder);
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             List<IndexableField> fields = new ArrayList<>();
             Set<String> distinctHashesPerDoc = new HashSet<>();
             String t = randomAlphaOfLength(1);
@@ -230,7 +226,6 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                     }
                 }
                 if (supplier.getAsBoolean()) {
-                    fields.add(new SortedSetDocValuesField("t", new BytesRef(t)));
                     fields.add(new Field("t", new BytesRef(t), KeywordFieldMapper.Defaults.FIELD_TYPE));
                     iw.addDocument(fields);
                     fields.clear();
@@ -239,7 +234,6 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 }
             }
             if (fields.size() != 0) {
-                fields.add(new SortedSetDocValuesField("t", new BytesRef(t)));
                 fields.add(new Field("t", new BytesRef(t), KeywordFieldMapper.Defaults.FIELD_TYPE));
                 iw.addDocument(fields);
             }
@@ -254,7 +248,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 actual.put(tb.getKeyAsString(), sub);
             }
             assertThat(actual, equalTo(expectedCountPerTPerGeoHash));
-        }, keywordField("t"), geoPointField(FIELD_NAME));
+        }, new AggTestConfig(aggregationBuilder, keywordField("t"), geoPointField(FIELD_NAME)));
     }
 
     private double[] randomLatLng() {
@@ -324,32 +318,13 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         GeoGridAggregationBuilder aggregationBuilder
     ) throws IOException {
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        buildIndex.accept(indexWriter);
-        indexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
         aggregationBuilder.precision(precision);
         if (geoBoundingBox != null) {
             aggregationBuilder.setGeoBoundingBox(geoBoundingBox);
             assertThat(aggregationBuilder.geoBoundingBox(), equalTo(geoBoundingBox));
         }
-
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType(aggregationBuilder.field());
-
-        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(query, aggregator);
-        aggregator.postCollection();
-        @SuppressWarnings("unchecked")
-        InternalGeoGrid<T> topLevel = (InternalGeoGrid<T>) aggregator.buildTopLevel();
-        verify.accept(topLevel);
-
-        indexReader.close();
-        directory.close();
+        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldType).withQuery(query));
     }
 
     @Override

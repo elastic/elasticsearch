@@ -14,7 +14,6 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -31,7 +30,7 @@ public class SplitProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "127.0.0.1");
         Processor processor = new SplitProcessor(randomAlphaOfLength(10), null, fieldName, "\\.", false, false, fieldName);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(Arrays.asList("127", "0", "0", "1")));
+        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(List.of("127", "0", "0", "1")));
     }
 
     public void testSplitFieldNotFound() throws Exception {
@@ -70,7 +69,7 @@ public class SplitProcessorTests extends ESTestCase {
     }
 
     public void testSplitNonExistentWithIgnoreMissing() throws Exception {
-        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = new SplitProcessor(randomAlphaOfLength(10), null, "field", "\\.", true, false, "field");
         processor.execute(ingestDocument);
@@ -100,15 +99,15 @@ public class SplitProcessorTests extends ESTestCase {
         Processor splitProcessor = (new SplitProcessor.Factory()).create(null, null, null, splitConfig);
         Map<String, Object> source = new HashMap<>();
         source.put("flags", "new|hot|super|fun|interesting");
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(source);
         splitProcessor.execute(ingestDocument);
         @SuppressWarnings("unchecked")
         List<String> flags = (List<String>) ingestDocument.getFieldValue("flags", List.class);
-        assertThat(flags, equalTo(Arrays.asList("new", "hot", "super", "fun", "interesting")));
+        assertThat(flags, equalTo(List.of("new", "hot", "super", "fun", "interesting")));
         ingestDocument.appendFieldValue("flags", "additional_flag");
         assertThat(
             ingestDocument.getFieldValue("flags", List.class),
-            equalTo(Arrays.asList("new", "hot", "super", "fun", "interesting", "additional_flag"))
+            equalTo(List.of("new", "hot", "super", "fun", "interesting", "additional_flag"))
         );
     }
 
@@ -118,15 +117,15 @@ public class SplitProcessorTests extends ESTestCase {
         String targetFieldName = fieldName + randomAlphaOfLength(5);
         Processor processor = new SplitProcessor(randomAlphaOfLength(10), null, fieldName, "\\.", false, false, targetFieldName);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(targetFieldName, List.class), equalTo(Arrays.asList("127", "0", "0", "1")));
+        assertThat(ingestDocument.getFieldValue(targetFieldName, List.class), equalTo(List.of("127", "0", "0", "1")));
     }
 
     public void testSplitWithPreserveTrailing() throws Exception {
-        doTestSplitWithPreserveTrailing(true, "foo|bar|baz||", Arrays.asList("foo", "bar", "baz", "", ""));
+        doTestSplitWithPreserveTrailing(true, "foo|bar|baz||", List.of("foo", "bar", "baz", "", ""));
     }
 
     public void testSplitWithoutPreserveTrailing() throws Exception {
-        doTestSplitWithPreserveTrailing(false, "foo|bar|baz||", Arrays.asList("foo", "bar", "baz"));
+        doTestSplitWithPreserveTrailing(false, "foo|bar|baz||", List.of("foo", "bar", "baz"));
     }
 
     private void doTestSplitWithPreserveTrailing(boolean preserveTrailing, String fieldValue, List<String> expected) throws Exception {

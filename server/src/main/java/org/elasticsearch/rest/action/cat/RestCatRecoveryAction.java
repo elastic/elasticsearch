@@ -127,20 +127,7 @@ public class RestCatRecoveryAction extends AbstractCatAction {
             }
 
             // Sort ascending by shard id for readability
-            CollectionUtil.introSort(shardRecoveryStates, new Comparator<RecoveryState>() {
-                @Override
-                public int compare(RecoveryState o1, RecoveryState o2) {
-                    int id1 = o1.getShardId().id();
-                    int id2 = o2.getShardId().id();
-                    if (id1 < id2) {
-                        return -1;
-                    } else if (id1 > id2) {
-                        return 1;
-                    } else {
-                        return 0;
-                    }
-                }
-            });
+            CollectionUtil.introSort(shardRecoveryStates, Comparator.comparingInt(o -> o.getShardId().id()));
 
             for (RecoveryState state : shardRecoveryStates) {
                 t.startRow();
@@ -171,10 +158,10 @@ public class RestCatRecoveryAction extends AbstractCatAction {
                 t.addCell(state.getIndex().recoveredFileCount());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));
                 t.addCell(state.getIndex().totalFileCount());
-                t.addCell(new ByteSizeValue(state.getIndex().totalRecoverBytes()));
-                t.addCell(new ByteSizeValue(state.getIndex().recoveredBytes()));
+                t.addCell(ByteSizeValue.ofBytes(state.getIndex().totalRecoverBytes()));
+                t.addCell(ByteSizeValue.ofBytes(state.getIndex().recoveredBytes()));
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
-                t.addCell(new ByteSizeValue(state.getIndex().totalBytes()));
+                t.addCell(ByteSizeValue.ofBytes(state.getIndex().totalBytes()));
                 t.addCell(state.getTranslog().totalOperations());
                 t.addCell(state.getTranslog().recoveredOperations());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getTranslog().recoveredPercent()));

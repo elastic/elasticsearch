@@ -7,8 +7,8 @@
  */
 
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 esplugin {
   description 'Module for runtime fields features and extensions that have large dependencies'
@@ -20,4 +20,11 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   api project(':libs:elasticsearch-grok')
   api project(':libs:elasticsearch-dissect')
+}
+
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.skipTest("runtime_fields/100_geo_point/fetch fields from source", "Format changed. Old format was a bug.")
+  task.skipTest("runtime_fields/101_geo_point_from_source/fetch fields from source", "Format changed. Old format was a bug.")
+  task.skipTest("runtime_fields/102_geo_point_source_in_query/fetch fields from source", "Format changed. Old format was a bug.")
+  task.skipTest("runtime_fields/103_geo_point_calculated_at_index/fetch fields from source", "Format changed. Old format was a bug.")
 }

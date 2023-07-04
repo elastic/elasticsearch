@@ -1,5 +1,0 @@
-pr: 86473
-summary: An authorized user can disable a user with same name but different realm
-area: Authentication
-type: bug
-issues: []

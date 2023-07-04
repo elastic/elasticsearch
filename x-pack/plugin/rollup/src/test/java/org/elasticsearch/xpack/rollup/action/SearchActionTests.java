@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -504,7 +505,7 @@ public class SearchActionTests extends ESTestCase {
         );
         RollupJobCaps cap2 = new RollupJobCaps(job2);
 
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
         caps.add(cap2);
 
@@ -564,7 +565,7 @@ public class SearchActionTests extends ESTestCase {
         );
         RollupJobCaps cap2 = new RollupJobCaps(job2);
 
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
         caps.add(cap2);
 

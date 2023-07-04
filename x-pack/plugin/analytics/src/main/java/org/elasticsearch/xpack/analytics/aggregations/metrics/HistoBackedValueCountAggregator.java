@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -44,20 +44,14 @@ public class HistoBackedValueCountAggregator extends NumericMetricsAggregator.Si
         Map<String, Object> metadata
     ) throws IOException {
         super(name, aggregationContext, parent, metadata);
-        // TODO: stop using nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource() : null;
-        if (valuesSource != null) {
-            counts = bigArrays().newLongArray(1, true);
-        }
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource();
+        counts = bigArrays().newLongArray(1, true);
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-
-        final HistogramValues values = valuesSource.getHistogramValues(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
+        final HistogramValues values = valuesSource.getHistogramValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -74,12 +68,12 @@ public class HistoBackedValueCountAggregator extends NumericMetricsAggregator.Si
 
     @Override
     public double metric(long owningBucketOrd) {
-        return (valuesSource == null || owningBucketOrd >= counts.size()) ? 0 : counts.get(owningBucketOrd);
+        return owningBucketOrd >= counts.size() ? 0 : counts.get(owningBucketOrd);
     }
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= counts.size()) {
+        if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
         return new InternalValueCount(name, counts.get(bucket), metadata());
@@ -87,7 +81,7 @@ public class HistoBackedValueCountAggregator extends NumericMetricsAggregator.Si
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0L, metadata());
+        return InternalValueCount.empty(name, metadata());
     }
 
     @Override

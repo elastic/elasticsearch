@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -30,8 +31,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -49,6 +50,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -95,7 +97,6 @@ import org.elasticsearch.xpack.ccr.rest.RestResumeFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowAction;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -183,7 +184,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry namedWriteableRegistry,
         final IndexNameExpressionResolver expressionResolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         this.client = client;
         if (enabled == false) {
@@ -242,15 +246,12 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 DeleteInternalCcrRepositoryAction.INSTANCE,
                 DeleteInternalCcrRepositoryAction.TransportDeleteInternalRepositoryAction.class
             ),
-            new ActionHandler<>(PutCcrRestoreSessionAction.INSTANCE, PutCcrRestoreSessionAction.TransportPutCcrRestoreSessionAction.class),
-            new ActionHandler<>(
-                ClearCcrRestoreSessionAction.INSTANCE,
-                ClearCcrRestoreSessionAction.TransportDeleteCcrRestoreSessionAction.class
-            ),
-            new ActionHandler<>(
-                GetCcrRestoreFileChunkAction.INSTANCE,
-                GetCcrRestoreFileChunkAction.TransportGetCcrRestoreFileChunkAction.class
-            ),
+            new ActionHandler<>(PutCcrRestoreSessionAction.INTERNAL_INSTANCE, PutCcrRestoreSessionAction.InternalTransportAction.class),
+            new ActionHandler<>(PutCcrRestoreSessionAction.INSTANCE, PutCcrRestoreSessionAction.TransportAction.class),
+            new ActionHandler<>(ClearCcrRestoreSessionAction.INTERNAL_INSTANCE, ClearCcrRestoreSessionAction.InternalTransportAction.class),
+            new ActionHandler<>(ClearCcrRestoreSessionAction.INSTANCE, ClearCcrRestoreSessionAction.TransportAction.class),
+            new ActionHandler<>(GetCcrRestoreFileChunkAction.INTERNAL_INSTANCE, GetCcrRestoreFileChunkAction.InternalTransportAction.class),
+            new ActionHandler<>(GetCcrRestoreFileChunkAction.INSTANCE, GetCcrRestoreFileChunkAction.TransportAction.class),
             // stats action
             new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
             new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
@@ -402,10 +403,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         if (enabled) {
             indexModule.addIndexEventListener(this.restoreSourceService.get());
         }
-    }
-
-    protected XPackLicenseState getLicenseState() {
-        return XPackPlugin.getSharedLicenseState();
     }
 
     @Override

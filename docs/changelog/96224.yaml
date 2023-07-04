@@ -1,0 +1,14 @@
+pr: 96224
+summary: Add multiple queries for ranking to the search endpoint
+area: Ranking
+type: enhancement
+issues: []
+highlight:
+  title: Add multiple queries for ranking to the search endpoint
+  body: "The search endpoint adds a new top-level element called `sub_searches`. \
+  This top-level element is a list of searches used for ranking where each \
+  \"sub search\" is executed independently. The `sub_searches` element is \
+  used instead of `query` to allow a search using ranking to execute \
+  multiple queries. The `sub_searches` and `query` elements cannot be used \
+  together."
+  notable: true

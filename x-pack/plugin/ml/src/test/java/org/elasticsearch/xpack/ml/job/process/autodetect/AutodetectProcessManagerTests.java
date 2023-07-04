@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -160,7 +161,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
-            if (invocationOnMock.getArguments()[0]instanceof ActionType<?> v) {
+            if (invocationOnMock.getArguments()[0] instanceof ActionType<?> v) {
                 ActionListener<?> l = (ActionListener<?>) invocationOnMock.getArguments()[2];
                 ParameterizedType parameterizedType = (ParameterizedType) v.getClass().getGenericSuperclass();
                 Type t = parameterizedType.getActualTypeArguments()[0];
@@ -186,13 +187,11 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobResultsProvider = mock(JobResultsProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkPersisterBuilder = mock(JobResultsPersister.Builder.class);
-        when(bulkPersisterBuilder.shouldRetry(any())).thenReturn(bulkPersisterBuilder);
-        when(jobResultsPersister.bulkPersisterBuilder(any())).thenReturn(bulkPersisterBuilder);
+        when(jobResultsPersister.bulkPersisterBuilder(any(), any())).thenReturn(bulkPersisterBuilder);
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         annotationPersister = mock(AnnotationPersister.class);
         AnnotationPersister.Builder bulkAnnotationsBuilder = mock(AnnotationPersister.Builder.class);
-        when(bulkAnnotationsBuilder.shouldRetry(any())).thenReturn(bulkAnnotationsBuilder);
-        when(annotationPersister.bulkPersisterBuilder(any())).thenReturn(bulkAnnotationsBuilder);
+        when(annotationPersister.bulkPersisterBuilder(any(), any())).thenReturn(bulkAnnotationsBuilder);
         autodetectCommunicator = mock(AutodetectCommunicator.class);
         autodetectFactory = mock(AutodetectProcessFactory.class);
         normalizerFactory = mock(NormalizerFactory.class);
@@ -420,6 +419,38 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals(1, manager.numberOfOpenJobs());
         manager.closeJob(jobTask, null);
         assertEquals(0, manager.numberOfOpenJobs());
+        verify(autodetectCommunicator).setVacating(false);
+    }
+
+    public void testVacate() {
+        ExecutorService executorService = mock(ExecutorService.class);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(executorService).execute(any(Runnable.class));
+        when(threadPool.executor(anyString())).thenReturn(executorService);
+        AutodetectProcessManager manager = createSpyManager();
+        assertEquals(0, manager.numberOfOpenJobs());
+
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        when(jobTask.triggerVacate()).thenReturn(true);
+        manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
+        manager.processData(
+            jobTask,
+            analysisRegistry,
+            createInputStream(""),
+            randomFrom(XContentType.values()),
+            mock(DataLoadParams.class),
+            (dataCounts1, e) -> {}
+        );
+
+        // job is created
+        assertEquals(1, manager.numberOfOpenJobs());
+        when(jobTask.isVacating()).thenReturn(true);
+        manager.vacateOpenJobsOnThisNode();
+        assertEquals(0, manager.numberOfOpenJobs());
+        verify(autodetectCommunicator).setVacating(true);
     }
 
     public void testCanCloseClosingJob() throws Exception {
@@ -545,7 +576,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         );
 
         FlushJobParams params = FlushJobParams.builder().build();
-        manager.flushJob(jobTask, params, ActionListener.wrap(flushAcknowledgement -> {}, e -> fail(e.getMessage())));
+        manager.flushJob(jobTask, params, ActionTestUtils.assertNoFailureListener(flushAcknowledgement -> {}));
 
         verify(autodetectCommunicator).flushJob(same(params), any());
     }

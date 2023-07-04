@@ -1,19 +1,13 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.rest-resources'
-
-final Project fixture = project(':test:fixtures:azure-fixture')
 
 dependencies {
+  clusterModules project(xpackModule('searchable-snapshots'))
+  clusterModules project(':modules:repository-azure')
+  clusterModules project(':modules:lang-painless')
   javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
-}
-
-restResources {
-  restApi {
-    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots'
-  }
+  javaRestTestImplementation(project(':test:fixtures:azure-fixture'))
 }
 
 boolean useFixture = false
@@ -30,50 +24,16 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
   azureBasePath = ''
   azureSasToken = ''
   useFixture = true
-
-}
-
-if (useFixture) {
-  apply plugin: 'elasticsearch.test.fixtures'
-  testFixtures.useFixture(fixture.path, 'azure-fixture-other')
 }
 
 tasks.named("javaRestTest").configure {
   systemProperty 'test.azure.container', azureContainer
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount
+  systemProperty 'test.azure.container', azureContainer
+  systemProperty 'test.azure.key', azureKey
+  systemProperty 'test.azure.sas_token', azureSasToken
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
-}
-
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-
-  keystore 'azure.client.searchable_snapshots.account', azureAccount
-  if (azureKey != null && azureKey.isEmpty() == false) {
-    keystore 'azure.client.searchable_snapshots.key', azureKey
-  }
-  if (azureSasToken != null && azureSasToken.isEmpty() == false) {
-    keystore 'azure.client.searchable_snapshots.sas_token', azureSasToken
-  }
-
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'false'
-
-  if (useFixture) {
-    def fixtureAddress = { fixtureName ->
-      assert useFixture: 'closure should not be used without a fixture'
-      int ephemeralPort =  fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.8091"
-      assert ephemeralPort > 0
-      '127.0.0.1:' + ephemeralPort
-    }
-    setting 'azure.client.searchable_snapshots.endpoint_suffix',
-      { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-other')}/azure_integration_test_account" }, IGNORE_VALUE
-
-  } else {
-    println "Using an external service to test " + project.name
-  }
-
-  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
-  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
-  setting 'xpack.searchable_snapshots.cache_fetch_async_thread_pool.keep_alive', '0ms'
 }
 
 tasks.register("azureThirdPartyTest") {

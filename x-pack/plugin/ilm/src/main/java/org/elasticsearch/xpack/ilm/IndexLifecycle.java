@@ -15,9 +15,9 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -28,16 +28,18 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -47,16 +49,17 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.DownsampleAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
-import org.elasticsearch.xpack.core.ilm.RollupILMAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -83,6 +86,7 @@ import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.StartSLMAction;
 import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
+import org.elasticsearch.xpack.ilm.action.ReservedLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestGetLifecycleAction;
@@ -114,6 +118,7 @@ import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
 import org.elasticsearch.xpack.slm.SnapshotRetentionService;
 import org.elasticsearch.xpack.slm.SnapshotRetentionTask;
+import org.elasticsearch.xpack.slm.action.ReservedSnapshotAction;
 import org.elasticsearch.xpack.slm.action.RestDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotRetentionAction;
@@ -140,7 +145,6 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -158,6 +162,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
     private final SetOnce<IlmHealthIndicatorService> ilmHealthIndicatorService = new SetOnce<>();
     private final SetOnce<SlmHealthIndicatorService> slmHealthIndicatorService = new SetOnce<>();
+    private final SetOnce<ReservedLifecycleAction> reservedLifecycleAction = new SetOnce<>();
     private final Settings settings;
 
     public IndexLifecycle(Settings settings) {
@@ -174,17 +179,20 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         return Arrays.asList(
             LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING,
             LifecycleSettings.LIFECYCLE_NAME_SETTING,
-            LifecycleSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
-            LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
             LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
             LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING,
             LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING,
+            LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
             LifecycleSettings.SLM_RETENTION_DURATION_SETTING,
-            LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING
+            LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING,
+            LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING,
+            IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING,
+            IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING,
+            IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING
         );
     }
 
@@ -204,7 +212,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         final List<Object> components = new ArrayList<>();
         ILMHistoryTemplateRegistry ilmTemplateRegistry = new ILMHistoryTemplateRegistry(
@@ -265,14 +276,20 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         );
         snapshotRetentionService.get().init(clusterService);
         components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
-        ilmHealthIndicatorService.set(new IlmHealthIndicatorService(clusterService));
+        ilmHealthIndicatorService.set(
+            new IlmHealthIndicatorService(
+                clusterService,
+                new IlmHealthIndicatorService.StagnatingIndicesFinder(
+                    clusterService,
+                    IlmHealthIndicatorService.RULES_BY_ACTION_CONFIG.values(),
+                    System::currentTimeMillis
+                )
+            )
+        );
         slmHealthIndicatorService.set(new SlmHealthIndicatorService(clusterService));
-        return components;
-    }
+        reservedLifecycleAction.set(new ReservedLifecycleAction(xContentRegistry, client, XPackPlugin.getSharedLicenseState()));
 
-    @Override
-    public List<Entry> getNamedWriteables() {
-        return Collections.emptyList();
+        return components;
     }
 
     @Override
@@ -281,56 +298,53 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     }
 
     private static List<NamedXContentRegistry.Entry> xContentEntries() {
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(
-            Arrays.asList(
-                // Custom Metadata
-                new NamedXContentRegistry.Entry(
-                    Metadata.Custom.class,
-                    new ParseField(IndexLifecycleMetadata.TYPE),
-                    parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)
-                ),
-                new NamedXContentRegistry.Entry(
-                    Metadata.Custom.class,
-                    new ParseField(SnapshotLifecycleMetadata.TYPE),
-                    parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)
-                ),
-                // Lifecycle Types
-                new NamedXContentRegistry.Entry(
-                    LifecycleType.class,
-                    new ParseField(TimeseriesLifecycleType.TYPE),
-                    (p, c) -> TimeseriesLifecycleType.INSTANCE
-                ),
-                // Lifecycle Actions
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
-                new NamedXContentRegistry.Entry(
-                    LifecycleAction.class,
-                    new ParseField(WaitForSnapshotAction.NAME),
-                    WaitForSnapshotAction::parse
-                ),
-                new NamedXContentRegistry.Entry(
-                    LifecycleAction.class,
-                    new ParseField(SearchableSnapshotAction.NAME),
-                    SearchableSnapshotAction::parse
-                ),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME), MigrateAction::parse)
-            )
+        return Arrays.asList(
+            // Custom Metadata
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(IndexLifecycleMetadata.TYPE),
+                parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)
+            ),
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(SnapshotLifecycleMetadata.TYPE),
+                parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)
+            ),
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(LifecycleOperationMetadata.TYPE),
+                parser -> LifecycleOperationMetadata.PARSER.parse(parser, null)
+            ),
+            // Lifecycle Types
+            new NamedXContentRegistry.Entry(
+                LifecycleType.class,
+                new ParseField(TimeseriesLifecycleType.TYPE),
+                (p, c) -> TimeseriesLifecycleType.INSTANCE
+            ),
+            // Lifecycle Actions
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
+            new NamedXContentRegistry.Entry(
+                LifecycleAction.class,
+                new ParseField(WaitForSnapshotAction.NAME),
+                WaitForSnapshotAction::parse
+            ),
+            new NamedXContentRegistry.Entry(
+                LifecycleAction.class,
+                new ParseField(SearchableSnapshotAction.NAME),
+                SearchableSnapshotAction::parse
+            ),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME), MigrateAction::parse),
+            // TSDB Downsampling
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DownsampleAction.NAME), DownsampleAction::parse)
         );
-
-        // TSDB Downsampling / Rollup
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            entries.add(
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RollupILMAction.NAME), RollupILMAction::parse)
-            );
-        }
-        return List.copyOf(entries);
     }
 
     @Override
@@ -415,6 +429,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             )
         );
         return actions;
+    }
+
+    List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
+        return List.of(reservedLifecycleAction.get(), new ReservedSnapshotAction());
     }
 
     @Override

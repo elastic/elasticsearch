@@ -11,12 +11,14 @@ package org.elasticsearch.indices;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,7 +27,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,8 +40,7 @@ import java.util.Set;
  * <p>Any index name that matches a descriptor’s index pattern belongs to the descriptor. For example, if a descriptor had a pattern of
  * {@code ".example-index-*"}, then indices named {@code ".example-index-1"}, {@code ".example-index-reindex"}, and {@code
  * ".example-index-old"} would all belong to the descriptor. If a node gains a new system index descriptor after an upgrade, then matching
- * indices will automatically be marked as system indices (see
- * {@link org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService}).
+ * indices will automatically be marked as system indices (see {@link SystemIndexMetadataUpgradeService}).
  *
  * <p>SystemIndexDescriptor index patterns must begin with a "{@code .}" character. Index patterns also have a "gotcha": the pattern
  * definitions may look like the standard Elasticsearch multi-target syntax but the underlying implementation is different. Index
@@ -82,6 +82,9 @@ import java.util.Set;
  * behavior when creating a non-primary index is a little strange. A request to create a non-primary index with the Create Index
  * API will fail. (See <a href="https://github.com/elastic/elasticsearch/pull/86707">PR #86707</a>) However, auto-creating the index by
  * writing a document to it will succeed. (See <a href="https://github.com/elastic/elasticsearch/pull/77045">PR #77045</a>)
+ *
+ * <p>The mappings for managed system indices are automatically upgraded when all nodes in the cluster are compatible with the
+ * descriptor's mappings. See {@link SystemIndexMappingUpdateService} for details.
  *
  * <p>We hope to remove the currently deprecated forms of access to system indices in a future release. A newly added system index with
  * no backwards-compatibility requirements may opt into our desired behavior by setting isNetNew to true. A "net new system index"
@@ -162,68 +165,16 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     private final boolean isNetNew;
 
     /**
+     * We typically don't want to apply user defined templates on system indices, since they may have unexpected
+     * behaviour when upgrading Elasticsearch versions. Currently, only the .kibana_ indices use templates, so we
+     * are making this property by default as false.
+     */
+    private final boolean allowsTemplates;
+
+    /**
      * The thread pools that actions will use to operate on this descriptor's system indices
      */
     private final ExecutorNames executorNames;
-
-    /**
-     * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
-     * by Elasticsearch internally.
-     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
-     *                     overlap with any other descriptor patterns, and must allow a suffix (see note on
-     *                     {@link SystemIndexDescriptor#indexPattern} for details).
-     * @param description The name of the plugin responsible for this system index.
-     */
-    public SystemIndexDescriptor(String indexPattern, String description) {
-        this(
-            indexPattern,
-            null,
-            description,
-            null,
-            null,
-            null,
-            0,
-            null,
-            null,
-            Version.CURRENT.minimumCompatibilityVersion(),
-            Type.INTERNAL_UNMANAGED,
-            List.of(),
-            List.of(),
-            null,
-            false
-        );
-    }
-
-    /**
-     * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
-     * by Elasticsearch internally.
-     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
-     *                            overlap with any other descriptor patterns, and must allow a suffix (see note on
-     *                            {@link SystemIndexDescriptor#indexPattern} for details).
-     * @param description The name of the plugin responsible for this system index.
-     * @param type The {@link Type} of system index
-     * @param allowedElasticProductOrigins A list of allowed origin values that should be allowed access in the case of external system
-     *                                     indices
-     */
-    public SystemIndexDescriptor(String indexPattern, String description, Type type, List<String> allowedElasticProductOrigins) {
-        this(
-            indexPattern,
-            null,
-            description,
-            null,
-            null,
-            null,
-            0,
-            null,
-            null,
-            Version.CURRENT.minimumCompatibilityVersion(),
-            type,
-            allowedElasticProductOrigins,
-            List.of(),
-            null,
-            false
-        );
-    }
 
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will be managed
@@ -248,8 +199,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      *                                     indices
      * @param priorSystemIndexDescriptors A list of system index descriptors that describe the same index in a way that is compatible with
      *                                    older versions of Elasticsearch
+     * @param allowsTemplates if this system index descriptor allows templates to affect its settings (e.g. .kibana_ indices)
      */
-    SystemIndexDescriptor(
+    protected SystemIndexDescriptor(
         String indexPattern,
         String primaryIndex,
         String description,
@@ -264,7 +216,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         List<String> allowedElasticProductOrigins,
         List<SystemIndexDescriptor> priorSystemIndexDescriptors,
         ExecutorNames executorNames,
-        boolean isNetNew
+        boolean isNetNew,
+        boolean allowsTemplates
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -339,7 +292,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             // 3. Prior system index descriptors may not have other prior system index descriptors
             // to avoid multiple branches that need followed
             // 4. Must have same indexPattern, primaryIndex, and alias
-            Set<Version> versions = new HashSet<>(priorSystemIndexDescriptors.size() + 1);
+            Set<Version> versions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
             versions.add(minimumNodeVersion);
             for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
                 if (versions.add(prior.minimumNodeVersion) == false) {
@@ -421,6 +374,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         this.priorSystemIndexDescriptors = sortedPriorSystemIndexDescriptors;
         this.executorNames = Objects.nonNull(executorNames) ? executorNames : ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS;
         this.isNetNew = isNetNew;
+        this.allowsTemplates = allowsTemplates;
     }
 
     /**
@@ -548,6 +502,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return isNetNew;
     }
 
+    public boolean allowsTemplates() {
+        return allowsTemplates;
+    }
+
     public Version getMappingVersion() {
         if (isAutomaticallyManaged() == false) {
             throw new IllegalStateException(this + " is not managed so there are no mappings or version");
@@ -673,6 +631,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = List.of();
         private ExecutorNames executorNames;
         private boolean isNetNew = false;
+        private boolean allowsTemplates = false;
 
         private Builder() {}
 
@@ -764,12 +723,16 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
+        public Builder setAllowsTemplates() {
+            this.allowsTemplates = true;
+            return this;
+        }
+
         /**
          * Builds a {@link SystemIndexDescriptor} using the fields supplied to this builder.
          * @return a populated descriptor.
          */
         public SystemIndexDescriptor build() {
-
             return new SystemIndexDescriptor(
                 indexPattern,
                 primaryIndex,
@@ -785,7 +748,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 allowedElasticProductOrigins,
                 priorSystemIndexDescriptors,
                 executorNames,
-                isNetNew
+                isNetNew,
+                allowsTemplates
             );
         }
     }

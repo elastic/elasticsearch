@@ -1,8 +1,9 @@
 [[misc-cluster-settings]]
-==== Miscellaneous cluster settings
+=== Miscellaneous cluster settings
 
+[discrete]
 [[cluster-read-only]]
-===== Metadata
+==== Metadata
 
 An entire cluster may be set to read-only with the following setting:
 
@@ -21,9 +22,9 @@ WARNING: Don't rely on this setting to prevent changes to your cluster. Any
 user with access to the <<cluster-update-settings,cluster-update-settings>>
 API can make the cluster read-write again.
 
-
+[discrete]
 [[cluster-shard-limit]]
-===== Cluster shard limit
+==== Cluster shard limit
 
 There is a soft limit on the number of shards in a cluster, based on the number
 of nodes in the cluster. This is intended to prevent operations which may
@@ -84,7 +85,7 @@ Notice that frozen shards have their own independent limit.
 Limits the total number of primary and replica frozen shards for the cluster.
 {es} calculates the limit as follows:
 
-`cluster.max_shards_per_node * number of frozen data nodes`
+`cluster.max_shards_per_node.frozen * number of frozen data nodes`
 
 Shards for closed indices do not count toward this limit. Defaults to `3000`.
 A cluster with no frozen data nodes is unlimited.
@@ -101,8 +102,9 @@ number of shards for each node, use the
 setting.
 --
 
+[discrete]
 [[user-defined-data]]
-===== User-defined cluster metadata
+==== User-defined cluster metadata
 
 User-defined metadata can be stored and retrieved using the Cluster Settings API.
 This can be used to store arbitrary, infrequently-changing data about the cluster
@@ -127,8 +129,9 @@ metadata will be viewable by anyone with access to the
 <<cluster-get-settings,Cluster Get Settings>> API, and is recorded in the
 {es} logs.
 
+[discrete]
 [[cluster-max-tombstones]]
-===== Index tombstones
+==== Index tombstones
 
 The cluster state maintains index tombstones to explicitly denote indices that
 have been deleted. The number of tombstones maintained in the cluster state is
@@ -148,8 +151,9 @@ include::{es-repo-dir}/indices/dangling-indices-list.asciidoc[tag=dangling-index
 You can use the <<dangling-indices-api,Dangling indices API>> to manage
 this situation.
 
+[discrete]
 [[cluster-logger]]
-===== Logger
+==== Logger
 
 The settings which control logging can be updated <<dynamic-cluster-setting,dynamically>> with the
 `logger.` prefix. For instance, to increase the logging level of the
@@ -165,9 +169,9 @@ PUT /_cluster/settings
 }
 -------------------------------
 
-
+[discrete]
 [[persistent-tasks-allocation]]
-===== Persistent tasks allocation
+==== Persistent tasks allocation
 
 Plugins can create a kind of tasks called persistent tasks. Those tasks are
 usually long-lived tasks and are stored in the cluster state, allowing the

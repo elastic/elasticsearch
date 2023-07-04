@@ -6,27 +6,22 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import org.apache.directory.api.util.Strings;
-import org.elasticsearch.Version;
+import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -70,7 +65,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@SuppressWarnings("removal")
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     @Override
@@ -117,7 +111,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
         OAuth2Token response = createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         final String accessToken = response.accessToken();
         final String refreshToken = response.getRefreshToken();
@@ -129,24 +122,42 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.errors(), empty());
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
-            SearchResponse searchResponse = restClient.search(
-                new SearchRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).source(
-                    SearchSourceBuilder.searchSource().size(1).terminateAfter(1).query(QueryBuilders.termQuery("doc_type", "token"))
-                ),
-                SECURITY_REQUEST_OPTIONS
-            );
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-            docId.set(searchResponse.getHits().getAt(0).getId());
+            Request searchRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_search");
+            searchRequest.setOptions(SECURITY_REQUEST_OPTIONS);
+            searchRequest.setJsonEntity("""
+                {
+                    "query" : {
+                        "term" : {
+                            "doc_type" : "token"
+                        }
+                    },
+                    "terminate_after" : 1,
+                    "size" : 1
+                }
+                """);
+            Response searchResponse = getRestClient().performRequest(searchRequest);
+            ObjectPath path = ObjectPath.createFromResponse(searchResponse);
+            assertThat(path.evaluate("hits.total.value"), equalTo(1));
+            final List<Map<String, ?>> hits = path.evaluate("hits.hits");
+            final String id = ObjectPath.evaluate(hits.get(0), "_id");
+            assertThat(id, notNullValue());
+            docId.set(id);
         });
 
         // hack doc to modify the creation time to the day before
         Instant yesterday = created.minus(36L, ChronoUnit.HOURS);
         assertTrue(Instant.now().isAfter(yesterday));
-        restClient.update(
-            new UpdateRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS, docId.get()).doc("creation_time", yesterday.toEpochMilli())
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
-            SECURITY_REQUEST_OPTIONS
-        );
+        Request updateRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_update/" + docId.get());
+        updateRequest.addParameter("refresh", WriteRequest.RefreshPolicy.IMMEDIATE.getValue());
+        updateRequest.setOptions(SECURITY_REQUEST_OPTIONS);
+        updateRequest.setJsonEntity(Strings.format("""
+            {
+              "doc": {
+                "creation_time": %s
+              }
+            }
+            """, yesterday.toEpochMilli()));
+        getRestClient().performRequest(updateRequest);
 
         AtomicBoolean deleteTriggered = new AtomicBoolean(false);
         assertBusy(() -> {
@@ -159,29 +170,46 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             }
             Request refreshRequest = new Request("POST", "/" + SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_refresh");
             refreshRequest.setOptions(SECURITY_REQUEST_OPTIONS);
-            restClient.getLowLevelClient().performRequest(refreshRequest);
-            SearchResponse searchResponse = restClient.search(
-                new SearchRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).source(
-                    SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "token")).terminateAfter(1)
-                ),
-                SECURITY_REQUEST_OPTIONS
-            );
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+            getRestClient().performRequest(refreshRequest);
+
+            Request searchRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_search");
+            searchRequest.setOptions(SECURITY_REQUEST_OPTIONS);
+            searchRequest.setJsonEntity("""
+                {
+                    "query" : {
+                        "term" : {
+                            "doc_type" : "token"
+                        }
+                    },
+                    "terminate_after" : 1,
+                    "size" : 1
+                }
+                """);
+            Response searchResponse = getRestClient().performRequest(searchRequest);
+            assertThat(ObjectPath.createFromResponse(searchResponse).evaluate("hits.total.value"), equalTo(0));
         }, 30, TimeUnit.SECONDS);
+
+        // Weird testing behaviour ahead...
+        // In a multi node cluster, invalidating by access token (get) or refresh token (search) can both,
+        // in a small % of cases, find a document that has been deleted but not yet refreshed
+        // in that node's shard.
+        // Our assertion, therefore, is that an attempt to invalidate the token must not actually invalidate
+        // anything (concurrency controls must prevent that), nor may return any errors,
+        // but it might _temporarily_ find an "already deleted" token.
 
         // Now the documents are deleted, try to invalidate the access token and refresh token again
         TokenInvalidation invalidateAccessTokenResponse = invalidateAccessToken(accessToken);
         assertThat(invalidateAccessTokenResponse.invalidated(), equalTo(0));
         assertThat(invalidateAccessTokenResponse.previouslyInvalidated(), equalTo(0));
-        assertThat(invalidateAccessTokenResponse.errors(), empty());
 
-        // Weird testing behaviour ahead...
-        // invalidating by access token (above) is a Get, but invalidating by refresh token (below) is a Search
-        // In a multi node cluster, in a small % of cases, the search might find a document that has been deleted but not yet refreshed
-        // in that node's shard.
-        // Our assertion, therefore, is that an attempt to invalidate the refresh token must not actually invalidate
-        // anything (concurrency controls must prevent that), nor may return any errors,
-        // but it might _temporarily_ find an "already deleted" token.
+        // 99% of the time, this will already be empty, but if not ensure it goes to empty within the allowed timeframe
+        if (false == invalidateAccessTokenResponse.errors().isEmpty()) {
+            assertBusy(() -> {
+                var newResponse = invalidateAccessToken(accessToken);
+                assertThat(newResponse.errors(), empty());
+            });
+        }
+
         TokenInvalidation invalidateRefreshTokenResponse = invalidateRefreshToken(refreshToken);
         assertThat(invalidateRefreshTokenResponse.invalidated(), equalTo(0));
         assertThat(invalidateRefreshTokenResponse.previouslyInvalidated(), equalTo(0));
@@ -281,7 +309,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     public void testInvalidateNotValidAccessTokens() throws Exception {
         // Perform a request to invalidate a token, before the tokens index is created
-        ResponseException e = expectThrows(ResponseException.class, () -> invalidateAccessToken(generateAccessToken(Version.CURRENT)));
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> invalidateAccessToken(generateAccessToken(TransportVersion.current()))
+        );
         assertThat(e.getResponse(), hasStatusCode(RestStatus.BAD_REQUEST));
         // Create a token to trigger index creation
         createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
@@ -295,14 +326,14 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
 
-        invalidateResponse = invalidateAccessToken(generateInvalidShortAccessToken(Version.CURRENT));
+        invalidateResponse = invalidateAccessToken(generateInvalidShortAccessToken(TransportVersion.current()));
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
 
         // Generate a token that could be a valid token string for the version we are on, and should decode fine, but is not found in our
         // tokens index
-        invalidateResponse = invalidateAccessToken(generateAccessToken(Version.CURRENT));
+        invalidateResponse = invalidateAccessToken(generateAccessToken(TransportVersion.current()));
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
@@ -312,7 +343,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // Perform a request to invalidate a refresh token, before the tokens index is created
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> invalidateRefreshToken(TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID()))
+            () -> invalidateRefreshToken(
+                TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), UUIDs.randomBase64UUID())
+            )
         );
         assertThat(e.getResponse(), hasStatusCode(RestStatus.BAD_REQUEST));
         // Create a token to trigger index creation
@@ -328,7 +361,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.errors(), empty());
 
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, randomAlphaOfLength(32))
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), randomAlphaOfLength(32))
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -337,7 +370,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // Generate a token that could be a valid token string for the version we are on, and should decode fine, but is not found in our
         // tokens index
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID())
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), UUIDs.randomBase64UUID())
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -374,7 +407,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     public void testRefreshingMultipleTimesFails() throws Exception {
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
         OAuth2Token createTokenResponse = createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         assertNotNull(createTokenResponse.getRefreshToken());
 
@@ -383,37 +415,53 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // We now have two documents, the original(now refreshed) token doc and the new one with the new access doc
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
-            SearchResponse searchResponse = restClient.search(
-                new SearchRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).source(
-                    SearchSourceBuilder.searchSource()
-                        .query(
-                            QueryBuilders.boolQuery()
-                                .must(QueryBuilders.termQuery("doc_type", TokenService.TOKEN_DOC_TYPE))
-                                .must(QueryBuilders.termQuery("refresh_token.refreshed", "true"))
-                        )
-                        .size(1)
-                        .terminateAfter(1)
-                ),
-                SECURITY_REQUEST_OPTIONS
-            );
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-            docId.set(searchResponse.getHits().getAt(0).getId());
+            Request searchRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_search");
+            searchRequest.setOptions(SECURITY_REQUEST_OPTIONS);
+            searchRequest.setJsonEntity("""
+                {
+                    "query" : {
+                        "bool" : {
+                            "must" : [
+                              {"term" : { "doc_type" : "token" }},
+                              {"term" : { "refresh_token.refreshed" : "true" }}
+                            ]
+                        }
+                    },
+                    "terminate_after" : 1,
+                    "size" : 1
+                }
+                """);
+            Response searchResponse = getRestClient().performRequest(searchRequest);
+            ObjectPath path = ObjectPath.createFromResponse(searchResponse);
+            assertThat(path.evaluate("hits.total.value"), equalTo(1));
+            final List<Map<String, ?>> hits = path.evaluate("hits.hits");
+            final String id = ObjectPath.evaluate(hits.get(0), "_id");
+            assertThat(id, notNullValue());
+            docId.set(id);
         });
 
         // hack doc to modify the refresh time to 50 seconds ago so that we don't hit the lenient refresh case
         Instant refreshed = Instant.now();
         Instant aWhileAgo = refreshed.minus(50L, ChronoUnit.SECONDS);
         assertTrue(Instant.now().isAfter(aWhileAgo));
-        UpdateResponse updateResponse = restClient.update(
-            new UpdateRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS, docId.get()).doc(
-                "refresh_token",
-                Collections.singletonMap("refresh_time", aWhileAgo.toEpochMilli())
-            ).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).fetchSource("refresh_token", Strings.EMPTY_STRING),
-            SECURITY_REQUEST_OPTIONS
-        );
+
+        Request updateRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_update/" + docId.get());
+        updateRequest.addParameter("refresh", WriteRequest.RefreshPolicy.IMMEDIATE.getValue());
+        updateRequest.setOptions(SECURITY_REQUEST_OPTIONS);
+        updateRequest.setJsonEntity(Strings.format("""
+            {
+              "doc": {
+                "refresh_token": {
+                    "refresh_time" : %s
+                }
+              }
+            }
+            """, aWhileAgo.toEpochMilli()));
+        updateRequest.addParameter("_source_includes", "refresh_token");
+        Response updateResponse = getRestClient().performRequest(updateRequest);
         assertNotNull(updateResponse);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> refreshTokenMap = (Map<String, Object>) updateResponse.getGetResult().sourceAsMap().get("refresh_token");
+
+        Map<String, Object> refreshTokenMap = ObjectPath.createFromResponse(updateResponse).evaluate("get._source.refresh_token");
         assertTrue(Instant.ofEpochMilli((long) refreshTokenMap.get("refresh_time")).isBefore(Instant.now().minus(30L, ChronoUnit.SECONDS)));
         ResponseException e = expectThrows(ResponseException.class, () -> refreshToken(createTokenResponse.getRefreshToken()));
         assertThat(e, throwableWithMessage(containsString("invalid_grant")));
@@ -585,9 +633,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // Now attempt to authenticate with an invalid access token string
         assertUnauthorizedToken(randomAlphaOfLengthBetween(0, 128));
         // Now attempt to authenticate with an invalid access token with valid structure (pre 7.2)
-        assertUnauthorizedToken(generateAccessToken(Version.V_7_1_0));
+        assertUnauthorizedToken(generateAccessToken(TransportVersion.V_7_1_0));
         // Now attempt to authenticate with an invalid access token with valid structure (after 7.2)
-        assertUnauthorizedToken(generateAccessToken(Version.V_7_4_0));
+        assertUnauthorizedToken(generateAccessToken(TransportVersion.V_7_4_0));
     }
 
     @Before
@@ -605,7 +653,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     public void testMetadataIsNotSentToClient() {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().setCustoms(true).get();
         assertFalse(clusterStateResponse.getState().customs().containsKey(TokenMetadata.TYPE));
     }
 
@@ -632,11 +680,11 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(ObjectPath.evaluate(authenticateMap, "authentication_realm.name"), equalTo("file"));
         assertThat(ObjectPath.evaluate(authenticateMap, "authentication_type"), is("token"));
 
-        final TokenInvalidation tokenInvalidation = getSecurityClient().invalidateTokens("""
+        final TokenInvalidation tokenInvalidation = getSecurityClient().invalidateTokens(Strings.format("""
             {
               "realm_name":"%s",
               "username":"%s"
-            }""".formatted("index", nativeTokenUsername));
+            }""", "index", nativeTokenUsername));
         assertThat(tokenInvalidation.invalidated(), equalTo(1));
 
         // Create a token with password grant and run-as user (native realm)
@@ -700,13 +748,13 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         return super.getSecurityClient(options).invalidateRefreshToken(refreshToken);
     }
 
-    private String generateAccessToken(Version version) throws Exception {
+    private String generateAccessToken(TransportVersion version) throws Exception {
         TokenService tokenService = internalCluster().getInstance(TokenService.class);
         String accessTokenString = UUIDs.randomBase64UUID();
         return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
     }
 
-    private String generateInvalidShortAccessToken(Version version) throws Exception {
+    private String generateInvalidShortAccessToken(TransportVersion version) throws Exception {
         TokenService tokenService = internalCluster().getInstance(TokenService.class);
         String accessTokenString = randomAlphaOfLength(32); // UUIDs are 36
         return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);

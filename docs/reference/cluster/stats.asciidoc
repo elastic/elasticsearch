@@ -285,6 +285,26 @@ shards assigned to selected nodes.
 (integer)
 Total number of evictions from the field data cache across all shards assigned
 to selected nodes.
+
+`global_ordinals.build_time`::
+(<<time-units,time unit>>)
+The total time spent building global ordinals for all fields.
+
+`global_ordinals.build_time_in_millis`::
+(integer)
+The total time, in milliseconds, spent building global ordinals for all fields.
+
+`global_ordinals.fields.[field-name].build_time`::
+(<<time-units,time unit>>)
+The total time spent building global ordinals for field with specified name.
+
+`global_ordinals.fields.[field-name].build_time_in_millis`::
+(integer)
+The total time, in milliseconds, spent building global ordinals for field with specified name.
+
+`global_ordinals.fields.[field-name].shard_max_value_count`::
+(long)
+The total time spent building global ordinals for field with specified name.
 =====
 
 `query_cache`::
@@ -822,6 +842,38 @@ Occurrences of the built-in analyzer in selected nodes.
 Number of indices using the built-in analyzer in selected nodes.
 ======
 =====
+
+`search`::
+(object)
+Contains usage statistics about search requests submitted to selected nodes
+that acted as coordinator during the search execution. Search requests are
+tracked when they are successfully parsed, regardless of their results:
+requests that yield errors after parsing contribute to the usage stats, as
+well as requests that don't access any data.
+
++
+.Properties of `search` objects
+[%collapsible%open]
+=====
+`total`::
+(integer)
+Total number of incoming search requests. Search requests that don't specify a
+request body are not counted.
+
+`queries`::
+(object)
+Query types used in selected nodes. For each query, name and number of times
+it's been used within the `query` or `post_filter` section is reported. Queries
+are counted once per search request, meaning that if the same query type is used
+multiple times in the same search request, its counter will be incremented by 1
+rather than by the number of times it's been used in that individual search request.
+
+`sections`::
+(object)
+Search sections used in selected nodes. For each section, name and number of times
+it's been used is reported.
+
+=====
 ====
 
 [[cluster-stats-api-response-body-nodes]]
@@ -1242,7 +1294,7 @@ Number of selected nodes using the HTTP type.
 
 `discovery_types`::
 (object)
-Contains statistics about the <<modules-discovery-hosts-providers,discovery
+Contains statistics about the <<discovery-hosts-providers,discovery
 types>> used by selected nodes.
 +
 .Properties of `discovery_types`
@@ -1250,7 +1302,7 @@ types>> used by selected nodes.
 =====
 `<discovery_type>`::
 (integer)
-Number of selected nodes using the <<modules-discovery-hosts-providers,discovery
+Number of selected nodes using the <<discovery-hosts-providers,discovery
 type>> to find other nodes.
 =====
 
@@ -1274,6 +1326,148 @@ File type, such as `tar` or `zip`, used for the distribution package.
 Number of selected nodes using the distribution flavor and file type.
 =====
 ====
+
+`snapshots`::
+(object)
+Contains statistics about the <<snapshot-restore,snapshot>> activity in the cluster.
++
+.Properties of `snapshots`
+[%collapsible%open]
+=====
+
+`current_counts`:::
+(object)
+Contains statistics which report the numbers of various ongoing snapshot activities in the cluster.
++
+.Properties of `current_counts`
+[%collapsible%open]
+======
+`snapshots`:::
+(integer)
+The total number of snapshots and clones currently being created by the cluster.
+
+`shard_snapshots`:::
+(integer)
+The total number of outstanding shard snapshots in the cluster.
+
+`snapshot_deletions`:::
+(integer)
+The total number of snapshot deletion operations that the cluster is currently
+running.
+
+`concurrent_operations`:::
+(integer)
+The total number of snapshot operations that the cluster is currently running
+concurrently. This is the total of the `snapshots` and `snapshot_deletions`
+entries, and is limited by <<snapshot-max-concurrent-ops,the
+`snapshot.max_concurrent_operations` setting>>.
+
+`cleanups`:::
+(integer)
+The total number of repository cleanup operations that the cluster is currently
+running. These operations do not count towards the total number of concurrent
+operations.
+======
+
+
+`repositories`:::
+(object)
+Contains statistics which report the progress of snapshot activities broken down
+by repository. This object contains one entry for each repository registered
+with the cluster.
++
+.Properties of `repositories`
+[%collapsible%open]
+======
+
+`current_counts`:::
+(object)
+Contains statistics which report the numbers of various ongoing snapshot
+activities for this repository.
++
+.Properties of `current_counts`
+[%collapsible%open]
+=======
+`snapshots`:::
+(integer)
+The total number of ongoing snapshots in this repository.
+
+`clones`:::
+(integer)
+The total number of ongoing snapshot clones in this repository.
+
+`finalizations`:::
+(integer)
+The total number of this repository's ongoing snapshots and clone operations
+which are mostly complete except for their last "finalization" step.
+
+`deletions`:::
+(integer)
+The total number of ongoing snapshot deletion operations in this repository.
+
+`snapshot_deletions`:::
+(integer)
+The total number of snapshots that are currently being deleted from this
+repository.
+
+`active_deletions`:::
+(integer)
+The total number of ongoing snapshot deletion operations which are currently
+active in this repository. Snapshot deletions do not run concurrently with other
+snapshot operations, so this may be `0` if any pending deletes are waiting for
+other operations to finish.
+
+`shards`:::
+(object)
+Contains statistics which report the shard-level progress of ongoing snapshot
+activities for a repository. Note that these statistics relate only to ongoing
+snapshots.
++
+.Properties of `shards`
+[%collapsible%open]
+========
+
+`total`:::
+(integer)
+The total number of shard snapshots currently tracked by this repository. This
+statistic only counts shards in ongoing snapshots, so it will drop when a
+snapshot completes and will be `0` if there are no ongoing snapshots.
+
+`complete`:::
+(integer)
+The total number of tracked shard snapshots which have completed in this
+repository. This statistic only counts shards in ongoing snapshots, so it will
+drop when a snapshot completes and will be `0` if there are no ongoing
+snapshots.
+
+`incomplete`:::
+(integer)
+The total number of tracked shard snapshots which have not completed in this
+repository. This is the difference between the `total` and `complete` values.
+
+`states`:::
+(object)
+The total number of shard snapshots in each of the named states in this
+repository. These states are an implementation detail of the snapshotting
+process which may change between versions. They are included here for expert
+users, but should otherwise be ignored.
+
+========
+
+=======
+
+`oldest_start_time`:::
+(string)
+The start time of the oldest running snapshot in this repository.
+
+`oldest_start_time_in_millis`:::
+(integer)
+The start time of the oldest running snapshot in this repository, represented as
+milliseconds since the Unix epoch.
+
+======
+
+=====
 
 [[cluster-stats-api-example]]
 ==== {api-examples-title}
@@ -1334,10 +1528,17 @@ The API returns the following response:
          "reserved": "0b",
          "reserved_in_bytes": 0
       },
+      "search": {
+          ...
+      },
       "fielddata": {
          "memory_size": "0b",
          "memory_size_in_bytes": 0,
-         "evictions": 0
+         "evictions": 0,
+         "global_ordinals": {
+            "build_time" : "0s",
+            "build_time_in_millis" : 0
+         }
       },
       "query_cache": {
          "memory_size": "0b",
@@ -1552,6 +1753,9 @@ The API returns the following response:
           ...
         }
       ]
+   },
+   "snapshots": {
+     ...
    }
 }
 --------------------------------------------------
@@ -1561,8 +1765,10 @@ The API returns the following response:
 // TESTRESPONSE[s/"processor_stats": \{[^\}]*\}/"processor_stats": $body.$_path/]
 // TESTRESPONSE[s/"count": \{[^\}]*\}/"count": $body.$_path/]
 // TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
+// TESTRESPONSE[s/"snapshots": \{[^\}]*\}/"snapshots": $body.$_path/]
 // TESTRESPONSE[s/"field_types": \[[^\]]*\]/"field_types": $body.$_path/]
 // TESTRESPONSE[s/"runtime_field_types": \[[^\]]*\]/"runtime_field_types": $body.$_path/]
+// TESTRESPONSE[s/"search": \{[^\}]*\}/"search": $body.$_path/]
 // TESTRESPONSE[s/: true|false/: $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
@@ -1570,8 +1776,8 @@ The API returns the following response:
 // 1. Ignore the contents of the `plugins` object because we don't know all of
 //    the plugins that will be in it. And because we figure folks don't need to
 //    see an exhaustive list anyway.
-// 2. Similarly, ignore the contents of `network_types`, `discovery_types`, and
-//    `packaging_types`.
+// 2. Similarly, ignore the contents of `network_types`, `discovery_types`,
+//    `packaging_types` and `snapshots`.
 // 3. Ignore the contents of the (nodes) count object, as what's shown here
 //    depends on the license. Voting-only nodes are e.g. only shown when this
 //    test runs with a basic license.

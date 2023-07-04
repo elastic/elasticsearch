@@ -6,8 +6,8 @@
 
 The terms enum API can be used to discover terms in the index that match
 a partial string. Supported field types are <<keyword-field-type,`keyword`>>,
-<<constant-keyword-field-type,`constant_keyword`>> and 
-<<flattened,`flattened`>>. This is used for auto-complete:
+<<constant-keyword-field-type,`constant_keyword`>>, <<flattened,`flattened`>>,
+<<version, `version`>> and <<ip, `ip`>>. This is used for auto-complete:
 
 [source,console]
 --------------------------------------------------
@@ -40,6 +40,11 @@ The API returns the following response:
 If the `complete` flag is `false`, the returned `terms` set may be incomplete
 and should be treated as approximate. This can occur due to a few reasons, such
 as a request timeout or a node error.
+
+NOTE: The terms enum API may return terms from deleted documents. Deleted
+documents are initially only marked as deleted. It is not until their segments
+are <<index-modules-merge,merged>> that documents are actually deleted. Until
+that happens, the terms enum API will return terms from these documents.
 
 [[search-terms-enum-api-request]]
 ==== {api-request-title}

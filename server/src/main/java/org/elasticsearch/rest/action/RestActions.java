@@ -11,7 +11,7 @@ package org.elasticsearch.rest.action;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.ParsingException;
@@ -36,7 +36,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 public class RestActions {
 
@@ -63,7 +63,8 @@ public class RestActions {
         return (version == Versions.MATCH_ANY) ? defaultVersion : version;
     }
 
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BroadcastResponse response) throws IOException {
+    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BaseBroadcastResponse response)
+        throws IOException {
         buildBroadcastShardsHeader(
             builder,
             params,
@@ -230,14 +231,6 @@ public class RestActions {
         return queryBuilder;
     }
 
-    public static QueryBuilder getQueryContent(XContentParser requestParser) {
-        return parseTopLevelQueryBuilder("query", requestParser);
-    }
-
-    public static QueryBuilder getQueryContent(String fieldName, XContentParser requestParser) {
-        return parseTopLevelQueryBuilder(fieldName, requestParser);
-    }
-
     /**
      * {@code NodesResponseRestBuilderListener} automatically translates any {@link BaseNodesResponse} (multi-node) response that is
      * {@link ToXContent}-compatible into a {@link RestResponse} with the necessary header info (e.g., "cluster_name").
@@ -268,7 +261,7 @@ public class RestActions {
     /**
      * Parses a top level query including the query element that wraps it
      */
-    private static QueryBuilder parseTopLevelQueryBuilder(String fieldName, XContentParser parser) {
+    public static QueryBuilder getQueryContent(XContentParser parser) {
         try {
             QueryBuilder queryBuilder = null;
             XContentParser.Token first = parser.nextToken();
@@ -284,8 +277,8 @@ public class RestActions {
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String currentName = parser.currentName();
-                    if (fieldName.equals(currentName)) {
-                        queryBuilder = parseInnerQueryBuilder(parser);
+                    if ("query".equals(currentName)) {
+                        queryBuilder = parseTopLevelQuery(parser);
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }

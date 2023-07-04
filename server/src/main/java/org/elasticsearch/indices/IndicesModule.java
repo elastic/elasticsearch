@@ -14,6 +14,11 @@ import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MinAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MinDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MinSizeCondition;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -56,6 +61,8 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
@@ -92,6 +99,11 @@ public class IndicesModule extends AbstractModule {
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
+            new NamedWriteableRegistry.Entry(Condition.class, MinAgeCondition.NAME, MinAgeCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MinDocsCondition.NAME, MinDocsCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MinSizeCondition.NAME, MinSizeCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MinPrimaryShardSizeCondition.NAME, MinPrimaryShardSizeCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MinPrimaryShardDocsCondition.NAME, MinPrimaryShardDocsCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new),
@@ -102,6 +114,31 @@ public class IndicesModule extends AbstractModule {
 
     public static List<NamedXContentRegistry.Entry> getNamedXContents() {
         return Arrays.asList(
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MinAgeCondition.NAME),
+                (p, c) -> MinAgeCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MinDocsCondition.NAME),
+                (p, c) -> MinDocsCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MinSizeCondition.NAME),
+                (p, c) -> MinSizeCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MinPrimaryShardSizeCondition.NAME),
+                (p, c) -> MinPrimaryShardSizeCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MinPrimaryShardDocsCondition.NAME),
+                (p, c) -> MinPrimaryShardDocsCondition.fromXContent(p)
+            ),
             new NamedXContentRegistry.Entry(
                 Condition.class,
                 new ParseField(MaxAgeCondition.NAME),
@@ -157,6 +194,9 @@ public class IndicesModule extends AbstractModule {
         mappers.put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
         mappers.put(NestedObjectMapper.CONTENT_TYPE, new NestedObjectMapper.TypeParser());
         mappers.put(TextFieldMapper.CONTENT_TYPE, TextFieldMapper.PARSER);
+
+        mappers.put(DenseVectorFieldMapper.CONTENT_TYPE, DenseVectorFieldMapper.PARSER);
+        mappers.put(SparseVectorFieldMapper.CONTENT_TYPE, SparseVectorFieldMapper.PARSER);
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {

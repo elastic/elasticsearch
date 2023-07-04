@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.emptyString;
 /**
  * A base test case for cli tools.
  */
+@ESTestCase.WithoutSecurityManager
 public abstract class CommandTestCase extends ESTestCase {
 
     /** The terminal that execute uses */
@@ -41,12 +42,27 @@ public abstract class CommandTestCase extends ESTestCase {
     /** The ES config dir */
     protected Path configDir;
 
+    /** Whether to include a whitespace in the file-system path. */
+    private final boolean spaceInPath;
+
+    protected CommandTestCase() {
+        this(false);
+    }
+
+    protected CommandTestCase(boolean spaceInPath) {
+        this.spaceInPath = spaceInPath;
+    }
+
     @Before
     public void resetTerminal() throws IOException {
         terminal.reset();
         terminal.setSupportsBinary(false);
         terminal.setVerbosity(Terminal.Verbosity.NORMAL);
-        esHomeDir = createTempDir();
+        if (spaceInPath) {
+            esHomeDir = createTempDir("a b"); // contains a whitespace
+        } else {
+            esHomeDir = createTempDir();
+        }
         configDir = esHomeDir.resolve("config");
         Files.createDirectory(configDir);
         sysprops.clear();

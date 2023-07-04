@@ -23,6 +23,7 @@ dependencies {
   testImplementation project(xpackModule('ilm'))
   testImplementation project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':modules:mapper-extras')
 }
 
 tasks.named("dependencyLicenses").configure {

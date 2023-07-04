@@ -32,6 +32,11 @@ public class StDistanceProcessorTests extends AbstractWireSerializingTestCase<St
         );
     }
 
+    @Override
+    protected StDistanceProcessor mutateInstance(StDistanceProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Processor constantPoint(double lon, double lat) {
         return new ChainingProcessor(new ConstantProcessor("point (" + lon + " " + lat + ")"), StWkttosqlProcessor.INSTANCE);
     }

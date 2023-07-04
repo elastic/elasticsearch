@@ -249,6 +249,69 @@ public class HasherTests extends ESTestCase {
         assertThat(Hasher.resolveFromHash("notavalidhashformat".toCharArray()), sameInstance(Hasher.NOOP));
     }
 
+    public void testPbkdf2ArbitrarySaltAndKeyLengths() {
+        // In FIPS 140 mode, passwords for PBKDF2 need to be at least 14 chars (112 bits)
+        assumeFalse("This should not run in FIPS mode", inFipsJvm());
+
+        // PBKDF2withHMACSHA512, 16 byte salt, 512 bits key
+        check(
+            "{PBKDF2}10000$"
+                + "NUG78+T6yahKzMHPgTbFmw==$"
+                + "Ohp+ZCG936Q+w1XTquEz5SmQmDUJVv5ZxilRaDPpHFRzHNDMjeFl8btefZd/0yNtfQPwpfhe5DSDFlPP9WMxEQ==",
+            "passw0rd",
+            true
+        );
+        check(
+            "{PBKDF2}10000$"
+                + "NUG78+T6yahKzMHPgTbFmw==$"
+                + "Ohp+ZCG936Q+w1XTquEz5SmQmDUJVv5ZxilRaDPpHFRzHNDMjeFl8btefZd/0yNtfQPwpfhe5DSDFlPP9WMxEQ==",
+            "admin",
+            false
+        );
+        check(
+            "{PBKDF2}100000$"
+                + "V+G8sM59pOTQ77ElFvIvbQ==$"
+                + "alomPA4LKmmu5d/y8BZI1fb5SnxxI6ClTFqe6vH3JJaz3cxrWfki5EO6Wy5eLuNr2BAdMVN0jnHGdsZzS+k+vw==",
+            "ginger",
+            true
+        );
+
+        // PBKDF2withHMACSHA512, 8 byte salt, 128 bits key
+        check("{PBKDF2}10000$vT/GxENkGSc=$4/b2cEHvSeAqzEoTM+RAYA==", "s3cr3t", true);
+
+        // PBKDF2withHMACSHA512, 64 byte salt, 512 bits key
+        check(
+            "{PBKDF2}1000$"
+                + "yJ1Mdnp6AEQfWKNdo6jw6BTy1KpxsthgaOHWQGhYWrzw826GZjX9vRN6h/4jRM750WWVhju2hxAZwP7yPzYdtA==$"
+                + "U1PnM55HWq6VKk/G0EpmTZJIRAfNMVpi78/cOc0I2qEGs68Ozg1Am4frXnSpb5lbundzkLxl+cg7MmAvM14JSQ==",
+            "somelongpasswordwith$peci@lch\u00E4rs!",
+            true
+        );
+
+        // PBKDF2withHMACSHA512, 32 byte salt, 256 bits key
+        check(
+            "{PBKDF2}50000$bjxn3/UGdT7zNtCVfgRp0REhPvLkIv4PZm9fullIQxc=$wuSFQZeOxifopubSzKbIE2xAGdxJlEcUVlqvjFU1TTI=",
+            "Tr0ub4dor&3",
+            true
+        );
+
+        // 12345 iterations are not supported
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            check("{PBKDF2}12345$Rvr0LPiggps=$qBVD7TdDG3mgnLI5yZuR2g==", "s3cr3t", true);
+        });
+        assertThat(e.getMessage(), containsString("unknown hash function [pbkdf2_12345]"));
+
+        // salt smaller than 8 bytes is not supported
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class, () -> {
+            check("{PBKDF2}10000$erwUfw==$Pv/wuOn49EH5nY88LOtY2g==", "s3cr3t", true);
+        });
+        assertThat(ee.getMessage(), containsString("PBKDF2 salt must be at least [8 bytes] long"));
+
+        // derived key length is not multiple of 128 bits
+        ee = expectThrows(ElasticsearchException.class, () -> { check("{PBKDF2}10000$0jtIBOnhz7Q=$njOn++ANoMAXn0gi", "s3cr3t", true); });
+        assertThat(ee.getMessage(), containsString("PBKDF2 key length must be positive and multiple of [128 bits]"));
+    }
+
     public void testPbkdf2WithShortPasswordThrowsInFips() {
         assumeTrue("This should run only in FIPS mode", inFipsJvm());
         SecureString passwd = new SecureString(randomAlphaOfLength(between(6, 13)).toCharArray());

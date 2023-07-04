@@ -19,14 +19,23 @@ import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.function.Function;
 
 public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
 
-    SynonymGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, env, name, settings);
+    SynonymGraphTokenFilterFactory(
+        IndexSettings indexSettings,
+        Environment env,
+        String name,
+        Settings settings,
+        SynonymsManagementAPIService synonymsManagementAPIService,
+        ThreadPool threadPool
+    ) {
+        super(indexSettings, env, name, settings, synonymsManagementAPIService, threadPool);
     }
 
     @Override
@@ -42,7 +51,8 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         Function<String, TokenFilterFactory> allFilters
     ) {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
-        final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
+        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment);
+        final SynonymMap synonyms = buildSynonyms(analyzer, rulesFromSettings);
         final String name = name();
         return new TokenFilterFactory() {
             @Override
@@ -58,6 +68,11 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
             @Override
             public AnalysisMode getAnalysisMode() {
                 return analysisMode;
+            }
+
+            @Override
+            public String getResourceName() {
+                return rulesFromSettings.resource();
             }
         };
     }

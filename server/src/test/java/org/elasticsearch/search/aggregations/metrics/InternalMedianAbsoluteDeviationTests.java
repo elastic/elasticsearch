@@ -24,7 +24,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
 
     @Override
     protected InternalMedianAbsoluteDeviation createTestInstance(String name, Map<String, Object> metadata) {
-        final TDigestState valuesSketch = new TDigestState(randomDoubleBetween(20, 1000, true));
+        final TDigestState valuesSketch = TDigestState.create(randomDoubleBetween(20, 1000, true));
         final int numberOfValues = frequently() ? randomIntBetween(0, 1000) : 0;
         for (int i = 0; i < numberOfValues; i++) {
             valuesSketch.add(randomDouble());
@@ -35,7 +35,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
 
     @Override
     protected void assertReduced(InternalMedianAbsoluteDeviation reduced, List<InternalMedianAbsoluteDeviation> inputs) {
-        final TDigestState expectedValuesSketch = new TDigestState(reduced.getValuesSketch().compression());
+        final TDigestState expectedValuesSketch = TDigestState.createUsingParamsFrom(reduced.getValuesSketch());
 
         long totalCount = 0;
         for (InternalMedianAbsoluteDeviation input : inputs) {
@@ -73,7 +73,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
     }
 
     @Override
-    protected InternalMedianAbsoluteDeviation mutateInstance(InternalMedianAbsoluteDeviation instance) throws IOException {
+    protected InternalMedianAbsoluteDeviation mutateInstance(InternalMedianAbsoluteDeviation instance) {
         String name = instance.getName();
         TDigestState valuesSketch = instance.getValuesSketch();
         Map<String, Object> metadata = instance.getMetadata();
@@ -81,7 +81,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
         switch (between(0, 2)) {
             case 0 -> name += randomAlphaOfLengthBetween(2, 10);
             case 1 -> {
-                final TDigestState newValuesSketch = new TDigestState(instance.getValuesSketch().compression());
+                final TDigestState newValuesSketch = TDigestState.createUsingParamsFrom(instance.getValuesSketch());
                 final int numberOfValues = between(10, 100);
                 for (int i = 0; i < numberOfValues; i++) {
                     newValuesSketch.add(randomDouble());

@@ -35,6 +35,11 @@
         "type":"boolean",
         "description":"Should this request wait until the operation has completed before returning",
         "default":true
+      },
+      "delete_user_annotations":{
+        "type":"boolean",
+        "description":"Should annotations added by the user be deleted",
+        "default":false
       }
     }
   }

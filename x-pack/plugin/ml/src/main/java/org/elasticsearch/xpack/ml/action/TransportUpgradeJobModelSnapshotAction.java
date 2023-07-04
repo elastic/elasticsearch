@@ -228,6 +228,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         // Get the job config to verify it exists
         jobConfigProvider.getJob(
             request.getJobId(),
+            null,
             ActionListener.wrap(builder -> getJobHandler.onResponse(builder.build()), listener::onFailure)
         );
     }

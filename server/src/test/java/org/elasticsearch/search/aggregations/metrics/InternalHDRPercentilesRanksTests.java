@@ -30,9 +30,13 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
         boolean keyed,
         DocValueFormat format,
         double[] percents,
-        double[] values
+        double[] values,
+        boolean empty
     ) {
 
+        if (empty) {
+            return new InternalHDRPercentileRanks(name, percents, null, keyed, format, metadata);
+        }
         final DoubleHistogram state = new DoubleHistogram(3);
         Arrays.stream(values).forEach(state::recordValue);
 

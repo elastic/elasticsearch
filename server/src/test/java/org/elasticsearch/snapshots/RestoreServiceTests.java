@@ -8,10 +8,8 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -21,6 +19,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -33,7 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -122,16 +121,14 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     public void testRefreshRepositoryUuidsDoesNothingIfDisabled() {
-        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
-        RestoreService.refreshRepositoryUuids(false, repositoriesService, listener);
-        assertTrue(listener.isDone());
+        final AtomicBoolean called = new AtomicBoolean();
+        RestoreService.refreshRepositoryUuids(false, repositoriesService, () -> assertTrue(called.compareAndSet(false, true)));
+        assertTrue(called.get());
         verifyNoMoreInteractions(repositoriesService);
     }
 
-    public void testRefreshRepositoryUuidsRefreshesAsNeeded() throws Exception {
-        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
-
+    public void testRefreshRepositoryUuidsRefreshesAsNeeded() {
         final int repositoryCount = between(1, 5);
         final Map<String, Repository> repositories = Maps.newMapWithExpectedSize(repositoryCount);
         final Set<String> pendingRefreshes = new HashSet<>();
@@ -177,8 +174,9 @@ public class RestoreServiceTests extends ESTestCase {
 
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
         when(repositoriesService.getRepositories()).thenReturn(repositories);
-        RestoreService.refreshRepositoryUuids(true, repositoriesService, listener);
-        assertNull(listener.get(0L, TimeUnit.SECONDS));
+        final AtomicBoolean completed = new AtomicBoolean();
+        RestoreService.refreshRepositoryUuids(true, repositoriesService, () -> assertTrue(completed.compareAndSet(false, true)));
+        assertTrue(completed.get());
         assertThat(pendingRefreshes, empty());
         finalAssertions.forEach(Runnable::run);
     }
@@ -209,7 +207,7 @@ public class RestoreServiceTests extends ESTestCase {
             List.of(),
             List.of(),
             randomAlphaOfLengthBetween(10, 100),
-            Version.CURRENT,
+            IndexVersion.current(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             shards,

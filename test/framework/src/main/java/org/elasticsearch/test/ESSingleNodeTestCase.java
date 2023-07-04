@@ -9,6 +9,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -17,8 +18,10 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIn
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -83,18 +86,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         // we must wait for the node to actually be up and running. otherwise the node might have started,
         // elected itself master but might not yet have removed the
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth().setWaitForGreenStatus().get();
         assertFalse(clusterHealthResponse.isTimedOut());
-        client().admin()
-            .indices()
-            .preparePutTemplate("one_shard_index_template")
+        indicesAdmin().preparePutTemplate("one_shard_index_template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
             .get();
-        client().admin()
-            .indices()
-            .preparePutTemplate("random-soft-deletes-template")
+        indicesAdmin().preparePutTemplate("random-soft-deletes-template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000)))
@@ -145,10 +144,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteComposableIndexTemplateRequest).actionGet());
         var deleteComponentTemplateRequest = new DeleteComponentTemplateAction.Request("*");
         assertAcked(client().execute(DeleteComponentTemplateAction.INSTANCE, deleteComponentTemplateRequest).actionGet());
-        assertAcked(
-            client().admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get()
-        );
-        Metadata metadata = client().admin().cluster().prepareState().get().getState().getMetadata();
+        assertAcked(indicesAdmin().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get());
+        Metadata metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         assertThat(
             "test leaves persistent cluster metadata behind: " + metadata.persistentSettings().keySet(),
             metadata.persistentSettings().size(),
@@ -159,9 +156,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             metadata.transientSettings().size(),
             equalTo(0)
         );
-        GetIndexResponse indices = client().admin()
-            .indices()
-            .prepareGetIndex()
+        GetIndexResponse indices = indicesAdmin().prepareGetIndex()
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .addIndices("*")
             .get();
@@ -224,7 +219,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected List<String> filteredWarnings() {
         return Stream.concat(
             super.filteredWarnings().stream(),
-            List.of("[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release.").stream()
+            Stream.of("[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release.")
         ).collect(Collectors.toList());
     }
 
@@ -282,6 +277,27 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return wrapClient(NODE.client());
     }
 
+    /**
+     * Returns an admin client.
+     */
+    protected AdminClient admin() {
+        return client().admin();
+    }
+
+    /**
+     * Returns an indices admin client.
+     */
+    protected IndicesAdminClient indicesAdmin() {
+        return admin().indices();
+    }
+
+    /**
+     * Returns a cluster admin client.
+     */
+    protected ClusterAdminClient clusterAdmin() {
+        return admin().cluster();
+    }
+
     public Client wrapClient(final Client client) {
         return client;
     }
@@ -318,7 +334,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * Create a new index on the singleton node with the provided index settings.
      */
     protected IndexService createIndex(String index, Settings settings, XContentBuilder mappings) {
-        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
+        CreateIndexRequestBuilder createIndexRequestBuilder = indicesAdmin().prepareCreate(index).setSettings(settings);
         if (mappings != null) {
             createIndexRequestBuilder.setMapping(mappings);
         }
@@ -329,7 +345,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * Create a new index on the singleton node with the provided index settings.
      */
     protected IndexService createIndex(String index, Settings settings, String type, String... mappings) {
-        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
+        CreateIndexRequestBuilder createIndexRequestBuilder = indicesAdmin().prepareCreate(index).setSettings(settings);
         if (type != null) {
             createIndexRequestBuilder.setMapping(mappings);
         }
@@ -340,12 +356,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertAcked(createIndexRequestBuilder.get());
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
-        ClusterHealthResponse health = client().admin()
-            .cluster()
-            .health(
-                Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)
-            )
-            .actionGet();
+        ClusterHealthResponse health = clusterAdmin().health(
+            new ClusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)
+        ).actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
         IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class);
@@ -353,7 +366,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     public Index resolveIndex(String index) {
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex().setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
@@ -383,21 +396,17 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
-        ClusterHealthResponse actionGet = client().admin()
-            .cluster()
-            .health(
-                Requests.clusterHealthRequest(indices)
-                    .timeout(timeout)
-                    .waitForGreenStatus()
-                    .waitForEvents(Priority.LANGUID)
-                    .waitForNoRelocatingShards(true)
-            )
-            .actionGet();
+        ClusterHealthResponse actionGet = clusterAdmin().health(
+            new ClusterHealthRequest(indices).timeout(timeout)
+                .waitForGreenStatus()
+                .waitForEvents(Priority.LANGUID)
+                .waitForNoRelocatingShards(true)
+        ).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info(
                 "ensureGreen timed out, cluster state:\n{}\n{}",
-                client().admin().cluster().prepareState().get().getState(),
-                client().admin().cluster().preparePendingClusterTasks().get()
+                clusterAdmin().prepareState().get().getState(),
+                clusterAdmin().preparePendingClusterTasks().get()
             );
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
         }
@@ -421,9 +430,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * inspired by {@link ESRestTestCase}
      */
     protected void ensureNoInitializingShards() {
-        ClusterHealthResponse actionGet = client().admin()
-            .cluster()
-            .health(Requests.clusterHealthRequest("_all").waitForNoInitializingShards(true))
+        ClusterHealthResponse actionGet = clusterAdmin().health(new ClusterHealthRequest("_all").waitForNoInitializingShards(true))
             .actionGet();
 
         assertFalse("timed out waiting for shards to initialize", actionGet.isTimedOut());

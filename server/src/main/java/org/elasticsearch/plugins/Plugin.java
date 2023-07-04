@@ -12,21 +12,23 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -62,23 +64,26 @@ public abstract class Plugin implements Closeable {
 
     /**
      * Returns components added by this plugin.
-     *
+     * <p>
      * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
      * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
      * to themselves.
      *
-     * @param client A client to make requests to the system
-     * @param clusterService A service to allow watching and updating cluster state
-     * @param threadPool A service to allow retrieving an executor to run an async action
-     * @param resourceWatcherService A service to watch for changes to node local files
-     * @param scriptService A service to allow running scripts on the local node
-     * @param xContentRegistry the registry for extensible xContent parsing
-     * @param environment the environment for path and setting configurations
-     * @param nodeEnvironment the node environment used coordinate access to the data paths
-     * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
+     * @param client                      A client to make requests to the system
+     * @param clusterService              A service to allow watching and updating cluster state
+     * @param threadPool                  A service to allow retrieving an executor to run an async action
+     * @param resourceWatcherService      A service to watch for changes to node local files
+     * @param scriptService               A service to allow running scripts on the local node
+     * @param xContentRegistry            the registry for extensible xContent parsing
+     * @param environment                 the environment for path and setting configurations
+     * @param nodeEnvironment             the node environment used coordinate access to the data paths
+     * @param namedWriteableRegistry      the registry for {@link NamedWriteable} object parsing
      * @param indexNameExpressionResolver A service that resolves expression to index and alias names
      * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
-     *                                   is called, but will return the repositories service once the node is initialized.
+     *                                    is called, but will return the repositories service once the node is initialized.
+     * @param tracer                      An interface for distributed tracing
+     * @param allocationService           A service to manage shard allocation in the cluster
+     * @param indicesService              A service to manage indices in the cluster
      */
     public Collection<Object> createComponents(
         Client client,
@@ -91,7 +96,10 @@ public abstract class Plugin implements Closeable {
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         return Collections.emptyList();
     }
@@ -137,15 +145,6 @@ public abstract class Plugin implements Closeable {
      * Returns a list of additional settings filter for this plugin
      */
     public List<String> getSettingsFilter() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Get the setting upgraders provided by this plugin.
-     *
-     * @return the settings upgraders
-     */
-    public List<SettingUpgrader<?>> getSettingUpgraders() {
         return Collections.emptyList();
     }
 

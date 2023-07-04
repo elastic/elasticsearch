@@ -61,6 +61,7 @@ without requiring basic authentication:
 [[security-api-keys]]
 === API Keys
 
+ifeval::["{release-state}"=="released"]
 Use the following APIs to create, retrieve and invalidate API keys for access
 without requiring basic authentication:
 
@@ -70,6 +71,32 @@ without requiring basic authentication:
 * <<security-api-clear-api-key-cache,Clear API key cache>>
 * <<security-api-grant-api-key,Grant API key>>
 * <<security-api-query-api-key,Query API key>>
+* <<security-api-update-api-key,Update API key>>
+* <<security-api-bulk-update-api-keys,Bulk update API keys>>
+endif::[]
+
+ifeval::["{release-state}"!="released"]
+Use the following APIs to create and update API keys for access via the REST interface
+without requiring basic authentication:
+
+* <<security-api-create-api-key,Create REST API key>>
+* <<security-api-grant-api-key,Grant REST API key>>
+* <<security-api-update-api-key,Update REST API key>>
+* <<security-api-bulk-update-api-keys,Bulk update REST API keys>>
+
+Use the following APIs to create and update cross-cluster API keys for
+API key based remote cluster access:
+
+* <<security-api-create-cross-cluster-api-key,Create Cross-Cluster API key>>
+* <<security-api-update-cross-cluster-api-key,Update Cross-Cluster API key>>
+
+Use the following APIs to retrieve and invalidate API keys of all types:
+
+* <<security-api-get-api-key,Get API key>>
+* <<security-api-invalidate-api-key,Invalidate API key>>
+* <<security-api-query-api-key,Query API key>>
+* <<security-api-clear-api-key-cache,Clear API key cache>>
+endif::[]
 
 [discrete]
 [[security-user-apis]]
@@ -188,6 +215,8 @@ include::security/oidc-prepare-authentication-api.asciidoc[]
 include::security/oidc-authenticate-api.asciidoc[]
 include::security/oidc-logout-api.asciidoc[]
 include::security/query-api-key.asciidoc[]
+include::security/update-api-key.asciidoc[]
+include::security/bulk-update-api-keys.asciidoc[]
 include::security/saml-prepare-authentication-api.asciidoc[]
 include::security/saml-authenticate-api.asciidoc[]
 include::security/saml-logout-api.asciidoc[]
@@ -202,3 +231,7 @@ include::security/get-user-profile.asciidoc[]
 include::security/suggest-user-profile.asciidoc[]
 include::security/update-user-profile-data.asciidoc[]
 include::security/has-privileges-user-profile.asciidoc[]
+ifeval::["{release-state}"!="released"]
+include::security/create-cross-cluster-api-key.asciidoc[]
+include::security/update-cross-cluster-api-key.asciidoc[]
+endif::[]

@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 public class SearchStats implements Writeable, ToXContentFragment {
 
@@ -237,6 +238,43 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             return builder;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Stats that = (Stats) o;
+            return queryCount == that.queryCount
+                && queryTimeInMillis == that.queryTimeInMillis
+                && queryCurrent == that.queryCurrent
+                && fetchCount == that.fetchCount
+                && fetchTimeInMillis == that.fetchTimeInMillis
+                && fetchCurrent == that.fetchCurrent
+                && scrollCount == that.scrollCount
+                && scrollTimeInMillis == that.scrollTimeInMillis
+                && scrollCurrent == that.scrollCurrent
+                && suggestCount == that.suggestCount
+                && suggestTimeInMillis == that.suggestTimeInMillis
+                && suggestCurrent == that.suggestCurrent;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                queryCount,
+                queryTimeInMillis,
+                queryCurrent,
+                fetchCount,
+                fetchTimeInMillis,
+                fetchCurrent,
+                scrollCount,
+                scrollTimeInMillis,
+                scrollCurrent,
+                suggestCount,
+                suggestTimeInMillis,
+                suggestCurrent
+            );
+        }
     }
 
     private final Stats totalStats;
@@ -259,7 +297,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         totalStats = Stats.readStats(in);
         openContexts = in.readVLong();
         if (in.readBoolean()) {
-            groupStats = in.readMap(StreamInput::readString, Stats::readStats);
+            groupStats = in.readMap(Stats::readStats);
         }
     }
 
@@ -362,5 +400,20 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeBoolean(true);
             out.writeMap(groupStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchStats that = (SearchStats) o;
+        return Objects.equals(totalStats, that.totalStats)
+            && openContexts == that.openContexts
+            && Objects.equals(groupStats, that.groupStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(totalStats, openContexts, groupStats);
     }
 }

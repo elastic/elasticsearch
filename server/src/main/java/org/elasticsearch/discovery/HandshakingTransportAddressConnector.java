@@ -12,8 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
@@ -22,6 +22,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
@@ -53,13 +54,19 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
     );
 
     private final TransportService transportService;
-    private final TimeValue probeConnectTimeout;
-    private final TimeValue probeHandshakeTimeout;
+
+    private final ConnectionProfile handshakeConnectionProfile;
 
     public HandshakingTransportAddressConnector(Settings settings, TransportService transportService) {
         this.transportService = transportService;
-        probeConnectTimeout = PROBE_CONNECT_TIMEOUT_SETTING.get(settings);
-        probeHandshakeTimeout = PROBE_HANDSHAKE_TIMEOUT_SETTING.get(settings);
+        handshakeConnectionProfile = ConnectionProfile.buildSingleChannelProfile(
+            Type.REG,
+            PROBE_CONNECT_TIMEOUT_SETTING.get(settings),
+            PROBE_HANDSHAKE_TIMEOUT_SETTING.get(settings),
+            TimeValue.MINUS_ONE,
+            null,
+            null
+        );
     }
 
     @Override
@@ -80,25 +87,22 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                     transportAddress,
                     emptyMap(),
                     emptySet(),
-                    Version.CURRENT.minimumCompatibilityVersion()
+                    new VersionInformation(
+                        Version.CURRENT.minimumCompatibilityVersion(),
+                        IndexVersion.MINIMUM_COMPATIBLE,
+                        IndexVersion.current()
+                    )
                 ),
-                ConnectionProfile.buildSingleChannelProfile(
-                    Type.REG,
-                    probeConnectTimeout,
-                    probeHandshakeTimeout,
-                    TimeValue.MINUS_ONE,
-                    null,
-                    null
-                ),
+                handshakeConnectionProfile,
                 listener.delegateFailure((l, connection) -> {
                     logger.trace("[{}] opened probe connection", transportAddress);
-
+                    final var probeHandshakeTimeout = handshakeConnectionProfile.getHandshakeTimeout();
                     // use NotifyOnceListener to make sure the following line does not result in onFailure being called when
                     // the connection is closed in the onResponse handler
-                    transportService.handshake(connection, probeHandshakeTimeout, new NotifyOnceListener<>() {
+                    transportService.handshake(connection, probeHandshakeTimeout, ActionListener.notifyOnce(new ActionListener<>() {
 
                         @Override
-                        protected void innerOnResponse(DiscoveryNode remoteNode) {
+                        public void onResponse(DiscoveryNode remoteNode) {
                             try {
                                 // success means (amongst other things) that the cluster names match
                                 logger.trace("[{}] handshake successful: {}", transportAddress, remoteNode);
@@ -166,7 +170,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                         }
 
                         @Override
-                        protected void innerOnFailure(Exception e) {
+                        public void onFailure(Exception e) {
                             // we opened a connection and successfully performed a low-level handshake, so we were definitely
                             // talking to an Elasticsearch node, but the high-level handshake failed indicating some kind of
                             // mismatched configurations (e.g. cluster name) that the user should address
@@ -175,7 +179,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                             listener.onFailure(e);
                         }
 
-                    });
+                    }));
 
                 })
             );

@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Jetty//Configure//EN" "http://www.eclipse.org/jetty/configure_9_3.dtd">
+ 
+<Configure id="Server" class="org.eclipse.jetty.server.Server">
+ 
+  <!-- =========================================================== -->
+  <!-- configure rewrite handler                                   -->
+  <!-- =========================================================== -->
+  <Call name="insertHandler">
+    <Arg>
+      <New class="org.eclipse.jetty.rewrite.handler.RewriteHandler">
+        <Set name="rewriteRequestURI"><Property name="jetty.rewrite.rewriteRequestURI" deprecated="rewrite.rewriteRequestURI" default="true"/></Set>
+        <Set name="rewritePathInfo"><Property name="jetty.rewrite.rewritePathInfo" deprecated="rewrite.rewritePathInfo" default="false"/></Set>
+        <Set name="originalPathAttribute"><Property name="jetty.rewrite.originalPathAttribute" deprecated="rewrite.originalPathAttribute" default="requestedPath"/></Set>
+ 
+ 
+        <!-- Set DispatcherTypes  -->
+        <Set name="dispatcherTypes">
+          <Array type="javax.servlet.DispatcherType">
+            <Item><Call class="javax.servlet.DispatcherType" name="valueOf"><Arg>REQUEST</Arg></Call></Item>
+            <Item><Call class="javax.servlet.DispatcherType" name="valueOf"><Arg>ASYNC</Arg></Call></Item>
+          </Array>
+        </Set>
+ 
+ 
+        <Call name="addRule">
+          <Arg>
+            <New class="org.eclipse.jetty.rewrite.handler.HeaderPatternRule">
+              <Set name="pattern">*</Set>
+              <Set name="name">Content-Security-Policy</Set>
+              <Set name="value">frame-ancestors 'none';</Set>
+            </New>
+          </Arg>
+        </Call>
+ 
+        <Call name="addRule">
+          <Arg>
+            <New class="org.eclipse.jetty.rewrite.handler.HeaderPatternRule">
+              <Set name="pattern">*</Set>
+              <Set name="name">X-Frame-Options</Set>
+              <Set name="value">DENY</Set>
+            </New>
+          </Arg>
+        </Call>
+ 
+      </New>
+    </Arg>
+  </Call>
+</Configure>

@@ -10,15 +10,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.license.GetTrialStatusAction;
-import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.PostStartBasicAction;
 import org.elasticsearch.license.PostStartTrialAction;
@@ -36,10 +35,13 @@ import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
+import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 import org.elasticsearch.xpack.core.archive.ArchiveFeatureSetUsage;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.datastreams.DataLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
+import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
@@ -49,16 +51,17 @@ import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.DownsampleAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
-import org.elasticsearch.xpack.core.ilm.RollupILMAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -150,9 +153,8 @@ import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -234,6 +236,8 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 // TODO: merge this into XPackPlugin
 public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
@@ -247,9 +251,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         // TODO split these settings up
         settings.addAll(XPackSettings.getAllSettings());
 
-        settings.add(LicenseService.SELF_GENERATED_LICENSE_TYPE);
-        settings.add(LicenseService.ALLOWED_LICENSE_TYPES_SETTING);
-
         // we add the `xpack.version` setting to all internal indices
         settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
@@ -258,326 +259,320 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
 
     @Override
     public List<ActionType<? extends ActionResponse>> getClientActions() {
-        List<ActionType<? extends ActionResponse>> actions = new ArrayList<>(
-            Arrays.asList(
-                // graph
-                GraphExploreAction.INSTANCE,
-                // ML
-                GetJobsAction.INSTANCE,
-                GetJobsStatsAction.INSTANCE,
-                MlInfoAction.INSTANCE,
-                PutJobAction.INSTANCE,
-                UpdateJobAction.INSTANCE,
-                DeleteJobAction.INSTANCE,
-                OpenJobAction.INSTANCE,
-                GetFiltersAction.INSTANCE,
-                PutFilterAction.INSTANCE,
-                UpdateFilterAction.INSTANCE,
-                DeleteFilterAction.INSTANCE,
-                KillProcessAction.INSTANCE,
-                GetBucketsAction.INSTANCE,
-                GetInfluencersAction.INSTANCE,
-                GetOverallBucketsAction.INSTANCE,
-                GetRecordsAction.INSTANCE,
-                PostDataAction.INSTANCE,
-                CloseJobAction.INSTANCE,
-                FinalizeJobExecutionAction.INSTANCE,
-                FlushJobAction.INSTANCE,
-                ValidateDetectorAction.INSTANCE,
-                ValidateJobConfigAction.INSTANCE,
-                GetCategoriesAction.INSTANCE,
-                GetModelSnapshotsAction.INSTANCE,
-                RevertModelSnapshotAction.INSTANCE,
-                UpdateModelSnapshotAction.INSTANCE,
-                GetDatafeedsAction.INSTANCE,
-                GetDatafeedsStatsAction.INSTANCE,
-                PutDatafeedAction.INSTANCE,
-                UpdateDatafeedAction.INSTANCE,
-                DeleteDatafeedAction.INSTANCE,
-                PreviewDatafeedAction.INSTANCE,
-                StartDatafeedAction.INSTANCE,
-                StopDatafeedAction.INSTANCE,
-                IsolateDatafeedAction.INSTANCE,
-                DeleteModelSnapshotAction.INSTANCE,
-                UpdateProcessAction.INSTANCE,
-                DeleteExpiredDataAction.INSTANCE,
-                ForecastJobAction.INSTANCE,
-                DeleteForecastAction.INSTANCE,
-                GetCalendarsAction.INSTANCE,
-                PutCalendarAction.INSTANCE,
-                DeleteCalendarAction.INSTANCE,
-                DeleteCalendarEventAction.INSTANCE,
-                UpdateCalendarJobAction.INSTANCE,
-                GetCalendarEventsAction.INSTANCE,
-                PostCalendarEventsAction.INSTANCE,
-                PersistJobAction.INSTANCE,
-                SetUpgradeModeAction.INSTANCE,
-                PutDataFrameAnalyticsAction.INSTANCE,
-                GetDataFrameAnalyticsAction.INSTANCE,
-                GetDataFrameAnalyticsStatsAction.INSTANCE,
-                UpdateDataFrameAnalyticsAction.INSTANCE,
-                DeleteDataFrameAnalyticsAction.INSTANCE,
-                StartDataFrameAnalyticsAction.INSTANCE,
-                EvaluateDataFrameAction.INSTANCE,
-                ExplainDataFrameAnalyticsAction.INSTANCE,
-                InferModelAction.INSTANCE,
-                InferModelAction.EXTERNAL_INSTANCE,
-                GetTrainedModelsAction.INSTANCE,
-                DeleteTrainedModelAction.INSTANCE,
-                GetTrainedModelsStatsAction.INSTANCE,
-                PutTrainedModelAction.INSTANCE,
-                // security
-                ClearRealmCacheAction.INSTANCE,
-                ClearRolesCacheAction.INSTANCE,
-                GetUsersAction.INSTANCE,
-                PutUserAction.INSTANCE,
-                DeleteUserAction.INSTANCE,
-                GetRolesAction.INSTANCE,
-                PutRoleAction.INSTANCE,
-                DeleteRoleAction.INSTANCE,
-                ChangePasswordAction.INSTANCE,
-                AuthenticateAction.INSTANCE,
-                SetEnabledAction.INSTANCE,
-                HasPrivilegesAction.INSTANCE,
-                GetRoleMappingsAction.INSTANCE,
-                PutRoleMappingAction.INSTANCE,
-                DeleteRoleMappingAction.INSTANCE,
-                CreateTokenAction.INSTANCE,
-                InvalidateTokenAction.INSTANCE,
-                GetCertificateInfoAction.INSTANCE,
-                RefreshTokenAction.INSTANCE,
-                CreateApiKeyAction.INSTANCE,
-                InvalidateApiKeyAction.INSTANCE,
-                GetApiKeyAction.INSTANCE,
-                // watcher
-                PutWatchAction.INSTANCE,
-                DeleteWatchAction.INSTANCE,
-                GetWatchAction.INSTANCE,
-                WatcherStatsAction.INSTANCE,
-                AckWatchAction.INSTANCE,
-                ActivateWatchAction.INSTANCE,
-                WatcherServiceAction.INSTANCE,
-                ExecuteWatchAction.INSTANCE,
-                // license
-                PutLicenseAction.INSTANCE,
-                GetLicenseAction.INSTANCE,
-                DeleteLicenseAction.INSTANCE,
-                PostStartTrialAction.INSTANCE,
-                GetTrialStatusAction.INSTANCE,
-                PostStartBasicAction.INSTANCE,
-                GetBasicStatusAction.INSTANCE,
-                // x-pack
-                XPackInfoAction.INSTANCE,
-                XPackUsageAction.INSTANCE,
-                // rollup
-                RollupSearchAction.INSTANCE,
-                PutRollupJobAction.INSTANCE,
-                StartRollupJobAction.INSTANCE,
-                StopRollupJobAction.INSTANCE,
-                DeleteRollupJobAction.INSTANCE,
-                GetRollupJobsAction.INSTANCE,
-                GetRollupCapsAction.INSTANCE,
-                // ILM
-                DeleteLifecycleAction.INSTANCE,
-                GetLifecycleAction.INSTANCE,
-                PutLifecycleAction.INSTANCE,
-                ExplainLifecycleAction.INSTANCE,
-                RemoveIndexLifecyclePolicyAction.INSTANCE,
-                MoveToStepAction.INSTANCE,
-                RetryAction.INSTANCE,
-                PutSnapshotLifecycleAction.INSTANCE,
-                GetSnapshotLifecycleAction.INSTANCE,
-                DeleteSnapshotLifecycleAction.INSTANCE,
-                ExecuteSnapshotLifecycleAction.INSTANCE,
-                GetSnapshotLifecycleStatsAction.INSTANCE,
-                MigrateToDataTiersAction.INSTANCE,
+        return Arrays.asList(
+            // graph
+            GraphExploreAction.INSTANCE,
+            // ML
+            GetJobsAction.INSTANCE,
+            GetJobsStatsAction.INSTANCE,
+            MlInfoAction.INSTANCE,
+            PutJobAction.INSTANCE,
+            UpdateJobAction.INSTANCE,
+            DeleteJobAction.INSTANCE,
+            OpenJobAction.INSTANCE,
+            GetFiltersAction.INSTANCE,
+            PutFilterAction.INSTANCE,
+            UpdateFilterAction.INSTANCE,
+            DeleteFilterAction.INSTANCE,
+            KillProcessAction.INSTANCE,
+            GetBucketsAction.INSTANCE,
+            GetInfluencersAction.INSTANCE,
+            GetOverallBucketsAction.INSTANCE,
+            GetRecordsAction.INSTANCE,
+            PostDataAction.INSTANCE,
+            CloseJobAction.INSTANCE,
+            FinalizeJobExecutionAction.INSTANCE,
+            FlushJobAction.INSTANCE,
+            ValidateDetectorAction.INSTANCE,
+            ValidateJobConfigAction.INSTANCE,
+            GetCategoriesAction.INSTANCE,
+            GetModelSnapshotsAction.INSTANCE,
+            RevertModelSnapshotAction.INSTANCE,
+            UpdateModelSnapshotAction.INSTANCE,
+            GetDatafeedsAction.INSTANCE,
+            GetDatafeedsStatsAction.INSTANCE,
+            PutDatafeedAction.INSTANCE,
+            UpdateDatafeedAction.INSTANCE,
+            DeleteDatafeedAction.INSTANCE,
+            PreviewDatafeedAction.INSTANCE,
+            StartDatafeedAction.INSTANCE,
+            StopDatafeedAction.INSTANCE,
+            IsolateDatafeedAction.INSTANCE,
+            DeleteModelSnapshotAction.INSTANCE,
+            UpdateProcessAction.INSTANCE,
+            DeleteExpiredDataAction.INSTANCE,
+            ForecastJobAction.INSTANCE,
+            DeleteForecastAction.INSTANCE,
+            GetCalendarsAction.INSTANCE,
+            PutCalendarAction.INSTANCE,
+            DeleteCalendarAction.INSTANCE,
+            DeleteCalendarEventAction.INSTANCE,
+            UpdateCalendarJobAction.INSTANCE,
+            GetCalendarEventsAction.INSTANCE,
+            PostCalendarEventsAction.INSTANCE,
+            PersistJobAction.INSTANCE,
+            SetUpgradeModeAction.INSTANCE,
+            PutDataFrameAnalyticsAction.INSTANCE,
+            GetDataFrameAnalyticsAction.INSTANCE,
+            GetDataFrameAnalyticsStatsAction.INSTANCE,
+            UpdateDataFrameAnalyticsAction.INSTANCE,
+            DeleteDataFrameAnalyticsAction.INSTANCE,
+            StartDataFrameAnalyticsAction.INSTANCE,
+            EvaluateDataFrameAction.INSTANCE,
+            ExplainDataFrameAnalyticsAction.INSTANCE,
+            InferModelAction.INSTANCE,
+            InferModelAction.EXTERNAL_INSTANCE,
+            GetTrainedModelsAction.INSTANCE,
+            DeleteTrainedModelAction.INSTANCE,
+            GetTrainedModelsStatsAction.INSTANCE,
+            PutTrainedModelAction.INSTANCE,
+            // security
+            ClearRealmCacheAction.INSTANCE,
+            ClearRolesCacheAction.INSTANCE,
+            GetUsersAction.INSTANCE,
+            PutUserAction.INSTANCE,
+            DeleteUserAction.INSTANCE,
+            GetRolesAction.INSTANCE,
+            PutRoleAction.INSTANCE,
+            DeleteRoleAction.INSTANCE,
+            ChangePasswordAction.INSTANCE,
+            AuthenticateAction.INSTANCE,
+            SetEnabledAction.INSTANCE,
+            HasPrivilegesAction.INSTANCE,
+            GetRoleMappingsAction.INSTANCE,
+            PutRoleMappingAction.INSTANCE,
+            DeleteRoleMappingAction.INSTANCE,
+            CreateTokenAction.INSTANCE,
+            InvalidateTokenAction.INSTANCE,
+            GetCertificateInfoAction.INSTANCE,
+            RefreshTokenAction.INSTANCE,
+            CreateApiKeyAction.INSTANCE,
+            InvalidateApiKeyAction.INSTANCE,
+            GetApiKeyAction.INSTANCE,
+            // watcher
+            PutWatchAction.INSTANCE,
+            DeleteWatchAction.INSTANCE,
+            GetWatchAction.INSTANCE,
+            WatcherStatsAction.INSTANCE,
+            AckWatchAction.INSTANCE,
+            ActivateWatchAction.INSTANCE,
+            WatcherServiceAction.INSTANCE,
+            ExecuteWatchAction.INSTANCE,
+            // license
+            PutLicenseAction.INSTANCE,
+            GetLicenseAction.INSTANCE,
+            DeleteLicenseAction.INSTANCE,
+            PostStartTrialAction.INSTANCE,
+            GetTrialStatusAction.INSTANCE,
+            PostStartBasicAction.INSTANCE,
+            GetBasicStatusAction.INSTANCE,
+            // x-pack
+            XPackInfoAction.INSTANCE,
+            XPackUsageAction.INSTANCE,
+            // rollup
+            RollupSearchAction.INSTANCE,
+            PutRollupJobAction.INSTANCE,
+            StartRollupJobAction.INSTANCE,
+            StopRollupJobAction.INSTANCE,
+            DeleteRollupJobAction.INSTANCE,
+            GetRollupJobsAction.INSTANCE,
+            GetRollupCapsAction.INSTANCE,
+            // ILM
+            DeleteLifecycleAction.INSTANCE,
+            GetLifecycleAction.INSTANCE,
+            PutLifecycleAction.INSTANCE,
+            ExplainLifecycleAction.INSTANCE,
+            RemoveIndexLifecyclePolicyAction.INSTANCE,
+            MoveToStepAction.INSTANCE,
+            RetryAction.INSTANCE,
+            PutSnapshotLifecycleAction.INSTANCE,
+            GetSnapshotLifecycleAction.INSTANCE,
+            DeleteSnapshotLifecycleAction.INSTANCE,
+            ExecuteSnapshotLifecycleAction.INSTANCE,
+            GetSnapshotLifecycleStatsAction.INSTANCE,
+            MigrateToDataTiersAction.INSTANCE,
 
-                // Freeze
-                FreezeIndexAction.INSTANCE,
-                // Data Frame
-                PutTransformAction.INSTANCE,
-                StartTransformAction.INSTANCE,
-                StopTransformAction.INSTANCE,
-                DeleteTransformAction.INSTANCE,
-                GetTransformAction.INSTANCE,
-                GetTransformStatsAction.INSTANCE,
-                PreviewTransformAction.INSTANCE,
-                // Async Search
-                SubmitAsyncSearchAction.INSTANCE,
-                GetAsyncSearchAction.INSTANCE,
-                DeleteAsyncResultAction.INSTANCE,
-                // Text Structure
-                FindStructureAction.INSTANCE,
-                // Terms enum API
-                TermsEnumAction.INSTANCE
-            )
+            // Freeze
+            FreezeIndexAction.INSTANCE,
+            // Data Frame
+            PutTransformAction.INSTANCE,
+            StartTransformAction.INSTANCE,
+            StopTransformAction.INSTANCE,
+            DeleteTransformAction.INSTANCE,
+            GetTransformAction.INSTANCE,
+            GetTransformStatsAction.INSTANCE,
+            PreviewTransformAction.INSTANCE,
+            // Async Search
+            SubmitAsyncSearchAction.INSTANCE,
+            GetAsyncSearchAction.INSTANCE,
+            DeleteAsyncResultAction.INSTANCE,
+            // Text Structure
+            FindStructureAction.INSTANCE,
+            // Terms enum API
+            TermsEnumAction.INSTANCE,
+            // TSDB Downsampling
+            DownsampleIndexerAction.INSTANCE,
+            org.elasticsearch.xpack.core.downsample.DownsampleAction.INSTANCE
         );
-
-        // TSDB Downsampling / Rollup
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            actions.add(RollupIndexerAction.INSTANCE);
-            actions.add(RollupAction.INSTANCE);
-        }
-
-        return actions;
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(
-            Arrays.asList(
-                // graph
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.GRAPH, GraphFeatureSetUsage::new),
-                // logstash
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.LOGSTASH, LogstashFeatureSetUsage::new),
-                // ML
-                new NamedWriteableRegistry.Entry(
+        return Stream.of(
+            // graph
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.GRAPH, GraphFeatureSetUsage::new),
+            // logstash
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.LOGSTASH, LogstashFeatureSetUsage::new),
+            // ML
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.MACHINE_LEARNING, MachineLearningFeatureSetUsage::new),
+            // monitoring
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.MONITORING, MonitoringFeatureSetUsage::new),
+            // security
+            new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetadata.TYPE, TokenMetadata::readDiffFrom),
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
+            // security : conditional privileges
+            new NamedWriteableRegistry.Entry(
+                ConfigurableClusterPrivilege.class,
+                ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
+                ConfigurableClusterPrivileges.ManageApplicationPrivileges::createFrom
+            ),
+            new NamedWriteableRegistry.Entry(
+                ConfigurableClusterPrivilege.class,
+                ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
+                ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
+            ),
+            // security : role-mappings
+            new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
+            new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
+            new NamedWriteableRegistry.Entry(RoleMapperExpression.class, FieldExpression.NAME, FieldExpression::new),
+            new NamedWriteableRegistry.Entry(RoleMapperExpression.class, ExceptExpression.NAME, ExceptExpression::new),
+            // eql
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.EQL, EqlFeatureSetUsage::new),
+            // sql
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SQL, SqlFeatureSetUsage::new),
+            // watcher
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, WatcherMetadata.TYPE, WatcherMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, WatcherMetadata.TYPE, WatcherMetadata::readDiffFrom),
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.WATCHER, WatcherFeatureSetUsage::new),
+            // licensing
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, LicensesMetadata.TYPE, LicensesMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, LicensesMetadata.TYPE, LicensesMetadata::readDiffFrom),
+            // rollup
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ROLLUP, RollupFeatureSetUsage::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, RollupJob.NAME, RollupJob::new),
+            new NamedWriteableRegistry.Entry(Task.Status.class, RollupJobStatus.NAME, RollupJobStatus::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskState.class, RollupJobStatus.NAME, RollupJobStatus::new),
+            new NamedWriteableRegistry.Entry(Task.Status.class, RollupShardStatus.NAME, RollupShardStatus::new),
+            // ccr
+            new NamedWriteableRegistry.Entry(AutoFollowMetadata.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                AutoFollowMetadata.TYPE,
+                in -> AutoFollowMetadata.readDiffFrom(Metadata.Custom.class, AutoFollowMetadata.TYPE, in)
+            ),
+            // ILM
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.INDEX_LIFECYCLE, IndexLifecycleFeatureSetUsage::new),
+            // SLM
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SNAPSHOT_LIFECYCLE, SLMFeatureSetUsage::new),
+            // ILM - Custom Metadata
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new),
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                IndexLifecycleMetadata.TYPE,
+                IndexLifecycleMetadata.IndexLifecycleMetadataDiff::new
+            ),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, LifecycleOperationMetadata.TYPE, LifecycleOperationMetadata::new),
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                LifecycleOperationMetadata.TYPE,
+                LifecycleOperationMetadata.LifecycleOperationMetadataDiff::new
+            ),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata::new),
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                SnapshotLifecycleMetadata.TYPE,
+                SnapshotLifecycleMetadata.SnapshotLifecycleMetadataDiff::new
+            ),
+            // ILM - LifecycleTypes
+            new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE, (in) -> TimeseriesLifecycleType.INSTANCE),
+            // ILM - Lifecycle Actions
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read),
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, in -> UnfollowAction.INSTANCE),
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, WaitForSnapshotAction.NAME, WaitForSnapshotAction::new),
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::readFrom),
+            // Transforms
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, TransformMetadata.TYPE, TransformMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, TransformMetadata.TYPE, TransformMetadata.TransformMetadataDiff::new),
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.TRANSFORM, TransformFeatureSetUsage::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TransformField.TASK_NAME, TransformTaskParams::new),
+            new NamedWriteableRegistry.Entry(Task.Status.class, TransformField.TASK_NAME, TransformState::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskState.class, TransformField.TASK_NAME, TransformState::new),
+            new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME.getPreferredName(), TimeSyncConfig::new),
+            new NamedWriteableRegistry.Entry(
+                RetentionPolicyConfig.class,
+                TransformField.TIME.getPreferredName(),
+                TimeRetentionPolicyConfig::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                RetentionPolicyConfig.class,
+                NullRetentionPolicyConfig.NAME.getPreferredName(),
+                i -> NullRetentionPolicyConfig.INSTANCE
+            ),
+            // Voting Only Node
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VOTING_ONLY, VotingOnlyNodeFeatureSetUsage::new),
+            // Frozen indices
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FROZEN_INDICES, FrozenIndicesFeatureSetUsage::new),
+            // Spatial
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SPATIAL, SpatialFeatureSetUsage::new),
+            // Analytics
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new),
+            // Aggregate metric field type
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.AGGREGATE_METRIC, AggregateMetricFeatureSetUsage::new),
+            // Enrich
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ENRICH, EnrichFeatureSetUsage::new),
+            new NamedWriteableRegistry.Entry(Task.Status.class, ExecuteEnrichPolicyStatus.NAME, ExecuteEnrichPolicyStatus::new),
+            // Searchable snapshots
+            new NamedWriteableRegistry.Entry(
+                XPackFeatureSet.Usage.class,
+                XPackField.SEARCHABLE_SNAPSHOTS,
+                SearchableSnapshotFeatureSetUsage::new
+            ),
+            // Data Streams
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new),
+            DataLifecycle.isEnabled()
+                ? new NamedWriteableRegistry.Entry(
                     XPackFeatureSet.Usage.class,
-                    XPackField.MACHINE_LEARNING,
-                    MachineLearningFeatureSetUsage::new
-                ),
-                // monitoring
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.MONITORING, MonitoringFeatureSetUsage::new),
-                // security
-                new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetadata.TYPE, TokenMetadata::readDiffFrom),
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
-                // security : conditional privileges
-                new NamedWriteableRegistry.Entry(
-                    ConfigurableClusterPrivilege.class,
-                    ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
-                    ConfigurableClusterPrivileges.ManageApplicationPrivileges::createFrom
-                ),
-                new NamedWriteableRegistry.Entry(
-                    ConfigurableClusterPrivilege.class,
-                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
-                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
-                ),
-                // security : role-mappings
-                new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
-                new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
-                new NamedWriteableRegistry.Entry(RoleMapperExpression.class, FieldExpression.NAME, FieldExpression::new),
-                new NamedWriteableRegistry.Entry(RoleMapperExpression.class, ExceptExpression.NAME, ExceptExpression::new),
-                // eql
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.EQL, EqlFeatureSetUsage::new),
-                // sql
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SQL, SqlFeatureSetUsage::new),
-                // watcher
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, WatcherMetadata.TYPE, WatcherMetadata::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, WatcherMetadata.TYPE, WatcherMetadata::readDiffFrom),
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.WATCHER, WatcherFeatureSetUsage::new),
-                // licensing
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, LicensesMetadata.TYPE, LicensesMetadata::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, LicensesMetadata.TYPE, LicensesMetadata::readDiffFrom),
-                // rollup
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ROLLUP, RollupFeatureSetUsage::new),
-                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, RollupJob.NAME, RollupJob::new),
-                new NamedWriteableRegistry.Entry(Task.Status.class, RollupJobStatus.NAME, RollupJobStatus::new),
-                new NamedWriteableRegistry.Entry(PersistentTaskState.class, RollupJobStatus.NAME, RollupJobStatus::new),
-                // ccr
-                new NamedWriteableRegistry.Entry(AutoFollowMetadata.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
-                new NamedWriteableRegistry.Entry(
-                    NamedDiff.class,
-                    AutoFollowMetadata.TYPE,
-                    in -> AutoFollowMetadata.readDiffFrom(Metadata.Custom.class, AutoFollowMetadata.TYPE, in)
-                ),
-                // ILM
-                new NamedWriteableRegistry.Entry(
-                    XPackFeatureSet.Usage.class,
-                    XPackField.INDEX_LIFECYCLE,
-                    IndexLifecycleFeatureSetUsage::new
-                ),
-                // SLM
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SNAPSHOT_LIFECYCLE, SLMFeatureSetUsage::new),
-                // ILM - Custom Metadata
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new),
-                new NamedWriteableRegistry.Entry(
-                    NamedDiff.class,
-                    IndexLifecycleMetadata.TYPE,
-                    IndexLifecycleMetadata.IndexLifecycleMetadataDiff::new
-                ),
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata::new),
-                new NamedWriteableRegistry.Entry(
-                    NamedDiff.class,
-                    SnapshotLifecycleMetadata.TYPE,
-                    SnapshotLifecycleMetadata.SnapshotLifecycleMetadataDiff::new
-                ),
-                // ILM - LifecycleTypes
-                new NamedWriteableRegistry.Entry(
-                    LifecycleType.class,
-                    TimeseriesLifecycleType.TYPE,
-                    (in) -> TimeseriesLifecycleType.INSTANCE
-                ),
-                // ILM - Lifecycle Actions
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, in -> UnfollowAction.INSTANCE),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, WaitForSnapshotAction.NAME, WaitForSnapshotAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::readFrom),
-                // Transforms
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, TransformMetadata.TYPE, TransformMetadata::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, TransformMetadata.TYPE, TransformMetadata.TransformMetadataDiff::new),
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.TRANSFORM, TransformFeatureSetUsage::new),
-                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TransformField.TASK_NAME, TransformTaskParams::new),
-                new NamedWriteableRegistry.Entry(Task.Status.class, TransformField.TASK_NAME, TransformState::new),
-                new NamedWriteableRegistry.Entry(PersistentTaskState.class, TransformField.TASK_NAME, TransformState::new),
-                new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME.getPreferredName(), TimeSyncConfig::new),
-                new NamedWriteableRegistry.Entry(
-                    RetentionPolicyConfig.class,
-                    TransformField.TIME.getPreferredName(),
-                    TimeRetentionPolicyConfig::new
-                ),
-                new NamedWriteableRegistry.Entry(
-                    RetentionPolicyConfig.class,
-                    NullRetentionPolicyConfig.NAME.getPreferredName(),
-                    i -> NullRetentionPolicyConfig.INSTANCE
-                ),
-                // Voting Only Node
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VOTING_ONLY, VotingOnlyNodeFeatureSetUsage::new),
-                // Frozen indices
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FROZEN_INDICES, FrozenIndicesFeatureSetUsage::new),
-                // Spatial
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SPATIAL, SpatialFeatureSetUsage::new),
-                // Analytics
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new),
-                // Aggregate metric field type
-                new NamedWriteableRegistry.Entry(
-                    XPackFeatureSet.Usage.class,
-                    XPackField.AGGREGATE_METRIC,
-                    AggregateMetricFeatureSetUsage::new
-                ),
-                // Enrich
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ENRICH, EnrichFeatureSetUsage::new),
-                new NamedWriteableRegistry.Entry(Task.Status.class, ExecuteEnrichPolicyStatus.NAME, ExecuteEnrichPolicyStatus::new),
-                // Searchable snapshots
-                new NamedWriteableRegistry.Entry(
-                    XPackFeatureSet.Usage.class,
-                    XPackField.SEARCHABLE_SNAPSHOTS,
-                    SearchableSnapshotFeatureSetUsage::new
-                ),
-                // Data Streams
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new),
-                // Data Tiers
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new),
-                // Archive
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ARCHIVE, ArchiveFeatureSetUsage::new)
+                    XPackField.DATA_LIFECYCLE,
+                    DataLifecycleFeatureSetUsage::new
+                )
+                : null,
+            // Data Tiers
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new),
+            // Archive
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ARCHIVE, ArchiveFeatureSetUsage::new),
+            // TSDB Downsampling
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, DownsampleAction.NAME, DownsampleAction::new),
+            // Health API usage
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.HEALTH_API, HealthApiFeatureSetUsage::new),
+            // Remote cluster usage
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.REMOTE_CLUSTERS, RemoteClusterFeatureSetUsage::new),
+            // Enterprise Search
+            new NamedWriteableRegistry.Entry(
+                XPackFeatureSet.Usage.class,
+                XPackField.ENTERPRISE_SEARCH,
+                EnterpriseSearchFeatureSetUsage::new
             )
-        );
-
-        // TSDB Downsampling / Rollup
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            namedWriteables.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new));
-        }
-
-        return namedWriteables;
+        ).filter(Objects::nonNull).toList();
     }
 
     @Override

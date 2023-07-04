@@ -11,9 +11,9 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -70,12 +70,14 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
-        stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());
+        stateBuilder.routingTable(
+            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+        );
         long lastCreated = System.currentTimeMillis();
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (IndexAbstraction.DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -92,7 +94,12 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             }
         });
         AllocationDeciders allocationDeciders = new AllocationDeciders(allocationDecidersList);
-        ProactiveStorageDeciderService service = new ProactiveStorageDeciderService(Settings.EMPTY, clusterSettings, allocationDeciders);
+        ProactiveStorageDeciderService service = new ProactiveStorageDeciderService(
+            Settings.EMPTY,
+            clusterSettings,
+            allocationDeciders,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        );
         AutoscalingCapacity currentCapacity = ReactiveStorageDeciderDecisionTests.randomCurrentCapacity();
         ClusterInfo info = randomClusterInfo(state);
         AutoscalingDeciderContext context = new AutoscalingDeciderContext() {
@@ -168,11 +175,14 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             randomBoolean()
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
-        stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());
+        stateBuilder.routingTable(
+            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+        );
         ClusterState state = stateBuilder.build();
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             state,
             null,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             null,
             null,
             null,
@@ -191,12 +201,14 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
-        stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());
+        stateBuilder.routingTable(
+            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+        );
         long lastCreated = randomNonNegativeLong();
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (IndexAbstraction.DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -205,6 +217,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             state,
             null,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             null,
             randomClusterInfo(state),
             null,
@@ -228,13 +241,15 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             randomBoolean()
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
-        stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());
+        stateBuilder.routingTable(
+            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+        );
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
         long lastCreated = randomNonNegativeLong();
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (IndexAbstraction.DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -249,6 +264,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             state,
             null,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             null,
             info,
             null,
@@ -266,7 +282,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             assertThat(forecastDataStream.getIndices().subList(0, indices), Matchers.equalTo(dataStream.getIndices()));
 
             RoutingTable forecastRoutingTable = forecast.state().routingTable();
-            assertThat(forecastRoutingTable.allShards().size(), Matchers.equalTo((expectedIndices) * shardCopies));
+            assertThat(forecastRoutingTable.allShards().count(), Matchers.equalTo((long) (expectedIndices) * shardCopies));
 
             forecastDataStream.getIndices()
                 .forEach(index -> assertThat(forecastRoutingTable.allShards(index.getName()).size(), Matchers.equalTo(shardCopies)));
@@ -352,19 +368,18 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
                 allocation.changes()
             );
-            allocation.routingNodes().startShard(logger, shardRouting, allocation.changes());
+            allocation.routingNodes().startShard(logger, shardRouting, allocation.changes(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         }
     }
 
     private RoutingTable.Builder addRouting(Iterable<IndexMetadata> indices, RoutingTable.Builder builder) {
-        indices.forEach(builder::addAsNew);
+        indices.forEach(indexMetadata -> builder.addAsNew(indexMetadata));
         return builder;
     }
 
     private ClusterInfo randomClusterInfo(ClusterState state) {
         Map<String, Long> shardSizes = state.routingTable()
             .allShards()
-            .stream()
             .map(ClusterInfo::shardIdentifierFromRouting)
             .collect(Collectors.toMap(Function.identity(), id -> randomLongBetween(1, 1000), (v1, v2) -> v1));
         Map<String, DiskUsage> diskUsage = new HashMap<>();
@@ -377,7 +392,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterState.Builder applyCreatedDates(
         ClusterState state,
         ClusterState.Builder builder,
-        IndexAbstraction.DataStream ds,
+        DataStream ds,
         long last,
         long decrement
     ) {

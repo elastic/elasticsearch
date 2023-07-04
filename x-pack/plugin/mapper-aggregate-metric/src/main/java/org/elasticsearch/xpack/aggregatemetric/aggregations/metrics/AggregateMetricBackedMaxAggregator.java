@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -15,6 +14,7 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -43,27 +43,22 @@ class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.Single
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = config.hasValues() ? (AggregateMetricsValuesSource.AggregateDoubleMetric) config.getValuesSource() : null;
-        if (valuesSource != null) {
-            maxes = context.bigArrays().newDoubleArray(1, false);
-            maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-        }
+        assert config.hasValues();
+        this.valuesSource = (AggregateMetricsValuesSource.AggregateDoubleMetric) config.getValuesSource();
+        maxes = context.bigArrays().newDoubleArray(1, false);
+        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         this.formatter = config.format();
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         final BigArrays bigArrays = bigArrays();
-        final SortedNumericDoubleValues allValues = valuesSource.getAggregateMetricValues(ctx, Metric.max);
+        final SortedNumericDoubleValues allValues = valuesSource.getAggregateMetricValues(aggCtx.getLeafReaderContext(), Metric.max);
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
 
@@ -86,7 +81,7 @@ class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.Single
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= maxes.size()) {
+        if (owningBucketOrd >= maxes.size()) {
             return Double.NEGATIVE_INFINITY;
         }
         return maxes.get(owningBucketOrd);
@@ -94,7 +89,7 @@ class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.Single
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= maxes.size()) {
+        if (bucket >= maxes.size()) {
             return buildEmptyAggregation();
         }
         return new Max(name, maxes.get(bucket), formatter, metadata());
@@ -102,7 +97,7 @@ class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.Single
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new Max(name, Double.NEGATIVE_INFINITY, formatter, metadata());
+        return Max.createEmptyMax(name, formatter, metadata());
     }
 
     @Override

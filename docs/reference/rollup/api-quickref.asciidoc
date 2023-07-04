@@ -7,6 +7,9 @@
 
 experimental[]
 
+NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
+rollups as a way to reduce your storage costs for time series data.
+
 Most rollup endpoints have the following base:
 
 [source,js]

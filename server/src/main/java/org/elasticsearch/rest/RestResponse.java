@@ -17,6 +17,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,6 +34,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 
 public class RestResponse {
 
@@ -43,7 +45,12 @@ public class RestResponse {
     private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
 
     private final RestStatus status;
+
+    @Nullable
     private final BytesReference content;
+
+    @Nullable
+    private final ChunkedRestResponseBody chunkedResponseBody;
     private final String responseMediaType;
     private Map<String, List<String>> customHeaders;
 
@@ -68,13 +75,28 @@ public class RestResponse {
         this(status, responseMediaType, new BytesArray(content));
     }
 
+    public RestResponse(RestStatus status, String responseMediaType, BytesReference content) {
+        this(status, responseMediaType, content, null);
+    }
+
+    public RestResponse(RestStatus status, ChunkedRestResponseBody content) {
+        this(status, content.getResponseContentTypeString(), null, content);
+    }
+
     /**
      * Creates a binary response.
      */
-    public RestResponse(RestStatus status, String responseMediaType, BytesReference content) {
+    private RestResponse(
+        RestStatus status,
+        String responseMediaType,
+        @Nullable BytesReference content,
+        @Nullable ChunkedRestResponseBody chunkedResponseBody
+    ) {
         this.status = status;
         this.content = content;
         this.responseMediaType = responseMediaType;
+        this.chunkedResponseBody = chunkedResponseBody;
+        assert (content == null) != (chunkedResponseBody == null);
     }
 
     public RestResponse(RestChannel channel, Exception e) throws IOException {
@@ -82,6 +104,7 @@ public class RestResponse {
     }
 
     public RestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
+        this.status = status;
         ToXContent.Params params = paramsFromRequest(channel.request());
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
             // log exception only if it is not returned in the response
@@ -97,23 +120,33 @@ public class RestResponse {
                 SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
             }
         }
-        this.status = status;
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
             this.content = BytesReference.bytes(builder);
-            this.responseMediaType = builder.contentType().mediaType();
+            this.responseMediaType = builder.getResponseContentTypeString();
         }
         if (e instanceof ElasticsearchException) {
             copyHeaders(((ElasticsearchException) e));
         }
+        this.chunkedResponseBody = null;
     }
 
     public String contentType() {
         return this.responseMediaType;
     }
 
+    @Nullable
     public BytesReference content() {
         return this.content;
+    }
+
+    @Nullable
+    public ChunkedRestResponseBody chunkedContent() {
+        return chunkedResponseBody;
+    }
+
+    public boolean isChunked() {
+        return chunkedResponseBody != null;
     }
 
     public RestStatus status() {
@@ -129,7 +162,7 @@ public class RestResponse {
     }
 
     protected boolean skipStackTrace() {
-        return false;
+        return status() == RestStatus.UNAUTHORIZED;
     }
 
     private static void build(
@@ -216,6 +249,14 @@ public class RestResponse {
     }
 
     public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
+        if (status() == RestStatus.UNAUTHORIZED || status() == RestStatus.FORBIDDEN) {
+            if (headers.containsKey("Warning")) {
+                headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
+            }
+            if (headers.containsKey(ELASTIC_PRODUCT_HTTP_HEADER)) {
+                headers = Maps.copyMapWithRemovedEntry(headers, ELASTIC_PRODUCT_HTTP_HEADER);
+            }
+        }
         return headers;
     }
 }

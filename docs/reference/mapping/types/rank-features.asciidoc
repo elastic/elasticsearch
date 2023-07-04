@@ -83,7 +83,10 @@ NOTE: `rank_features` fields only support single-valued features and strictly
 positive values. Multi-valued fields and zero or negative values will be rejected.
 
 NOTE: `rank_features` fields do not support sorting or aggregating and may
-only be queried using <<query-dsl-rank-feature-query,`rank_feature`>> queries.
+only be queried using <<query-dsl-rank-feature-query,`rank_feature`>> or <<query-dsl-term-query, `term`>> queries.
+
+NOTE: <<query-dsl-term-query, `term`>> queries on `rank_features` fields are scored by multiplying the matched
+stored feature value by the provided `boost`.
 
 NOTE: `rank_features` fields only preserve 9 significant bits for the
 precision, which translates to a relative error of about 0.4%.

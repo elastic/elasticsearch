@@ -8,13 +8,17 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.cluster.desirednodes.TransportUpdateDesiredNodesAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.NodeJoinExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -39,6 +43,71 @@ import java.util.stream.Collectors;
 import static java.lang.String.format;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 
+/**
+ * <p>
+ *  Desired nodes represents the cluster topology that the operator of the cluster is aiming for.
+ *  Therefore, it is possible that the desired nodes contain nodes that are not part of the
+ *  cluster in contrast to {@link DiscoveryNodes} that contains only nodes that are part of the cluster.
+ * </p>
+ *
+ * <p>
+ *  This concept is useful as it provides more context about future topology changes to the system
+ *  as well as the desired set of nodes in the cluster, allowing it to make better decisions
+ *  about allocation, autoscaling, auto-expand replicas, etc.
+ * </p>
+ *
+ * <p>
+ *  Additionally, settings validation is done during desired nodes updates avoiding boot-looping
+ *  when an invalid setting is provided before the node is started.
+ * </p>
+ *
+ * <p>
+ *  To modify the desired nodes it is necessary to provide the entire collection of nodes that will
+ *  be part of the proposed cluster topology.
+ * </p>
+ *
+ * <p>
+ *  Desired nodes are expected to be part of a lineage defined by the provided {@code historyId}.
+ *  The {@code historyId} is provided by the orchestrator taking care of managing the cluster.
+ *  In order to identify the different proposed desired nodes within the same history, it is
+ *  also expected that the orchestrator provides a monotonically increasing {@code version}
+ *  when it communicates about future topology changes.
+ *  The cluster rejects desired nodes updated with a {@code version} less than or equal
+ *  than the current {@code version} for the same {@code historyId}.
+ * </p>
+ *
+ * <p>
+ *  The {@code historyId} is expected to remain stable during the cluster lifecycle, but it is
+ *  possible that the orchestrator loses its own state and needs to be restored to a
+ *  previous point in time with an older desired nodes {@code version}. In those cases it is
+ *  expected to use new {@code historyId} that would allow starting from a different version.
+ * </p>
+ *
+ * <p>
+ *  Each {@link DesiredNode} part of {@link DesiredNodes} has a {@link DesiredNodeWithStatus.Status}
+ *  depending on whether or not the node has been part of the cluster at some point.
+ * </p>
+ *
+ *  The two possible statuses {@link DesiredNodeWithStatus.Status} are:
+ *  <ul>
+ *      <li>{@code PENDING}: The {@link DesiredNode} is not part of the cluster yet</li>
+ *      <li>{@code ACTUALIZED}: The {@link DesiredNode} is or has been part of the cluster.
+ *          Notice that it is possible that a node has {@code ACTUALIZED} status but it is not part of {@link DiscoveryNodes},
+ *          this is a conscious decision as it is expected that nodes can leave the cluster momentarily due to network issues,
+ *          gc pressure, restarts, hardware failures etc, but are expected to still be part of the cluster.
+ *      </li>
+ *  </ul>
+ *
+ * <p>
+ *  See {@link NodeJoinExecutor} and {@link TransportUpdateDesiredNodesAction} for more details about desired nodes status tracking.
+ * </p>
+ *
+ * <p>
+ *  Finally, each {@link DesiredNode} is expected to provide a way of identifying the node when it joins,
+ *  {@link Node#NODE_EXTERNAL_ID_SETTING} allows providing that identity through settings.
+ * </p>
+ *
+ */
 public class DesiredNodes implements Writeable, ToXContentObject, Iterable<DesiredNodeWithStatus> {
     public static final String CONTEXT_MODE_PARAM = "desired_nodes_x_content_context";
     public static final String CONTEXT_MODE_API = SerializationContext.GET_DESIRED_NODES_API.toString();
@@ -160,7 +229,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
     }
 
     private static void checkForDuplicatedExternalIDs(List<DesiredNodeWithStatus> nodes) {
-        Set<String> nodeIDs = new HashSet<>(nodes.size());
+        Set<String> nodeIDs = Sets.newHashSetWithExpectedSize(nodes.size());
         Set<String> duplicatedIDs = new HashSet<>();
         for (DesiredNodeWithStatus node : nodes) {
             String externalID = node.desiredNode().externalId();
@@ -179,6 +248,29 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
                 )
             );
         }
+    }
+
+    public boolean equalsWithProcessorsCloseTo(DesiredNodes that) {
+        return that != null
+            && version == that.version
+            && Objects.equals(historyID, that.historyID)
+            && equalsNodesWithProcessorsCloseTo(that);
+    }
+
+    public boolean equalsNodesWithProcessorsCloseTo(DesiredNodes that) {
+        if (that == null || nodes.size() != that.nodes.size()) {
+            return false;
+        }
+
+        for (Map.Entry<String, DesiredNodeWithStatus> desiredNodeEntry : nodes.entrySet()) {
+            final DesiredNodeWithStatus desiredNodeWithStatus = desiredNodeEntry.getValue();
+            final DesiredNodeWithStatus otherDesiredNodeWithStatus = that.nodes.get(desiredNodeEntry.getKey());
+            if (desiredNodeWithStatus.equalsWithProcessorsCloseTo(otherDesiredNodeWithStatus) == false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     @Override

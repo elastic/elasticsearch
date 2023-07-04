@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -50,11 +49,6 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
         public int hashCode() {
             return Arrays.hashCode(concreteNodes());
         }
@@ -87,8 +81,8 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
 
             public CacheInfo(StreamInput in) throws IOException {
                 super(in);
-                jvmInferenceMax = new ByteSizeValue(in);
-                jvmInference = new ByteSizeValue(in);
+                jvmInferenceMax = ByteSizeValue.readFrom(in);
+                jvmInference = ByteSizeValue.readFrom(in);
             }
 
             public ByteSizeValue getJvmInferenceMax() {

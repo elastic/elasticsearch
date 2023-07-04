@@ -6,28 +6,24 @@
  * Side Public License, v 1.
  */
 
+
+import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
-import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
-import org.elasticsearch.gradle.internal.BuildPlugin
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.BwcVersions
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.gradle.plugins.ide.eclipse.model.AccessRule
-import org.gradle.util.DistributionLocator
-import org.gradle.util.GradleVersion
-import org.elasticsearch.gradle.util.GradleUtils
 
-import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
-import org.gradle.plugins.ide.eclipse.model.ProjectDependency
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
+import org.gradle.plugins.ide.eclipse.model.AccessRule
+import org.gradle.plugins.ide.eclipse.model.ProjectDependency
+
 import java.nio.file.Files
+
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
+import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 plugins {
   id 'lifecycle-base'
@@ -44,6 +40,7 @@ plugins {
   id 'elasticsearch.fips'
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
+  id 'elasticsearch.run-ccs'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
 }
@@ -122,10 +119,10 @@ tasks.register("verifyVersions") {
         throw new GradleException("No branch choice exists for development branch ${unreleasedVersion.branch} in .backportrc.json.")
       }
     }
-    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == 'master' }.key
+    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == 'main' }.key
     String expectedMapping = "^v${versions.elasticsearch.replaceAll('-SNAPSHOT', '')}\$"
     if (versionMapping != expectedMapping) {
-      throw new GradleException("Backport label mapping for branch 'master' is '${versionMapping}' but should be " +
+      throw new GradleException("Backport label mapping for branch 'main' is '${versionMapping}' but should be " +
         "'${expectedMapping}'. Update .backportrc.json.")
     }
   }
@@ -155,7 +152,7 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
   bwc_tests_enabled = false
 }
 
-subprojects {
+subprojects { proj ->
   apply plugin: 'elasticsearch.base'
 }
 
@@ -208,13 +205,15 @@ allprojects {
     }
   }
 
-  def checkPart1 = tasks.register('checkPart1')
-  def checkPart2 = tasks.register('checkPart2')
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
-      checkPart2.configure { dependsOn 'check' }
+      if (project.path.contains("security") || project.path.contains(":ml")) {
+        tasks.register('checkPart3') { dependsOn 'check' }
+      } else {
+        tasks.register('checkPart2') { dependsOn 'check' }
+      }
     } else {
-      checkPart1.configure { dependsOn 'check' }
+      tasks.register('checkPart1') { dependsOn 'check' }
     }
   }
 
@@ -227,9 +226,6 @@ allprojects {
       it.enabled = false
     }
     maybeConfigure(project.tasks, 'dependenciesInfo') {
-      it.enabled = false
-    }
-    maybeConfigure(project.tasks, 'dependenciesGraph') {
       it.enabled = false
     }
   }
@@ -282,13 +278,6 @@ tasks.register("branchConsistency") {
 tasks.named("wrapper").configure {
   distributionType = 'ALL'
   doLast {
-    final DistributionLocator locator = new DistributionLocator()
-    final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
-    final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
-    final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
-    final String sha256Sum = new String(sha256Uri.toURL().bytes)
-    wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
-    println "Added checksum to wrapper properties"
     // copy wrapper properties file to build-tools-internal to allow seamless idea integration
     def file = new File("build-tools-internal/gradle/wrapper/gradle-wrapper.properties")
     Files.copy(wrapper.getPropertiesFile().toPath(), file.toPath(), REPLACE_EXISTING)
@@ -355,6 +344,7 @@ tasks.register("buildReleaseArtifacts").configure {
     it.path.startsWith(':distribution:docker') == false
       && it.path.startsWith(':ml-cpp') == false
       && it.path.startsWith(':distribution:bwc') == false
+      && it.path.startsWith(':test:fixture') == false
   }
     .collect { GradleUtils.findByName(it.tasks, 'assemble') }
     .findAll { it != null }

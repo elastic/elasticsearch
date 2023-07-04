@@ -87,6 +87,11 @@ setup:
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
 
+  - do:
+      search:
+        index: target
+  - match: { hits.total.value: 3 }
+
 
 ---
 "Split from 1 to N":
@@ -176,6 +181,11 @@ setup:
   - match: { _index:   target }
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
+
+  - do:
+      search:
+        index: target
+  - match: { hits.total.value: 3 }
 
 ---
 "Create illegal split indices":

@@ -13,22 +13,29 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class LongFieldScriptTests extends FieldScriptTestCase<LongFieldScript.Factory> {
-    public static final LongFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new LongFieldScript(
+    public static final LongFieldScript.Factory DUMMY = (fieldName, params, lookup, onScriptError) -> ctx -> new LongFieldScript(
         fieldName,
         params,
         lookup,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -59,13 +66,14 @@ public class LongFieldScriptTests extends FieldScriptTestCase<LongFieldScript.Fa
                 LongFieldScript script = new LongFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ctx, doc) -> null),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractFieldScript.MAX_VALUES; i++) {
-                            emit(0);
+                            new Emit(this).emit(0);
                         }
                     }
                 };
@@ -74,6 +82,33 @@ public class LongFieldScriptTests extends FieldScriptTestCase<LongFieldScript.Fa
                     e.getMessage(),
                     equalTo("Runtime field [test] is emitting [101] values while the maximum number of values allowed is [100]")
                 );
+            }
+        }
+    }
+
+    public final void testFromSourceDoesNotEnforceValuesLimit() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            int numValues = AbstractFieldScript.MAX_VALUES + randomIntBetween(1, 100);
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            builder.startObject();
+            builder.startArray("field");
+            for (int i = 0; i < numValues; i++) {
+                builder.value(i);
+            }
+            builder.endArray();
+            builder.endObject();
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef(Strings.toString(builder)))));
+            try (DirectoryReader reader = iw.getReader()) {
+                LongFieldScript.LeafFactory leafFactory = fromSource().newFactory(
+                    "field",
+                    Collections.emptyMap(),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields()),
+                    OnScriptError.FAIL
+                );
+                LongFieldScript longFieldScript = leafFactory.newInstance(reader.leaves().get(0));
+                List<Long> results = new ArrayList<>();
+                longFieldScript.runForDoc(0, results::add);
+                assertEquals(numValues, results.size());
             }
         }
     }

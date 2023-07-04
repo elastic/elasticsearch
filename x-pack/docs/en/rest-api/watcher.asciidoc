@@ -10,6 +10,8 @@
 * <<watcher-api-ack-watch>>
 * <<watcher-api-activate-watch>>
 * <<watcher-api-deactivate-watch>>
+* <<watcher-api-update-settings>>
+* <<watcher-api-get-settings>>
 * <<watcher-api-stats>>
 * <<watcher-api-stop>>
 * <<watcher-api-start>>
@@ -31,6 +33,10 @@ include::watcher/stats.asciidoc[]
 include::watcher/query-watches.asciidoc[]
 //PUT
 include::watcher/put-watch.asciidoc[]
+// UPDATE-SETTINGS
+include::watcher/update-settings.asciidoc[]
+// GET-SETTINGS
+include::watcher/get-settings.asciidoc[]
 //START
 include::watcher/start.asciidoc[]
 //STOP

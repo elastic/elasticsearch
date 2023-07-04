@@ -35,7 +35,6 @@ import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
@@ -72,26 +71,21 @@ public class FrozenIndexIT extends ESIntegTestCase {
     public void testTimestampRangeRecalculatedOnStalePrimaryAllocation() throws IOException {
         final List<String> nodeNames = internalCluster().startNodes(2);
 
-        createIndex(
-            "index",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
-        );
+        createIndex("index", 1, 1);
 
         final IndexResponse indexResponse = client().prepareIndex("index")
-            .setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-06T02:03:04.567Z")
+            .setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567Z")
             .get();
 
         ensureGreen("index");
 
-        assertThat(client().admin().indices().prepareFlush("index").get().getSuccessfulShards(), equalTo(2));
-        assertThat(client().admin().indices().prepareRefresh("index").get().getSuccessfulShards(), equalTo(2));
+        assertThat(indicesAdmin().prepareFlush("index").get().getSuccessfulShards(), equalTo(2));
+        assertThat(indicesAdmin().prepareRefresh("index").get().getSuccessfulShards(), equalTo(2));
 
         final String excludeSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey();
-        assertAcked(
-            client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder().put(excludeSetting, nodeNames.get(0)))
-        );
-        assertAcked(client().admin().cluster().prepareReroute().add(new CancelAllocationCommand("index", 0, nodeNames.get(0), true)));
-        assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(1));
+        updateIndexSettings(Settings.builder().put(excludeSetting, nodeNames.get(0)), "index");
+        assertAcked(clusterAdmin().prepareReroute().add(new CancelAllocationCommand("index", 0, nodeNames.get(0), true)));
+        assertThat(clusterAdmin().prepareHealth("index").get().getUnassignedShards(), equalTo(1));
 
         assertThat(client().prepareDelete("index", indexResponse.getId()).get().status(), equalTo(RestStatus.OK));
 
@@ -100,24 +94,20 @@ public class FrozenIndexIT extends ESIntegTestCase {
         );
 
         assertThat(
-            client().admin().cluster().prepareState().get().getState().metadata().index("index").getTimestampRange(),
+            clusterAdmin().prepareState().get().getState().metadata().index("index").getTimestampRange(),
             sameInstance(IndexLongFieldRange.EMPTY)
         );
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames.get(1)));
-        assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
-        assertAcked(client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder().putNull(excludeSetting)));
-        assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
+        internalCluster().stopNode(nodeNames.get(1));
+        assertThat(clusterAdmin().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
+        updateIndexSettings(Settings.builder().putNull(excludeSetting), "index");
+        assertThat(clusterAdmin().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
 
-        assertAcked(
-            client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand("index", 0, nodeNames.get(0), true))
-        );
+        assertAcked(clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand("index", 0, nodeNames.get(0), true)));
 
         ensureYellowAndNoInitializingShards("index");
 
-        final IndexLongFieldRange timestampFieldRange = client().admin()
-            .cluster()
-            .prepareState()
+        final IndexLongFieldRange timestampFieldRange = clusterAdmin().prepareState()
             .get()
             .getState()
             .metadata()
@@ -160,7 +150,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
                     jsonBuilder().startObject()
                         .startObject("_doc")
                         .startObject("properties")
-                        .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+                        .startObject(DataStream.TIMESTAMP_FIELD_NAME)
                         .field("type", "date")
                         .field("format", "dd LLL yyyy HH:mm:ssX")
                         .field("locale", locale)
@@ -171,9 +161,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
                 )
         );
 
-        final Index index = client().admin()
-            .cluster()
-            .prepareState()
+        final Index index = clusterAdmin().prepareState()
             .clear()
             .setIndices("index")
             .setMetadata(true)
@@ -185,7 +173,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         ensureGreen("index");
         if (randomBoolean()) {
-            client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, date).get();
+            client().prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, date).get();
         }
 
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
@@ -226,9 +214,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         final String assignedNode = randomFrom(dataNodes);
         final String indexName = "test";
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
@@ -299,7 +285,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
         try {
-            client().admin().indices().prepareDelete("index-1").get();
+            indicesAdmin().prepareDelete("index-1").get();
             // Return partial results if allow partial search result is allowed
             SearchResponse resp = client().prepareSearch()
                 .setPreference(null)
@@ -332,9 +318,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("test-index")).actionGet());
         // include the frozen indices
         {
-            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").keepAlive(
-                TimeValue.timeValueMinutes(2)
-            );
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").indicesOptions(
+                IndicesOptions.strictExpandOpenAndForbidClosed()
+            ).keepAlive(TimeValue.timeValueMinutes(2));
             final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
             try {
                 SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
@@ -346,9 +332,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
         }
         // exclude the frozen indices
         {
-            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").indicesOptions(
-                IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled()
-            ).keepAlive(TimeValue.timeValueMinutes(2));
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").keepAlive(
+                TimeValue.timeValueMinutes(2)
+            );
             final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
             try {
                 SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();

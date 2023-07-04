@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.slm;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,11 +16,13 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -32,7 +33,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
@@ -456,12 +456,12 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             )
         );
         final SetOnce<ClusterStateUpdateTask> task = new SetOnce<>();
-        ClusterService fakeService = new ClusterService(Settings.EMPTY, clusterSettings, threadPool) {
+        ClusterService fakeService = new ClusterService(Settings.EMPTY, clusterSettings, threadPool, null) {
             @Override
             public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
                 logger.info("--> got task: [source: {}]: {}", source, updateTask);
                 if (updateTask instanceof OperationModeUpdateTask) {
-                    task.set((OperationModeUpdateTask) updateTask);
+                    task.set(updateTask);
                 }
             }
         };
@@ -504,7 +504,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         Metadata metadata = Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, snapMeta).build();
         final DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
             .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9300), "local"))
-            .add(new DiscoveryNode("remote", new TransportAddress(TransportAddress.META_ADDRESS, 9301), Version.CURRENT))
+            .add(DiscoveryNodeUtils.create("remote", new TransportAddress(TransportAddress.META_ADDRESS, 9301)))
             .localNodeId("local")
             .masterNodeId(localNodeMaster ? "local" : "remote");
         return ClusterState.builder(new ClusterName("cluster")).nodes(discoveryNodesBuilder).metadata(metadata).build();

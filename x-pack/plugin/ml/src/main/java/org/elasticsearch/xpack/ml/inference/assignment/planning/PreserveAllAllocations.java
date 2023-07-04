@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
-import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
+import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Deployment;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 
 import java.util.List;
@@ -16,27 +16,27 @@ import java.util.stream.Collectors;
 
 public class PreserveAllAllocations extends AbstractPreserveAllocations {
 
-    protected PreserveAllAllocations(List<Node> nodes, List<Model> models) {
-        super(nodes, models);
+    protected PreserveAllAllocations(List<Node> nodes, List<Deployment> deployments) {
+        super(nodes, deployments);
     }
 
     @Override
-    protected int calculateUsedCores(Node n, Model m) {
-        return m.currentAllocationByNodeId().get(n.id()) * m.threadsPerAllocation();
+    protected int calculateUsedCores(Node n, Deployment m) {
+        return m.currentAllocationsByNodeId().get(n.id()) * m.threadsPerAllocation();
     }
 
     @Override
-    protected Map<String, Integer> calculateAllocationsPerNodeToPreserve(Model m) {
-        return m.currentAllocationByNodeId().entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> 0));
+    protected Map<String, Integer> calculateAllocationsPerNodeToPreserve(Deployment m) {
+        return m.currentAllocationsByNodeId().entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> 0));
     }
 
     @Override
-    protected int calculatePreservedAllocations(Model m) {
-        return m.currentAllocationByNodeId().values().stream().mapToInt(Integer::intValue).sum();
+    protected int calculatePreservedAllocations(Deployment m) {
+        return m.currentAllocationsByNodeId().values().stream().mapToInt(Integer::intValue).sum();
     }
 
     @Override
-    protected int addPreservedAllocations(Node n, Model m) {
-        return m.currentAllocationByNodeId().get(n.id());
+    protected int addPreservedAllocations(Node n, Deployment m) {
+        return m.currentAllocationsByNodeId().get(n.id());
     }
 }

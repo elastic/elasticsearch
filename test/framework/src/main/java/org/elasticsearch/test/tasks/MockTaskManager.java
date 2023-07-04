@@ -13,10 +13,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 
 import java.util.Collection;
 import java.util.Set;
@@ -40,7 +42,7 @@ public class MockTaskManager extends TaskManager {
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 
     public MockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        super(settings, threadPool, taskHeaders);
+        super(settings, threadPool, taskHeaders, Tracer.NOOP);
     }
 
     @Override
@@ -77,18 +79,11 @@ public class MockTaskManager extends TaskManager {
     }
 
     @Override
-    public void waitForTaskCompletion(Task task, long untilInNanos) {
+    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
         for (MockTaskManagerListener listener : listeners) {
-            try {
-                listener.waitForTaskCompletion(task);
-            } catch (Exception e) {
-                logger.warn(
-                    () -> format("failed to notify task manager listener about waitForTaskCompletion the task with id %s", task.getId()),
-                    e
-                );
-            }
+            listener.subscribeForRemovedTasks(removedTaskListener);
         }
-        super.waitForTaskCompletion(task, untilInNanos);
+        super.registerRemovedTaskListener(removedTaskListener);
     }
 
     public void addListener(MockTaskManagerListener listener) {

@@ -34,7 +34,7 @@ import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -131,7 +131,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         settings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        settings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(MonitoringService.ENABLED.getKey(), false);
@@ -167,7 +167,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     @Before
     public void ensureTemplatesArePresent() throws Exception {
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState().get().getState();
             assertTrue("Timed out waiting for the ML templates to be installed", MachineLearning.criticalTemplatesInstalled(state));
         }, 20, TimeUnit.SECONDS);
     }
@@ -554,9 +554,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                 return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
             }
             if (context.name.equals("ingest")) {
-                IngestScript.Factory factory = vars -> new IngestScript(vars) {
+                IngestScript.Factory factory = (vars, ctx) -> new IngestScript(vars, ctx) {
                     @Override
-                    public void execute(Map<String, Object> ctx) {}
+                    public void execute() {}
                 };
                 return context.factoryClazz.cast(factory);
             }

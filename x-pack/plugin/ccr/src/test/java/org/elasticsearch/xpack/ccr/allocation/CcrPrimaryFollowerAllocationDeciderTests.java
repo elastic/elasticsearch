@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -28,7 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -63,7 +64,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder();
         nodes.forEach(discoveryNodes::add);
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         if (randomBoolean()) {
             routingTable.addAsNew(metadata.index(index));
         } else if (randomBoolean()) {
@@ -73,7 +74,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         } else {
             routingTable.addAsRestore(metadata.index(index), newSnapshotRecoverySource());
         }
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.EMPTY_NODES)
             .metadata(metadata)
             .routingTable(routingTable.build())
@@ -112,8 +113,9 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder();
         nodes.forEach(discoveryNodes::add);
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
-        RoutingTable.Builder routingTable = RoutingTable.builder().addAsRecovery(metadata.index(index));
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsRecovery(metadata.index(index));
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
             .metadata(metadata)
             .routingTable(routingTable.build())
@@ -147,9 +149,9 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         DiscoveryNode dataAndRemoteNode = newNode("dr1", Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(dataOnlyNode).add(dataAndRemoteNode).build();
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
-        RoutingTable.Builder routingTable = RoutingTable.builder()
+        RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new HashSet<>());
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
             .metadata(metadata)
             .routingTable(routingTable.build())
@@ -198,7 +200,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         return new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             snapshot,
-            Version.CURRENT,
+            IndexVersion.current(),
             new IndexId("test", UUIDs.randomBase64UUID(random()))
         );
     }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -69,7 +71,7 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
     private final Date timestamp;
     private final String nodeName;
 
-    protected AbstractAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
+    protected AbstractAuditMessage(@Nullable String resourceId, String message, Level level, Date timestamp, String nodeName) {
         this.resourceId = resourceId;
         this.message = Objects.requireNonNull(message);
         this.level = Objects.requireNonNull(level);
@@ -77,6 +79,7 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
         this.nodeName = nodeName;
     }
 
+    @Nullable
     public final String getResourceId() {
         return resourceId;
     }
@@ -100,8 +103,9 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        if (resourceId != null) {
-            builder.field(getResourceField(), resourceId);
+        Optional<String> resourceField = getResourceField();
+        if (resourceField.isPresent() && resourceId != null) {
+            builder.field(resourceField.get(), resourceId);
         }
 
         if (message.length() > MAX_AUDIT_MESSAGE_CHARS) {
@@ -154,7 +158,7 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
     /**
      * @return resource id field name used when storing a new message
      */
-    protected abstract String getResourceField();
+    protected abstract Optional<String> getResourceField();
 
     /**
      * Truncate the message and append {@value #TRUNCATED_SUFFIX} so

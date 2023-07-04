@@ -8,7 +8,9 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -16,8 +18,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -450,7 +450,7 @@ public class IngestDocumentTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
         assertThat(list.size(), equalTo(3));
-        assertThat(list.get(0), equalTo(Collections.singletonMap("field", "value")));
+        assertThat(list.get(0), equalTo(Map.of("field", "value")));
         assertThat(list.get(1), nullValue());
         assertThat(list.get(2), equalTo("new_value"));
     }
@@ -476,13 +476,13 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testListAppendFieldValues() {
-        ingestDocument.appendFieldValue("list", Arrays.asList("item1", "item2", "item3"));
+        ingestDocument.appendFieldValue("list", List.of("item1", "item2", "item3"));
         Object object = ingestDocument.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
         assertThat(list.size(), equalTo(5));
-        assertThat(list.get(0), equalTo(Collections.singletonMap("field", "value")));
+        assertThat(list.get(0), equalTo(Map.of("field", "value")));
         assertThat(list.get(1), nullValue());
         assertThat(list.get(2), equalTo("item1"));
         assertThat(list.get(3), equalTo("item2"));
@@ -513,7 +513,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValuesToNonExistingList() {
-        ingestDocument.appendFieldValue("non_existing_list", Arrays.asList("item1", "item2", "item3"));
+        ingestDocument.appendFieldValue("non_existing_list", List.of("item1", "item2", "item3"));
         Object object = ingestDocument.getSourceAndMetadata().get("non_existing_list");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
@@ -540,7 +540,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValuesConvertStringToList() {
-        ingestDocument.appendFieldValue("fizz.buzz", Arrays.asList("item1", "item2", "item3"));
+        ingestDocument.appendFieldValue("fizz.buzz", List.of("item1", "item2", "item3"));
         Object object = ingestDocument.getSourceAndMetadata().get("fizz");
         assertThat(object, instanceOf(Map.class));
         @SuppressWarnings("unchecked")
@@ -568,7 +568,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValuesConvertIntegerToList() {
-        ingestDocument.appendFieldValue("int", Arrays.asList(456, 789));
+        ingestDocument.appendFieldValue("int", List.of(456, 789));
         Object object = ingestDocument.getSourceAndMetadata().get("int");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
@@ -580,7 +580,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueConvertMapToList() {
-        ingestDocument.appendFieldValue("fizz", Collections.singletonMap("field", "value"));
+        ingestDocument.appendFieldValue("fizz", Map.of("field", "value"));
         Object object = ingestDocument.getSourceAndMetadata().get("fizz");
         assertThat(object, instanceOf(List.class));
         List<?> list = (List<?>) object;
@@ -589,7 +589,7 @@ public class IngestDocumentTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) list.get(0);
         assertThat(map.size(), equalTo(4));
-        assertThat(list.get(1), equalTo(Collections.singletonMap("field", "value")));
+        assertThat(list.get(1), equalTo(Map.of("field", "value")));
     }
 
     public void testAppendFieldValueToNull() {
@@ -627,7 +627,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValuesToListElement() {
-        ingestDocument.appendFieldValue("fizz.list.0", Arrays.asList("item2", "item3", "item4"));
+        ingestDocument.appendFieldValue("fizz.list.0", List.of("item2", "item3", "item4"));
         Object object = ingestDocument.getSourceAndMetadata().get("fizz");
         assertThat(object, instanceOf(Map.class));
         @SuppressWarnings("unchecked")
@@ -673,7 +673,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValuesConvertStringListElementToList() {
-        ingestDocument.appendFieldValue("fizz.list.0.0", Arrays.asList("item2", "item3", "item4"));
+        ingestDocument.appendFieldValue("fizz.list.0.0", List.of("item2", "item3", "item4"));
         Object object = ingestDocument.getSourceAndMetadata().get("fizz");
         assertThat(object, instanceOf(Map.class));
         @SuppressWarnings("unchecked")
@@ -699,7 +699,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueListElementConvertMapToList() {
-        ingestDocument.appendFieldValue("list.0", Collections.singletonMap("item2", "value2"));
+        ingestDocument.appendFieldValue("list.0", Map.of("item2", "value2"));
         Object object = ingestDocument.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
         List<?> list = (List<?>) object;
@@ -708,8 +708,8 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(list.get(1), nullValue());
         list = (List<?>) list.get(0);
         assertThat(list.size(), equalTo(2));
-        assertThat(list.get(0), equalTo(Collections.singletonMap("field", "value")));
-        assertThat(list.get(1), equalTo(Collections.singletonMap("item2", "value2")));
+        assertThat(list.get(0), equalTo(Map.of("field", "value")));
+        assertThat(list.get(1), equalTo(Map.of("item2", "value2")));
     }
 
     public void testAppendFieldValueToNullListElement() {
@@ -725,15 +725,15 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueToListOfMaps() {
-        ingestDocument.appendFieldValue("list", Collections.singletonMap("item2", "value2"));
+        ingestDocument.appendFieldValue("list", Map.of("item2", "value2"));
         Object object = ingestDocument.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
         assertThat(list.size(), equalTo(3));
-        assertThat(list.get(0), equalTo(Collections.singletonMap("field", "value")));
+        assertThat(list.get(0), equalTo(Map.of("field", "value")));
         assertThat(list.get(1), nullValue());
-        assertThat(list.get(2), equalTo(Collections.singletonMap("item2", "value2")));
+        assertThat(list.get(2), equalTo(Map.of("item2", "value2")));
     }
 
     public void testListSetFieldValueIndexProvided() {
@@ -743,7 +743,7 @@ public class IngestDocumentTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
         assertThat(list.size(), equalTo(2));
-        assertThat(list.get(0), equalTo(Collections.singletonMap("field", "value")));
+        assertThat(list.get(0), equalTo(Map.of("field", "value")));
         assertThat(list.get(1), equalTo("value"));
     }
 
@@ -754,7 +754,7 @@ public class IngestDocumentTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
         assertThat(list.size(), equalTo(2));
-        assertThat(list.get(0), equalTo(Collections.singletonMap("field", "new_value")));
+        assertThat(list.get(0), equalTo(Map.of("field", "new_value")));
         assertThat(list.get(1), nullValue());
     }
 
@@ -962,20 +962,23 @@ public class IngestDocumentTests extends ESTestCase {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
-            sourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+            Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
+            sourceAndMetadata.put(metadata.v1(), metadata.v2());
         }
+        sourceAndMetadata.putIfAbsent("_version", TestIngestDocument.randomVersion());
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
         // this is testing equality so use the wire constructor
-        IngestDocument ingestDocument = IngestDocument.of(sourceAndMetadata, ingestMetadata);
+        IngestDocument ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
 
         boolean changed = false;
         Map<String, Object> otherSourceAndMetadata;
         if (randomBoolean()) {
             otherSourceAndMetadata = RandomDocumentPicks.randomSource(random());
+            otherSourceAndMetadata.putIfAbsent("_version", TestIngestDocument.randomVersion());
             changed = true;
         } else {
             otherSourceAndMetadata = new HashMap<>(sourceAndMetadata);
@@ -983,7 +986,11 @@ public class IngestDocumentTests extends ESTestCase {
         if (randomBoolean()) {
             numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                otherSourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+                Tuple<String, Object> metadata;
+                do {
+                    metadata = TestIngestDocument.randomMetadata();
+                } while (metadata.v2().equals(sourceAndMetadata.get(metadata.v1()))); // must actually be a change
+                otherSourceAndMetadata.put(metadata.v1(), metadata.v2());
             }
             changed = true;
         }
@@ -997,10 +1004,10 @@ public class IngestDocumentTests extends ESTestCase {
             }
             changed = true;
         } else {
-            otherIngestMetadata = Collections.unmodifiableMap(ingestMetadata);
+            otherIngestMetadata = Map.copyOf(ingestMetadata);
         }
 
-        IngestDocument otherIngestDocument = IngestDocument.of(otherSourceAndMetadata, otherIngestMetadata);
+        IngestDocument otherIngestDocument = new IngestDocument(otherSourceAndMetadata, otherIngestMetadata);
         if (changed) {
             assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
             assertThat(otherIngestDocument, not(equalTo(ingestDocument)));
@@ -1008,10 +1015,7 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(ingestDocument, equalTo(otherIngestDocument));
             assertThat(otherIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
-            IngestDocument thirdIngestDocument = IngestDocument.of(
-                Collections.unmodifiableMap(sourceAndMetadata),
-                Collections.unmodifiableMap(ingestMetadata)
-            );
+            IngestDocument thirdIngestDocument = new IngestDocument(Map.copyOf(sourceAndMetadata), Map.copyOf(ingestMetadata));
             assertThat(thirdIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument, equalTo(thirdIngestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(thirdIngestDocument.hashCode()));
@@ -1030,10 +1034,41 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testCopyConstructor() {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        IngestDocument copy = new IngestDocument(ingestDocument);
-        assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
-        assertIngestDocument(ingestDocument, copy);
+        {
+            // generic test with a random document and copy
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            IngestDocument copy = new IngestDocument(ingestDocument);
+
+            // these fields should not be the same instance
+            assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
+            assertThat(ingestDocument.getCtxMap(), not(sameInstance(copy.getCtxMap())));
+            assertThat(ingestDocument.getCtxMap().getMetadata(), not(sameInstance(copy.getCtxMap().getMetadata())));
+
+            // but the two objects should be very much equal to each other
+            assertIngestDocument(ingestDocument, copy);
+        }
+
+        {
+            // manually punch in a few values
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            ingestDocument.setFieldValue("_index", "foo1");
+            ingestDocument.setFieldValue("_id", "bar1");
+            ingestDocument.setFieldValue("hello", "world1");
+            IngestDocument copy = new IngestDocument(ingestDocument);
+
+            // make sure the copy matches
+            assertIngestDocument(ingestDocument, copy);
+
+            // change the copy
+            copy.setFieldValue("_index", "foo2");
+            copy.setFieldValue("_id", "bar2");
+            copy.setFieldValue("hello", "world2");
+
+            // the original shouldn't have changed
+            assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("foo1"));
+            assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("bar1"));
+            assertThat(ingestDocument.getFieldValue("hello", String.class), equalTo("world1"));
+        }
     }
 
     public void testCopyConstructorWithZonedDateTime() {
@@ -1043,7 +1078,7 @@ public class IngestDocumentTests extends ESTestCase {
         sourceAndMetadata.put("beforeClockChange", ZonedDateTime.ofInstant(Instant.ofEpochSecond(1509237000), timezone));
         sourceAndMetadata.put("afterClockChange", ZonedDateTime.ofInstant(Instant.ofEpochSecond(1509240600), timezone));
 
-        IngestDocument original = TestIngestDocument.ofSourceAndMetadata(sourceAndMetadata);
+        IngestDocument original = TestIngestDocument.withDefaultVersion(sourceAndMetadata);
         IngestDocument copy = new IngestDocument(original);
 
         assertThat(copy.getSourceAndMetadata().get("beforeClockChange"), equalTo(original.getSourceAndMetadata().get("beforeClockChange")));
@@ -1070,8 +1105,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testDeepCopy() {
-        // this is testing copy so use the wire constructor
-        IngestDocument copiedDoc = IngestDocument.of(
+        IngestDocument copiedDoc = new IngestDocument(
             IngestDocument.deepCopyMap(ingestDocument.getSourceAndMetadata()),
             IngestDocument.deepCopyMap(ingestDocument.getIngestMetadata())
         );
@@ -1109,4 +1143,19 @@ public class IngestDocumentTests extends ESTestCase {
         assertFalse(IngestDocument.Metadata.isMetadata("address"));
     }
 
+    public void testIndexHistory() {
+        // the index history contains the original index
+        String index1 = ingestDocument.getFieldValue("_index", String.class);
+        assertThat(index1, equalTo("index"));
+        assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1));
+
+        // it can be updated to include another index
+        String index2 = "another_index";
+        assertTrue(ingestDocument.updateIndexHistory(index2));
+        assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1, index2));
+
+        // an index cycle cannot be introduced, however
+        assertFalse(ingestDocument.updateIndexHistory(index1));
+        assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1, index2));
+    }
 }

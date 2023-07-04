@@ -22,6 +22,7 @@ public final class TransformField {
     public static final ParseField COUNT = new ParseField("count");
     public static final ParseField GROUP_BY = new ParseField("group_by");
     public static final ParseField TIMEOUT = new ParseField("timeout");
+    public static final ParseField FROM = new ParseField("from");
     public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
     public static final ParseField WAIT_FOR_CHECKPOINT = new ParseField("wait_for_checkpoint");
     public static final ParseField STATS_FIELD = new ParseField("stats");
@@ -35,6 +36,7 @@ public final class TransformField {
     public static final ParseField METADATA = new ParseField("_meta");
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField FORCE = new ParseField("force");
+    public static final ParseField DELETE_DEST_INDEX = new ParseField("delete_dest_index");
     public static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
     public static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
     public static final ParseField DATES_AS_EPOCH_MILLIS = new ParseField("dates_as_epoch_millis");
@@ -42,6 +44,8 @@ public final class TransformField {
     public static final ParseField USE_PIT = new ParseField("use_point_in_time");
     public static final ParseField DEDUCE_MAPPINGS = new ParseField("deduce_mappings");
     public static final ParseField NUM_FAILURE_RETRIES = new ParseField("num_failure_retries");
+    public static final ParseField UNATTENDED = new ParseField("unattended");
+
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField SYNC = new ParseField("sync");
     public static final ParseField TIME = new ParseField("time");

@@ -126,9 +126,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     PLUGIN_CHECKERS,
                     components,
                     new ThreadedActionListener<>(
-                        logger,
-                        client.threadPool(),
-                        ThreadPool.Names.GENERIC,
+                        client.threadPool().generic(),
                         listener.map(
                             deprecationIssues -> DeprecationInfoAction.Response.from(
                                 state,
@@ -140,8 +138,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                                 deprecationIssues,
                                 skipTheseDeprecations
                             )
-                        ),
-                        false
+                        )
                     )
                 );
 
@@ -154,14 +151,13 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         DeprecationChecker.Components components,
         ActionListener<Map<String, List<DeprecationIssue>>> listener
     ) {
-        List<DeprecationChecker> enabledCheckers = checkers.stream()
-            .filter(c -> c.enabled(components.settings()))
-            .collect(Collectors.toList());
+        List<DeprecationChecker> enabledCheckers = checkers.stream().filter(c -> c.enabled(components.settings())).toList();
         if (enabledCheckers.isEmpty()) {
             listener.onResponse(Collections.emptyMap());
             return;
         }
         GroupedActionListener<DeprecationChecker.CheckResult> groupedActionListener = new GroupedActionListener<>(
+            enabledCheckers.size(),
             ActionListener.wrap(
                 checkResults -> listener.onResponse(
                     checkResults.stream()
@@ -170,8 +166,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                         )
                 ),
                 listener::onFailure
-            ),
-            enabledCheckers.size()
+            )
         );
         for (DeprecationChecker checker : checkers) {
             checker.check(components, groupedActionListener);

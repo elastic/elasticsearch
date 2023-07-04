@@ -15,6 +15,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -41,12 +42,12 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     protected Map<String, PrefixQueryBuilder> getAlternateVersions() {
         Map<String, PrefixQueryBuilder> alternateVersions = new HashMap<>();
         PrefixQueryBuilder prefixQuery = randomPrefixQuery();
-        String contentString = """
+        String contentString = Strings.format("""
             {
                 "prefix" : {
                     "%s" : "%s"
                 }
-            }""".formatted(prefixQuery.fieldName(), prefixQuery.value());
+            }""", prefixQuery.fieldName(), prefixQuery.value());
         alternateVersions.put(contentString, prefixQuery);
         return alternateVersions;
     }
@@ -151,16 +152,18 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     public void testRewriteIndexQueryToMatchNone() throws Exception {
         PrefixQueryBuilder query = prefixQuery("_index", "does_not_exist");
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        }
     }
 
     public void testRewriteIndexQueryToNotMatchNone() throws Exception {
         PrefixQueryBuilder query = prefixQuery("_index", getIndex().getName());
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        }
     }
 
     @Override

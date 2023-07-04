@@ -105,6 +105,41 @@ setup:
             }
           }
   - match: { acknowledged: true }
+
+---
+"Test put transform with invalid source index pattern":
+  - do:
+      # The transform can be created even though the source index pattern resolves to empty set of concrete indices.
+      transform.put_transform:
+        transform_id: "missing-source-transform-pattern"
+        body: >
+          {
+            "source": { "index": "missing-index*" },
+            "dest": { "index": "missing-source-dest" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      # The transform can be updated even though the source index pattern resolves to empty set of concrete indices.
+      transform.update_transform:
+        transform_id: "missing-source-transform-pattern"
+        body: >
+          {
+            "description": "updated description"
+          }
+  - match: { id: "missing-source-transform-pattern" }
+  - match: { description: "updated description" }
+
+  - do:
+      # The transform can be started even though the source index pattern resolves to empty set of concrete indices.
+      transform.start_transform:
+        transform_id: "missing-source-transform-pattern"
+  - match: { acknowledged: true }
+
 ---
 "Test basic transform crud":
   - do:
@@ -165,6 +200,7 @@ setup:
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
   - match: { transforms.0.description: "yaml test transform on airline-data" }
+  - is_true: transforms.0.authorization.roles
 
   - do:
       transform.get_transform:
@@ -186,6 +222,8 @@ setup:
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform" }
   - match: { transforms.1.id: "airline-transform-dos" }
+  - is_true: transforms.0.authorization.roles
+  - is_true: transforms.1.authorization.roles
 
   - do:
       transform.get_transform:
@@ -254,6 +292,7 @@ setup:
   - match: { transforms.0.dest.index: "airline-data-by-airline" }
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+
 ---
 "Test PUT continuous transform":
   - do:
@@ -288,6 +327,8 @@ setup:
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
   - match: { transforms.0.sync.time.field: "time" }
   - match: { transforms.0.sync.time.delay: "90m" }
+  - is_true: transforms.0.authorization.roles
+
 ---
 "Test PUT continuous transform without delay set":
   - do:

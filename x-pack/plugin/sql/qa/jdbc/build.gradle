@@ -2,7 +2,7 @@ import org.elasticsearch.gradle.internal.BwcVersions.UnreleasedVersionInfo
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 description = 'Integration tests for SQL JDBC driver'
 apply plugin: 'elasticsearch.java'
@@ -52,7 +52,7 @@ subprojects {
 
   if (project.name != 'security') {
     // The security project just configures its subprojects
-    apply plugin: 'elasticsearch.internal-java-rest-test'
+    apply plugin: 'elasticsearch.legacy-java-rest-test'
 
     dependencies {
       javaRestTestImplementation(project(':x-pack:plugin:sql:qa:jdbc'))
@@ -72,7 +72,10 @@ subprojects {
 
     // Configure compatibility testing tasks
     // Compatibility testing for JDBC driver started with version 7.9.0
-    BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString("7.9.0")) && it != VersionProperties.elasticsearchVersion }) { bwcVersion, baseName ->
+    BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromString("7.9.0")) && it != VersionProperties.elasticsearchVersion }).each { bwcVersion ->
+      def baseName = "v${bwcVersion}"
+      def cluster = testClusters.maybeCreate(baseName)
+
       UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
       Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}") {
         // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433
@@ -90,14 +93,16 @@ subprojects {
 
       dependencies {
         "jdbcDriver${baseName}"(driverDependency)
-
       }
 
       final String bwcVersionString = bwcVersion.toString()
-      tasks.register(bwcTaskName(bwcVersion), RestIntegTestTask) {
+      tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+          useCluster cluster
           classpath = sourceSets.javaRestTest.runtimeClasspath + driverConfiguration
           testClassesDirs = sourceSets.javaRestTest.output.classesDirs
           systemProperty 'jdbc.driver.version', bwcVersionString
+          nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",")}")
+          nonInputProperties.systemProperty('tests.clustername', baseName)
       }
     }
   }

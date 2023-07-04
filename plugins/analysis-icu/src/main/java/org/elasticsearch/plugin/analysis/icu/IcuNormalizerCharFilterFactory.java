@@ -30,7 +30,7 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory im
     private final Normalizer2 normalizer;
 
     public IcuNormalizerCharFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name);
+        super(name);
         String method = settings.get("name", "nfkc_cf");
         String mode = settings.get("mode");
         if ("compose".equals(mode) == false && "decompose".equals(mode) == false) {
@@ -41,7 +41,7 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory im
             method,
             "compose".equals(mode) ? Normalizer2.Mode.COMPOSE : Normalizer2.Mode.DECOMPOSE
         );
-        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(indexSettings, normalizerInstance, settings);
+        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(normalizerInstance, settings);
     }
 
     @Override

@@ -17,6 +17,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -58,7 +59,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
      */
     @BeforeClass
     public static void registerClients() throws Exception {
-        String codeClient = """
+        String codeClient = Strings.format("""
             {
               "grant_types": [ "authorization_code" ],
               "response_types": [ "code" ],
@@ -66,16 +67,16 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
               "preferred_client_secret": "%s",
               "redirect_uris": [ "https://my.fantastic.rp/cb" ],
               "token_endpoint_auth_method": "client_secret_basic"
-            }""".formatted(CLIENT_SECRET);
-        String implicitClient = """
+            }""", CLIENT_SECRET);
+        String implicitClient = Strings.format("""
             {
               "grant_types": [ "implicit" ],
               "response_types": [ "token id_token" ],
               "preferred_client_id": "elasticsearch-rp",
               "preferred_client_secret": "%s",
               "redirect_uris": [ "https://my.fantastic.rp/cb" ]
-            }""".formatted(CLIENT_SECRET);
-        String postClient = """
+            }""", CLIENT_SECRET);
+        String postClient = Strings.format("""
             {
               "grant_types": [ "authorization_code" ],
               "response_types": [ "code" ],
@@ -83,8 +84,8 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
               "preferred_client_secret": "%s",
               "redirect_uris": [ "https://my.fantastic.rp/cb" ],
               "token_endpoint_auth_method": "client_secret_post"
-            }""".formatted(CLIENT_SECRET);
-        String jwtClient = """
+            }""", CLIENT_SECRET);
+        String jwtClient = Strings.format("""
             {
               "grant_types": [ "authorization_code" ],
               "response_types": [ "code" ],
@@ -92,7 +93,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
               "preferred_client_secret": "%s",
               "redirect_uris": [ "https://my.fantastic.rp/cb" ],
               "token_endpoint_auth_method": "client_secret_jwt"
-            }""".formatted(CLIENT_SECRET);
+            }""", CLIENT_SECRET);
         registerClients(codeClient, implicitClient, postClient, jwtClient);
     }
 
@@ -181,7 +182,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
         assertThat(map.get("metadata"), instanceOf(Map.class));
         final Map<?, ?> metadata = (Map<?, ?>) map.get("metadata");
         assertThat(metadata.get("oidc(sub)"), equalTo("alice"));
-        assertThat(metadata.get("oidc(iss)"), equalTo("http://oidc-provider:8080/c2id"));
+        assertThat(metadata.get("oidc(iss)"), equalTo(C2ID_ISSUER));
     }
 
     private void verifyElasticsearchAccessTokenForImplicitFlow(String accessToken) throws Exception {
@@ -193,7 +194,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
         assertThat(map.get("metadata"), instanceOf(Map.class));
         final Map<?, ?> metadata = (Map<?, ?>) map.get("metadata");
         assertThat(metadata.get("oidc(sub)"), equalTo("alice"));
-        assertThat(metadata.get("oidc(iss)"), equalTo("http://oidc-provider:8080/c2id"));
+        assertThat(metadata.get("oidc(iss)"), equalTo(C2ID_ISSUER));
     }
 
     private PrepareAuthResponse getRedirectedFromFacilitator(String realmName) throws Exception {
@@ -269,8 +270,8 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
                 { "cluster" : ["manage_oidc", "manage_token"] }""");
             restClient.performRequest(createRoleRequest);
             Request createUserRequest = new Request("PUT", "/_security/user/facilitator");
-            createUserRequest.setJsonEntity("""
-                { "password" : "%s", "roles" : ["facilitator"] }""".formatted(FACILITATOR_PASSWORD));
+            createUserRequest.setJsonEntity(Strings.format("""
+                { "password" : "%s", "roles" : ["facilitator"] }""", FACILITATOR_PASSWORD));
             restClient.performRequest(createUserRequest);
         }
     }
@@ -278,7 +279,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
     private void setRoleMappings() throws Exception {
         try (RestClient restClient = getElasticsearchClient()) {
             Request createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_kibana");
-            createRoleMappingRequest.setJsonEntity("""
+            createRoleMappingRequest.setJsonEntity(Strings.format("""
                 {
                   "roles": [ "kibana_admin" ],
                   "enabled": true,
@@ -306,11 +307,11 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
                       }
                     ]
                   }
-                }""".formatted(REALM_NAME, REALM_NAME_PROXY, REALM_NAME_CLIENT_POST_AUTH, REALM_NAME_CLIENT_JWT_AUTH));
+                }""", REALM_NAME, REALM_NAME_PROXY, REALM_NAME_CLIENT_POST_AUTH, REALM_NAME_CLIENT_JWT_AUTH));
             restClient.performRequest(createRoleMappingRequest);
 
             createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_limited");
-            createRoleMappingRequest.setJsonEntity("""
+            createRoleMappingRequest.setJsonEntity(Strings.format("""
                 {
                   "roles": [ "limited_user" ],
                   "enabled": true,
@@ -319,7 +320,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
                       "realm.name": "%s"
                     }
                   }
-                }""".formatted(REALM_NAME_IMPLICIT));
+                }""", REALM_NAME_IMPLICIT));
             restClient.performRequest(createRoleMappingRequest);
 
             createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_auditor");

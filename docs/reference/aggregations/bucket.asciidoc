@@ -36,7 +36,7 @@ include::bucket/filter-aggregation.asciidoc[]
 
 include::bucket/filters-aggregation.asciidoc[]
 
-include::bucket/frequent-items-aggregation.asciidoc[]
+include::bucket/frequent-item-sets-aggregation.asciidoc[]
 
 include::bucket/geodistance-aggregation.asciidoc[]
 
@@ -77,6 +77,9 @@ include::bucket/significantterms-aggregation.asciidoc[]
 include::bucket/significanttext-aggregation.asciidoc[]
 
 include::bucket/terms-aggregation.asciidoc[]
+
+// PREVIEW
+include::bucket/time-series-aggregation.asciidoc[]
 
 include::bucket/variablewidthhistogram-aggregation.asciidoc[]
 

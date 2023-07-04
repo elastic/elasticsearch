@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
-import org.elasticsearch.xpack.eql.execution.assembler.Criterion;
+import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
 import org.elasticsearch.xpack.eql.execution.search.PITAwareQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.Timestamp;
@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -58,6 +59,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
 
 public class PITFailureTests extends ESTestCase {
 
@@ -78,6 +80,7 @@ public class PITFailureTests extends ESTestCase {
                 TimeValue.timeValueSeconds(30),
                 null,
                 123,
+                1,
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(
@@ -90,8 +93,7 @@ public class PITFailureTests extends ESTestCase {
                     emptyMap(),
                     new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),
                     TimeValue.timeValueDays(5)
-                ),
-                x -> emptySet()
+                )
             );
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());
             CircuitBreaker cb = new NoopCircuitBreaker("testcb");
@@ -108,9 +110,9 @@ public class PITFailureTests extends ESTestCase {
                 cb
             );
             QueryClient eqlClient = new PITAwareQueryClient(eqlSession);
-            List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>();
+            List<SequenceCriterion> criteria = new ArrayList<>();
             criteria.add(
-                new Criterion<>(
+                new SequenceCriterion(
                     0,
                     new BoxedQueryRequest(
                         () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(0),
@@ -122,12 +124,13 @@ public class PITFailureTests extends ESTestCase {
                     TimestampExtractor.INSTANCE,
                     null,
                     ImplicitTiebreakerHitExtractor.INSTANCE,
+                    false,
                     false
                 )
             );
 
-            SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, cb);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
+            SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, booleanArrayOf(1, false), cb);
+            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
             window.execute(
                 wrap(
                     p -> { fail("Search succeeded despite PIT failure"); },

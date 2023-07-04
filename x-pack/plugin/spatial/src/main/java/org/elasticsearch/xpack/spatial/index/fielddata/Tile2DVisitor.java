@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import static org.apache.lucene.geo.GeoUtils.orient;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.abFromTriangle;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.bcFromTriangle;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.caFromTriangle;
 
 /**
  * A reusable tree reader visitor for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
@@ -16,7 +19,7 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * This class supports checking bounding box relations against a serialized triangle tree.
  *
  */
-class Tile2DVisitor implements TriangleTreeReader.Visitor {
+class Tile2DVisitor implements TriangleTreeVisitor {
 
     private GeoRelation relation;
     private int minX;
@@ -57,9 +60,9 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
 
     @Override
     public void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
-        boolean ab = (metadata & 1 << 4) == 1 << 4;
-        boolean bc = (metadata & 1 << 5) == 1 << 5;
-        boolean ca = (metadata & 1 << 6) == 1 << 6;
+        boolean ab = abFromTriangle(metadata);
+        boolean bc = bcFromTriangle(metadata);
+        boolean ca = caFromTriangle(metadata);
         GeoRelation geoRelation = relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
         if (geoRelation != GeoRelation.QUERY_DISJOINT) {
             this.relation = geoRelation;
@@ -96,7 +99,7 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
         }
         if (this.minX <= minX && this.maxX >= maxX && this.minY <= minY && this.maxY >= maxY) {
             // the rectangle fully contains the shape
-            relation = GeoRelation.QUERY_CROSSES;
+            relation = GeoRelation.QUERY_CONTAINS;
             return false;
         }
         return true;

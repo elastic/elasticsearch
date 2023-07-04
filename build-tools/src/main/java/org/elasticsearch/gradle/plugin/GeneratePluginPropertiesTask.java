@@ -40,12 +40,13 @@ import javax.inject.Inject;
 
 public abstract class GeneratePluginPropertiesTask extends DefaultTask {
 
-    private static final String PROPERTIES_FILENAME = "plugin-descriptor.properties";
+    public static final String PROPERTIES_FILENAME = "plugin-descriptor.properties";
+    public static final String STABLE_PROPERTIES_FILENAME = "stable-plugin-descriptor.properties";
+    private static final String DESCRIPTION = "Generates Elasticsearch Plugin descriptor file";
 
     @Inject
     public GeneratePluginPropertiesTask(ProjectLayout projectLayout) {
-        setDescription("Generate " + PROPERTIES_FILENAME);
-        getOutputFile().convention(projectLayout.getBuildDirectory().file("generated-descriptor/" + PROPERTIES_FILENAME));
+        setDescription(DESCRIPTION);
     }
 
     @Input
@@ -63,8 +64,8 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     @Input
     public abstract Property<String> getJavaVersion();
 
-    @Optional
     @Input
+    @Optional
     public abstract Property<String> getClassname();
 
     @Input
@@ -77,12 +78,6 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     public abstract Property<Boolean> getRequiresKeystore();
 
     @Input
-    public abstract Property<PluginType> getPluginType();
-
-    @Input
-    public abstract Property<String> getJavaOpts();
-
-    @Input
     public abstract Property<Boolean> getIsLicensed();
 
     @InputFiles
@@ -91,12 +86,18 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
+    @Input
+    public abstract Property<Boolean> getIsStable();
+
     @TaskAction
     public void generatePropertiesFile() throws IOException {
-        PluginType pluginType = getPluginType().get();
         String classname = getClassname().getOrElse("");
-        if (pluginType.equals(PluginType.BOOTSTRAP) == false && classname.isEmpty()) {
+        boolean stablePlugin = getIsStable().getOrElse(false);
+        if (stablePlugin == false && classname.isEmpty()) {
             throw new InvalidUserDataException("classname is a required setting for esplugin");
+        }
+        if (stablePlugin && classname.isEmpty() == false) {
+            throw new InvalidUserDataException("classname is a forbidden for stable esplugin");
         }
 
         Map<String, Object> props = new HashMap<>();
@@ -109,8 +110,6 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         props.put("extendedPlugins", String.join(",", getExtendedPlugins().get()));
         props.put("hasNativeController", getHasNativeController().get());
         props.put("requiresKeystore", getRequiresKeystore().get());
-        props.put("type", pluginType.toString());
-        props.put("javaOpts", getJavaOpts().get());
         props.put("licensed", getIsLicensed().get());
         props.put("modulename", findModuleName());
 
@@ -140,4 +139,5 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         }
         return visitor.module.name;
     }
+
 }

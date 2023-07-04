@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction.Request;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class PutDataFrameAnalyticsActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     private String id;
 
@@ -65,13 +65,13 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
     }
 
     @Override
-    protected Writeable.Reader<Request> instanceReader() {
-        return Request::new;
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override

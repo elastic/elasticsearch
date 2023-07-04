@@ -8,28 +8,38 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.UTF8StreamWriter;
-import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -57,60 +67,146 @@ public class RestTable {
     }
 
     public static RestResponse buildXContentBuilder(Table table, RestChannel channel) throws Exception {
-        RestRequest request = channel.request();
-        XContentBuilder builder = channel.newBuilder();
-        List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
+        final RestRequest request = channel.request();
+        final List<Integer> rowOrder = getRowOrder(table, channel.request());
+        final List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
 
-        builder.startArray();
-        List<Integer> rowOrder = getRowOrder(table, request);
-        for (Integer row : rowOrder) {
-            builder.startObject();
-            for (DisplayHeader header : displayHeaders) {
-                builder.field(header.display, renderValue(request, table.getAsMap().get(header.name).get(row).value));
-            }
-            builder.endObject();
-        }
-        builder.endArray();
-        return new RestResponse(RestStatus.OK, builder);
+        return new RestResponse(
+            RestStatus.OK,
+            ChunkedRestResponseBody.fromXContent(
+                ignored -> Iterators.concat(
+                    Iterators.single((builder, params) -> builder.startArray()),
+                    rowOrder.stream().<ToXContent>map(row -> (builder, params) -> {
+                        builder.startObject();
+                        for (DisplayHeader header : displayHeaders) {
+                            builder.field(header.display, renderValue(request, table.getAsMap().get(header.name).get(row).value));
+                        }
+                        builder.endObject();
+                        return builder;
+                    }).iterator(),
+                    Iterators.single((builder, params) -> builder.endArray())
+                ),
+                ToXContent.EMPTY_PARAMS,
+                channel
+            )
+        );
     }
 
-    public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
+    public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) {
         RestRequest request = channel.request();
         boolean verbose = request.paramAsBoolean("v", false);
 
         List<DisplayHeader> headers = buildDisplayHeaders(table, request);
         int[] width = buildWidths(table, request, verbose, headers);
-
-        BytesStream bytesOut = Streams.flushOnCloseStream(channel.bytesOutput());
-        UTF8StreamWriter out = new UTF8StreamWriter().setOutput(bytesOut);
         int lastHeader = headers.size() - 1;
-        if (verbose) {
-            for (int col = 0; col < headers.size(); col++) {
-                DisplayHeader header = headers.get(col);
-                boolean isLastColumn = col == lastHeader;
-                pad(new Table.Cell(header.display, table.findHeaderByName(header.name)), width[col], request, out, isLastColumn);
-                if (isLastColumn == false) {
-                    out.append(" ");
-                }
-            }
-            out.append("\n");
-        }
-
         List<Integer> rowOrder = getRowOrder(table, request);
 
-        for (Integer row : rowOrder) {
-            for (int col = 0; col < headers.size(); col++) {
-                DisplayHeader header = headers.get(col);
-                boolean isLastColumn = col == lastHeader;
-                pad(table.getAsMap().get(header.name).get(row), width[col], request, out, isLastColumn);
-                if (isLastColumn == false) {
-                    out.append(" ");
+        if (verbose == false && rowOrder.isEmpty()) {
+            return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+        }
+
+        return new RestResponse(RestStatus.OK, new ChunkedRestResponseBody() {
+
+            private boolean needsHeader = verbose;
+            private final Iterator<Integer> rowIterator = rowOrder.iterator();
+
+            private RecyclerBytesStreamOutput currentOutput;
+            private final Writer writer = new OutputStreamWriter(new OutputStream() {
+                @Override
+                public void write(int b) throws IOException {
+                    assert currentOutput != null;
+                    currentOutput.write(b);
+                }
+
+                @Override
+                public void write(byte[] b, int off, int len) throws IOException {
+                    assert currentOutput != null;
+                    currentOutput.write(b, off, len);
+                }
+
+                @Override
+                public void flush() {
+                    assert currentOutput != null;
+                    currentOutput.flush();
+                }
+
+                @Override
+                public void close() {
+                    assert currentOutput != null;
+                    currentOutput.flush();
+                }
+            }, StandardCharsets.UTF_8);
+
+            @Override
+            public boolean isDone() {
+                return needsHeader == false && rowIterator.hasNext() == false;
+            }
+
+            @Override
+            public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
+                try {
+                    assert currentOutput == null;
+                    currentOutput = new RecyclerBytesStreamOutput(recycler);
+
+                    if (needsHeader) {
+                        needsHeader = false;
+                        for (int col = 0; col < headers.size(); col++) {
+                            DisplayHeader header = headers.get(col);
+                            boolean isLastColumn = col == lastHeader;
+                            pad(
+                                new Table.Cell(header.display, table.findHeaderByName(header.name)),
+                                width[col],
+                                request,
+                                writer,
+                                isLastColumn
+                            );
+                            if (isLastColumn == false) {
+                                writer.append(" ");
+                            }
+                        }
+                        writer.append("\n");
+                    }
+
+                    while (rowIterator.hasNext() && currentOutput.size() < sizeHint) {
+                        final var row = rowIterator.next();
+                        for (int col = 0; col < headers.size(); col++) {
+                            DisplayHeader header = headers.get(col);
+                            boolean isLastColumn = col == lastHeader;
+                            pad(table.getAsMap().get(header.name).get(row), width[col], request, writer, isLastColumn);
+                            if (isLastColumn == false) {
+                                writer.append(" ");
+                            }
+                        }
+                        writer.append("\n");
+                    }
+
+                    if (rowIterator.hasNext()) {
+                        writer.flush();
+                    } else {
+                        writer.close();
+                    }
+
+                    final var chunkOutput = currentOutput;
+                    final var result = new ReleasableBytesReference(
+                        chunkOutput.bytes(),
+                        () -> Releasables.closeExpectNoException(chunkOutput)
+                    );
+                    currentOutput = null;
+                    return result;
+                } finally {
+                    if (currentOutput != null) {
+                        assert false : "failure encoding table chunk";
+                        Releasables.closeExpectNoException(currentOutput);
+                        currentOutput = null;
+                    }
                 }
             }
-            out.append("\n");
-        }
-        out.close();
-        return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
+
+            @Override
+            public String getResponseContentTypeString() {
+                return RestResponse.TEXT_CONTENT_TYPE;
+            }
+        });
     }
 
     static List<Integer> getRowOrder(Table table, RestRequest request) {
@@ -217,7 +313,7 @@ public class RestTable {
      * or some headers are contained twice due to matching aliases
      */
     private static Set<String> expandHeadersFromRequest(Table table, RestRequest request) {
-        Set<String> headers = new LinkedHashSet<>(table.getHeaders().size());
+        Set<String> headers = Sets.newLinkedHashSetWithExpectedSize(table.getHeaders().size());
 
         // check headers and aliases
         for (String header : Strings.splitStringByCommaToArray(request.param("h"))) {
@@ -297,11 +393,11 @@ public class RestTable {
         return width;
     }
 
-    public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out) throws IOException {
+    public static void pad(Table.Cell cell, int width, RestRequest request, Writer out) throws IOException {
         pad(cell, width, request, out, false);
     }
 
-    public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out, boolean isLast) throws IOException {
+    public static void pad(Table.Cell cell, int width, RestRequest request, Writer out, boolean isLast) throws IOException {
         String sValue = renderValue(request, cell.value);
         int length = sValue == null ? 0 : sValue.length();
         byte leftOver = (byte) (width - length);

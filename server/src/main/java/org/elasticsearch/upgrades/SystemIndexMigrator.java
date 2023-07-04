@@ -25,8 +25,10 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -53,7 +55,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION;
+import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_INDEX_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 import static org.elasticsearch.core.Strings.format;
 
@@ -296,16 +298,13 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         MigrationResultsUpdateTask updateTask = MigrationResultsUpdateTask.upsert(
             lastMigrationInfo.getFeatureName(),
             SingleFeatureMigrationResult.success(),
-            ActionListener.wrap(
-                state -> {
-                    prepareNextIndex(
-                        state,
-                        clusterState -> migrateSingleIndex(clusterState, this::finishIndexAndLoop),
-                        lastMigrationInfo.getFeatureName()
-                    );
-                },
-                this::markAsFailed
-            )
+            ActionListener.wrap(state -> {
+                prepareNextIndex(
+                    state,
+                    clusterState -> migrateSingleIndex(clusterState, this::finishIndexAndLoop),
+                    lastMigrationInfo.getFeatureName()
+                );
+            }, this::markAsFailed)
         );
         updateTask.submit(clusterService);
     }
@@ -360,7 +359,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         if (indexMetadata == null) {
             return false;
         }
-        return indexMetadata.isSystem() && indexMetadata.getCreationVersion().before(NO_UPGRADE_REQUIRED_VERSION);
+        return indexMetadata.isSystem() && indexMetadata.getCreationVersion().before(NO_UPGRADE_REQUIRED_INDEX_VERSION);
     }
 
     private void migrateSingleIndex(ClusterState clusterState, Consumer<BulkByScrollResponse> listener) {
@@ -378,6 +377,47 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }
         Index oldIndex = imd.getIndex();
         String newIndexName = migrationInfo.getNextIndexName();
+
+        /**
+         * This should be on for all System indices except for .kibana_ indices. See allowsTemplates in KibanaPlugin.java for more info.
+         */
+        if (migrationInfo.allowsTemplates() == false) {
+            final String v2template = MetadataIndexTemplateService.findV2Template(clusterState.metadata(), newIndexName, false);
+            if (Objects.nonNull(v2template)) {
+                logger.error(
+                    "unable to create new index [{}] from feature [{}] because it would match composable template [{}]",
+                    newIndexName,
+                    migrationInfo.getFeatureName(),
+                    v2template
+                );
+                markAsFailed(
+                    new IllegalStateException(
+                        "unable to create new index [" + newIndexName + "] because it would match composable template [" + v2template + "]"
+                    )
+                );
+                return;
+            }
+            final List<IndexTemplateMetadata> v1templates = MetadataIndexTemplateService.findV1Templates(
+                clusterState.metadata(),
+                newIndexName,
+                false
+            );
+            if (v1templates.isEmpty() == false) {
+                logger.error(
+                    "unable to create new index [{}] from feature [{}] because it would match legacy templates [{}]",
+                    newIndexName,
+                    migrationInfo.getFeatureName(),
+                    v1templates
+                );
+                markAsFailed(
+                    new IllegalStateException(
+                        "unable to create new index [" + newIndexName + "] because it would match legacy templates [" + v1templates + "]"
+                    )
+                );
+                return;
+            }
+        }
+
         logger.info("migrating index [{}] from feature [{}] to new index [{}]", oldIndexName, migrationInfo.getFeatureName(), newIndexName);
         ActionListener<BulkByScrollResponse> innerListener = ActionListener.wrap(listener::accept, this::markAsFailed);
         try {
@@ -495,7 +535,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         // Technically this callback might have a different cluster state, but it shouldn't matter - these indices shouldn't be changing
         // while we're trying to migrate them.
         return unsetReadOnlyResponse -> aliasesRequest.execute(
-            ActionListener.wrap(deleteIndexResponse -> listener.onResponse(bulkByScrollResponse), listener::onFailure)
+            listener.delegateFailureAndWrap((l, deleteIndexResponse) -> l.onResponse(bulkByScrollResponse))
         );
     }
 

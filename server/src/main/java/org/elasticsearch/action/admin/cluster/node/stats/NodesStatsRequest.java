@@ -148,17 +148,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
-    /**
-     * Helper method for adding metrics during deserialization.
-     * @param includeMetric Whether or not to include a metric.
-     * @param metricName Name of the metric to add.
-     */
-    private void optionallyAddMetric(boolean includeMetric, String metricName) {
-        if (includeMetric) {
-            requestedMetrics.add(metricName);
-        }
-    }
-
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
@@ -189,7 +178,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         INGEST("ingest"),
         ADAPTIVE_SELECTION("adaptive_selection"),
         SCRIPT_CACHE("script_cache"),
-        INDEXING_PRESSURE("indexing_pressure"),;
+        INDEXING_PRESSURE("indexing_pressure"),
+        REPOSITORIES("repositories");
 
         private String metricName;
 

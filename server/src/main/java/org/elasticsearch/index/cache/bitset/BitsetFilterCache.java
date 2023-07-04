@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.cache.bitset;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
@@ -31,7 +33,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.IndexWarmer.TerminationHandle;
@@ -41,6 +43,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
+import org.elasticsearch.lucene.util.BitSets;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -59,7 +62,7 @@ import java.util.concurrent.Executor;
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.query.QueryCache} should be used instead.
  */
-public final class BitsetFilterCache extends AbstractIndexComponent
+public final class BitsetFilterCache
     implements
         IndexReader.ClosedListener,
         RemovalListener<IndexReader.CacheKey, Cache<Query, BitsetFilterCache.Value>>,
@@ -71,6 +74,8 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         Property.IndexScope
     );
 
+    private static final Logger logger = LogManager.getLogger(BitsetFilterCache.class);
+
     private final boolean loadRandomAccessFiltersEagerly;
 
     /**
@@ -80,12 +85,14 @@ public final class BitsetFilterCache extends AbstractIndexComponent
     private volatile Cache<IndexReader.CacheKey, Cache<Query, Value>> loadedFilters;
     private final Listener listener;
 
+    private final Index index;
+
     public BitsetFilterCache(IndexSettings indexSettings, Listener listener) {
-        super(indexSettings);
         if (listener == null) {
             throw new IllegalArgumentException("listener must not be null");
         }
-        this.loadRandomAccessFiltersEagerly = this.indexSettings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
+        this.index = indexSettings.getIndex();
+        this.loadRandomAccessFiltersEagerly = indexSettings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
         this.listener = listener;
     }
 
@@ -98,7 +105,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         if (s == null) {
             return null;
         } else {
-            return BitSet.of(s.iterator(), context.reader().maxDoc());
+            return BitSets.of(s.iterator(), context.reader().maxDoc());
         }
     }
 
@@ -124,7 +131,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
     }
 
     public void clear(String reason) {
-        logger.debug("clearing all bitsets because [{}]", reason);
+        logger.debug("clearing all bitsets for [{}] because [{}]", index, reason);
         var filters = loadedFilters;
         if (filters != null) {
             filters.invalidateAll();
@@ -144,11 +151,9 @@ public final class BitsetFilterCache extends AbstractIndexComponent
                     + "see for example AggregatorTestCase#wrapInMockESDirectoryReader.  If you got here in production, please file a bug."
             );
         }
-        if (indexSettings.getIndex().equals(shardId.getIndex()) == false) {
+        if (index.equals(shardId.getIndex()) == false) {
             // insanity
-            throw new IllegalStateException(
-                "Trying to load bit set for index " + shardId.getIndex() + " with cache of index " + indexSettings.getIndex()
-            );
+            throw new IllegalStateException("Trying to load bit set for index " + shardId.getIndex() + " with cache of index " + index);
         }
         var filters = loadedFilters;
         if (filters == null) {
@@ -249,7 +254,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
         @Override
         public IndexWarmer.TerminationHandle warmReader(final IndexShard indexShard, final ElasticsearchDirectoryReader reader) {
-            if (indexSettings.getIndex().equals(indexShard.indexSettings().getIndex()) == false) {
+            if (index.equals(indexShard.indexSettings().getIndex()) == false) {
                 // this is from a different index
                 return TerminationHandle.NO_WAIT;
             }
@@ -263,7 +268,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             MappingLookup lookup = mapperService.mappingLookup();
             NestedLookup nestedLookup = lookup.nestedLookup();
             if (nestedLookup != NestedLookup.EMPTY) {
-                warmUp.add(Queries.newNonNestedFilter());
+                warmUp.add(Queries.newNonNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated()));
                 warmUp.addAll(nestedLookup.getNestedParentFilters().values());
             }
 
@@ -284,7 +289,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
                                     );
                             }
                         } catch (Exception e) {
-                            indexShard.warmerService().logger().warn(() -> "failed to load " + "bitset for [" + filterToWarm + "]", e);
+                            indexShard.warmerService().logger().warn(() -> "failed to load bitset for [" + filterToWarm + "]", e);
                         } finally {
                             latch.countDown();
                         }

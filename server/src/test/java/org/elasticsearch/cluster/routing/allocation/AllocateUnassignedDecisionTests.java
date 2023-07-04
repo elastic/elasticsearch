@@ -8,21 +8,20 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -31,8 +30,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class AllocateUnassignedDecisionTests extends ESTestCase {
 
-    private final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-    private final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
 
     public void testDecisionNotTaken() {
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
@@ -58,10 +57,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
             assertEquals(Explanations.Allocation.AWAITING_INFO, noDecision.getExplanation());
         } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            assertThat(
-                noDecision.getExplanation(),
-                equalTo(String.format(Locale.ROOT, Explanations.Allocation.DELAYED_WITHOUT_ALTERNATIVE, "0s"))
-            );
+            assertThat(noDecision.getExplanation(), equalTo(Strings.format(Explanations.Allocation.DELAYED_WITHOUT_ALTERNATIVE, "0s")));
         } else {
             assertThat(noDecision.getExplanation(), equalTo(Explanations.Allocation.NO_COPIES));
         }
@@ -159,8 +155,8 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         Decision.Type finalDecision = randomFrom(Decision.Type.values());
         DiscoveryNode assignedNode = finalDecision == Decision.Type.YES ? node1 : null;
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();

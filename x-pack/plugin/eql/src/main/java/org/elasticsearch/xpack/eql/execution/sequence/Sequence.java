@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.ql.util.Check;
@@ -32,26 +31,20 @@ public class Sequence implements Comparable<Sequence>, Accountable {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Sequence.class);
 
     private final SequenceKey key;
-    private final int stages;
     private final Match[] matches;
-
     private int currentStage = 0;
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public Sequence(SequenceKey key, int stages, Ordinal ordinal, HitReference firstHit) {
         Check.isTrue(stages >= 2, "A sequence requires at least 2 criteria, given [{}]", stages);
         this.key = key;
-        this.stages = stages;
         this.matches = new Match[stages];
         this.matches[0] = new Match(ordinal, firstHit);
     }
 
     public void putMatch(int stage, Ordinal ordinal, HitReference hit) {
-        if (stage == currentStage + 1) {
-            currentStage = stage;
-            matches[currentStage] = new Match(ordinal, hit);
-        } else {
-            throw new EqlIllegalArgumentException("Invalid stage [{}] specified for sequence[key={}, stage={}]", stage, key, currentStage);
-        }
+        currentStage = stage;
+        matches[currentStage] = new Match(ordinal, hit);
     }
 
     public SequenceKey key() {
@@ -69,7 +62,7 @@ public class Sequence implements Comparable<Sequence>, Accountable {
     public List<HitReference> hits() {
         List<HitReference> hits = new ArrayList<>(matches.length);
         for (Match m : matches) {
-            hits.add(m.hit());
+            hits.add(m == null ? null : m.hit());
         }
         return hits;
     }
@@ -81,7 +74,11 @@ public class Sequence implements Comparable<Sequence>, Accountable {
 
     @Override
     public int compareTo(Sequence o) {
-        return ordinal().compareTo(o.ordinal());
+        int result = ordinal().compareTo(o.ordinal());
+        if (result == 0) {
+            return key().compareTo(o.key());
+        }
+        return result;
     }
 
     @Override
@@ -105,6 +102,7 @@ public class Sequence implements Comparable<Sequence>, Accountable {
 
     @Override
     public String toString() {
+        int stages = matches.length;
         int numberOfDigits = stages > 100 ? 3 : stages > 10 ? 2 : 1;
         NumberFormat nf = NumberFormat.getIntegerInstance(Locale.ROOT);
         nf.setMinimumIntegerDigits(numberOfDigits);
@@ -117,5 +115,9 @@ public class Sequence implements Comparable<Sequence>, Accountable {
         }
 
         return sb.toString();
+    }
+
+    public Match matchAt(int stage) {
+        return matches[stage];
     }
 }

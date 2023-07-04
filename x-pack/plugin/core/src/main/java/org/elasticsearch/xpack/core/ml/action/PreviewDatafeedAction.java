@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -17,6 +17,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -29,9 +32,11 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams.parseDateOrThrow;
 import static org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.END_TIME;
 import static org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.START_TIME;
@@ -80,7 +85,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             datafeedId = in.readString();
             datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
             jobConfig = in.readOptionalWriteable(Job.Builder::new);
-            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                 this.startTime = in.readOptionalLong();
                 this.endTime = in.readOptionalLong();
             } else {
@@ -158,7 +163,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             out.writeString(datafeedId);
             out.writeOptionalWriteable(datafeedConfig);
             out.writeOptionalWriteable(jobConfig);
-            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                 out.writeOptionalLong(startTime);
                 out.writeOptionalLong(endTime);
             }
@@ -197,6 +202,11 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             return Objects.equals(datafeedId, other.datafeedId)
                 && Objects.equals(datafeedConfig, other.datafeedConfig)
                 && Objects.equals(jobConfig, other.jobConfig);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("preview_datafeed[%s]", datafeedId), parentTaskId, headers);
         }
 
         public static class Builder {

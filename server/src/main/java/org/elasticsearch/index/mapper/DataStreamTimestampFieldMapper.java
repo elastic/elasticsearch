@@ -148,7 +148,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
                 "data stream timestamp field [" + DEFAULT_PATH + "] has disallowed [null_value] attribute specified"
             );
         }
-        if (dateFieldMapper.getIgnoreMalformed()) {
+        if (dateFieldMapper.ignoreMalformed()) {
             throw new IllegalArgumentException(
                 "data stream timestamp field [" + DEFAULT_PATH + "] has disallowed [ignore_malformed] attribute specified"
             );
@@ -217,8 +217,9 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         if (first == null) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
         }
-        TimestampBounds bounds = context.indexSettings().getTimestampBounds();
-        if (bounds != null) {
+        var indexMode = context.indexSettings().getMode();
+        if (indexMode.shouldValidateTimestamp()) {
+            TimestampBounds bounds = context.indexSettings().getTimestampBounds();
             validateTimestamp(bounds, first, context);
         }
     }
@@ -266,5 +267,10 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

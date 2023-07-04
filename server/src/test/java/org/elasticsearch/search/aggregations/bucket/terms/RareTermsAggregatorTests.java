@@ -14,10 +14,10 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -32,11 +32,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -45,7 +45,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -241,16 +240,12 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("another_string");
                 MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("another_long", NumberFieldMapper.NumberType.LONG);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     String[] fieldNames = new String[] { "string", "long" };
                     for (int i = 0; i < fieldNames.length; i++) {
                         RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name").field(fieldNames[i]);
-                        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2);
-                        aggregator.preCollection();
-                        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                        aggregator.postCollection();
-                        RareTerms result = (RareTerms) aggregator.buildTopLevel();
+                        RareTerms result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType1, fieldType2));
                         assertEquals("_name", result.getName());
                         assertEquals(0, result.getBuckets().size());
                     }
@@ -276,10 +271,13 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 }
                 MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType("field", rangeType);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name").field("field");
-                    expectThrows(IllegalArgumentException.class, () -> createAggregator(aggregationBuilder, indexSearcher, fieldType));
+                    expectThrows(
+                        IllegalArgumentException.class,
+                        () -> searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType))
+                    );
                 }
             }
         }
@@ -351,7 +349,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 document.add(new SortedDocValuesField("keyword", new BytesRef("e")));
                 indexWriter.addDocument(document);
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global").subAggregation(
                         new RareTermsAggregationBuilder("terms").field("keyword")
@@ -363,7 +361,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("keyword");
 
-                    InternalGlobal result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), globalBuilder, fieldType);
+                    InternalGlobal result = searchAndReduce(indexSearcher, new AggTestConfig(globalBuilder, fieldType));
                     InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
                     assertThat(terms.getBuckets().size(), equalTo(3));
                     for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
@@ -397,14 +395,10 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     new RareTermsAggregationBuilder("terms").field("nested_value").maxDocCount(1)
                 );
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("nested_value", NumberFieldMapper.NumberType.LONG);
-                try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
-                    InternalNested result = searchAndReduce(
-                        newIndexSearcher(indexReader),
-                        // match root document only
-                        new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME),
-                        nested,
-                        fieldType
-                    );
+                try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                    AggTestConfig aggTestConfig = new AggTestConfig(nested, fieldType).withQuery(new FieldExistsQuery(PRIMARY_TERM_NAME));
+                    // match root document only
+                    InternalNested result = searchAndReduce(newIndexSearcher(indexReader), aggTestConfig);
                     InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
                     assertThat(terms.getBuckets().size(), equalTo(1));
                     assertThat(terms.getBuckets().get(0).getKeyAsString(), equalTo("8"));
@@ -436,20 +430,17 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                             )
                     );
                     MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("nested_value", NumberFieldMapper.NumberType.LONG);
-                    try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                    try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
 
                         if (withScore) {
 
-                            IllegalStateException e = expectThrows(
-                                IllegalStateException.class,
-                                () -> searchAndReduce(
-                                    newIndexSearcher(indexReader),
-                                    // match root document only
-                                    new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME),
-                                    nested,
-                                    fieldType
-                                )
-                            );
+                            IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+                                // match root document only
+                                AggTestConfig aggTestConfig = new AggTestConfig(nested, fieldType).withQuery(
+                                    new FieldExistsQuery(PRIMARY_TERM_NAME)
+                                );
+                                searchAndReduce(newIndexSearcher(indexReader), aggTestConfig);
+                            });
                             assertThat(
                                 e.getMessage(),
                                 equalTo(
@@ -459,13 +450,11 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                                 )
                             );
                         } else {
-                            InternalNested result = searchAndReduce(
-                                newIndexSearcher(indexReader),
-                                // match root document only
-                                new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME),
-                                nested,
-                                fieldType
+                            AggTestConfig aggTestConfig = new AggTestConfig(nested, fieldType).withQuery(
+                                new FieldExistsQuery(PRIMARY_TERM_NAME)
                             );
+                            // match root document only
+                            InternalNested result = searchAndReduce(newIndexSearcher(indexReader), aggTestConfig);
                             InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
                             assertThat(terms.getBuckets().size(), equalTo(2));
                             long counter = 1;
@@ -486,22 +475,22 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
 
-    private List<Document> generateDocsWithNested(String id, int value, int[] nestedValues) {
-        List<Document> documents = new ArrayList<>();
+    private List<Iterable<IndexableField>> generateDocsWithNested(String id, int value, int[] nestedValues) {
+        List<Iterable<IndexableField>> documents = new ArrayList<>();
 
         for (int nestedValue : nestedValues) {
             Document document = new Document();
-            document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            document.add(new Field(NestedPathFieldMapper.NAME, "nested_object", NestedPathFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO));
+            document.add(new StringField(NestedPathFieldMapper.NAME, "nested_object", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("nested_value", nestedValue));
             documents.add(document);
         }
 
-        Document document = new Document();
-        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
-        document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
+        LuceneDocument document = new LuceneDocument();
+        document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.YES));
+        document.add(new StringField(NestedPathFieldMapper.NAME, "docs", Field.Store.NO));
         document.add(new SortedNumericDocValuesField("value", value));
-        document.add(sequenceIDFields.primaryTerm);
+        sequenceIDFields.addFields(document);
         documents.add(document);
 
         return documents;
@@ -545,9 +534,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 for (Long value : shuffledDataset) {
                     document.add(new SortedNumericDocValuesField(LONG_FIELD, value));
                     document.add(new LongPoint(LONG_FIELD, value));
-                    document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(Long.toString(value))));
                     document.add(new Field(KEYWORD_FIELD, new BytesRef(Long.toString(value)), KeywordFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(new SortedSetDocValuesField("even_odd", new BytesRef(value % 2 == 0 ? "even" : "odd")));
                     document.add(
                         new Field("even_odd", new BytesRef(value % 2 == 0 ? "even" : "odd"), KeywordFieldMapper.Defaults.FIELD_TYPE)
                     );
@@ -556,14 +543,14 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 }
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 MappedFieldType[] types = new MappedFieldType[] {
                     keywordField(KEYWORD_FIELD),
                     longField(LONG_FIELD),
                     keywordField("even_odd") };
-                return searchAndReduce(indexSearcher, query, aggregationBuilder, types);
+                return searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, types).withQuery(query));
             }
         }
     }

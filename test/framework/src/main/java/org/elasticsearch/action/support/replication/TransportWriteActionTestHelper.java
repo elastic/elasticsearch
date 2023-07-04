@@ -8,18 +8,20 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
+
+import static org.mockito.Mockito.mock;
 
 public abstract class TransportWriteActionTestHelper {
 
     public static void performPostWriteActions(
         final IndexShard indexShard,
-        final WriteRequest<?> request,
+        final ReplicatedWriteRequest<?> request,
         @Nullable final Translog.Location location,
         final Logger logger
     ) {
@@ -35,7 +37,15 @@ public abstract class TransportWriteActionTestHelper {
                 throw new AssertionError(ex);
             }
         };
-        new TransportWriteAction.AsyncAfterWriteAction(indexShard, request, location, writerResult, logger).run();
+        new TransportWriteAction.AsyncAfterWriteAction(
+            indexShard,
+            request,
+            location,
+            writerResult,
+            logger,
+            new PostWriteRefresh(mock(TransportService.class)),
+            null
+        ).run();
         try {
             latch.await();
         } catch (InterruptedException e) {

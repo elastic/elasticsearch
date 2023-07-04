@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -188,6 +189,42 @@ public class LogicalPlanTests extends ESTestCase {
 
         List<? extends LogicalPlan> queries = seq.queries();
         assertEquals(3, queries.size());
+    }
+
+    public void testSamplePlan() {
+        LogicalPlan plan = parser.createStatement(
+            "sample by pid [process where process_name == \"*\" ] by host_name [file where file_path == \"*\"] by host"
+        );
+
+        assertTrue(plan instanceof LimitWithOffset);
+        plan = ((LimitWithOffset) plan).child();
+        assertEquals(Sample.class, plan.getClass());
+        Sample sample = (Sample) plan;
+        List<? extends LogicalPlan> queries = sample.queries();
+        assertEquals(2, queries.size());
+        LogicalPlan subPlan = queries.get(0);
+        assertEquals(KeyedFilter.class, subPlan.getClass());
+        KeyedFilter kf = (KeyedFilter) subPlan;
+
+        List<? extends NamedExpression> keys = kf.keys();
+        NamedExpression key = keys.get(0);
+        assertEquals(UnresolvedAttribute.class, key.getClass());
+        assertEquals("pid", key.name());
+        key = keys.get(1);
+        assertEquals(UnresolvedAttribute.class, key.getClass());
+        assertEquals("host_name", key.name());
+
+        subPlan = queries.get(1);
+        assertEquals(KeyedFilter.class, subPlan.getClass());
+        kf = (KeyedFilter) subPlan;
+
+        keys = kf.keys();
+        key = keys.get(0);
+        assertEquals(UnresolvedAttribute.class, key.getClass());
+        assertEquals("pid", key.name());
+        key = keys.get(1);
+        assertEquals(UnresolvedAttribute.class, key.getClass());
+        assertEquals("host", key.name());
     }
 
     private LogicalPlan wrapFilter(Expression exp) {

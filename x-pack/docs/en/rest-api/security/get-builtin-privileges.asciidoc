@@ -19,8 +19,8 @@ available in this version of {es}.
 [[security-api-get-builtin-privileges-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have - the `manage_security` cluster privilege
-(or a greater privilege such as `all`).
+* To use this API, you must have the `read_security` cluster privilege
+(or a greater privilege such as `manage_security` or `all`).
 
 [[security-api-get-builtin-privileges-desc]]
 ==== {api-description-title}
@@ -70,6 +70,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage",
     "manage_api_key",
     "manage_autoscaling",
+    "manage_behavioral_analytics",
     "manage_ccr",
     "manage_data_frame_transforms",
     "manage_enrich",
@@ -83,6 +84,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage_pipeline",
     "manage_rollup",
     "manage_saml",
+    "manage_search_application",
     "manage_security",
     "manage_service_account",
     "manage_slm",
@@ -99,9 +101,11 @@ A successful call returns an object with "cluster" and "index" fields.
     "monitor_transform",
     "monitor_watcher",
     "none",
+    "post_behavioral_analytics_event",
     "read_ccr",
     "read_ilm",
     "read_pipeline",
+    "read_security",
     "read_slm",
     "transport_client"
   ],

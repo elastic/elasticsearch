@@ -16,6 +16,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -69,20 +70,20 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testBulkToKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
-            """.formatted(indexName));
+            """, indexName));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testRefresh() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
-            """.formatted(indexName));
+            """, indexName));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 
@@ -100,10 +101,10 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testGetFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
-            """.formatted(indexName));
+            """, indexName));
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
@@ -119,19 +120,19 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testMultiGetFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             { "index" : { "_index" : "%s", "_id" : "2" } }
             { "baz" : "tag" }
-            """.formatted(indexName, indexName));
+            """, indexName, indexName));
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 
         Request getRequest = request("GET", "/_mget");
-        getRequest.setJsonEntity("""
+        getRequest.setJsonEntity(Strings.format("""
             {
               "docs": [
                 {
@@ -143,7 +144,7 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
                   "_id": "2"
                 }
               ]
-            }""".formatted(indexName, indexName));
+            }""", indexName, indexName));
         Response getResponse = client().performRequest(getRequest);
         assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
         String responseBody = EntityUtils.toString(getResponse.getEntity());
@@ -155,12 +156,12 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testSearchFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             { "index" : { "_index" : "%s", "_id" : "2" } }
             { "baz" : "tag" }
-            """.formatted(indexName, indexName));
+            """, indexName, indexName));
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
@@ -181,12 +182,12 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testDeleteFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             { "index" : { "_index" : "%s", "_id" : "2" } }
             { "baz" : "tag" }
-            """.formatted(indexName, indexName));
+            """, indexName, indexName));
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
@@ -199,12 +200,12 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testDeleteByQueryFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             { "index" : { "_index" : "%s", "_id" : "2" } }
             { "baz" : "tag" }
-            """.formatted(indexName, indexName));
+            """, indexName, indexName));
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
@@ -289,14 +290,14 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testScrollingDocs() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             { "index" : { "_index" : "%s", "_id" : "2" } }
             { "baz" : "tag" }
             { "index" : { "_index" : "%s", "_id" : "3" } }
             { "baz" : "tag" }
-            """.formatted(indexName, indexName, indexName));
+            """, indexName, indexName, indexName));
         request.addParameter("refresh", "true");
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));

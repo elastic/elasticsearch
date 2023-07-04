@@ -13,14 +13,13 @@ import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesReq
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -56,11 +55,11 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
         if (randomBoolean()) {
             return randomDesiredNode(version, settings, randomProcessorRange());
         } else {
-            return randomDesiredNode(version, settings, randomIntBetween(1, 256) + randomFloat());
+            return randomDesiredNode(version, settings, randomNumberOfProcessors());
         }
     }
 
-    public static DesiredNode randomDesiredNode(Version version, Settings settings, float processors) {
+    public static DesiredNode randomDesiredNode(Version version, Settings settings, double processors) {
         return new DesiredNode(
             addExternalIdIfMissing(settings),
             processors,
@@ -81,7 +80,7 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DesiredNode.ProcessorsRange randomProcessorRange() {
-        float minProcessors = randomFloat() + randomIntBetween(1, 16);
+        double minProcessors = randomNumberOfProcessors();
         return new DesiredNode.ProcessorsRange(minProcessors, randomBoolean() ? null : minProcessors + randomIntBetween(0, 10));
     }
 
@@ -127,7 +126,8 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
         return new UpdateDesiredNodesRequest(
             UUIDs.randomBase64UUID(random()),
             randomLongBetween(0, Long.MAX_VALUE - 1000),
-            randomList(1, 100, DesiredNodesTestCase::randomDesiredNode)
+            randomList(1, 100, DesiredNodesTestCase::randomDesiredNode),
+            randomBoolean()
         );
     }
 
@@ -174,13 +174,10 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DiscoveryNode newDiscoveryNode(String nodeName) {
-        return new DiscoveryNode(
-            nodeName,
-            UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.create(nodeName, UUIDs.randomBase64UUID(random()));
+    }
+
+    public static double randomNumberOfProcessors() {
+        return randomDoubleBetween(Double.MIN_VALUE, 512.99999999, true);
     }
 }

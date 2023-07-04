@@ -16,11 +16,11 @@ Retrieves usage information for trained models.
 
 `GET _ml/trained_models/_all/_stats` +
 
-`GET _ml/trained_models/<model_id>/_stats` +
+`GET _ml/trained_models/<model_id_or_deployment_id>/_stats` +
 
-`GET _ml/trained_models/<model_id>,<model_id_2>/_stats` +
+`GET _ml/trained_models/<model_id_or_deployment_id>,<model_id_2_or_deployment_id_2>/_stats` +
 
-`GET _ml/trained_models/<model_id_pattern*>,<model_id_2>/_stats`
+`GET _ml/trained_models/<model_id_pattern*_or_deployment_id_pattern*>,<model_id_2_or_deployment_id_2>/_stats`
 
 
 [[ml-get-trained-models-stats-prereq]]
@@ -33,17 +33,20 @@ Requires the `monitor_ml` cluster privilege. This privilege is included in the
 [[ml-get-trained-models-stats-desc]]
 == {api-description-title}
 
-You can get usage information for multiple trained models in a single API
-request by using a comma-separated list of model IDs or a wildcard expression.
+You can get usage information for multiple trained models or trained model 
+deployments in a single API request by using a comma-separated list of model 
+IDs, deployment IDs, or a wildcard expression.
 
 
 [[ml-get-trained-models-stats-path-params]]
 == {api-path-parms-title}
 
-`<model_id>`::
+`<model_id_or_deployment_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
-
+The unique identifier of the model or the deployment. If a model has multiple 
+deployments, and the ID of one of the deployments matches the model ID, then the 
+model ID takes precedence; the results are returned for all deployments of the 
+model.
 
 [[ml-get-trained-models-stats-query-params]]
 == {api-query-parms-title}
@@ -97,6 +100,10 @@ The detailed allocation status given the deployment configuration.
 (integer)
 The current number of nodes where the model is allocated.
 
+`cache_size`:::
+(<<byte-units,byte value>>)
+The inference cache size (in memory outside the JVM heap) per node for the model.
+
 `state`:::
 (string)
 The detailed allocation state related to the nodes.
@@ -111,6 +118,9 @@ The detailed allocation state related to the nodes.
 (integer)
 The desired number of nodes for model allocation.
 ======
+
+`deployment_id`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 `error_count`:::
 (integer)
@@ -136,6 +146,14 @@ The deployment stats for each node that currently has the model allocated.
 The average time for each inference call to complete on this node.
 The average is calculated over the lifetime of the deployment.
 
+`average_inference_time_ms_excluding_cache_hits`:::
+(double)
+The average time to perform inference on the trained model excluding
+occasions where the response comes from the cache. Cached inference
+calls return very quickly as the model is not evaluated, by excluding
+cache hits this value is an accurate measure of the average time taken
+to evaluate the model.
+
 `average_inference_time_ms_last_minute`:::
 (double)
 The average time for each inference call to complete on this node
@@ -144,6 +162,16 @@ in the last minute.
 `error_count`:::
 (integer)
 The number of errors when evaluating the trained model.
+
+`inference_cache_hit_count`:::
+(integer)
+The total number of inference calls made against this node for this
+model that were served from the inference cache.
+
+`inference_cache_hit_count_last_minute`:::
+(integer)
+The number of inference calls made against this node for this model
+in the last minute that were served from the inference cache.
 
 `inference_count`:::
 (integer)
@@ -183,8 +211,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 `number_of_allocations`:::
 (integer)
 The number of allocations assigned to this node.
-This value is limited by the number of hardware threads on the node;
-it might therefore differ from the `number_of_allocations` value in the <<start-trained-model-deployment>> API.
 
 `number_of_pending_requests`:::
 (integer)
@@ -250,6 +276,10 @@ The requested number of allocations for the trained model deployment.
 The peak number of requests processed in a 1 minute period for
 all nodes in the deployment. This is calculated as the sum of
 each node's `peak_throughput_per_minute` value.
+
+`priority`:::
+(string)
+The deployment priority.
 
 `rejected_execution_count`:::
 (integer)

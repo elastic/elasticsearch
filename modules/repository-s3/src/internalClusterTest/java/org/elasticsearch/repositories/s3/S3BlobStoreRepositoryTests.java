@@ -30,6 +30,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -41,6 +42,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -140,6 +142,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         return builder.build();
     }
 
+    @Override
+    @TestLogging(reason = "Enable request logging to debug #88841", value = "com.amazonaws.request:DEBUG")
+    public void testRequestStats() throws Exception {
+        super.testRequestStats();
+    }
+
     public void testEnforcedCooldownPeriod() throws IOException {
         final String repoName = randomRepositoryName();
         createRepository(
@@ -148,9 +156,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             true
         );
 
-        final SnapshotId fakeOldSnapshot = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repoName, "snapshot-old")
+        final SnapshotId fakeOldSnapshot = clusterAdmin().prepareCreateSnapshot(repoName, "snapshot-old")
             .setWaitForCompletion(true)
             .setIndices()
             .get()
@@ -165,7 +171,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     fakeOldSnapshot,
                     new RepositoryData.SnapshotDetails(
                         SnapshotState.SUCCESS,
-                        SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion(),
+                        IndexVersion.fromId(6080099),   // minimum node version compatible with 7.6.0
                         0L, // -1 would refresh RepositoryData and find the real version
                         0L, // -1 would refresh RepositoryData and find the real version,
                         "" // null would refresh RepositoryData and find the real version
@@ -190,15 +196,15 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         final String newSnapshotName = "snapshot-new";
         final long beforeThrottledSnapshot = repository.threadPool().relativeTimeInNanos();
-        client().admin().cluster().prepareCreateSnapshot(repoName, newSnapshotName).setWaitForCompletion(true).setIndices().get();
+        clusterAdmin().prepareCreateSnapshot(repoName, newSnapshotName).setWaitForCompletion(true).setIndices().get();
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledSnapshot, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
 
         final long beforeThrottledDelete = repository.threadPool().relativeTimeInNanos();
-        client().admin().cluster().prepareDeleteSnapshot(repoName, newSnapshotName).get();
+        clusterAdmin().prepareDeleteSnapshot(repoName, newSnapshotName).get();
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledDelete, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
 
         final long beforeFastDelete = repository.threadPool().relativeTimeInNanos();
-        client().admin().cluster().prepareDeleteSnapshot(repoName, fakeOldSnapshot.getName()).get();
+        clusterAdmin().prepareDeleteSnapshot(repoName, fakeOldSnapshot.getName()).get();
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeFastDelete, lessThan(TEST_COOLDOWN_PERIOD.getNanos()));
     }
 

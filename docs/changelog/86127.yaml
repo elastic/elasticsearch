@@ -1,6 +1,0 @@
-pr: 86127
-summary: Removing Blocking Wait for Close in `RecoverySourceHandler`
-area: Engine
-type: bug
-issues:
- - 85839

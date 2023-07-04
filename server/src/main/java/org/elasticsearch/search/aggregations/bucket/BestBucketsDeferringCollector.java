@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -42,12 +41,12 @@ import java.util.function.LongUnaryOperator;
  */
 public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     static class Entry {
-        final LeafReaderContext context;
+        final AggregationExecutionContext aggCtx;
         final PackedLongValues docDeltas;
         final PackedLongValues buckets;
 
-        Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
-            this.context = Objects.requireNonNull(context);
+        Entry(AggregationExecutionContext aggCtx, PackedLongValues docDeltas, PackedLongValues buckets) {
+            this.aggCtx = Objects.requireNonNull(aggCtx);
             this.docDeltas = Objects.requireNonNull(docDeltas);
             this.buckets = Objects.requireNonNull(buckets);
         }
@@ -59,7 +58,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     private List<Entry> entries = new ArrayList<>();
     private BucketCollector collector;
-    private LeafReaderContext context;
+    private AggregationExecutionContext aggCtx;
     private PackedLongValues.Builder docDeltasBuilder;
     private PackedLongValues.Builder bucketsBuilder;
     private LongHash selectedBuckets;
@@ -93,10 +92,10 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * Button up the builders for the current leaf.
      */
     private void finishLeaf() {
-        if (context != null) {
+        if (aggCtx != null) {
             assert docDeltasBuilder != null && bucketsBuilder != null;
             assert docDeltasBuilder.size() > 0;
-            entries.add(new Entry(context, docDeltasBuilder.build(), bucketsBuilder.build()));
+            entries.add(new Entry(aggCtx, docDeltasBuilder.build(), bucketsBuilder.build()));
             clearLeaf();
         }
     }
@@ -105,22 +104,22 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * Clear the status for the current leaf.
      */
     private void clearLeaf() {
-        context = null;
+        aggCtx = null;
         docDeltasBuilder = null;
         bucketsBuilder = null;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext context) throws IOException {
         finishLeaf();
 
         return new LeafBucketCollector() {
             int lastDoc = 0;
 
             @Override
-            public void collect(int doc, long bucket) throws IOException {
-                if (context == null) {
-                    context = aggCtx.getLeafReaderContext();
+            public void collect(int doc, long bucket) {
+                if (aggCtx == null) {
+                    aggCtx = context;
                     docDeltasBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                     bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                 }
@@ -169,10 +168,13 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         for (Entry entry : entries) {
             assert entry.docDeltas.size() > 0 : "segment should have at least one document to replay, got 0";
             try {
-                final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
+                final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.aggCtx);
                 DocIdSetIterator scoreIt = null;
                 if (needsScores) {
-                    Scorer scorer = weight.scorer(entry.context);
+                    Scorer scorer = weight.scorer(entry.aggCtx.getLeafReaderContext());
+                    if (scorer == null) {
+                        failInCaseOfBadScorer("no scores are available");
+                    }
                     // We don't need to check if the scorer is null
                     // since we are sure that there are documents to replay (entry.docDeltas it not empty).
                     scoreIt = scorer.iterator();
@@ -182,7 +184,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 final PackedLongValues.Iterator buckets = entry.buckets.iterator();
                 int doc = 0;
                 for (long i = 0, end = entry.docDeltas.size(); i < end; ++i) {
-                    doc += docDeltaIterator.next();
+                    doc += (int) docDeltaIterator.next();
                     final long bucket = buckets.next();
                     final long rebasedBucket = this.selectedBuckets.find(bucket);
                     if (rebasedBucket != -1) {
@@ -191,7 +193,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                                 scoreIt.advance(doc);
                             }
                             // aggregations should only be replayed on matching documents
-                            assert scoreIt.docID() == doc;
+                            if (scoreIt.docID() != doc) {
+                                failInCaseOfBadScorer("score for different docid");
+                            }
                         }
                         leafCollector.collect(doc, rebasedBucket);
                     }
@@ -202,6 +206,21 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             }
         }
         collector.postCollection();
+    }
+
+    /*
+     * Fail with when no scores are available or a scorer for incorrect doc ids are used when replaying
+     *
+     * The likely cause is that a children aggregation has a terms aggregator with collection mode breadth_first and this
+     * terms aggregator has a sub aggregation that requires score. See #37650
+     * Sub aggregators of children aggregation can't access scores, because that information isn't kept track of by the children aggregator
+     * when collect mode is breath first. Keeping track of this scores in breath first mode would require a non-trivial amount of heap
+     * memory.
+     */
+    private static void failInCaseOfBadScorer(String message) {
+        String likelyExplanation =
+            "nesting an aggregation under a children aggregation and terms aggregation with collect mode breadth_first isn't possible";
+        throw new RuntimeException(message + ", " + likelyExplanation);
     }
 
     /**
@@ -266,7 +285,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             // Only create an entry if this segment has buckets after merging
             if (newBuckets.size() > 0) {
                 assert newDocDeltas.size() > 0 : "docDeltas was empty but we had buckets";
-                newEntries.add(new Entry(sourceEntry.context, newDocDeltas.build(), newBuckets.build()));
+                newEntries.add(new Entry(sourceEntry.aggCtx, newDocDeltas.build(), newBuckets.build()));
             }
         }
         entries = newEntries;

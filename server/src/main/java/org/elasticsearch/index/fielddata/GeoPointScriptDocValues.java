@@ -8,9 +8,9 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.script.GeoPointFieldScript;
-
-import java.util.Arrays;
 
 public final class GeoPointScriptDocValues extends AbstractSortedNumericDocValues {
     private final GeoPointFieldScript script;
@@ -26,7 +26,33 @@ public final class GeoPointScriptDocValues extends AbstractSortedNumericDocValue
         if (script.count() == 0) {
             return false;
         }
-        Arrays.sort(script.values(), 0, script.count());
+        new IntroSorter() {
+            private int pivot;
+
+            @Override
+            protected void setPivot(int i) {
+                this.pivot = i;
+            }
+
+            @Override
+            protected void swap(int i, int j) {
+                double tmp = script.lats()[i];
+                script.lats()[i] = script.lats()[j];
+                script.lats()[j] = tmp;
+                tmp = script.lons()[i];
+                script.lons()[i] = script.lons()[j];
+                script.lons()[j] = tmp;
+            }
+
+            @Override
+            protected int comparePivot(int j) {
+                int cmp = Double.compare(script.lats()[pivot], script.lats()[j]);
+                if (cmp != 0) {
+                    return cmp;
+                }
+                return Double.compare(script.lons()[pivot], script.lons()[j]);
+            }
+        }.sort(0, script.count());
         cursor = 0;
         return true;
     }
@@ -38,6 +64,8 @@ public final class GeoPointScriptDocValues extends AbstractSortedNumericDocValue
 
     @Override
     public long nextValue() {
-        return script.values()[cursor++];
+        int lat = GeoEncodingUtils.encodeLatitude(script.lats()[cursor]);
+        int lon = GeoEncodingUtils.encodeLongitude(script.lons()[cursor++]);
+        return Long.valueOf((((long) lat) << 32) | (lon & 0xFFFFFFFFL));
     }
 }

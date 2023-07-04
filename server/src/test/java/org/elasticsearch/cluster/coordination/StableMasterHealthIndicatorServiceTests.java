@@ -8,24 +8,25 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
-import org.elasticsearch.health.UserAction;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -37,13 +38,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -60,30 +62,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
     @Before
     public void setup() throws Exception {
-        node1 = new DiscoveryNode(
-            "node1",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        node2 = new DiscoveryNode(
-            "node2",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        node3 = new DiscoveryNode(
-            "node3",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        node1 = DiscoveryNodeUtils.create("node1", randomNodeId());
+        node2 = DiscoveryNodeUtils.create("node2", randomNodeId());
+        node3 = DiscoveryNodeUtils.create("node3", randomNodeId());
         nullMasterClusterState = createClusterState(null);
         node1MasterClusterState = createClusterState(node1);
         node2MasterClusterState = createClusterState(node2);
@@ -91,27 +72,37 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetHealthIndicatorResultNotGreenExplainTrue() throws Exception {
+    public void testGetHealthIndicatorResultNotGreenVerboseTrue() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
+        String node1ClusterFormation = randomAlphaOfLength(100);
+        String node2ClusterFormation = randomAlphaOfLength(100);
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails coordinationDiagnosticsDetails =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(
+                node1,
+                recentMasters,
+                null,
+                Map.of(node1.getId(), node1ClusterFormation, node2.getId(), node2ClusterFormation)
+            );
         CoordinationDiagnosticsService.CoordinationDiagnosticsStatus inputStatus = randomFrom(
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED,
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
         );
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(inputStatus, "summary", coordinationDiagnosticsDetails);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
+                inputStatus,
+                "the summary of the diagnostic",
+                coordinationDiagnosticsDetails
+            );
         HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnosticsResult, true);
         assertThat(result.status(), equalTo(HealthStatus.fromCoordinationDiagnosticsStatus(inputStatus)));
-        assertThat(result.summary(), equalTo("summary"));
+        assertThat(result.symptom(), equalTo("the summary of the diagnostic"));
         assertThat(result.impacts().size(), equalTo(3));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
-        assertThat(result.component(), equalTo("cluster_coordination"));
         HealthIndicatorDetails details = result.details();
         Map<String, Object> detailsMap = xContentToMap(details);
-        assertThat(detailsMap.size(), equalTo(2));
+        assertThat(detailsMap.size(), equalTo(3));
         Map<String, String> currentMasterInResult = (Map<String, String>) detailsMap.get("current_master");
         assertThat(currentMasterInResult.get("name"), equalTo(node1.getName()));
         assertThat(currentMasterInResult.get("node_id"), equalTo(node1.getId()));
@@ -123,62 +114,75 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             assertThat(recentMasterMap.get("name"), not(emptyOrNullString()));
             assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
         }
-        List<UserAction> userActions = result.userActions();
-        assertThat(userActions.size(), equalTo(1));
-        assertThat(userActions.get(0).definition().message(), containsString("contact Elastic Support"));
-        assertThat(result.helpURL(), equalTo("https://ela.st/fix-master"));
+        List<Map<String, String>> clusterFormations = (List<Map<String, String>>) detailsMap.get("cluster_formation");
+        assertThat(clusterFormations.size(), equalTo(2));
+        Map<String, String> nodeIdToClusterFormationMap = new HashMap<>();
+        Map<String, String> nodeIdToNodeNameMap = new HashMap<>();
+        for (Map<String, String> clusterFormationMap : clusterFormations) {
+            nodeIdToClusterFormationMap.put(clusterFormationMap.get("node_id"), clusterFormationMap.get("cluster_formation_message"));
+            nodeIdToNodeNameMap.put(clusterFormationMap.get("node_id"), clusterFormationMap.get("name"));
+        }
+        assertThat(nodeIdToClusterFormationMap.get(node1.getId()), equalTo(node1ClusterFormation));
+        assertThat(nodeIdToClusterFormationMap.get(node2.getId()), equalTo(node2ClusterFormation));
+        assertThat(nodeIdToNodeNameMap.get(node1.getId()), equalTo(node1.getName()));
+        assertThat(nodeIdToNodeNameMap.get(node2.getId()), equalTo(node2.getName()));
+        List<Diagnosis> diagnosis = result.diagnosisList();
+        assertThat(diagnosis.size(), equalTo(1));
+        assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testGetHealthIndicatorResultNotGreenExplainFalse() throws Exception {
+    public void testGetHealthIndicatorResultNotGreenVerboseFalse() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails coordinationDiagnosticsDetails =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters, null, null);
         CoordinationDiagnosticsService.CoordinationDiagnosticsStatus inputStatus = randomFrom(
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED,
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
         );
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(inputStatus, "summary", coordinationDiagnosticsDetails);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
+                inputStatus,
+                "the summary of the diagnostic",
+                coordinationDiagnosticsDetails
+            );
         HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnosticsResult, false);
         assertThat(result.status(), equalTo(HealthStatus.fromCoordinationDiagnosticsStatus(inputStatus)));
-        assertThat(result.summary(), equalTo("summary"));
+        assertThat(result.symptom(), equalTo("the summary of the diagnostic"));
         assertThat(result.impacts().size(), equalTo(3));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
-        assertThat(result.component(), equalTo("cluster_coordination"));
         assertThat(result.details(), equalTo(HealthIndicatorDetails.EMPTY));
-        List<UserAction> userActions = result.userActions();
-        assertThat(userActions.size(), equalTo(0));
-        assertThat(result.helpURL(), equalTo("https://ela.st/fix-master"));
+        List<Diagnosis> diagnosis = result.diagnosisList();
+        assertThat(diagnosis.size(), equalTo(0));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetHealthIndicatorResultGreenOrUnknown() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails coordinationDiagnosticsDetails =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters, null, null);
         CoordinationDiagnosticsService.CoordinationDiagnosticsStatus inputStatus = randomFrom(
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN,
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.UNKNOWN
         );
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(inputStatus, "summary", coordinationDiagnosticsDetails);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
+                inputStatus,
+                "the summary of the diagnostic",
+                coordinationDiagnosticsDetails
+            );
         HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnosticsResult, true);
         assertThat(result.status(), equalTo(HealthStatus.fromCoordinationDiagnosticsStatus(inputStatus)));
-        assertThat(result.summary(), equalTo("summary"));
+        assertThat(result.symptom(), equalTo("the summary of the diagnostic"));
         assertThat(result.impacts().size(), equalTo(0));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
-        assertThat(result.component(), equalTo("cluster_coordination"));
         HealthIndicatorDetails details = result.details();
         Map<String, Object> detailsMap = xContentToMap(details);
         assertThat(detailsMap.size(), equalTo(2));
-        List<UserAction> userActions = result.userActions();
-        assertThat(userActions.size(), equalTo(0));
-        assertThat(result.helpURL(), equalTo(null));
+        List<Diagnosis> diagnosis = result.diagnosisList();
+        assertThat(diagnosis.size(), equalTo(0));
     }
 
     @SuppressWarnings("unchecked")
@@ -218,9 +222,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
         // Change 4:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node3MasterClusterState));
-        HealthIndicatorResult result = service.calculate(true);
+        HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
-        assertThat(result.summary(), equalTo("The elected master node has changed 4 times in the last 30m"));
+        assertThat(result.symptom(), equalTo("The elected master node has changed 4 times in the last 30m"));
         assertThat(result.impacts().size(), equalTo(3));
         HealthIndicatorDetails details = result.details();
         Map<String, Object> detailsMap = xContentToMap(details);
@@ -236,14 +240,26 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
     }
 
-    private static ClusterState createClusterState(DiscoveryNode masterNode) {
+    // We expose the indicator name and the diagnosis in the x-pack usage API, consequently these end up in the mapping of the telemetry
+    // index, any changes or additions that we want to track need to be added to the mapping.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(StableMasterHealthIndicatorService.NAME, equalTo("master_is_stable"));
+        assertThat(
+            StableMasterHealthIndicatorService.CONTACT_SUPPORT.definition().getUniqueId(),
+            equalTo("elasticsearch:health:master_is_stable:diagnosis:contact_support")
+        );
+    }
+
+    private ClusterState createClusterState(DiscoveryNode masterNode) {
         var routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         if (masterNode != null) {
             nodesBuilder.masterNodeId(masterNode.getId());
-            nodesBuilder.add(masterNode);
         }
+        nodesBuilder.add(node1);
+        nodesBuilder.add(node2);
+        nodesBuilder.add(node3);
         return ClusterState.builder(new ClusterName("test-cluster"))
             .routingTable(routingTableBuilder.build())
             .metadata(metadataBuilder.build())
@@ -284,7 +300,11 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
-        return new StableMasterHealthIndicatorService(new CoordinationDiagnosticsService(clusterService, masterHistoryService));
+        TransportService transportService = mock(TransportService.class);
+        return new StableMasterHealthIndicatorService(
+            new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService),
+            clusterService
+        );
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

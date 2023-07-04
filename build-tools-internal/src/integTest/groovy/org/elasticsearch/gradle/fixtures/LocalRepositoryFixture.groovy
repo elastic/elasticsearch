@@ -13,30 +13,47 @@ import net.bytebuddy.dynamic.DynamicType
 import org.junit.rules.ExternalResource
 import org.junit.rules.TemporaryFolder
 
-class LocalRepositoryFixture extends ExternalResource{
+class LocalRepositoryFixture extends ExternalResource {
 
     private TemporaryFolder temporaryFolder
 
-    LocalRepositoryFixture(TemporaryFolder temporaryFolder){
-        this.temporaryFolder = temporaryFolder
+    LocalRepositoryFixture() {
+        this.temporaryFolder = new TemporaryFolder()
     }
 
-    void generateJar(String group, String module, String version, String... clazzNames){
+    @Override
+    protected void before() throws Throwable {
+        super.before()
+        temporaryFolder.before()
+    }
+
+    @Override
+    protected void after() {
+        super.after()
+        temporaryFolder.after()
+    }
+
+    void generateJar(String group, String module, String version, String... clazzNames) {
         def baseGroupFolderPath = group.replace('.', '/')
         def targetFolder = new File(repoDir, "${baseGroupFolderPath}/$module/$version")
         targetFolder.mkdirs()
 
         def jarFile = new File(targetFolder, "${module}-${version}.jar")
-        clazzNames.each {clazzName ->
-            DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
-                    .name(clazzName)
-                    .make()
-            if(jarFile.exists()) {
-                dynamicType.inject(jarFile);
-            }else {
-                dynamicType.toJar(jarFile);
+        if (clazzNames.size() == 0) {
+            jarFile.write("blubb")
+        } else {
+            clazzNames.each { clazzName ->
+                DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
+                        .name(clazzName)
+                        .make()
+                if (jarFile.exists()) {
+                    dynamicType.inject(jarFile);
+                } else {
+                    dynamicType.toJar(jarFile);
+                }
             }
         }
+
     }
 
     void configureBuild(File buildFile) {
@@ -44,7 +61,7 @@ class LocalRepositoryFixture extends ExternalResource{
         repositories {
           maven {
             name = "local-test"
-            url = "${getRepoDir()}"
+            url = "${getRepoDir().toURI()}"
             metadataSources {
               artifact()
             }

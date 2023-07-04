@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -40,6 +41,7 @@ import org.elasticsearch.action.support.replication.TransportWriteActionTestHelp
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -98,6 +100,7 @@ import java.util.stream.StreamSupport;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.Mockito.mock;
 
 public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase {
 
@@ -147,14 +150,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected DiscoveryNode getDiscoveryNode(String id) {
-        return new DiscoveryNode(
-            id,
-            id,
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder(id).name(id).roles(Collections.singleton(DiscoveryNodeRole.DATA_ROLE)).build();
     }
 
     protected class ReplicationGroup implements AutoCloseable, Iterable<IndexShard> {
@@ -193,13 +189,20 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             (_shardId, primaryAllocationId, primaryTerm, retentionLeases) -> syncRetentionLeases(
                 _shardId,
                 retentionLeases,
-                ActionListener.wrap(r -> {}, e -> { throw new AssertionError("failed to background sync retention lease", e); })
+                ActionTestUtils.assertNoFailureListener(r -> {})
             )
         );
 
         protected ReplicationGroup(final IndexMetadata indexMetadata) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            primary = newShard(primaryRouting, indexMetadata, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
+            primary = newShard(
+                primaryRouting,
+                indexMetadata,
+                null,
+                getEngineFactory(primaryRouting),
+                NOOP_GCP_SYNCER,
+                retentionLeaseSyncer
+            );
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetadata = indexMetadata;
             updateAllocationIDsOnPrimary();
@@ -320,7 +323,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 indexMetadata,
                 null,
                 getEngineFactory(replicaRouting),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 retentionLeaseSyncer
             );
             addReplica(replica);
@@ -359,7 +362,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 null,
                 null,
                 getEngineFactory(shardRouting),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 retentionLeaseSyncer,
                 EMPTY_EVENT_LISTENER
             );
@@ -572,7 +575,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 null,
                 currentClusterStateVersion.incrementAndGet(),
                 activeIds(),
-                routingTable(Function.identity())
+                primary.routingEntry().initializing()
+                    ? IndexShardRoutingTable.builder(primary.shardId()).addShard(primary.routingEntry()).build()
+                    : routingTable(Function.identity())
             );
         }
 
@@ -613,8 +618,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 getPrimary().getLastKnownGlobalCheckpoint(),
                 getPrimary().getMaxSeqNoOfUpdatesOrDeletes(),
                 acquirePermitFuture,
-                ThreadPool.Names.SAME,
-                request
+                ThreadPool.Names.SAME
             );
             try (Releasable ignored = acquirePermitFuture.actionGet()) {
                 replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
@@ -787,8 +791,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                             delegatedListener.onFailure(e);
                         }
                     }),
-                    ThreadPool.Names.WRITE,
-                    replicaRequest
+                    ThreadPool.Names.WRITE
                 );
             }
 
@@ -852,7 +855,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             executeShardBulkOnPrimary(
                 primary,
                 request,
-                listener.map(result -> new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful))
+                listener.map(result -> new PrimaryResult(result.replicaRequest(), result.replicationResponse))
             );
         }
 
@@ -879,7 +882,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
         }
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
-        primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
+        primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME);
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             MappingUpdatePerformer noopMappingUpdater = (_update, _shardId, _listener1) -> {};
             TransportShardBulkAction.performOnPrimary(
@@ -934,14 +937,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             globalCheckpointOnPrimary,
             maxSeqNoOfUpdatesOrDeletes,
             permitAcquiredFuture,
-            ThreadPool.Names.SAME,
-            request
+            ThreadPool.Names.SAME
         );
         final Translog.Location location;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             location = TransportShardBulkAction.performOnReplica(request, replica);
+            TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
         }
-        TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
     }
 
     /**
@@ -1031,7 +1033,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             ActionListener.completeWith(listener, () -> {
                 final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
                     executeResyncOnPrimary(primary, request);
-                return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
+                return new PrimaryResult(result.replicaRequest(), result.replicationResponse);
             });
         }
 
@@ -1056,9 +1058,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 TransportResyncReplicationAction.performOnPrimary(request),
                 new ResyncReplicationResponse(),
                 null,
-                null,
                 primary,
-                logger
+                logger,
+                // TODO: Fix
+                new PostWriteRefresh(mock(TransportService.class))
+
             );
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
         return result;
@@ -1078,8 +1082,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             globalCheckpointOnPrimary,
             maxSeqNoOfUpdatesOrDeletes,
             acquirePermitFuture,
-            ThreadPool.Names.SAME,
-            request
+            ThreadPool.Names.SAME
         );
         try (Releasable ignored = acquirePermitFuture.actionGet()) {
             location = TransportResyncReplicationAction.performOnReplica(request, replica);

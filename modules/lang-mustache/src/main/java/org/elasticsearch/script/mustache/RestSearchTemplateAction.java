@@ -13,29 +13,25 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestSearchTemplateAction extends BaseRestHandler {
 
     public static final String TYPED_KEYS_PARAM = "typed_keys";
-    private static final Set<String> RESPONSE_PARAMS;
 
-    static {
-        final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM));
-        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
-    }
+    private static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     @Override
     public List<Route> routes() {
@@ -76,7 +72,10 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
         searchTemplateRequest.setRequest(searchRequest);
-
+        // This param is parsed within the search request
+        if (searchRequest.source().explain() != null) {
+            searchTemplateRequest.setExplain(searchRequest.source().explain());
+        }
         return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
     }
 

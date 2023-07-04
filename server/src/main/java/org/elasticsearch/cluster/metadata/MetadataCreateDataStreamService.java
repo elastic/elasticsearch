@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -49,8 +50,8 @@ public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
 
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final ActiveShardsObserver activeShardsObserver;
     private final MetadataCreateIndexService metadataCreateIndexService;
 
     public MetadataCreateDataStreamService(
@@ -58,36 +59,40 @@ public class MetadataCreateDataStreamService {
         ClusterService clusterService,
         MetadataCreateIndexService metadataCreateIndexService
     ) {
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.metadataCreateIndexService = metadataCreateIndexService;
     }
 
     public void createDataStream(CreateDataStreamClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> finalListener) {
         AtomicReference<String> firstBackingIndexRef = new AtomicReference<>();
-        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> {
+        ActionListener<AcknowledgedResponse> listener = finalListener.delegateFailureAndWrap((l, response) -> {
             if (response.isAcknowledged()) {
                 String firstBackingIndexName = firstBackingIndexRef.get();
                 assert firstBackingIndexName != null;
-                activeShardsObserver.waitForActiveShards(
+                ActiveShardsObserver.waitForActiveShards(
+                    clusterService,
                     new String[] { firstBackingIndexName },
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),
-                    shardsAcked -> finalListener.onResponse(AcknowledgedResponse.TRUE),
-                    finalListener::onFailure
+                    l.map(shardsAcked -> AcknowledgedResponse.TRUE)
                 );
             } else {
-                finalListener.onResponse(AcknowledgedResponse.FALSE);
-            }
-        }, finalListener::onFailure);
-        submitUnbatchedTask("create-data-stream [" + request.name + "]", new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);
-                firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
-                return clusterState;
+                l.onResponse(AcknowledgedResponse.FALSE);
             }
         });
+        var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
+        submitUnbatchedTask(
+            "create-data-stream [" + request.name + "]",
+            new AckedClusterStateUpdateTask(Priority.HIGH, request, delegate.clusterStateUpdate()) {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request, delegate.reroute());
+                    firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
+                    return clusterState;
+                }
+            }
+        );
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -95,8 +100,12 @@ public class MetadataCreateDataStreamService {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    public ClusterState createDataStream(CreateDataStreamClusterStateUpdateRequest request, ClusterState current) throws Exception {
-        return createDataStream(metadataCreateIndexService, current, request);
+    public ClusterState createDataStream(
+        CreateDataStreamClusterStateUpdateRequest request,
+        ClusterState current,
+        ActionListener<Void> listener
+    ) throws Exception {
+        return createDataStream(metadataCreateIndexService, current, request, listener);
     }
 
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest<
@@ -153,9 +162,10 @@ public class MetadataCreateDataStreamService {
     static ClusterState createDataStream(
         MetadataCreateIndexService metadataCreateIndexService,
         ClusterState currentState,
-        CreateDataStreamClusterStateUpdateRequest request
+        CreateDataStreamClusterStateUpdateRequest request,
+        ActionListener<Void> listener
     ) throws Exception {
-        return createDataStream(metadataCreateIndexService, currentState, request, List.of(), null);
+        return createDataStream(metadataCreateIndexService, currentState, request, List.of(), null, listener);
     }
 
     /**
@@ -173,7 +183,8 @@ public class MetadataCreateDataStreamService {
         ClusterState currentState,
         CreateDataStreamClusterStateUpdateRequest request,
         List<IndexMetadata> backingIndices,
-        IndexMetadata writeIndex
+        IndexMetadata writeIndex,
+        ActionListener<Void> listener
     ) throws Exception {
         String dataStreamName = request.name;
         SystemDataStreamDescriptor systemDataStreamDescriptor = request.getSystemDataStreamDescriptor();
@@ -228,7 +239,7 @@ public class MetadataCreateDataStreamService {
             }
 
             try {
-                currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
+                currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false, listener);
             } catch (ResourceAlreadyExistsException e) {
                 // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
                 // auto index/data stream creation.
@@ -241,6 +252,8 @@ public class MetadataCreateDataStreamService {
                 );
             }
             writeIndex = currentState.metadata().index(firstBackingIndexName);
+        } else {
+            listener.onResponse(null);
         }
         assert writeIndex != null;
         assert writeIndex.mapping() != null : "no mapping found for backing index [" + writeIndex.getIndex().getName() + "]";
@@ -251,6 +264,9 @@ public class MetadataCreateDataStreamService {
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
         final IndexMode indexMode = metadata.isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
+        final DataLifecycle lifecycle = isSystem
+            ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
+            : MetadataIndexTemplateService.resolveLifecycle(template, metadata.componentTemplates());
         DataStream newDataStream = new DataStream(
             dataStreamName,
             dsBackingIndices,
@@ -260,7 +276,8 @@ public class MetadataCreateDataStreamService {
             false,
             isSystem,
             template.getDataStreamTemplate().isAllowCustomRouting(),
-            indexMode
+            indexMode,
+            lifecycle
         );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 

@@ -11,26 +11,18 @@ package org.elasticsearch.common.util.set;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Objects;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiConsumer;
-import java.util.function.BinaryOperator;
-import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collector;
-import java.util.stream.Collectors;
 
 public final class Sets {
     private Sets() {}
 
     public static <T> HashSet<T> newHashSet(Iterator<T> iterator) {
-        Objects.requireNonNull(iterator);
         HashSet<T> set = new HashSet<>();
         while (iterator.hasNext()) {
             set.add(iterator.next());
@@ -39,31 +31,39 @@ public final class Sets {
     }
 
     public static <T> HashSet<T> newHashSet(Iterable<T> iterable) {
-        Objects.requireNonNull(iterable);
         return iterable instanceof Collection ? new HashSet<>((Collection<T>) iterable) : newHashSet(iterable.iterator());
     }
 
     @SafeVarargs
     @SuppressWarnings("varargs")
     public static <T> HashSet<T> newHashSet(T... elements) {
-        Objects.requireNonNull(elements);
         return new HashSet<>(Arrays.asList(elements));
     }
 
-    public static <T> Set<T> newConcurrentHashSet() {
-        return Collections.newSetFromMap(new ConcurrentHashMap<>());
+    public static <E> Set<E> newHashSetWithExpectedSize(int expectedSize) {
+        return new HashSet<>(capacity(expectedSize));
+    }
+
+    public static <E> LinkedHashSet<E> newLinkedHashSetWithExpectedSize(int expectedSize) {
+        return new LinkedHashSet<>(capacity(expectedSize));
+    }
+
+    static int capacity(int expectedSize) {
+        assert expectedSize >= 0;
+        return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
     }
 
     public static <T> boolean haveEmptyIntersection(Set<T> left, Set<T> right) {
-        Objects.requireNonNull(left);
-        Objects.requireNonNull(right);
-        return left.stream().noneMatch(right::contains);
+        for (T t : left) {
+            if (right.contains(t)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static <T> boolean haveNonEmptyIntersection(Set<T> left, Set<T> right) {
-        Objects.requireNonNull(left);
-        Objects.requireNonNull(right);
-        return left.stream().anyMatch(right::contains);
+        return haveEmptyIntersection(left, right) == false;
     }
 
     /**
@@ -76,9 +76,13 @@ public final class Sets {
      * @return the relative complement of the left set with respect to the right set
      */
     public static <T> Set<T> difference(Set<T> left, Set<T> right) {
-        Objects.requireNonNull(left);
-        Objects.requireNonNull(right);
-        return left.stream().filter(k -> right.contains(k) == false).collect(Collectors.toSet());
+        Set<T> set = new HashSet<>();
+        for (T k : left) {
+            if (right.contains(k) == false) {
+                set.add(k);
+            }
+        }
+        return set;
     }
 
     /**
@@ -92,35 +96,13 @@ public final class Sets {
      * @return the sorted relative complement of the left set with respect to the right set
      */
     public static <T> SortedSet<T> sortedDifference(final Set<T> left, final Set<T> right) {
-        Objects.requireNonNull(left);
-        Objects.requireNonNull(right);
-        return left.stream().filter(k -> right.contains(k) == false).collect(toSortedSet());
-    }
-
-    /**
-     * The relative complement, or difference, of the specified left and right set, returned as a sorted set. Namely, the resulting set
-     * contains all the elements that are in the left set but not in the right set, and the set is sorted using the natural ordering of
-     * element type. Neither input is mutated by this operation, an entirely new set is returned. The resulting set is unmodifiable.
-     *
-     * @param left  the left set
-     * @param right the right set
-     * @param <T>   the type of the elements of the sets
-     * @return the unmodifiable sorted relative complement of the left set with respect to the right set
-     */
-    public static <T> SortedSet<T> unmodifiableSortedDifference(final Set<T> left, final Set<T> right) {
-        Objects.requireNonNull(left);
-        Objects.requireNonNull(right);
-        return left.stream().filter(k -> right.contains(k) == false).collect(toUnmodifiableSortedSet());
-    }
-
-    /**
-     * Returns a {@link Collector} that accumulates the input elements into a sorted set.
-     *
-     * @param <T> the type of the input elements
-     * @return a sorted set
-     */
-    public static <T> Collector<T, SortedSet<T>, SortedSet<T>> toSortedSet() {
-        return new SortedSetCollector<>();
+        final SortedSet<T> set = new TreeSet<>();
+        for (T k : left) {
+            if (right.contains(k) == false) {
+                set.add(k);
+            }
+        }
+        return set;
     }
 
     /**
@@ -131,76 +113,27 @@ public final class Sets {
      * @return an unmodifiable set where the underlying set is sorted
      */
     public static <T> Collector<T, SortedSet<T>, SortedSet<T>> toUnmodifiableSortedSet() {
-        return new UnmodifiableSortedSetCollector<>();
-    }
-
-    abstract static class AbstractSortedSetCollector<T> implements Collector<T, SortedSet<T>, SortedSet<T>> {
-
-        @Override
-        public Supplier<SortedSet<T>> supplier() {
-            return TreeSet::new;
-        }
-
-        @Override
-        public BiConsumer<SortedSet<T>, T> accumulator() {
-            return SortedSet::add;
-        }
-
-        @Override
-        public BinaryOperator<SortedSet<T>> combiner() {
-            return (s, t) -> {
-                s.addAll(t);
-                return s;
-            };
-        }
-
-        public abstract Function<SortedSet<T>, SortedSet<T>> finisher();
-
-        public abstract Set<Characteristics> characteristics();
-
-    }
-
-    private static class SortedSetCollector<T> extends AbstractSortedSetCollector<T> {
-
-        @Override
-        public Function<SortedSet<T>, SortedSet<T>> finisher() {
-            return Function.identity();
-        }
-
-        static final Set<Characteristics> CHARACTERISTICS = Collections.unmodifiableSet(EnumSet.of(Characteristics.IDENTITY_FINISH));
-
-        @Override
-        public Set<Characteristics> characteristics() {
-            return CHARACTERISTICS;
-        }
-
-    }
-
-    private static class UnmodifiableSortedSetCollector<T> extends AbstractSortedSetCollector<T> {
-
-        @Override
-        public Function<SortedSet<T>, SortedSet<T>> finisher() {
-            return Collections::unmodifiableSortedSet;
-        }
-
-        @Override
-        public Set<Characteristics> characteristics() {
-            return Collections.emptySet();
-        }
-
+        return Collector.of(TreeSet::new, SortedSet::add, (a, b) -> {
+            a.addAll(b);
+            return a;
+        }, Collections::unmodifiableSortedSet);
     }
 
     public static <T> Set<T> union(Set<T> left, Set<T> right) {
-        Objects.requireNonNull(left);
-        Objects.requireNonNull(right);
         Set<T> union = new HashSet<>(left);
         union.addAll(right);
         return union;
     }
 
+    /**
+     * The intersection of two sets. Namely, the resulting set contains all the elements that are in both sets.
+     * Neither input is mutated by this operation, an entirely new set is returned.
+     *
+     * @param set1 the first set
+     * @param set2 the second set
+     * @return the unmodifiable intersection of the two sets
+     */
     public static <T> Set<T> intersection(Set<T> set1, Set<T> set2) {
-        Objects.requireNonNull(set1);
-        Objects.requireNonNull(set2);
         final Set<T> left;
         final Set<T> right;
         if (set1.size() < set2.size()) {
@@ -210,6 +143,33 @@ public final class Sets {
             left = set2;
             right = set1;
         }
-        return left.stream().filter(right::contains).collect(Collectors.toSet());
+
+        final Set<T> empty = Set.of();
+        Set<T> result = empty;
+        for (T t : left) {
+            if (right.contains(t)) {
+                if (result == empty) {
+                    // delay allocation of a non-empty result set
+                    result = new HashSet<>();
+                }
+                result.add(t);
+            }
+        }
+
+        // the empty set is already unmodifiable
+        return result == empty ? result : Collections.unmodifiableSet(result);
+    }
+
+    /**
+     * Creates a copy of the given set and adds extra elements.
+     *
+     * @param set      set to copy
+     * @param elements elements to add
+     */
+    @SuppressWarnings("unchecked")
+    public static <E> Set<E> addToCopy(Set<E> set, E... elements) {
+        final var res = new HashSet<>(set);
+        Collections.addAll(res, elements);
+        return Set.copyOf(res);
     }
 }

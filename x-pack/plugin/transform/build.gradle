@@ -13,7 +13,7 @@ dependencies {
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('analytics'))
-  testImplementation project(path: ':modules:aggs-matrix-stats')
+  testImplementation project(path: ':modules:aggregations')
   testImplementation project(path: xpackModule('spatial'))
   testImplementation project(":test:x-content")
 

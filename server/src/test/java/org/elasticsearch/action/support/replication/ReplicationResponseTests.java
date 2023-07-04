@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Locale;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -37,7 +36,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final int total = 5;
         final int successful = randomIntBetween(1, total);
         final ShardInfo shardInfo = new ShardInfo(total, successful);
-        assertEquals(String.format(Locale.ROOT, "ShardInfo{total=5, successful=%d, failures=[]}", successful), shardInfo.toString());
+        assertEquals(Strings.format("ShardInfo{total=5, successful=%d, failures=[]}", successful), shardInfo.toString());
     }
 
     public void testShardInfoToXContent() throws IOException {

@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -58,9 +57,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
         String sourceIndex = "test-source-query-is-applied";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping(
                 "numeric_1",
                 "type=double",
@@ -209,7 +206,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         List<ActionFuture<ExplainDataFrameAnalyticsAction.Response>> futures = new ArrayList<>();
 
         for (int i = 0; i < simultaneousInvocationCount; ++i) {
-            futures.add(client().execute(ExplainDataFrameAnalyticsAction.INSTANCE, new PutDataFrameAnalyticsAction.Request(config)));
+            futures.add(client().execute(ExplainDataFrameAnalyticsAction.INSTANCE, new ExplainDataFrameAnalyticsAction.Request(config)));
         }
 
         ExplainDataFrameAnalyticsAction.Response previous = null;

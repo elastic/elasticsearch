@@ -49,6 +49,9 @@ privilege.
 ** To automatically create a data stream or index with a bulk API request, you
 must have the `auto_configure`, `create_index`, or `manage` index privilege.
 
+** To make the result of a bulk operation visible to search using the `refresh`
+parameter, you must have the `maintenance` or `manage` index privilege.
+
 * Automatic data stream creation requires a matching index template with data
 stream enabled. See <<set-up-a-data-stream>>.
 
@@ -110,10 +113,14 @@ something similar on the client side, and reduce buffering as much as
 possible.
 
 There is no "correct" number of actions to perform in a single bulk request.
-Experiment with different settings to find the optimal size for your particular workload.
-
-When using the HTTP API, make sure that the client does not send HTTP chunks,
-as this will slow things down.
+Experiment with different settings to find the optimal size for your particular
+workload. Note that {es} limits the maximum size of a HTTP request to `100mb`
+by default so clients must ensure that no request exceeds this size. It is not
+possible to index a single document which exceeds the size limit, so you must
+pre-process any such documents into smaller pieces before sending them to {es}.
+For instance, split documents into pages or chapters before indexing them, or
+store raw binary data in a system outside {es} and replacing the raw data with
+a link to the external system in the documents that you send to {es}.
 
 [discrete]
 [[bulk-clients]]
@@ -140,7 +147,7 @@ JavaScript::
     See {jsclient-current}/client-helpers.html[client.helpers.*]
 
 .NET::
-    See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html#bulkall-observable[`BulkAllObservable`]
+    See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html[`BulkAllObservable`]
 
 PHP::
     See https://www.elastic.co/guide/en/elasticsearch/client/php-api/current/indexing_documents.html#_bulk_indexing[Bulk indexing]
@@ -224,7 +231,7 @@ participate in the `_bulk` request at all.
 [[bulk-security]]
 ===== Security
 
-See <<url-access-control>>.
+See <<api-url-access-control>>.
 
 [[docs-bulk-api-path-params]]
 ==== {api-path-parms-title}

@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -121,6 +122,11 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
             return Collections.singletonList(searchContext -> new FetchSubPhaseProcessor() {
                 @Override
                 public void setNextReader(LeafReaderContext readerContext) {}
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NO_REQUIREMENTS;
+                }
 
                 @Override
                 public void process(FetchSubPhase.HitContext hitContext) {

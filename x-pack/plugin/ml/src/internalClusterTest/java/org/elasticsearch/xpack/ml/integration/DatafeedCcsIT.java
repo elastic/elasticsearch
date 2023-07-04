@@ -18,7 +18,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
@@ -58,7 +58,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()
-            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // For an internal cluster test we have to use the "black hole" autodetect process - we cannot use the native one
             .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)

@@ -1,0 +1,212 @@
+missing routing path field:
+  - skip:
+      features: close_to
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [uid, tag]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              voltage:
+                type: double
+                time_series_metric: gauge
+              tag:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.2, "unmapped_field": 10, "tag": "first" }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.0, "unmapped_field": 20 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.4, "unmapped_field": 30, "tag": "first" }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.3, "unmapped_field": 40 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.6, "unmapped_field": 10 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.7, "unmapped_field": 20, "tag": "second" }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.7, "unmapped_field": 30, "tag": "second" }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.8, "unmapped_field": 40 }'
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+              aggs:
+                voltage:
+                  avg:
+                    field: voltage
+
+  - match: { hits.total.value: 8 }
+  - length: { aggregations.tsids.buckets: 4 }
+
+  - match: { aggregations.tsids.buckets.0.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match: { aggregations.tsids.buckets.0.key.tag: null }
+  - match: { aggregations.tsids.buckets.0.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.15, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.1.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match: { aggregations.tsids.buckets.1.key.tag: null }
+  - match: { aggregations.tsids.buckets.1.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 6.69, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.2.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match: { aggregations.tsids.buckets.2.key.tag: "first" }
+  - match: { aggregations.tsids.buckets.2.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 7.30, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.3.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match: { aggregations.tsids.buckets.3.key.tag: "second" }
+  - match: { aggregations.tsids.buckets.3.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 6.70, error: 0.01 }}
+
+---
+missing dimension on routing path field:
+  - skip:
+      version: " - 8.7.99"
+      reason: error message changed in 8.8.0
+
+  - do:
+      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[tag\] was not a dimension./'
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [uid, tag]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              voltage:
+                type: double
+                time_series_metric: gauge
+              tag:
+                type: keyword
+
+---
+multi-value routing path field:
+  - skip:
+      features: close_to
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [uid, tag]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              voltage:
+                type: double
+                time_series_metric: gauge
+              tag:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.2, "unmapped_field": 10, "tag": "first" }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.0, "unmapped_field": 20, "tag": [ "one", "two" ] }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.4, "unmapped_field": 30, "tag": "first" }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.3, "unmapped_field": 40, "tag": [ "one", "two" ] }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.6, "unmapped_field": 10, "tag": [ "one", "three" ] }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.7, "unmapped_field": 20, "tag": "second" }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.7, "unmapped_field": 30, "tag": "second" }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.8, "unmapped_field": 40, "tag": [ "one", "three" ] }'
+
+  - is_true: errors
+
+  - match: {items.1.index.error.reason: "Error extracting routing: Routing values must be strings but found [START_ARRAY]" }
+  - match: {items.3.index.error.reason: "Error extracting routing: Routing values must be strings but found [START_ARRAY]" }
+  - match: {items.4.index.error.reason: "Error extracting routing: Routing values must be strings but found [START_ARRAY]" }
+  - match: {items.7.index.error.reason: "Error extracting routing: Routing values must be strings but found [START_ARRAY]" }
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+              aggs:
+                voltage:
+                  avg:
+                    field: voltage
+
+  - match: {hits.total.value: 4}
+  - length: {aggregations.tsids.buckets: 2}
+
+  - match: {aggregations.tsids.buckets.0.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match: {aggregations.tsids.buckets.0.key.tag: "first" }
+  - match: {aggregations.tsids.buckets.0.doc_count: 2 }
+  - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 7.30, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.1.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match: { aggregations.tsids.buckets.1.key.tag: "second" }
+  - match: {aggregations.tsids.buckets.1.doc_count: 2 }
+  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 6.70, error: 0.01 }}

@@ -3,6 +3,16 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="modules-discovery-hosts-providers"]
+=== Node discovery
+
+Refer to <<discovery-hosts-providers,Discovery>>.
+
+[role="exclude",id="modules-discovery-troubleshooting"]
+==== Troubleshooting node discovery
+
+Refer to <<discovery-troubleshooting,Troubleshooting discovery>>.
+
 [role="exclude",id="jwt-realm"]
 === JWT realm
 
@@ -182,21 +192,11 @@ See <<grok,Grokking grok>>.
 
 // [START] Security redirects
 
-[role="exclude",id="security-minimal-setup"]
-=== Set up minimal security for {es}
-
-Refer to <<manually-configure-security,Manually configure security for the {stack}>>.
-
 [role="exclude",id="get-started-users"]
 ==== Create users
 
 Refer to the <<reset-password,`elasticsearch-reset-password`>> tool for resetting
 passwords of built-in users.
-
-[role="exclude",id="add-built-in-users"]
-==== Configure {kib} to connect to {es} with a password
-
-Refer to <<configuring-stack-security,Start the {stack} with security enabled>>.
 
 [role="exclude",id="encrypting-communications-certificates"]
 === Generate certificates
@@ -569,7 +569,7 @@ instead. A regular flush has the same effect as a synced flush in 7.6 and later.
 
 [role="exclude",id="_repositories"]
 === Snapshot repositories
-See <<snapshots-repositories>>.
+See <<snapshots-register-repository>>.
 
 [role="exclude",id="_snapshot"]
 === Snapshot
@@ -614,10 +614,6 @@ See <<getting-started-search>>.
 [role="exclude", id="getting-started-search-API"]
 === Search API
 See <<getting-started-search>>.
-
-[role="exclude", id="getting-started-conclusion"]
-=== Conclusion
-See <<getting-started-next-steps>>.
 
 [role="exclude",id="ccs-reduction"]
 === {ccs-cap} reduction
@@ -1722,27 +1718,27 @@ See <<rollup-apis>>.
 [role="exclude",id="getting-started-install"]
 === Get {es} up and running
 
-See <<run-elasticsearch>>.
+See <<configuring-stack-security>>.
+
+[role="exclude",id="getting-started"]
+=== Quick start
+
+See {estc-welcome}/getting-started-general-purpose.html[Set up a general purpose Elastic deployment].
 
 [role="exclude",id="getting-started-index"]
 === Index some documents
 
-See <<add-data>>.
+See {estc-welcome}/getting-started-general-purpose.html#gp-gs-add-data[Add data].
 
 [role="exclude",id="getting-started-search"]
 === Start searching
 
-See <<qs-search-data>>.
+See {estc-welcome}/getting-started-general-purpose.html#gp-gs-search-data[Search and sort data].
 
 [role="exclude",id="getting-started-aggregations"]
 === Analyze results with aggregations
 
-See <<getting-started>>.
-
-[role="exclude",id="getting-started-next-steps"]
-=== Where to go from here
-
-See <<getting-started>>.
+See <<search-aggregations>>.
 
 [role="exclude",id="jvm-options"]
 === Setting JVM options
@@ -1872,3 +1868,66 @@ For more information about reindexing from a remote cluster, refer to
 === Infer trained model deployment API
 
 See <<infer-trained-model>>.
+
+[role="exclude",id="watching-meetup-data"]
+=== Watching event data
+
+This example has been removed, as the Meetup.com streaming API has been
+discontinued.
+
+Refer to <<example-watches>> for other Watcher examples.
+
+[role="exclude",id="disk-usage-exceeded"]
+=== Fix watermark errors
+
+Refer to <<fix-watermark-errors>>.
+
+[role="exclude",id="dlm-delete-lifecycle"]
+=== Delete the lifecycle of a data stream
+
+Refer to <<data-streams-delete-lifecycle,Delete data stream lifecycle API>>.
+
+[role="exclude",id="dlm-explain-lifecycle"]
+=== Explain the lifecycle of a data stream
+
+Refer to <<data-streams-explain-lifecycle,Explain data stream lifecycle API>>.
+
+[role="exclude",id="dlm-get-lifecycle"]
+=== Get the lifecycle of a data stream
+
+Refer to <<data-streams-get-lifecycle,Get data stream lifecycle API>>.
+
+[role="exclude",id="dlm-put-lifecycle"]
+=== Update the lifecycle of a data stream
+
+Refer to <<data-streams-delete-lifecycle,Update data stream lifecycle API>>.
+
+[role="exclude",id="get-synonym-rule"]
+=== Get synonym rule API
+
+coming::[8.10.0]
+
+[role="exclude",id="get-synonyms"]
+=== Get synonym set API
+
+coming::[8.10.0]
+
+[role="exclude",id="list-synonyms"]
+=== List synonym sets API
+
+coming::[8.10.0]
+
+[role="exclude",id="put-synonym-rule"]
+=== Create or update synonym rule API
+
+coming::[8.10.0]
+
+[role="exclude",id="delete-synonyms"]
+=== Delete synonym sets API
+
+coming::[8.10.0]
+
+[role="exclude",id="put-synonyms"]
+=== Create or update synonym sets API
+
+coming::[8.10.0]

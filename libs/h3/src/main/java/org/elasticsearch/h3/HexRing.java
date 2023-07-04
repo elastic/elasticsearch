@@ -309,7 +309,7 @@ final class HexRing {
      *     \\2/
      * </pre>
      */
-    private static final CoordIJK.Direction[] DIRECTIONS = new CoordIJK.Direction[] {
+    static final CoordIJK.Direction[] DIRECTIONS = new CoordIJK.Direction[] {
         CoordIJK.Direction.J_AXES_DIGIT,
         CoordIJK.Direction.JK_AXES_DIGIT,
         CoordIJK.Direction.K_AXES_DIGIT,
@@ -569,64 +569,120 @@ final class HexRing {
             CoordIJK.Direction.CENTER_DIGIT,
             CoordIJK.Direction.IJ_AXES_DIGIT } };
 
+    private static final CoordIJK.Direction[] NEIGHBORSETCLOCKWISE = new CoordIJK.Direction[] {
+        CoordIJK.Direction.CENTER_DIGIT,
+        CoordIJK.Direction.JK_AXES_DIGIT,
+        CoordIJK.Direction.IJ_AXES_DIGIT,
+        CoordIJK.Direction.J_AXES_DIGIT,
+        CoordIJK.Direction.IK_AXES_DIGIT,
+        CoordIJK.Direction.K_AXES_DIGIT,
+        CoordIJK.Direction.I_AXES_DIGIT };
+
+    private static final CoordIJK.Direction[] NEIGHBORSETCOUNTERCLOCKWISE = new CoordIJK.Direction[] {
+        CoordIJK.Direction.CENTER_DIGIT,
+        CoordIJK.Direction.IK_AXES_DIGIT,
+        CoordIJK.Direction.JK_AXES_DIGIT,
+        CoordIJK.Direction.K_AXES_DIGIT,
+        CoordIJK.Direction.IJ_AXES_DIGIT,
+        CoordIJK.Direction.I_AXES_DIGIT,
+        CoordIJK.Direction.J_AXES_DIGIT };
+
     /**
-     * Produce all neighboring cells. For Hexagons there will be 6 neighbors while
-     * for pentagon just 5.
-     * Output is placed in the provided array in no particular order.
-     *
-     * @param  origin   origin cell
+     * Returns whether or not the provided H3Indexes are neighbors.
+     * @param origin The origin H3 index.
+     * @param destination The destination H3 index.
+     * @return true if the indexes are neighbors, false otherwise
      */
-    public static long[] hexRing(long origin) {
-        final long[] out = H3Index.H3_is_pentagon(origin) ? new long[5] : new long[6];
-        int idx = 0;
-        long previous = -1;
-        for (int i = 0; i < 6; i++) {
-            int[] rotations = new int[] { 0 };
-            long[] nextNeighbor = new long[] { 0 };
-            int neighborResult = h3NeighborRotations(origin, DIRECTIONS[i].digit(), rotations, nextNeighbor);
-            if (neighborResult != E_PENTAGON) {
-                // E_PENTAGON is an expected case when trying to traverse off of
-                // pentagons.
-                if (neighborResult != E_SUCCESS) {
-                    throw new IllegalArgumentException();
+    public static boolean areNeighbours(long origin, long destination) {
+        // Make sure they're hexagon indexes
+        if (H3Index.H3_get_mode(origin) != Constants.H3_CELL_MODE) {
+            throw new IllegalArgumentException("Invalid cell: " + origin);
+        }
+
+        if (H3Index.H3_get_mode(destination) != Constants.H3_CELL_MODE) {
+            throw new IllegalArgumentException("Invalid cell: " + destination);
+        }
+
+        // Hexagons cannot be neighbors with themselves
+        if (origin == destination) {
+            return false;
+        }
+
+        final int resolution = H3Index.H3_get_resolution(origin);
+        // Only hexagons in the same resolution can be neighbors
+        if (resolution != H3Index.H3_get_resolution(destination)) {
+            return false;
+        }
+
+        // H3 Indexes that share the same parent are very likely to be neighbors
+        // Child 0 is neighbor with all of its parent's 'offspring', the other
+        // children are neighbors with 3 of the 7 children. So a simple comparison
+        // of origin and destination parents and then a lookup table of the children
+        // is a super-cheap way to possibly determine they are neighbors.
+        if (resolution > 1) {
+            long originParent = H3.h3ToParent(origin);
+            long destinationParent = H3.h3ToParent(destination);
+            if (originParent == destinationParent) {
+                int originResDigit = H3Index.H3_get_index_digit(origin, resolution);
+                int destinationResDigit = H3Index.H3_get_index_digit(destination, resolution);
+                if (originResDigit == CoordIJK.Direction.CENTER_DIGIT.digit()
+                    || destinationResDigit == CoordIJK.Direction.CENTER_DIGIT.digit()) {
+                    return true;
                 }
-                if (previous != nextNeighbor[0]) {
-                    out[idx++] = nextNeighbor[0];
-                    previous = nextNeighbor[0];
+                if (originResDigit >= CoordIJK.Direction.INVALID_DIGIT.digit()) {
+                    // Prevent indexing off the end of the array below
+                    throw new IllegalArgumentException("");
+                }
+                if ((originResDigit == CoordIJK.Direction.K_AXES_DIGIT.digit()
+                    || destinationResDigit == CoordIJK.Direction.K_AXES_DIGIT.digit()) && H3.isPentagon(originParent)) {
+                    // If these are invalid cells, fail rather than incorrectly
+                    // reporting neighbors. For pentagon cells that are actually
+                    // neighbors across the deleted subsequence, they will fail the
+                    // optimized check below, but they will be accepted by the
+                    // gridDisk check below that.
+                    throw new IllegalArgumentException("Undefined error checking for neighbors");
+                }
+                // These sets are the relevant neighbors in the clockwise
+                // and counter-clockwise
+                if (NEIGHBORSETCLOCKWISE[originResDigit].digit() == destinationResDigit
+                    || NEIGHBORSETCOUNTERCLOCKWISE[originResDigit].digit() == destinationResDigit) {
+                    return true;
                 }
             }
         }
-        assert idx == out.length;
-        return out;
+        // Otherwise, we have to determine the neighbor relationship the "hard" way.
+        for (int i = 0; i < 6; i++) {
+            long neighbor = h3NeighborInDirection(origin, DIRECTIONS[i].digit());
+            if (neighbor != -1) {
+                // -1 is an expected case when trying to traverse off of
+                // pentagons.
+                if (destination == neighbor) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
      * Returns the hexagon index neighboring the origin, in the direction dir.
      *
-     * Implementation note: The only reachable case where this returns 0 is if the
+     * Implementation note: The only reachable case where this returns -1 is if the
      * origin is a pentagon and the translation is in the k direction. Thus,
-     * 0 can only be returned if origin is a pentagon.
+     * -1 can only be returned if origin is a pentagon.
      *
      * @param origin Origin index
      * @param dir Direction to move in
-     * @param rotations Number of ccw rotations to perform to reorient the
-     *                  translation vector. Will be modified to the new number of
-     *                  rotations to perform (such as when crossing a face edge.)
-     * @param out H3Index of the specified neighbor if succesful
-     * @return E_SUCCESS on success
+     * @return H3Index of the specified neighbor or -1 if there is no more neighbor
      */
-    private static int h3NeighborRotations(long origin, int dir, int[] rotations, long[] out) {
+    static long h3NeighborInDirection(long origin, int dir) {
         long current = origin;
-
-        for (int i = 0; i < rotations[0]; i++) {
-            dir = CoordIJK.rotate60ccw(dir);
-        }
 
         int newRotations = 0;
         int oldBaseCell = H3Index.H3_get_base_cell(current);
         if (oldBaseCell < 0 || oldBaseCell >= Constants.NUM_BASE_CELLS) {  // LCOV_EXCL_BR_LINE
             // Base cells less than zero can not be represented in an index
-            return E_CELL_INVALID;
+            throw new IllegalArgumentException("Invalid base cell looking for neighbor");
         }
         int oldLeadingDigit = H3Index.h3LeadingNonZeroDigit(current);
 
@@ -646,7 +702,6 @@ final class HexRing {
                     // perform the adjustment for the k-subsequence we're skipping
                     // over.
                     current = H3Index.h3Rotate60ccw(current);
-                    rotations[0] = rotations[0] + 1;
                 }
 
                 break;
@@ -655,7 +710,7 @@ final class HexRing {
                 int nextDir;
                 if (oldDigit == CoordIJK.Direction.INVALID_DIGIT.digit()) {
                     // Only possible on invalid input
-                    return E_CELL_INVALID;
+                    throw new IllegalArgumentException();
                 } else if (H3Index.isResolutionClassIII(r + 1)) {
                     current = H3Index.H3_set_index_digit(current, r + 1, NEW_DIGIT_II[oldDigit][dir].digit());
                     nextDir = NEW_ADJUSTMENT_II[oldDigit][dir].digit();
@@ -676,8 +731,6 @@ final class HexRing {
 
         int newBaseCell = H3Index.H3_get_base_cell(current);
         if (BaseCells.isBaseCellPentagon(newBaseCell)) {
-            boolean alreadyAdjustedKSubsequence = false;
-
             // force rotation out of missing k-axes sub-sequence
             if (H3Index.h3LeadingNonZeroDigit(current) == CoordIJK.Direction.K_AXES_DIGIT.digit()) {
                 if (oldBaseCell != newBaseCell) {
@@ -694,63 +747,38 @@ final class HexRing {
                         // unreachable.
                         current = H3Index.h3Rotate60ccw(current);  // LCOV_EXCL_LINE
                     }
-                    alreadyAdjustedKSubsequence = true;
                 } else {
                     // In this case, we traversed into the deleted
                     // k subsequence from within the same pentagon
                     // base cell.
                     if (oldLeadingDigit == CoordIJK.Direction.CENTER_DIGIT.digit()) {
                         // Undefined: the k direction is deleted from here
-                        return E_PENTAGON;
+                        return -1L;
                     } else if (oldLeadingDigit == CoordIJK.Direction.JK_AXES_DIGIT.digit()) {
                         // Rotate out of the deleted k subsequence
                         // We also need an additional change to the direction we're
                         // moving in
                         current = H3Index.h3Rotate60ccw(current);
-                        rotations[0] = rotations[0] + 1;
                     } else if (oldLeadingDigit == CoordIJK.Direction.IK_AXES_DIGIT.digit()) {
                         // Rotate out of the deleted k subsequence
                         // We also need an additional change to the direction we're
                         // moving in
                         current = H3Index.h3Rotate60cw(current);
-                        rotations[0] = rotations[0] + 5;
                     } else {
                         // Should never occur
-                        return E_FAILED;  // LCOV_EXCL_LINE
+                        throw new IllegalArgumentException("Undefined error looking for neighbor");  // LCOV_EXCL_LINE
                     }
                 }
             }
 
-            for (int i = 0; i < newRotations; i++)
+            for (int i = 0; i < newRotations; i++) {
                 current = H3Index.h3RotatePent60ccw(current);
-
-            // Account for differing orientation of the base cells (this edge
-            // might not follow properties of some other edges.)
-            if (oldBaseCell != newBaseCell) {
-                if (BaseCells.isBaseCellPolarPentagon(newBaseCell)) {
-                    // 'polar' base cells behave differently because they have all
-                    // i neighbors.
-                    if (oldBaseCell != 118
-                        && oldBaseCell != 8
-                        && H3Index.h3LeadingNonZeroDigit(current) != CoordIJK.Direction.JK_AXES_DIGIT.digit()) {
-                        rotations[0] = rotations[0] + 1;
-                    }
-                } else if (H3Index.h3LeadingNonZeroDigit(current) == CoordIJK.Direction.IK_AXES_DIGIT.digit()
-                    && alreadyAdjustedKSubsequence == false) {
-                        // account for distortion introduced to the 5 neighbor by the
-                        // deleted k subsequence.
-                        rotations[0] = rotations[0] + 1;
-                    }
             }
         } else {
             for (int i = 0; i < newRotations; i++)
                 current = H3Index.h3Rotate60ccw(current);
         }
-
-        rotations[0] = (rotations[0] + newRotations) % 6;
-        out[0] = current;
-
-        return E_SUCCESS;
+        return current;
     }
 
 }

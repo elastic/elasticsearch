@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -59,8 +58,7 @@ public class TaskExecutorTests extends ESTestCase {
             getClass().getName() + "/" + getTestName(),
             daemonThreadFactory(Settings.EMPTY, "test_thread"),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            threadPool.scheduler()
         );
     }
 
@@ -93,10 +91,7 @@ public class TaskExecutorTests extends ESTestCase {
         }
     }
 
-    /**
-     * Task class that works for single tasks as well as batching (see {@link TaskBatcherTests})
-     */
-    protected abstract static class TestTask implements TestExecutor<TestTask>, TestListener, ClusterStateTaskConfig {
+    protected abstract static class TestTask implements TestExecutor<TestTask>, TestListener {
 
         @Override
         public void execute(List<TestTask> tasks) {
@@ -104,12 +99,10 @@ public class TaskExecutorTests extends ESTestCase {
         }
 
         @Nullable
-        @Override
         public TimeValue timeout() {
             return null;
         }
 
-        @Override
         public Priority priority() {
             return Priority.NORMAL;
         }

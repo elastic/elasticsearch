@@ -1,6 +1,0 @@
-pr: 86132
-summary: Add debug information to `ReactiveReason` about assigned and unassigned shards
-area: Allocation
-type: enhancement
-issues:
- - 85243

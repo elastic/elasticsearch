@@ -69,12 +69,9 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         bulkRequest.add(new IndexRequest("can't"));
         bulkRequest.add(new DeleteRequest("do").version(0).versionType(VersionType.EXTERNAL));
         bulkRequest.add(new UpdateRequest("nothin", randomAlphaOfLength(5)));
-        indicesThatCannotBeCreatedTestCase(
-            Set.of("no", "can't", "do", "nothin"),
-            bulkRequest,
-            index -> true,
-            index -> { throw new IndexNotFoundException("Can't make it because I say so"); }
-        );
+        indicesThatCannotBeCreatedTestCase(Set.of("no", "can't", "do", "nothin"), bulkRequest, index -> true, index -> {
+            throw new IndexNotFoundException("Can't make it because I say so");
+        });
     }
 
     public void testSomeFail() {
@@ -100,6 +97,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         when(state.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(state);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
         DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(state.getNodes()).thenReturn(discoveryNodes);
@@ -147,7 +145,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             }
 
             @Override
-            void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
+            void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
                 try {
                     simulateAutoCreate.accept(index);
                     // If we try to create an index just immediately assume it worked

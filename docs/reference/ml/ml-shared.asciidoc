@@ -405,7 +405,7 @@ The value that is compared against the `applies_to` field using the `operator`.
 end::custom-rules-conditions-value[]
 
 tag::custom-settings[]
-Advanced configuration option. Contains custom meta data about the job. For
+Advanced configuration option. Contains custom metadata about the job. For
 example, it can contain custom URL information as shown in
 {ml-docs}/ml-configuring-url.html[Adding custom URLs to {ml} results].
 end::custom-settings[]
@@ -497,6 +497,10 @@ the index being used to train. If this field is missing from a document, then
 that document will not be used for training, but a prediction with the trained
 model will be generated for it. It is also known as continuous target variable.
 end::dependent-variable[]
+
+tag::deployment-id[]
+A unique identifier for the deployment of the model.
+end::deployment-id[]
 
 tag::desc-results[]
 If true, the results are sorted in descending order.
@@ -887,7 +891,7 @@ For example:
    "ignore_throttled": true
 }
 ```
-For more information about these options, see <<multi-index>>.
+For more information about these options, see <<api-multi-index>>.
 --
 end::indices-options[]
 
@@ -940,12 +944,20 @@ values are
 * `bert`: Use for BERT-style models
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
+* experimental:[] `xlm_roberta`: Use for XLMRoBERTa-style models
+* experimental:[] `bert_ja`: Use for BERT-style models trained for the Japanese
+language.
 --
 end::inference-config-nlp-tokenization[]
 
 tag::inference-config-nlp-tokenization-bert[]
 BERT-style tokenization is to be performed with the enclosed settings.
 end::inference-config-nlp-tokenization-bert[]
+
+tag::inference-config-nlp-tokenization-bert-ja[]
+experimental:[] BERT-style tokenization for Japanese text is to be performed 
+with the enclosed settings.
+end::inference-config-nlp-tokenization-bert-ja[]
 
 tag::inference-config-nlp-tokenization-do-lower-case[]
 Specifies if the tokenization lower case the text sequence when building the
@@ -988,6 +1000,10 @@ Tokenize with special tokens. The tokens typically included in BERT-style tokeni
 --
 end::inference-config-nlp-tokenization-bert-with-special-tokens[]
 
+tag::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
+Tokenize with special tokens if `true`.
+end::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
+
 tag::inference-config-nlp-tokenization-max-sequence-length[]
 Specifies the maximum number of tokens allowed to be output by the tokenizer.
 end::inference-config-nlp-tokenization-max-sequence-length[]
@@ -1022,6 +1038,10 @@ Tokenize with special tokens. The tokens typically included in MPNet-style token
 --
 end::inference-config-nlp-tokenization-mpnet-with-special-tokens[]
 
+tag::inference-config-nlp-tokenization-xlm-roberta[]
+experimental:[] XLMRoBERTa-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-xlm-roberta[]
+
 tag::inference-config-nlp-vocabulary[]
 The configuration for retrieving the vocabulary of the model. The vocabulary is
 then used at inference time. This information is usually provided automatically
@@ -1051,8 +1071,8 @@ results are returned to the caller.
 end::inference-config-pass-through[]
 
 tag::inference-config-nlp-question-answering[]
-Configures a question answering natural language processing (NLP) task. Question 
-answering is useful for extracting answers for certain questions from a large 
+Configures a question answering natural language processing (NLP) task. Question
+answering is useful for extracting answers for certain questions from a large
 corpus of text.
 end::inference-config-nlp-question-answering[]
 
@@ -1069,6 +1089,30 @@ numbers. These embeddings capture not simply tokens, but semantic meanings and
 context. These embeddings can be used in a <<dense-vector,dense vector>> field
 for powerful insights.
 end::inference-config-text-embedding[]
+
+tag::inference-config-text-embedding-size[]
+The number of dimensions in the embedding vector produced by the model.
+end::inference-config-text-embedding-size[]
+
+tag::inference-config-text-similarity[]
+Text similarity takes an input sequence and compares it with another input sequence. This is commonly referred to
+as cross-encoding. This task is useful for ranking document text when comparing it to another provided text input.
+end::inference-config-text-similarity[]
+
+tag::inference-config-text-similarity-span-score-func[]
+Identifies how to combine the resulting similarity score when a provided text passage is longer than `max_sequence_length` and must be
+automatically separated for multiple calls. This only is applicable when `truncate` is `none` and `span` is a non-negative
+number. The default value is `max`. Available options are:
++
+--
+* `max`: The maximum score from all the spans is returned.
+* `mean`: The mean score over all the spans is returned.
+--
+end::inference-config-text-similarity-span-score-func[]
+
+tag::inference-config-text-similarity-text[]
+This is the text with which to compare all document provided text inputs.
+end::inference-config-text-similarity-text[]
 
 tag::inference-config-regression-num-top-feature-importance-values[]
 Specifies the maximum number of
@@ -1290,6 +1334,11 @@ tag::max-trees-trained-models[]
 The maximum number of decision trees in the forest. The maximum value is 2000.
 By default, this value is calculated during hyperparameter optimization.
 end::max-trees-trained-models[]
+
+tag::meta[]
+Advanced configuration option. Contains custom metadata about the job. For
+example, it can contain custom URL information.
+end::meta[]
 
 tag::method[]
 The method that {oldetection} uses. Available methods are `lof`, `ldof`,

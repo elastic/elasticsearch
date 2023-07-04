@@ -208,14 +208,14 @@ twoFunctionsEqualsBooleanLiterals-caseSensitive
 process where endsWith(process_path, "x") == true and endsWith(process_path, "yx") != true
 ;
 {"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","boost":1.0}}},
-{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
+{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","boost":1.0}}}],"boost":1.0}}
 ;
 
 twoFunctionsEqualsBooleanLiterals-insensitive
 process where endsWith~(process_path, "x") == true and endsWith~(process_path, "yx") != true
 ;
 {"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","case_insensitive":true,"boost":1.0}}},
-{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
+{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}
 ;
 
 endsWithKeywordFieldFunction-caseSensitive
@@ -901,3 +901,17 @@ process where pid > 100 and pid < 200
 // the "not" has an undefined location of where it should be used in the Painless script
 // disjunctionInsideFunctionWithNot
 // process where string(pid > 5 and pid != 10) == \"true\"
+
+
+versionFieldAutomaticConversion
+process where version > "2"
+;
+{"range":{"version":{"gt":"2"
+;
+
+versionFieldCast
+process where CONCAT(version, constant_keyword) > "2"
+;
+{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,X1->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalEqlScriptUtils.concat([X0,X1]),params.v2))))"
+"params":{"v0":"version","v1":"constant_keyword","v2":"2"}}
+;

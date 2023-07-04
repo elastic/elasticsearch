@@ -12,8 +12,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-
 public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireSerializingTestCase<ClusterStateUpdateStats> {
 
     @Override
@@ -51,7 +49,7 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
     }
 
     @Override
-    protected ClusterStateUpdateStats mutateInstance(ClusterStateUpdateStats instance) throws IOException {
+    protected ClusterStateUpdateStats mutateInstance(ClusterStateUpdateStats instance) {
         switch (between(1, 19)) {
             case 1:
                 return new ClusterStateUpdateStats(

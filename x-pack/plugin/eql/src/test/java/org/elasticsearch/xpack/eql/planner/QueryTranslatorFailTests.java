@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.eql.analysis.VerificationException;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
+import static org.hamcrest.Matchers.startsWith;
+
 public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
 
     private String error(String query) {
@@ -264,4 +266,58 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
         assertEquals("line 1:33: Unrecognized option [repeat], expecting [runs]", msg);
     }
 
+    public void testSampleWithTooFewQueries() throws Exception {
+        String s = errorParsing("sample [any where true]");
+        assertEquals("1:2: A sample requires a minimum of 2 queries, found [1]", s);
+    }
+
+    public void testSampleWithTooManyQueries() throws Exception {
+        String s = errorParsing(
+            "sample [any where true] [any where true] [any where true] [any where true] [any where true] [any where true]"
+        );
+        assertEquals("1:94: A sample cannot contain more than 5 queries, found [6]", s);
+    }
+
+    public void testSampleWithNoJoinKeys() throws Exception {
+        String s = errorParsing("sample [any where true] [any where true]");
+        assertEquals("1:9: A sample must have at least one join key, found none", s);
+    }
+
+    public void testSampleWithPipes() throws Exception {
+        String pipe = randomFrom(" | head 1", " | tail 1", " | head 1 | tail 1");
+        String s = errorParsing("sample by host [any where true] [any where true]" + pipe);
+        assertEquals("1:51: Samples do not support pipes yet", s);
+    }
+
+    public void testSamplesWithIncorrectOptions() {
+        assertThat(
+            errorParsing("sample by pid with maxspan=1h [any where true] [any where true]"),
+            startsWith("1:15: mismatched input 'with' expecting {'[', '!['}")
+        );
+        assertThat(
+            errorParsing("sample with maxspan=1h [any where true] by pid [any where true] by pid"),
+            startsWith("1:8: mismatched input 'with' expecting {'by', '[', '!['}")
+        );
+        assertThat(
+            errorParsing("sample by pid [any where true] [any where true] until [process where event.type == \"termination\"]"),
+            startsWith("1:49: mismatched input 'until' expecting {")
+        );
+        assertThat(
+            errorParsing("sample by pid [any where true] with runs=2 [any where true]"),
+            startsWith("1:32: mismatched input 'with' expecting {")
+        );
+        assertThat(errorParsing("sample [any where true] with repeat=123"), startsWith("1:25: mismatched input 'with' expecting {"));
+    }
+
+    public void testSampleWithDuplicateKeys() {
+        assertThat(
+            errorParsing("sample by ?x, host [success where true] by ?x [failure where true] by ?y"),
+            startsWith("1:42: Join keys must be used only once, found duplicates: [x]")
+        );
+        assertThat(
+            errorParsing("sample by host [success where true] by ?x [failure where true] by host"),
+            startsWith("1:65: Join keys must be used only once, found duplicates: [host]")
+        );
+
+    }
 }

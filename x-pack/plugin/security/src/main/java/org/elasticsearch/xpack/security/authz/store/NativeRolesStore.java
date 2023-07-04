@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -24,6 +25,7 @@ import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -62,6 +65,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -87,11 +91,20 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private final SecurityIndexManager securityIndex;
 
-    public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex) {
+    private final ClusterService clusterService;
+
+    public NativeRolesStore(
+        Settings settings,
+        Client client,
+        XPackLicenseState licenseState,
+        SecurityIndexManager securityIndex,
+        ClusterService clusterService
+    ) {
         this.settings = settings;
         this.client = client;
         this.licenseState = licenseState;
         this.securityIndex = securityIndex;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -211,15 +224,25 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
-        } else {
-            innerPutRole(request, role, listener);
-        }
+        } else if (role.hasRemoteIndicesPrivileges()
+            && clusterService.state().getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+                listener.onFailure(
+                    new IllegalStateException(
+                        "all nodes must have transport version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                            + "] or higher to support remote indices privileges"
+                    )
+                );
+            } else {
+                innerPutRole(request, role, listener);
+            }
     }
 
     // pkg-private for testing
     void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         final String roleName = role.getName();
         assert NativeRealmValidationUtil.validateRoleName(roleName, false) == null : "Role name was invalid or reserved: " + roleName;
+        assert false == role.hasRestriction() : "restriction is not supported for native roles";
 
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
@@ -305,8 +328,18 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setSize(0)
                                 .setTerminateAfter(1)
                         )
+                        .add(
+                            client.prepareSearch(SECURITY_MAIN_ALIAS)
+                                .setQuery(
+                                    QueryBuilders.boolQuery()
+                                        .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .filter(existsQuery("remote_indices"))
+                                )
+                                .setTrackTotalHits(true)
+                                .setSize(0)
+                        )
                         .request(),
-                    new ActionListener.Delegating<MultiSearchResponse, Map<String, Object>>(listener) {
+                    new DelegatingActionListener<MultiSearchResponse, Map<String, Object>>(listener) {
                         @Override
                         public void onResponse(MultiSearchResponse items) {
                             Item[] responses = items.getResponses();
@@ -325,6 +358,13 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 usageStats.put("dls", false);
                             } else {
                                 usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits().value > 0L);
+                            }
+                            if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+                                if (responses[3].isFailure()) {
+                                    usageStats.put("remote_indices", 0);
+                                } else {
+                                    usageStats.put("remote_indices", responses[3].getResponse().getHits().getTotalHits().value);
+                                }
                             }
                             delegate.onResponse(usageStats);
                         }
@@ -415,9 +455,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         assert id.startsWith(ROLE_TYPE) : "[" + id + "] does not have role prefix";
         final String name = id.substring(ROLE_TYPE.length() + 1);
         try {
-            // we pass true as last parameter because we do not want to reject permissions if the field permissions
+            // we pass true as allow2xFormat parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
-            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON);
+            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON, false);
             final boolean dlsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
                 .anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
             final boolean flsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
@@ -437,15 +477,19 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     roleDescriptor.getName(),
                     roleDescriptor.getClusterPrivileges(),
                     roleDescriptor.getIndicesPrivileges(),
+                    roleDescriptor.getApplicationPrivileges(),
+                    roleDescriptor.getConditionalClusterPrivileges(),
                     roleDescriptor.getRunAs(),
                     roleDescriptor.getMetadata(),
-                    transientMap
+                    transientMap,
+                    roleDescriptor.getRemoteIndicesPrivileges(),
+                    roleDescriptor.getRestriction()
                 );
             } else {
                 return roleDescriptor;
             }
         } catch (Exception e) {
-            logger.error(() -> "error in the format of data for role [" + name + "]", e);
+            logger.error("error in the format of data for role [" + name + "]", e);
             return null;
         }
     }

@@ -12,6 +12,9 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -25,7 +28,10 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.Response> {
 
@@ -204,6 +210,11 @@ public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.
                 && Objects.equals(end, other.end)
                 && Objects.equals(sort, other.sort)
                 && Objects.equals(desc, other.desc);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_job_model_snapshot[%s:%s]", jobId, snapshotId), parentTaskId, headers);
         }
     }
 

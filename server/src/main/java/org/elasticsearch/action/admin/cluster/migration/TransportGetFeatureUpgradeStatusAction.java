@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -38,6 +39,7 @@ import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgrade
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED;
+import static org.elasticsearch.indices.SystemIndices.UPGRADED_INDEX_SUFFIX;
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
 
 /**
@@ -48,9 +50,10 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     GetFeatureUpgradeStatusResponse> {
 
     /**
-     * This version is only valid for >=8.0.0 and should be changed on backport.
+     * Once all feature migrations for 8.x -> 9.x have been tested, we can bump this to Version.V_8_0_0
      */
-    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_8_0_0;
+    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
+    public static final IndexVersion NO_UPGRADE_REQUIRED_INDEX_VERSION = IndexVersion.V_7_0_0;
 
     private final SystemIndices systemIndices;
     PersistentTasksService persistentTasksService;
@@ -76,6 +79,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             GetFeatureUpgradeStatusResponse::new,
             ThreadPool.Names.SAME
         );
+
+        assert Version.CURRENT.major == 8 : "Once we begin working on 9.x, we need to update our migration classes";
+
         this.systemIndices = systemIndices;
         this.persistentTasksService = persistentTasksService;
     }
@@ -120,14 +126,14 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
 
         List<GetFeatureUpgradeStatusResponse.IndexInfo> indexInfos = getIndexInfos(state, feature);
 
-        Version minimumVersion = indexInfos.stream()
+        IndexVersion minimumVersion = indexInfos.stream()
             .map(GetFeatureUpgradeStatusResponse.IndexInfo::getVersion)
-            .min(Version::compareTo)
-            .orElse(Version.CURRENT);
+            .min(IndexVersion::compareTo)
+            .orElse(IndexVersion.current());
         GetFeatureUpgradeStatusResponse.UpgradeStatus initialStatus;
         if (featureName.equals(currentFeature)) {
             initialStatus = IN_PROGRESS;
-        } else if (minimumVersion.before(NO_UPGRADE_REQUIRED_VERSION)) {
+        } else if (minimumVersion.before(NO_UPGRADE_REQUIRED_INDEX_VERSION)) {
             initialStatus = MIGRATION_NEEDED;
         } else {
             initialStatus = NO_MIGRATION_NEEDED;
@@ -150,6 +156,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         ).map(FeatureMigrationResults::getFeatureStatuses).map(results -> results.get(feature.getName())).orElse(null);
 
         final String failedFeatureName = featureStatus == null ? null : featureStatus.getFailedIndexName();
+        final String failedFeatureUpgradedName = failedFeatureName == null ? null : failedFeatureName + UPGRADED_INDEX_SUFFIX;
         final Exception exception = featureStatus == null ? null : featureStatus.getException();
 
         return feature.getIndexDescriptors()
@@ -161,7 +168,8 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
                 indexMetadata -> new GetFeatureUpgradeStatusResponse.IndexInfo(
                     indexMetadata.getIndex().getName(),
                     indexMetadata.getCreationVersion(),
-                    indexMetadata.getIndex().getName().equals(failedFeatureName) ? exception : null
+                    (indexMetadata.getIndex().getName().equals(failedFeatureName)
+                        || indexMetadata.getIndex().getName().equals(failedFeatureUpgradedName)) ? exception : null
                 )
             )
             .toList();

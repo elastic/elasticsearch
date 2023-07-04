@@ -13,8 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 
-import java.io.IOException;
-
 /**
  * A @link {@link StreamOutput} that is backed by a {@link BytesRef}.
  * This is useful for small data, for larger or unknown sizes use {@link BytesStreamOutput} instead.
@@ -33,17 +31,17 @@ public class BytesRefStreamOutput extends StreamOutput implements Accountable {
     }
 
     @Override
-    public long position() throws IOException {
+    public long position() {
         return builder.length();
     }
 
     @Override
-    public void writeByte(byte b) throws IOException {
+    public void writeByte(byte b) {
         builder.append(b);
     }
 
     @Override
-    public void writeBytes(byte[] b, int offset, int length) throws IOException {
+    public void writeBytes(byte[] b, int offset, int length) {
         builder.append(b, offset, length);
     }
 
@@ -58,7 +56,6 @@ public class BytesRefStreamOutput extends StreamOutput implements Accountable {
     @Override
     public void close() {}
 
-    @Override
     public void reset() {
         builder.clear();
     }

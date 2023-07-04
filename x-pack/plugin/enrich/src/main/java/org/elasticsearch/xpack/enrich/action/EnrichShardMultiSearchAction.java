@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -236,15 +237,11 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                  * any.
                  */
                 Map<String, Object> runtimeFields = emptyMap();
-                final SearchExecutionContext context = indexService.newSearchExecutionContext(
-                    shardId.id(),
-                    0,
-                    searcher,
-                    () -> { throw new UnsupportedOperationException(); },
-                    null,
-                    runtimeFields
-                );
+                final SearchExecutionContext context = indexService.newSearchExecutionContext(shardId.id(), 0, searcher, () -> {
+                    throw new UnsupportedOperationException();
+                }, null, runtimeFields);
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
+                StoredFields storedFields = searcher.storedFields();
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {
                     final SearchSourceBuilder searchSourceBuilder = request.multiSearchRequest.requests().get(i).source();
 
@@ -260,16 +257,15 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                     final SearchHit[] hits = new SearchHit[topDocs.scoreDocs.length];
                     for (int j = 0; j < topDocs.scoreDocs.length; j++) {
                         final ScoreDoc scoreDoc = topDocs.scoreDocs[j];
-
                         visitor.reset();
-                        searcher.doc(scoreDoc.doc, visitor);
+                        storedFields.document(scoreDoc.doc, visitor);
                         visitor.postProcess(field -> {
                             if (context.isFieldMapped(field) == false) {
                                 throw new IllegalStateException("Field [" + field + "] exists in the index but not in mappings");
                             }
                             return context.getFieldType(field);
                         });
-                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), Map.of(), Map.of());
+                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id());
                         hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
                         hits[j] = hit;
                     }

@@ -1,0 +1,481 @@
+[[rrf]]
+=== Reciprocal rank fusion
+
+preview::[]
+
+https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf[Reciprocal rank fusion (RRF)]
+is a method for combining multiple result sets with different relevance
+indicators into a single result set. RRF requires no tuning, and the different
+relevance indicators do not have to be related to each other to achieve high-quality
+results.
+
+RRF uses the following formula to determine the score for ranking each document:
+
+[source,python]
+----
+score = 0.0
+for q in queries:
+    if d in result(q):
+        score += 1.0 / ( k + rank( result(q), d ) )
+return score
+
+# where
+# k is a ranking constant
+# q is a query in the set of queries
+# d is a document in the result set of q
+# result(q) is the result set of q
+# rank( result(q), d ) is d's rank within the result(q) starting from 1
+----
+// NOTCONSOLE
+
+[[rrf-api]]
+==== Reciprocal rank fusion API
+
+You can use RRF as part of a <<search-search, search>> to combine and rank
+documents using result sets from a combination of
+<<request-body-search-query, query>>,
+<<request-body-sub-searches, sub searches>>, and/or
+<<search-api-knn, knn searches>>. A minimum of 2 results sets
+is required for ranking from the specified sources.
+
+The `rrf` parameter is an optional object defined as part of a search request's
+<<request-body-rank, rank parameter>>. The `rrf` object contains the following
+parameters:
+
+`rank_constant`::
+(Optional, integer) This value determines how much influence documents in individual
+result sets per query have over the final ranked result set. A higher value indicates
+that lower ranked documents have more influence. This value must be greater than or
+equal to `1`. Defaults to `60`.
+
+`window_size`::
+(Optional, integer) This value determines the size of the individual result sets per
+query. A higher value will improve result relevance at the cost of performance. The final
+ranked result set is pruned down to the search request's <<search-size-param, size>.
+`window_size` must be greater than or equal to `size` and greater than or equal to `1`.
+Defaults to `100`.
+
+An example request using RRF:
+
+[source,console]
+----
+GET example-index/_search
+{
+    "query": {
+        "term": {
+            "text": "shoes"
+        }
+    },
+    "knn": {
+        "field": "vector",
+        "query_vector": [1.25, 2, 3.5],
+        "k": 50,
+        "num_candidates": 100
+    },
+    "rank": {
+        "rrf": {
+            "window_size": 50,
+            "rank_constant": 20
+        }
+    }
+}
+----
+// TEST[skip:example fragment]
+
+In the above example, we first execute the kNN search to get its global top 50 results.
+Then we execute the query to get its global top 50 results. Afterwards, on a coordinating
+node, we combine the knn search results with the query results and rank them based on the
+RRF method to get the final top 10 results.
+
+Note that if `k` from a knn search is larger than `window_size`, the results are
+truncated to `window_size`. If `k` is smaller than `window_size`, the results are
+`k` size.
+
+[[rrf-supported-features]]
+==== Reciprocal rank fusion supported features
+
+RRF does support:
+
+* <<request-body-sub-searches, sub searches>>
+* <<search-aggregations, aggregations>>
+* <<search-from-param, from>>
+
+RRF does not currently support:
+
+* <<search-api-scroll-query-param, scroll>>
+* <<search-api-pit, point in time>>
+* <<search-sort-param, sort>>
+* <<rescore, rescore>>
+* <<search-suggesters, suggesters>>
+* <<highlighting, highlighting>>
+* <<collapse-search-results, collapse>>
+* <<request-body-search-explain, explain>>
+* <<profiling-queries, profiling>>
+
+Using unsupported features as part of a search with RRF results
+in an exception.
+
+[[rrf-using-sub-searches]]
+==== Reciprocal rank fusion using sub searches
+
+<<request-body-sub-searches, Sub searches>> provides a way to
+combine and rank multiple searches using RRF.
+
+An example request using RRF with sub searches:
+
+[source,console]
+----
+GET example-index/_search
+{
+    "sub_searches": [
+        {
+            "query": {
+                "term": {
+                    "text": "blue shoes sale"
+                }
+            }
+        },
+        {
+            "query": {
+                "text_expansion":{
+                    "ml.tokens":{
+                        "model_id":"my_elser_model",
+                        "model_text":"What blue shoes are on sale?"
+                     }
+                }
+            }
+        }
+    ],
+    "rank": {
+        "rrf": {
+            "window_size": 50,
+            "rank_constant": 20
+        }
+    }
+}
+----
+// TEST[skip:example fragment]
+
+In the above example, we execute each of the two sub searches
+independently of each other. First we run the term query for
+`blue shoes sales` using the standard BM25 scoring algorithm. Then
+we run the text expansion query for `What blue shoes are on sale?`
+using our <<semantic-search-elser, ELSER>> scoring algorithm.
+RRF allows us to combine the two results sets generated by completely
+independent scoring algorithms with equal weighting. Not only does this
+remove the need to figure out what the appropriate weighting would be
+using linear combination, but RRF is also shown to give improved
+relevance over either query individually.
+
+[[rrf-full-example]]
+==== Reciprocal rank fusion full example
+
+We begin by creating a mapping for an index with a text field, a vector field,
+and an integer field along with indexing several documents. For this example we
+are going to use a vector with only a single dimension to make the ranking easier
+to explain.
+
+[source,console]
+----
+PUT example-index
+{
+  "mappings": {
+        "properties": {
+            "text" : {
+                "type" : "text"
+            },
+            "vector": {
+                "type": "dense_vector",
+                "dims": 1,
+                "index": true,
+                "similarity": "l2_norm"
+            },
+            "integer" : {
+                "type" : "integer"
+            }
+        }
+    }
+}
+
+PUT example-index/_doc/1
+{
+    "text" : "rrf",
+    "vector" : [5],
+    "integer": 1
+}
+
+PUT example-index/_doc/2
+{
+    "text" : "rrf rrf",
+    "vector" : [4],
+    "integer": 2
+}
+
+PUT example-index/_doc/3
+{
+    "text" : "rrf rrf rrf",
+    "vector" : [3],
+    "integer": 1
+}
+
+PUT example-index/_doc/4
+{
+    "text" : "rrf rrf rrf rrf",
+    "integer": 2
+}
+
+PUT example-index/_doc/5
+{
+    "vector" : [0],
+    "integer": 1
+}
+
+POST example-index/_refresh
+----
+// TEST
+
+We now execute a search using RRF with a query, a kNN search, and
+a terms aggregation.
+
+[source,console]
+----
+GET example-index/_search
+{
+    "query": {
+        "term": {
+            "text": "rrf"
+        }
+    },
+    "knn": {
+        "field": "vector",
+        "query_vector": [3],
+        "k": 5,
+        "num_candidates": 5
+    },
+    "rank": {
+        "rrf": {
+            "window_size": 5,
+            "rank_constant": 1
+        }
+    },
+    "size": 3,
+    "aggs": {
+        "int_count": {
+            "terms": {
+                "field": "integer"
+            }
+        }
+    }
+}
+----
+// TEST[continued]
+
+And we receive the response with ranked `hits` and the terms
+aggregation result. Note that `_score` is `null`, and we instead
+use `_rank` to show our top-ranked documents.
+
+[source,console-response]
+----
+{
+    "took": ...,
+    "timed_out" : false,
+    "_shards" : {
+        "total" : 1,
+        "successful" : 1,
+        "skipped" : 0,
+        "failed" : 0
+    },
+    "hits" : {
+        "total" : {
+            "value" : 5,
+            "relation" : "eq"
+        },
+        "max_score" : null,
+        "hits" : [
+            {
+                "_index" : "example-index",
+                "_id" : "3",
+                "_score" : null,
+                "_rank" : 1,
+                "_source" : {
+                    "integer" : 1,
+                    "vector" : [
+                        3
+                    ],
+                    "text" : "rrf rrf rrf"
+                }
+            },
+            {
+                "_index" : "example-index",
+                "_id" : "2",
+                "_score" : null,
+                "_rank" : 2,
+                "_source" : {
+                    "integer" : 2,
+                    "vector" : [
+                        4
+                    ],
+                    "text" : "rrf rrf"
+                }
+            },
+            {
+                "_index" : "example-index",
+                "_id" : "4",
+                "_score" : null,
+                "_rank" : 3,
+                "_source" : {
+                    "integer" : 2,
+                    "text" : "rrf rrf rrf rrf"
+                }
+            }
+        ]
+    },
+    "aggregations" : {
+        "int_count" : {
+            "doc_count_error_upper_bound" : 0,
+            "sum_other_doc_count" : 0,
+            "buckets" : [
+                {
+                    "key" : 1,
+                    "doc_count" : 3
+                },
+                {
+                    "key" : 2,
+                    "doc_count" : 2
+                }
+            ]
+        }
+    }
+}
+----
+// TESTRESPONSE[s/: \.\.\./: $body.$_path/]
+
+Let's break down how these hits were ranked. We
+start by running the query and the kNN search
+separately to collect what their individual hits are.
+
+First, we look at the hits for the query.
+
+[source,console-result]
+----
+"hits" : [
+    {
+        "_index" : "example-index",
+        "_id" : "4",
+        "_score" : 0.16152832,              <1>
+        "_source" : {
+            "integer" : 2,
+            "text" : "rrf rrf rrf rrf"
+        }
+    },
+    {
+        "_index" : "example-index",
+        "_id" : "3",                        <2>
+        "_score" : 0.15876243,
+        "_source" : {
+            "integer" : 1,
+            "vector" : [3],
+            "text" : "rrf rrf rrf"
+        }
+    },
+    {
+        "_index" : "example-index",
+        "_id" : "2",                        <3>
+        "_score" : 0.15350538,
+        "_source" : {
+            "integer" : 2,
+            "vector" : [4],
+            "text" : "rrf rrf"
+        }
+    },
+    {
+        "_index" : "example-index",
+        "_id" : "1",                        <4>
+        "_score" : 0.13963442,
+        "_source" : {
+            "integer" : 1,
+            "vector" : [5],
+            "text" : "rrf"
+        }
+    }
+]
+----
+// TEST[skip:example fragment]
+<1> rank 1, `_id` 4
+<2> rank 2, `_id` 3
+<3> rank 3, `_id` 2
+<4> rank 4, `_id` 1
+
+Note that our first hit doesn't have a value for the `vector` field. Now,
+we look at the results for the kNN search.
+
+[source,console-result]
+----
+"hits" : [
+    {
+        "_index" : "example-index",
+        "_id" : "3",                   <1>
+        "_score" : 1.0,
+        "_source" : {
+            "integer" : 1,
+            "vector" : [3],
+            "text" : "rrf rrf rrf"
+        }
+    },
+    {
+        "_index" : "example-index",
+        "_id" : "2",                   <2>
+        "_score" : 0.5,
+        "_source" : {
+            "integer" : 2,
+            "vector" : [4],
+            "text" : "rrf rrf"
+        }
+    },
+    {
+        "_index" : "example-index",
+        "_id" : "1",                   <3>
+        "_score" : 0.2,
+        "_source" : {
+            "integer" : 1,
+            "vector" : [5],
+            "text" : "rrf"
+        }
+    },
+    {
+        "_index" : "example-index",
+        "_id" : "5",                   <4>
+        "_score" : 0.1,
+        "_source" : {
+            "integer" : 1,
+            "vector" : [0]
+        }
+    }
+]
+----
+// TEST[skip:example fragment]
+<1> rank 1, `_id` 3
+<2> rank 2, `_id` 2
+<3> rank 3, `_id` 1
+<4> rank 4, `_id` 5
+
+We can now take the two individually ranked result sets and apply the
+RRF formula to them to get our final ranking.
+
+[source,python]
+----
+# doc  | query     | knn       | score
+_id: 1 = 1.0/(1+4) + 1.0/(1+3) = 0.4500
+_id: 2 = 1.0/(1+3) + 1.0/(1+2) = 0.5833
+_id: 3 = 1.0/(1+2) + 1.0/(1+1) = 0.8333
+_id: 4 = 1.0/(1+1)             = 0.5000
+_id: 5 =             1.0/(1+4) = 0.2000
+----
+// NOTCONSOLE
+
+We rank the documents based on the RRF formula with a `window_size` of `5`
+truncating the bottom `2` docs in our RRF result set with a `size` of `3`.
+We end with `_id: 3` as `_rank: 1`, `_id: 2` as `_rank: 2`, and
+`_id: 4` as `_rank: 3`. This ranking matches the result set from the
+original RRF search as expected.
+

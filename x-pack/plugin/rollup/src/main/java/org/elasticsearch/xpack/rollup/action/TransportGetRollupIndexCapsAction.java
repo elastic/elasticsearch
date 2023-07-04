@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
@@ -40,7 +41,13 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(GetRollupIndexCapsAction.NAME, transportService, actionFilters, GetRollupIndexCapsAction.Request::new);
+        super(
+            GetRollupIndexCapsAction.NAME,
+            transportService,
+            actionFilters,
+            GetRollupIndexCapsAction.Request::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.clusterService = clusterService;
         this.resolver = indexNameExpressionResolver;
     }

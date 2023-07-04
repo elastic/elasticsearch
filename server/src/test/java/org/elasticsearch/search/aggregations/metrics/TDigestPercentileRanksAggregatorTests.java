@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
@@ -34,8 +33,15 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        var tdigestConfig = new PercentilesConfig.TDigest();
+        if (randomBoolean()) {
+            tdigestConfig.setCompression(randomDoubleBetween(50, 200, true));
+        }
+        if (randomBoolean()) {
+            tdigestConfig.parseExecutionHint(randomFrom(TDigestExecutionHint.values()).toString());
+        }
         return new PercentileRanksAggregationBuilder("tdigest_ranks", new double[] { 0.1, 0.5, 12 }).field(fieldName)
-            .percentilesConfig(new PercentilesConfig.TDigest());
+            .percentilesConfig(tdigestConfig);
     }
 
     @Override
@@ -49,7 +55,7 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
         try (IndexReader reader = new MultiReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
-            PercentileRanks ranks = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+            PercentileRanks ranks = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
             Percentile rank = ranks.iterator().next();
             assertEquals(Double.NaN, rank.getPercent(), 0d);
             assertEquals(0.5, rank.getValue(), 0d);
@@ -71,7 +77,7 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                PercentileRanks ranks = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                PercentileRanks ranks = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 Iterator<Percentile> rankIterator = ranks.iterator();
                 Percentile rank = rankIterator.next();
                 assertEquals(0.1, rank.getValue(), 0d);

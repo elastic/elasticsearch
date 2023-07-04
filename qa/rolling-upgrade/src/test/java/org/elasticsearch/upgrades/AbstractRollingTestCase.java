@@ -32,6 +32,11 @@ public abstract class AbstractRollingTestCase extends ESRestTestCase {
     protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     @Override
+    protected final boolean resetFeatureStates() {
+        return false;
+    }
+
+    @Override
     protected final boolean preserveIndicesUponCompletion() {
         return true;
     }

@@ -28,7 +28,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
         assertEquals("field3", GrokPatternCreator.buildFieldName(fieldNameCountStore, "field"));
         assertEquals("timestamp", GrokPatternCreator.buildFieldName(fieldNameCountStore, "timestamp"));
         assertEquals("field4", GrokPatternCreator.buildFieldName(fieldNameCountStore, "field"));
-        assertEquals("uri", GrokPatternCreator.buildFieldName(fieldNameCountStore, "uri"));
+        assertEquals("url.original", GrokPatternCreator.buildFieldName(fieldNameCountStore, "url.original"));
         assertEquals("timestamp2", GrokPatternCreator.buildFieldName(fieldNameCountStore, "timestamp"));
         assertEquals("field5", GrokPatternCreator.buildFieldName(fieldNameCountStore, "field"));
     }
@@ -85,7 +85,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
             mustMatchStrings
         );
 
-        assertEquals(".+?%{TIMESTAMP_ISO8601:timestamp}.+?%{LOGLEVEL:loglevel}.+?", overallGrokPatternBuilder.toString());
+        assertEquals(".+?%{TIMESTAMP_ISO8601:timestamp}.+?%{LOGLEVEL:log.level}.+?", overallGrokPatternBuilder.toString());
     }
 
     public void testAppendBestGrokMatchForStringsGivenTomcatDatestamps() {
@@ -110,7 +110,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
             mustMatchStrings
         );
 
-        assertEquals(".*?%{TOMCAT_DATESTAMP:timestamp}.+?%{LOGLEVEL:loglevel}.+?", overallGrokPatternBuilder.toString());
+        assertEquals(".*?%{TOMCATLEGACY_DATESTAMP:timestamp}.+?%{LOGLEVEL:log.level}.+?", overallGrokPatternBuilder.toString());
     }
 
     public void testAppendBestGrokMatchForStringsGivenTrappyFloatCandidates() {
@@ -252,7 +252,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
             mustMatchStrings
         );
 
-        assertEquals(".*?%{URI:uri}.*?", overallGrokPatternBuilder.toString());
+        assertEquals(".*?%{URI:url.original}.*?", overallGrokPatternBuilder.toString());
     }
 
     public void testAppendBestGrokMatchForStringsGivenPaths() {
@@ -310,6 +310,29 @@ public class GrokPatternCreatorTests extends ESTestCase {
         assertEquals(
             ".*?%{CATALINA_DATESTAMP:timestamp}.+?org\\.apache\\.tomcat\\.util\\.http\\.Parameters.+?processParameters.+?"
                 + "WARNING.+?Parameters.+?Invalid.+?chunk.+?ignored.*",
+            GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples)
+        );
+    }
+
+    public void testFindBestGrokMatchFromExamplesGivenCatalina8Logs() {
+
+        String regex = ".*?WARNING.+?org\\.apache\\.tomcat\\.util\\.http\\.Parameters.+?processParameters.+?Parameters.+?"
+            + "Invalid.+?chunk.+?ignored.*";
+        // The embedded newline ensures the regular expressions we're using are compiled with Pattern.DOTALL
+        Collection<String> examples = Arrays.asList(
+            "29-Aug-2009 12:03:33 WARNING [main] org.apache.tomcat.util.http.Parameters processParameters: Parameters: \n"
+                + "Invalid chunk ignored.",
+            "29-Aug-2009 12:03:33 WARNING [main] org.apache.tomcat.util.http.Parameters processParameters: Parameters: \n"
+                + "Invalid chunk ignored.",
+            "29-Aug-2009 12:03:33 WARNING [main] org.apache.tomcat.util.http.Parameters processParameters: Parameters: \n"
+                + "Invalid chunk ignored.",
+            "29-Aug-2009 12:03:33 WARNING [main] org.apache.tomcat.util.http.Parameters processParameters: Parameters: \n"
+                + "Invalid chunk ignored."
+        );
+
+        assertEquals(
+            ".*?%{CATALINA_DATESTAMP:timestamp}.+?WARNING.+?org\\.apache\\.tomcat\\.util\\.http\\.Parameters.+?processParameters.+?"
+                + "Parameters.+?Invalid.+?chunk.+?ignored.*",
             GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples)
         );
     }

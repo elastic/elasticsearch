@@ -23,6 +23,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * This is a simplistic logger that adds warning messages to HTTP headers.
@@ -39,7 +41,8 @@ public class HeaderWarning {
         "Elasticsearch-" + // warn agent
         "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
         "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
-        "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
+        // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
+        "\"(?<quotedStringValue>.*)\"( " +
         // quoted RFC 1123 date format
         "\"" + // opening quote
         "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
@@ -48,7 +51,31 @@ public class HeaderWarning {
         "\\d{4} " + // 4-digit year
         "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
         "GMT" + // GMT
-        "\")?"); // closing quote (optional, since an older version can still send a warn-date)
+        "\")?",// closing quote (optional, since an older version can still send a warn-date)
+        Pattern.DOTALL
+    ); // in order to parse new line inside the qdText
+
+    /**
+     * quoted-string is defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
+     * quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
+     * qdtext         = HTAB / SP /%x21 / %x23-5B / %x5D-7E / obs-text
+     * obs-text       = %x80-FF
+     * <p>
+     * this was previously used in WARNING_HEADER_PATTERN, but can cause stackoverflow
+     * "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
+     * the individual chars from qdText can be validated using the set of chars
+     * the \\\\|\\\\\" (escaped '\' 0x20 and '"' 0x5c) which is used for quoted-pair has to be validated as strings
+     */
+    private static BitSet qdTextChars = Stream.of(
+        IntStream.of(0x09),// HTAB
+        IntStream.of(0x20), // SPACE
+        IntStream.of(0x21), // !
+        // excluding 0x22 '"\"' which has to be escaped
+        IntStream.rangeClosed(0x23, 0x5B),// ascii #-[
+        // excluding 0x5c '\' which has to be escaped
+        IntStream.rangeClosed(0x5D, 0x7E),// ascii ]-~
+        IntStream.rangeClosed(0x80, 0xFF)// obs-text -bear in mind it contains 0x85 new line. Which requires DOT_ALL flag
+    ).flatMapToInt(i -> i).collect(BitSet::new, BitSet::set, BitSet::or);
     public static final Pattern WARNING_XCONTENT_LOCATION_PATTERN = Pattern.compile("^\\[.*?]\\[-?\\d+:-?\\d+] ");
 
     /*
@@ -182,7 +209,26 @@ public class HeaderWarning {
         final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
         final boolean matches = matcher.matches();
         assert matches;
-        return matcher.group(1).equals(warningValue);
+        String quotedStringValue = matcher.group("quotedStringValue");
+        assert matchesQuotedString(quotedStringValue);
+        return quotedStringValue.equals(warningValue);
+    }
+
+    // this is meant to be in testing only
+    public static boolean warningHeaderPatternMatches(final String s) {
+        final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
+        final boolean matches = matcher.matches();
+        if (matches) {
+            String quotedStringValue = matcher.group("quotedStringValue");
+            return matchesQuotedString(quotedStringValue);
+        }
+        return false;
+    }
+
+    private static boolean matchesQuotedString(String qdtext) {
+        qdtext = qdtext.replaceAll("\\\\\"", "");
+        qdtext = qdtext.replaceAll("\\\\", "");
+        return qdtext.chars().allMatch(c -> qdTextChars.get(c));
     }
 
     /**
@@ -330,7 +376,7 @@ public class HeaderWarning {
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
-            assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
+            assert warningHeaderPatternMatches(warningHeaderValue);
             assert extractWarningValueFromWarningHeader(warningHeaderValue, false).equals(escapeAndEncode(formattedMessage));
             while (iterator.hasNext()) {
                 try {

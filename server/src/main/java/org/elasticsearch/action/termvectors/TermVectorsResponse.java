@@ -16,7 +16,7 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -91,7 +91,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     TermVectorsResponse(StreamInput in) throws IOException {
         index = in.readString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types no longer relevant so ignore
             in.readString();
         }
@@ -109,7 +109,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }

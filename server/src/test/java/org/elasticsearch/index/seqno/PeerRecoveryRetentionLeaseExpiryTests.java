@@ -99,7 +99,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         final ShardRouting replicaShardRouting = replicationTracker.routingTable.replicaShards().get(0);
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(replicationTracker.routingTable);
         builder.removeShard(replicaShardRouting);
-        builder.addShard(replicaShardRouting.moveToStarted());
+        builder.addShard(replicaShardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
         replicationTracker.updateFromMaster(
             replicationTracker.appliedClusterStateVersion + 1,
             RoutingNodesHelper.asStream(replicationTracker.routingTable).map(sr -> sr.allocationId().getId()).collect(Collectors.toSet()),

@@ -15,6 +15,7 @@ import java.lang.module.ModuleFinder;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
@@ -49,7 +50,7 @@ public final class ProviderLocator<T> implements Supplier<T> {
     static <P> Class<P> checkUses(Class<P> providerType) {
         Module caller = providerType.getModule();
         if (caller.isNamed() && caller.getDescriptor().uses().stream().anyMatch(providerType.getName()::equals) == false) {
-            throw new ServiceConfigurationError("%s: module does not declare uses %s".formatted(caller, providerType));
+            throw new ServiceConfigurationError(String.format(Locale.ROOT, "%s: module does not declare uses %s", caller, providerType));
         }
         return providerType;
     }
@@ -124,6 +125,6 @@ public final class ProviderLocator<T> implements Supplier<T> {
     }
 
     static Supplier<IllegalStateException> newIllegalStateException(String providerName) {
-        return () -> new IllegalStateException("cannot locate %s provider".formatted(providerName));
+        return () -> new IllegalStateException(String.format(Locale.ROOT, "cannot locate %s provider", providerName));
     }
 }

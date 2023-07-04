@@ -8,18 +8,21 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -30,6 +33,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -44,6 +48,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -88,6 +93,8 @@ import java.util.function.Function;
  */
 public final class IndexModule {
 
+    private static final Logger logger = LogManager.getLogger(IndexModule.class);
+
     public static final Setting<Boolean> NODE_STORE_ALLOW_MMAP = Setting.boolSetting("node.store.allow_mmap", true, Property.NodeScope);
 
     private static final FsDirectoryFactory DEFAULT_DIRECTORY_FACTORY = new FsDirectoryFactory();
@@ -113,10 +120,8 @@ public final class IndexModule {
     /** On which extensions to load data into the file-system cache upon opening of files.
      *  This only works with the mmap directory, and even in that case is still
      *  best-effort only. */
-    public static final Setting<List<String>> INDEX_STORE_PRE_LOAD_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> INDEX_STORE_PRE_LOAD_SETTING = Setting.stringListSetting(
         "index.store.preload",
-        Collections.emptyList(),
-        Function.identity(),
         Property.IndexScope,
         Property.NodeScope
     );
@@ -137,13 +142,31 @@ public final class IndexModule {
         Property.IndexScope
     );
 
+    /**
+     * {@link Directory} wrappers allow to apply a function to the Lucene directory instances
+     * created by {@link org.elasticsearch.plugins.IndexStorePlugin.DirectoryFactory}.
+     */
+    @FunctionalInterface
+    public interface DirectoryWrapper {
+        /**
+         * Wrap a given {@link Directory}
+         *
+         * @param directory the {@link Directory} to wrap
+         * @param shardRouting the {@link ShardRouting} associated with the {@link Directory} or {@code null} is unknown
+         * @return a {@link Directory}
+         * @throws IOException
+         */
+        Directory wrap(Directory directory, @Nullable ShardRouting shardRouting) throws IOException;
+    }
+
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
+    private final SetOnce<DirectoryWrapper> indexDirectoryWrapper = new SetOnce<>();
     private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
         new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
-    private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
+    private final Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
@@ -152,6 +175,7 @@ public final class IndexModule {
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -314,7 +338,7 @@ public final class IndexModule {
      * @param name Name of the SimilarityProvider
      * @param similarity SimilarityProvider to register
      */
-    public void addSimilarity(String name, TriFunction<Settings, Version, ScriptService, Similarity> similarity) {
+    public void addSimilarity(String name, TriFunction<Settings, IndexVersion, ScriptService, Similarity> similarity) {
         ensureNotFrozen();
         if (similarities.containsKey(name) || SimilarityService.BUILT_IN.containsKey(name)) {
             throw new IllegalArgumentException("similarity for name: [" + name + " is already registered");
@@ -344,6 +368,22 @@ public final class IndexModule {
     ) {
         ensureNotFrozen();
         this.indexReaderWrapper.set(indexReaderWrapperFactory);
+    }
+
+    /**
+     * Sets a {@link Directory} wrapping method that allows to apply a function to the Lucene directory instance
+     * created by {@link org.elasticsearch.plugins.IndexStorePlugin.DirectoryFactory}.
+     *
+     * @param wrapper the wrapping function
+     */
+    public void setDirectoryWrapper(DirectoryWrapper wrapper) {
+        ensureNotFrozen();
+        this.indexDirectoryWrapper.set(Objects.requireNonNull(wrapper));
+    }
+
+    public void setIndexCommitListener(Engine.IndexCommitListener listener) {
+        ensureNotFrozen();
+        this.indexCommitListener.set(Objects.requireNonNull(listener));
     }
 
     IndexEventListener freeze() { // pkg private for testing
@@ -452,12 +492,13 @@ public final class IndexModule {
             if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
                 BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = forceQueryCacheProvider.get();
                 if (queryCacheProvider == null) {
-                    queryCache = new IndexQueryCache(indexSettings, indicesQueryCache);
+                    queryCache = new IndexQueryCache(indexSettings.getIndex(), indicesQueryCache);
                 } else {
                     queryCache = queryCacheProvider.apply(indexSettings, indicesQueryCache);
                 }
             } else {
-                queryCache = new DisabledQueryCache(indexSettings);
+                logger.debug("Using no query cache for [{}]", indexSettings.getIndex());
+                queryCache = DisabledQueryCache.INSTANCE;
             }
             if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
                 indexAnalyzers = analysisRegistry.build(indexSettings);
@@ -492,7 +533,8 @@ public final class IndexModule {
                 valuesSourceRegistry,
                 recoveryStateFactory,
                 indexFoldersDeletionListener,
-                snapshotCommitSupplier
+                snapshotCommitSupplier,
+                indexCommitListener.get()
             );
             success = true;
             return indexService;
@@ -503,7 +545,7 @@ public final class IndexModule {
         }
     }
 
-    private static IndexStorePlugin.DirectoryFactory getDirectoryFactory(
+    private IndexStorePlugin.DirectoryFactory getDirectoryFactory(
         final IndexSettings indexSettings,
         final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories
     ) {
@@ -530,6 +572,22 @@ public final class IndexModule {
             if (factory == null) {
                 throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
             }
+        }
+        final DirectoryWrapper directoryWrapper = this.indexDirectoryWrapper.get();
+        assert frozen.get() : "IndexModule configuration not frozen";
+        if (directoryWrapper != null) {
+            return new IndexStorePlugin.DirectoryFactory() {
+                @Override
+                public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+                    return newDirectory(indexSettings, shardPath, null);
+                }
+
+                @Override
+                public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath, ShardRouting shardRouting)
+                    throws IOException {
+                    return directoryWrapper.wrap(factory.newDirectory(indexSettings, shardPath, shardRouting), shardRouting);
+                }
+            };
         }
         return factory;
     }
@@ -570,18 +628,22 @@ public final class IndexModule {
      * doing so will result in an exception.
      */
     public MapperService newIndexMapperService(
+        ClusterService clusterService,
         XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
         ScriptService scriptService
     ) throws IOException {
         return new MapperService(
+            clusterService,
             indexSettings,
             analysisRegistry.build(indexSettings),
             parserConfiguration,
             new SimilarityService(indexSettings, scriptService, similarities),
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException("no index query shard context available"); },
-            indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
+            () -> {
+                throw new UnsupportedOperationException("no index query shard context available");
+            },
+            indexSettings.getMode().idFieldMapperWithoutFieldData(),
             scriptService
         );
     }

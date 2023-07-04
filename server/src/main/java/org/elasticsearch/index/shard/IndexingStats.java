@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,10 +21,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 public class IndexingStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {
+        private static final TransportVersion WRITE_LOAD_AVG_SUPPORTED_VERSION = TransportVersion.V_8_6_0;
 
         private long indexCount;
         private long indexTimeInMillis;
@@ -36,6 +39,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long noopUpdateCount;
         private long throttleTimeInMillis;
         private boolean isThrottled;
+        private long totalIndexingTimeSinceShardStartedInNanos;
+        private long totalActiveTimeInNanos;
 
         Stats() {}
 
@@ -50,6 +55,10 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             noopUpdateCount = in.readVLong();
             isThrottled = in.readBoolean();
             throttleTimeInMillis = in.readLong();
+            if (in.getTransportVersion().onOrAfter(WRITE_LOAD_AVG_SUPPORTED_VERSION)) {
+                totalIndexingTimeSinceShardStartedInNanos = in.readLong();
+                totalActiveTimeInNanos = in.readLong();
+            }
         }
 
         public Stats(
@@ -62,7 +71,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             long deleteCurrent,
             long noopUpdateCount,
             boolean isThrottled,
-            long throttleTimeInMillis
+            long throttleTimeInMillis,
+            long totalIndexingTimeSinceShardStartedInNanos,
+            long totalActiveTimeInNanos
         ) {
             this.indexCount = indexCount;
             this.indexTimeInMillis = indexTimeInMillis;
@@ -74,6 +85,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             this.noopUpdateCount = noopUpdateCount;
             this.isThrottled = isThrottled;
             this.throttleTimeInMillis = throttleTimeInMillis;
+            // We store the raw write-load values in order to avoid losing precision when we combine the shard stats
+            this.totalIndexingTimeSinceShardStartedInNanos = totalIndexingTimeSinceShardStartedInNanos;
+            this.totalActiveTimeInNanos = totalActiveTimeInNanos;
         }
 
         public void add(Stats stats) {
@@ -91,6 +105,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (isThrottled != stats.isThrottled) {
                 isThrottled = true; // When combining if one is throttled set result to throttled.
             }
+            totalIndexingTimeSinceShardStartedInNanos += stats.totalIndexingTimeSinceShardStartedInNanos;
+            totalActiveTimeInNanos += stats.totalActiveTimeInNanos;
         }
 
         /**
@@ -160,6 +176,14 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             return noopUpdateCount;
         }
 
+        public double getWriteLoad() {
+            return totalActiveTimeInNanos > 0 ? (double) totalIndexingTimeSinceShardStartedInNanos / totalActiveTimeInNanos : 0;
+        }
+
+        public long getTotalActiveTimeInMillis() {
+            return TimeUnit.NANOSECONDS.toMillis(totalActiveTimeInNanos);
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(indexCount);
@@ -172,7 +196,10 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeVLong(noopUpdateCount);
             out.writeBoolean(isThrottled);
             out.writeLong(throttleTimeInMillis);
-
+            if (out.getTransportVersion().onOrAfter(WRITE_LOAD_AVG_SUPPORTED_VERSION)) {
+                out.writeLong(totalIndexingTimeSinceShardStartedInNanos);
+                out.writeLong(totalActiveTimeInNanos);
+            }
         }
 
         @Override
@@ -190,7 +217,46 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
             builder.field(Fields.IS_THROTTLED, isThrottled);
             builder.humanReadableField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, getThrottleTime());
+
+            builder.field(Fields.WRITE_LOAD, getWriteLoad());
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Stats that = (Stats) o;
+            return indexCount == that.indexCount
+                && indexTimeInMillis == that.indexTimeInMillis
+                && indexCurrent == that.indexCurrent
+                && indexFailedCount == that.indexFailedCount
+                && deleteCount == that.deleteCount
+                && deleteTimeInMillis == that.deleteTimeInMillis
+                && deleteCurrent == that.deleteCurrent
+                && noopUpdateCount == that.noopUpdateCount
+                && isThrottled == that.isThrottled
+                && throttleTimeInMillis == that.throttleTimeInMillis
+                && totalIndexingTimeSinceShardStartedInNanos == that.totalIndexingTimeSinceShardStartedInNanos
+                && totalActiveTimeInNanos == that.totalActiveTimeInNanos;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                indexCount,
+                indexTimeInMillis,
+                indexCurrent,
+                indexFailedCount,
+                deleteCount,
+                deleteTimeInMillis,
+                deleteCurrent,
+                noopUpdateCount,
+                isThrottled,
+                throttleTimeInMillis,
+                totalIndexingTimeSinceShardStartedInNanos,
+                totalActiveTimeInNanos
+            );
         }
     }
 
@@ -202,9 +268,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
     public IndexingStats(StreamInput in) throws IOException {
         totalStats = new Stats(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             if (in.readBoolean()) {
-                Map<String, Stats> typeStats = in.readMap(StreamInput::readString, Stats::new);
+                Map<String, Stats> typeStats = in.readMap(Stats::new);
                 assert typeStats.size() == 1;
                 assert typeStats.containsKey(MapperService.SINGLE_MAPPING_NAME);
             }
@@ -248,6 +314,19 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IndexingStats that = (IndexingStats) o;
+        return Objects.equals(totalStats, that.totalStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(totalStats);
+    }
+
     static final class Fields {
         static final String INDEXING = "indexing";
         static final String TYPES = "types";
@@ -264,12 +343,13 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         static final String IS_THROTTLED = "is_throttled";
         static final String THROTTLED_TIME_IN_MILLIS = "throttle_time_in_millis";
         static final String THROTTLED_TIME = "throttle_time";
+        static final String WRITE_LOAD = "write_load";
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeBoolean(false);
         }
     }

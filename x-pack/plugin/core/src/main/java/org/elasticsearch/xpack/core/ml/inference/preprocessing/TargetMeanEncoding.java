@@ -90,7 +90,7 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
     public TargetMeanEncoding(StreamInput in) throws IOException {
         this.field = in.readString();
         this.featureName = in.readString();
-        this.meanMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readDouble));
+        this.meanMap = in.readImmutableMap(StreamInput::readDouble);
         this.defaultValue = in.readDouble();
         this.custom = in.readBoolean();
     }

@@ -18,22 +18,6 @@ link:/support/matrix[Support Matrix]. Elasticsearch is tested on the listed
 platforms, but it is possible that it will work on other platforms too.
 
 [discrete]
-[[jvm-version]]
-== Java (JVM) Version
-
-Elasticsearch is built using Java, and includes a bundled version of
-https://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE)
-within each distribution. The bundled JVM is the recommended JVM and
-is located within the `jdk` directory of the Elasticsearch home directory.
-
-To use your own version of Java, set the `ES_JAVA_HOME` environment variable.
-If you must use a version of Java that is different from the bundled JVM,
-we recommend using a link:/support/matrix[supported]
-https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
-Elasticsearch will refuse to start if a known-bad version of Java is used.
-The bundled JVM directory may be removed when using your own JVM.
-
-[discrete]
 [[dedicated-host]]
 == Use dedicated hosts
 
@@ -44,6 +28,8 @@ you might run {metricbeat} alongside {es} for cluster statistics, but a
 resource-heavy {ls} deployment should be on its own host.
 
 include::setup/install.asciidoc[]
+
+include::setup/run-elasticsearch-locally.asciidoc[]
 
 include::setup/configuration.asciidoc[]
 
@@ -64,7 +50,11 @@ include::modules/discovery/discovery-settings.asciidoc[]
 
 include::modules/indices/fielddata.asciidoc[]
 
+include::settings/health-diagnostic-settings.asciidoc[]
+
 include::settings/ilm-settings.asciidoc[]
+
+include::settings/data-stream-lifecycle-settings.asciidoc[]
 
 include::modules/indices/index_management.asciidoc[]
 

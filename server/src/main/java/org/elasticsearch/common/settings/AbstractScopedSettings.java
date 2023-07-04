@@ -15,6 +15,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -28,10 +29,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * A basic setting service that can be used for per-index and per-cluster settings.
@@ -50,23 +49,13 @@ public abstract class AbstractScopedSettings {
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
-    private final Map<Setting<?>, SettingUpgrader<?>> settingUpgraders;
     private final Setting.Property scope;
     private Settings lastSettingsApplied;
 
-    protected AbstractScopedSettings(
-        final Settings settings,
-        final Set<Setting<?>> settingsSet,
-        final Set<SettingUpgrader<?>> settingUpgraders,
-        final Setting.Property scope
-    ) {
+    protected AbstractScopedSettings(final Settings settings, final Set<Setting<?>> settingsSet, final Setting.Property scope) {
         this.logger = LogManager.getLogger(this.getClass());
         this.settings = settings;
         this.lastSettingsApplied = Settings.EMPTY;
-
-        this.settingUpgraders = Collections.unmodifiableMap(
-            settingUpgraders.stream().collect(Collectors.toMap(SettingUpgrader::getSetting, Function.identity()))
-        );
 
         this.scope = scope;
         Map<String, Setting<?>> complexMatchers = new HashMap<>();
@@ -114,7 +103,6 @@ public abstract class AbstractScopedSettings {
         this.scope = other.scope;
         complexMatchers = other.complexMatchers;
         keySettings = other.keySettings;
-        settingUpgraders = Map.copyOf(other.settingUpgraders);
         settingUpdaters.addAll(other.settingUpdaters);
     }
 
@@ -345,7 +333,7 @@ public abstract class AbstractScopedSettings {
                 }
                 Map<String, Settings> namespaceToSettings = Maps.newMapWithExpectedSize(namespaces.size());
                 for (String namespace : namespaces) {
-                    Set<String> concreteSettings = new HashSet<>(settings.size());
+                    Set<String> concreteSettings = Sets.newHashSetWithExpectedSize(settings.size());
                     for (Setting.AffixSetting<?> setting : settings) {
                         concreteSettings.add(setting.getConcreteSettingForNamespace(namespace).getKey());
                     }
@@ -432,6 +420,22 @@ public abstract class AbstractScopedSettings {
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
         addSettingsUpdateConsumer(setting, consumer, (s) -> {});
     }
+
+    /**
+     * This methods passes the setting value to a consumer during the initialization and on every setting change
+     * <p>
+     * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.
+     * </p>
+     */
+    public synchronized <T> void initializeAndWatch(Setting<T> setting, Consumer<T> consumer) {
+        assert setting.getProperties().contains(Setting.Property.Dynamic)
+            || setting.getProperties().contains(Setting.Property.OperatorDynamic) : "Can only watch dynamic settings";
+        assert setting.getProperties().contains(Setting.Property.NodeScope) : "Can only watch node settings";
+        consumer.accept(setting.get(settings));
+        addSettingsUpdateConsumer(setting, consumer);
+    }
+
+    protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {}
 
     /**
      * Validates that all settings are registered and valid.
@@ -560,6 +564,9 @@ public abstract class AbstractScopedSettings {
             Set<Setting.SettingDependency> settingsDependencies = setting.getSettingsDependencies(key);
             if (setting.hasComplexMatcher()) {
                 setting = setting.getConcreteSetting(key);
+            }
+            if (setting.isDeprecatedAndRemoved()) {
+                validateDeprecatedAndRemovedSettingV7(settings, setting);
             }
             if (validateValue && settingsDependencies.isEmpty() == false) {
                 for (final Setting.SettingDependency settingDependency : settingsDependencies) {
@@ -863,42 +870,6 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
-     * Upgrade all settings eligible for upgrade in the specified settings instance.
-     *
-     * @param settings the settings instance that might contain settings to be upgraded
-     * @return a new settings instance if any settings required upgrade, otherwise the same settings instance as specified
-     */
-    public Settings upgradeSettings(final Settings settings) {
-        final Settings.Builder builder = Settings.builder();
-        boolean changed = false; // track if any settings were upgraded
-        for (final String key : settings.keySet()) {
-            final Setting<?> setting = getRaw(key);
-            final SettingUpgrader<?> upgrader = settingUpgraders.get(setting);
-            if (upgrader == null) {
-                // the setting does not have an upgrader, copy the setting
-                builder.copy(key, settings);
-            } else {
-                // the setting has an upgrader, so mark that we have changed a setting and apply the upgrade logic
-                changed = true;
-                // noinspection ConstantConditions
-                if (setting.getConcreteSetting(key).isListSetting()) {
-                    final List<String> value = settings.getAsList(key);
-                    final String upgradedKey = upgrader.getKey(key);
-                    final List<String> upgradedValue = upgrader.getListValue(value);
-                    builder.putList(upgradedKey, upgradedValue);
-                } else {
-                    final String value = settings.get(key);
-                    final String upgradedKey = upgrader.getKey(key);
-                    final String upgradedValue = upgrader.getValue(value);
-                    builder.put(upgradedKey, upgradedValue);
-                }
-            }
-        }
-        // we only return a new instance if there was an upgrade
-        return changed ? builder.build() : settings;
-    }
-
-    /**
      * Archives invalid or unknown settings. Any setting that is not recognized or fails validation
      * will be archived. This means the setting is prefixed with {@value ARCHIVED_SETTINGS_PREFIX}
      * and remains in the settings object. This can be used to detect invalid settings via APIs.
@@ -946,6 +917,53 @@ public abstract class AbstractScopedSettings {
                  * and what they need to do to replace them.
                  */
                 builder.copy(ARCHIVED_SETTINGS_PREFIX + key, key, settings);
+            }
+        }
+        if (changed) {
+            return builder.build();
+        } else {
+            return settings;
+        }
+    }
+
+    /**
+     * Deletes invalid or unknown settings. Any setting that is not recognized or fails validation
+     * will be deleted. This behaviour is desired when dealing with unknown index settings on
+     * system indices.
+     *
+     * @param settings        the {@link Settings} instance to scan for unknown or invalid settings
+     * @param unknownConsumer callback on unknown settings (consumer receives unknown key and its
+     *                        associated value)
+     * @param invalidConsumer callback on invalid settings (consumer receives invalid key, its
+     *                        associated value and an exception)
+     * @return a {@link Settings} instance with the unknown or invalid settings removed
+     */
+    public Settings deleteUnknownOrInvalidSettings(
+        final Settings settings,
+        final Consumer<Map.Entry<String, String>> unknownConsumer,
+        final BiConsumer<Map.Entry<String, String>, IllegalArgumentException> invalidConsumer
+    ) {
+        Settings.Builder builder = Settings.builder();
+        boolean changed = false;
+        for (String key : settings.keySet()) {
+            try {
+                Setting<?> setting = get(key);
+                if (setting != null) {
+                    // will throw IllegalArgumentException on invalid setting
+                    setting.get(settings);
+                    builder.copy(key, settings);
+                } else {
+                    if (isPrivateSetting(key)) {
+                        // will throw IllegalArgumentException on invalid setting
+                        builder.copy(key, settings);
+                    } else {
+                        changed = true;
+                        unknownConsumer.accept(new Entry(key, settings));
+                    }
+                }
+            } catch (IllegalArgumentException ex) {
+                changed = true;
+                invalidConsumer.accept(new Entry(key, settings), ex);
             }
         }
         if (changed) {

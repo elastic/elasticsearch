@@ -80,7 +80,7 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
         }
 
         final SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
-        apiKeyService.queryApiKeys(searchRequest, listener);
+        apiKeyService.queryApiKeys(searchRequest, request.withLimitedBy(), listener);
     }
 
     // package private for testing

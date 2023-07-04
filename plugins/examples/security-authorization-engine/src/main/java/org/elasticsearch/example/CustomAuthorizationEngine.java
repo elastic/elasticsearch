@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Supplier;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,9 +51,10 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
         if (authentication.isRunAs()) {
             final CustomAuthorizationInfo authenticatedUserAuthzInfo =
                 new CustomAuthorizationInfo(authentication.getAuthenticatingSubject().getUser().roles(), null);
-            listener.onResponse(new CustomAuthorizationInfo(authentication.getUser().roles(), authenticatedUserAuthzInfo));
+            listener.onResponse(new CustomAuthorizationInfo(authentication.getEffectiveSubject().getUser().roles(),
+                authenticatedUserAuthzInfo));
         } else {
-            listener.onResponse(new CustomAuthorizationInfo(authentication.getUser().roles(), null));
+            listener.onResponse(new CustomAuthorizationInfo(authentication.getEffectiveSubject().getUser().roles(), null));
         }
     }
 
@@ -73,7 +75,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     @Override
     public void authorizeClusterAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                        ActionListener<AuthorizationResult> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
+        if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(AuthorizationResult.granted());
         } else {
             listener.onResponse(AuthorizationResult.deny());
@@ -85,28 +87,46 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
                                      AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
                                      Map<String, IndexAbstraction> aliasOrIndexLookup,
                                      ActionListener<IndexAuthorizationResult> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
+        if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 Map<String, IndexAccessControl> indexAccessControlMap = new HashMap<>();
                 for (String name : resolvedIndices.getLocal()) {
-                    indexAccessControlMap.put(name, new IndexAccessControl(true, FieldPermissions.DEFAULT, null));
+                    indexAccessControlMap.put(name, new IndexAccessControl(FieldPermissions.DEFAULT, null));
                 }
                 IndicesAccessControl indicesAccessControl =
                     new IndicesAccessControl(true, Collections.unmodifiableMap(indexAccessControlMap));
-                listener.onResponse(new IndexAuthorizationResult(true, indicesAccessControl));
+                listener.onResponse(new IndexAuthorizationResult(indicesAccessControl));
             }, listener::onFailure));
         } else {
-            listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.DENIED));
+            listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
         }
     }
 
     @Override
-    public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
-            listener.onResponse(indicesLookup.keySet());
+    public void loadAuthorizedIndices(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        Map<String, IndexAbstraction> indicesLookup,
+        ActionListener<AuthorizationEngine.AuthorizedIndices> listener
+    ) {
+        if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
+            listener.onResponse(new AuthorizedIndices() {
+                public Supplier<Set<String>> all() {
+                    return () -> indicesLookup.keySet();
+                }
+                public boolean check(String name) {
+                    return indicesLookup.containsKey(name);
+                }
+            });
         } else {
-            listener.onResponse(Collections.emptySet());
+            listener.onResponse(new AuthorizedIndices() {
+                public Supplier<Set<String>> all() {
+                    return () -> Set.of();
+                }
+                public boolean check(String name) {
+                    return false;
+                }
+            });
         }
     }
 
@@ -114,7 +134,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     public void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                                   Map<String, List<String>> indexNameToNewNames,
                                                   ActionListener<AuthorizationResult> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
+        if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(AuthorizationResult.granted());
         } else {
             listener.onResponse(AuthorizationResult.deny());
@@ -200,7 +220,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build()) :
             Collections.emptySet();
         final Set<String> runAs = isSuperuser ? Collections.singleton("*") : Collections.emptySet();
-        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
+        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs, Set.of());
     }
 
     public static class CustomAuthorizationInfo implements AuthorizationInfo {

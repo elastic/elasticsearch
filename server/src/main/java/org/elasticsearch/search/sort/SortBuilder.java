@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.search.sort.NestedSortBuilder.FILTER_FIELD;
 
 public abstract class SortBuilder<T extends SortBuilder<T>>
@@ -195,7 +195,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
         final NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         final Query parentQuery;
         if (objectMapper == null) {
-            parentQuery = Queries.newNonNestedFilter();
+            parentQuery = Queries.newNonNestedFilter(context.indexVersionCreated());
         } else {
             parentQuery = objectMapper.nestedTypeFilter();
         }
@@ -263,7 +263,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
 
     protected static QueryBuilder parseNestedFilter(XContentParser parser) {
         try {
-            return parseInnerQueryBuilder(parser);
+            return parseTopLevelQuery(parser);
         } catch (Exception e) {
             throw new ParsingException(parser.getTokenLocation(), "Expected " + FILTER_FIELD.getPreferredName() + " element.", e);
         }

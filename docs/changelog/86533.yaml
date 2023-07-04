@@ -1,5 +1,0 @@
-pr: 86533
-summary: Support configurable claims in JWT Realm Tokens
-area: Authentication
-type: enhancement
-issues: []

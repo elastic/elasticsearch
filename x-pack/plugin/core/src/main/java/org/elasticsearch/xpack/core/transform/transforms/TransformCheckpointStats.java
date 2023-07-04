@@ -7,20 +7,15 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Checkpoint stats data for 1 checkpoint
@@ -37,28 +32,6 @@ public class TransformCheckpointStats implements Writeable, ToXContentObject {
     private final long timestampMillis;
     private final long timeUpperBoundMillis;
 
-    static final ConstructingObjectParser<TransformCheckpointStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
-        "data_frame_transform_checkpoint_stats",
-        true,
-        args -> {
-            long checkpoint = args[0] == null ? 0L : (Long) args[0];
-            TransformIndexerPosition position = (TransformIndexerPosition) args[1];
-            TransformProgress checkpointProgress = (TransformProgress) args[2];
-            long timestamp = args[3] == null ? 0L : (Long) args[3];
-            long timeUpperBound = args[4] == null ? 0L : (Long) args[4];
-
-            return new TransformCheckpointStats(checkpoint, position, checkpointProgress, timestamp, timeUpperBound);
-        }
-    );
-
-    static {
-        LENIENT_PARSER.declareLong(optionalConstructorArg(), TransformField.CHECKPOINT);
-        LENIENT_PARSER.declareObject(optionalConstructorArg(), TransformIndexerPosition.PARSER, TransformField.POSITION);
-        LENIENT_PARSER.declareObject(optionalConstructorArg(), TransformProgress.PARSER, TransformField.CHECKPOINT_PROGRESS);
-        LENIENT_PARSER.declareLong(optionalConstructorArg(), TransformField.TIMESTAMP_MILLIS);
-        LENIENT_PARSER.declareLong(optionalConstructorArg(), TransformField.TIME_UPPER_BOUND_MILLIS);
-    }
-
     public TransformCheckpointStats(
         final long checkpoint,
         final TransformIndexerPosition position,
@@ -74,21 +47,15 @@ public class TransformCheckpointStats implements Writeable, ToXContentObject {
     }
 
     public TransformCheckpointStats(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            this.checkpoint = in.readVLong();
-            if (in.readBoolean()) {
-                this.position = new TransformIndexerPosition(in);
-            } else {
-                this.position = null;
-            }
-            if (in.readBoolean()) {
-                this.checkpointProgress = new TransformProgress(in);
-            } else {
-                this.checkpointProgress = null;
-            }
+        this.checkpoint = in.readVLong();
+        if (in.readBoolean()) {
+            this.position = new TransformIndexerPosition(in);
         } else {
-            this.checkpoint = 0;
             this.position = null;
+        }
+        if (in.readBoolean()) {
+            this.checkpointProgress = new TransformProgress(in);
+        } else {
             this.checkpointProgress = null;
         }
         this.timestampMillis = in.readLong();
@@ -145,20 +112,18 @@ public class TransformCheckpointStats implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            out.writeVLong(checkpoint);
-            if (position != null) {
-                out.writeBoolean(true);
-                position.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
-            if (checkpointProgress != null) {
-                out.writeBoolean(true);
-                checkpointProgress.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
+        out.writeVLong(checkpoint);
+        if (position != null) {
+            out.writeBoolean(true);
+            position.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
+        if (checkpointProgress != null) {
+            out.writeBoolean(true);
+            checkpointProgress.writeTo(out);
+        } else {
+            out.writeBoolean(false);
         }
         out.writeLong(timestampMillis);
         out.writeLong(timeUpperBoundMillis);
@@ -186,9 +151,5 @@ public class TransformCheckpointStats implements Writeable, ToXContentObject {
             && Objects.equals(this.checkpointProgress, that.checkpointProgress)
             && this.timestampMillis == that.timestampMillis
             && this.timeUpperBoundMillis == that.timeUpperBoundMillis;
-    }
-
-    public static TransformCheckpointStats fromXContent(XContentParser p) {
-        return LENIENT_PARSER.apply(p, null);
     }
 }

@@ -76,7 +76,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         List<TDigestState> values = buckets.stream()
             .map(b -> resolveTDigestBucketValue(histo, b, bucketsPaths()[0]))
             .filter(v -> v != null)
-            .collect(Collectors.toList());
+            .toList();
 
         int index = 0;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
@@ -94,7 +94,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
                     if (state == null) {
                         // We have to create a new TDigest histogram because otherwise it will alter the
                         // existing histogram and bucket value
-                        state = new TDigestState(bucketState.compression());
+                        state = TDigestState.createUsingParamsFrom(bucketState);
                     }
                     state.add(bucketState);
 
@@ -126,7 +126,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         List<DoubleHistogram> values = buckets.stream()
             .map(b -> resolveHDRBucketValue(histo, b, bucketsPaths()[0]))
             .filter(v -> v != null)
-            .collect(Collectors.toList());
+            .toList();
 
         int index = 0;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
@@ -266,18 +266,9 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
     // TODO: replace this with the PercentilesConfig that's used by the percentiles builder.
     // The config isn't available through the Internal objects
-    /** helper class to collect the percentile's configuration */
-    private static class PercentileConfig {
-        final double[] keys;
-        final boolean keyed;
-        final PercentilesMethod method;
-        final DocValueFormat formatter;
 
-        PercentileConfig(PercentilesMethod method, double[] keys, boolean keyed, DocValueFormat formatter) {
-            this.method = method;
-            this.keys = keys;
-            this.keyed = keyed;
-            this.formatter = formatter;
-        }
-    }
+    /**
+     * helper record to collect the percentile's configuration
+     */
+    private record PercentileConfig(PercentilesMethod method, double[] keys, boolean keyed, DocValueFormat formatter) {}
 }

@@ -9,9 +9,10 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -33,7 +34,6 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -47,7 +47,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * The version that the {@code lastAllocatedNode} field was added in. Used to adapt streaming of this class as appropriate for the
      * version of the node sending/receiving it. Should be removed once wire compatibility with this version is no longer necessary.
      */
-    private static final Version VERSION_LAST_ALLOCATED_NODE_ADDED = Version.V_7_15_0;
+    private static final TransportVersion VERSION_LAST_ALLOCATED_NODE_ADDED = TransportVersion.V_7_15_0;
+    private static final TransportVersion VERSION_UNPROMOTABLE_REPLICA_ADDED = TransportVersion.V_8_7_0;
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
@@ -133,7 +134,11 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
          * Similar to NODE_LEFT, but at the time the node left, it had been registered for a restart via the Node Shutdown API. Note that
          * there is no verification that it was ready to be restarted, so this may be an intentional restart or a node crash.
          */
-        NODE_RESTARTING
+        NODE_RESTARTING,
+        /**
+         * Replica is unpromotable and the primary failed.
+         */
+        UNPROMOTABLE_REPLICA
     }
 
     /**
@@ -296,8 +301,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        if (in.getVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
+        this.failedNodeIds = in.readImmutableSet(StreamInput::readString);
+        if (in.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             this.lastAllocatedNodeId = in.readOptionalString();
         } else {
             this.lastAllocatedNodeId = null;
@@ -305,8 +310,10 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        if (reason.equals(Reason.NODE_RESTARTING) && out.getVersion().before(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
+        if (reason.equals(Reason.NODE_RESTARTING) && out.getTransportVersion().before(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             out.writeByte((byte) Reason.NODE_LEFT.ordinal());
+        } else if (reason.equals(Reason.UNPROMOTABLE_REPLICA) && out.getTransportVersion().before(VERSION_UNPROMOTABLE_REPLICA_ADDED)) {
+            out.writeByte((byte) Reason.PRIMARY_FAILED.ordinal());
         } else {
             out.writeByte((byte) reason.ordinal());
         }
@@ -318,7 +325,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
         out.writeCollection(failedNodeIds, StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             out.writeOptionalString(lastAllocatedNodeId);
         }
     }
@@ -423,22 +430,17 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      *
      * @return calculated delay in nanoseconds
      */
-    public long getRemainingDelay(
-        final long nanoTimeNow,
-        final Settings indexSettings,
-        final Map<String, SingleNodeShutdownMetadata> nodesShutdownMap
-    ) {
+    public long getRemainingDelay(final long nanoTimeNow, final Settings indexSettings, final NodesShutdownMetadata nodesShutdownMetadata) {
         final long indexLevelDelay = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings).nanos();
         long delayTimeoutNanos = Optional.ofNullable(lastAllocatedNodeId)
             // If the node wasn't restarting when this became unassigned, use default delay
             .filter(nodeId -> reason.equals(Reason.NODE_RESTARTING))
-            .map(nodesShutdownMap::get)
-            .filter(shutdownMetadata -> SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownMetadata.getType()))
+            .map(nodeId -> nodesShutdownMetadata.get(nodeId, SingleNodeShutdownMetadata.Type.RESTART))
             .map(SingleNodeShutdownMetadata::getAllocationDelay)
             .map(TimeValue::nanos)
             .map(knownRestartDelay -> Math.max(indexLevelDelay, knownRestartDelay))
             .orElse(indexLevelDelay);
-        assert nanoTimeNow >= unassignedTimeNanos;
+        assert nanoTimeNow - unassignedTimeNanos >= 0;
         return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
     }
 
@@ -492,8 +494,10 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             sb.append(", failed_nodes[").append(failedNodeIds).append("]");
         }
         sb.append(", delayed=").append(delayed);
+        if (lastAllocatedNodeId != null) {
+            sb.append(", last_node[").append(lastAllocatedNodeId).append("]");
+        }
         String details = getDetails();
-
         if (details != null) {
             sb.append(", details[").append(details).append("]");
         }
@@ -518,6 +522,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             builder.stringListField("failed_nodes", failedNodeIds);
         }
         builder.field("delayed", delayed);
+        if (lastAllocatedNodeId != null) {
+            builder.field("last_node", lastAllocatedNodeId);
+        }
         String details = getDetails();
         if (details != null) {
             builder.field("details", details);

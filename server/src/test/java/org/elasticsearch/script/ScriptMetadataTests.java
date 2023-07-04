@@ -12,7 +12,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasKey;
 
-public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetadata> {
+public class ScriptMetadataTests extends AbstractChunkedSerializingTestCase<ScriptMetadata> {
 
     public void testGetScript() throws Exception {
         ScriptMetadata.Builder builder = new ScriptMetadata.Builder(null);
@@ -112,11 +112,6 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
                 BytesReference.bytes(builder).streamInput()
             );
         assertTrue(ScriptMetadata.fromXContent(parser).getStoredScripts().isEmpty());
-    }
-
-    @Override
-    protected boolean enableWarningsCheck() {
-        return true;
     }
 
     private ScriptMetadata randomScriptMetadata(XContentType sourceContentType, int minNumberScripts) throws IOException {

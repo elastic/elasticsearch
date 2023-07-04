@@ -48,6 +48,7 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
             .put("xpack.monitoring.exporters." + exporterName + ".enabled", false)
             .put("xpack.monitoring.exporters." + exporterName + ".cluster_alerts.management.enabled", false)
             .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
+            .put(XPackSettings.PROFILING_ENABLED.getKey(), false)
             .build();
     }
 
@@ -87,12 +88,7 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
     ) {
         final XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         final Exporter.Config config = new Exporter.Config(localExporterName, "local", exporterSettings, clusterService(), licenseState);
-        final CleanerService cleanerService = new CleanerService(
-            exporterSettings,
-            clusterService().getClusterSettings(),
-            THREADPOOL,
-            licenseState
-        );
+        final CleanerService cleanerService = new CleanerService(exporterSettings, clusterService().getClusterSettings(), THREADPOOL);
         return new LocalExporter(config, client(), coordinator, cleanerService);
     }
 

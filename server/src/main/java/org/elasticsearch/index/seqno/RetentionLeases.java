@@ -274,7 +274,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
 
     @Override
     public String toString() {
-        return "RetentionLeases{" + "primaryTerm=" + primaryTerm + ", version=" + version + ", leases=" + leases + '}';
+        return "RetentionLeases{primaryTerm=" + primaryTerm + ", version=" + version + ", leases=" + leases + '}';
     }
 
 }

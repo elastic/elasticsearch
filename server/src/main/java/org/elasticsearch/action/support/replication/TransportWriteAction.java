@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -41,6 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -57,6 +59,7 @@ public abstract class TransportWriteAction<
     protected final SystemIndices systemIndices;
     protected final ExecutorSelector executorSelector;
 
+    protected final PostWriteRefresh postWriteRefresh;
     private final BiFunction<ExecutorSelector, IndexShard, String> executorFunction;
 
     protected TransportWriteAction(
@@ -96,6 +99,7 @@ public abstract class TransportWriteAction<
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
         this.executorSelector = systemIndices.getExecutorSelector();
+        this.postWriteRefresh = new PostWriteRefresh(transportService);
     }
 
     protected String executor(IndexShard shard) {
@@ -263,50 +267,55 @@ public abstract class TransportWriteAction<
         public final Location location;
         public final IndexShard primary;
         private final Logger logger;
+        private final PostWriteRefresh postWriteRefresh;
+        private final Consumer<Runnable> postWriteAction;
 
         public WritePrimaryResult(
             ReplicaRequest request,
             @Nullable Response finalResponse,
             @Nullable Location location,
-            @Nullable Exception operationFailure,
             IndexShard primary,
-            Logger logger
+            Logger logger,
+            PostWriteRefresh postWriteRefresh
         ) {
-            super(request, finalResponse, operationFailure);
+            this(request, finalResponse, location, primary, logger, postWriteRefresh, null);
+        }
+
+        public WritePrimaryResult(
+            ReplicaRequest request,
+            @Nullable Response finalResponse,
+            @Nullable Location location,
+            IndexShard primary,
+            Logger logger,
+            PostWriteRefresh postWriteRefresh,
+            @Nullable Consumer<Runnable> postWriteAction
+        ) {
+            super(request, finalResponse);
             this.location = location;
             this.primary = primary;
             this.logger = logger;
-            assert location == null || operationFailure == null
-                : "expected either failure to be null or translog location to be null, "
-                    + "but found: ["
-                    + location
-                    + "] translog location and ["
-                    + operationFailure
-                    + "] failure";
+            this.postWriteRefresh = postWriteRefresh;
+            this.postWriteAction = postWriteAction;
         }
 
         @Override
         public void runPostReplicationActions(ActionListener<Void> listener) {
-            if (finalFailure != null) {
-                listener.onFailure(finalFailure);
-            } else {
-                /*
-                 * We call this after replication because this might wait for a refresh and that can take a while.
-                 * This way we wait for the refresh in parallel on the primary and on the replica.
-                 */
-                new AsyncAfterWriteAction(primary, replicaRequest, location, new RespondingWriteResult() {
-                    @Override
-                    public void onSuccess(boolean forcedRefresh) {
-                        finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
-                        listener.onResponse(null);
-                    }
+            /*
+             * We call this after replication because this might wait for a refresh and that can take a while.
+             * This way we wait for the refresh in parallel on the primary and on the replica.
+             */
+            new AsyncAfterWriteAction(primary, replicaRequest(), location, new RespondingWriteResult() {
+                @Override
+                public void onSuccess(boolean forcedRefresh) {
+                    replicationResponse.setForcedRefresh(forcedRefresh);
+                    listener.onResponse(null);
+                }
 
-                    @Override
-                    public void onFailure(Exception ex) {
-                        listener.onFailure(ex);
-                    }
-                }, logger).run();
-            }
+                @Override
+                public void onFailure(Exception ex) {
+                    listener.onFailure(ex);
+                }
+            }, logger, postWriteRefresh, postWriteAction).run();
         }
     }
 
@@ -318,6 +327,7 @@ public abstract class TransportWriteAction<
         private final ReplicaRequest request;
         private final IndexShard replica;
         private final Logger logger;
+        private final Consumer<Runnable> postWriteAction;
 
         public WriteReplicaResult(
             ReplicaRequest request,
@@ -326,11 +336,23 @@ public abstract class TransportWriteAction<
             IndexShard replica,
             Logger logger
         ) {
+            this(request, location, operationFailure, replica, logger, null);
+        }
+
+        public WriteReplicaResult(
+            ReplicaRequest request,
+            @Nullable Location location,
+            @Nullable Exception operationFailure,
+            IndexShard replica,
+            Logger logger,
+            Consumer<Runnable> postWriteAction
+        ) {
             super(operationFailure);
             this.location = location;
             this.request = request;
             this.replica = replica;
             this.logger = logger;
+            this.postWriteAction = postWriteAction;
         }
 
         @Override
@@ -348,7 +370,7 @@ public abstract class TransportWriteAction<
                     public void onFailure(Exception ex) {
                         listener.onFailure(ex);
                     }
-                }, logger).run();
+                }, logger, null, postWriteAction).run();
             }
         }
     }
@@ -387,50 +409,49 @@ public abstract class TransportWriteAction<
      */
     static final class AsyncAfterWriteAction {
         private final Location location;
-        private final boolean waitUntilRefresh;
+        private final boolean needsRefreshAction;
         private final boolean sync;
         private final AtomicInteger pendingOps = new AtomicInteger(1);
         private final AtomicBoolean refreshed = new AtomicBoolean(false);
+        // TODO: Temporary until we fail unpromotable shard
+        private final AtomicReference<Exception> refreshFailure = new AtomicReference<>(null);
         private final AtomicReference<Exception> syncFailure = new AtomicReference<>(null);
         private final RespondingWriteResult respond;
         private final IndexShard indexShard;
         private final WriteRequest<?> request;
         private final Logger logger;
+        private final PostWriteRefresh postWriteRefresh;
+        private final Consumer<Runnable> postWriteAction;
+        private final TimeValue postWriteRefreshTimeout;
 
         AsyncAfterWriteAction(
             final IndexShard indexShard,
-            final WriteRequest<?> request,
+            final ReplicatedWriteRequest<?> request,
             @Nullable final Translog.Location location,
             final RespondingWriteResult respond,
-            final Logger logger
+            final Logger logger,
+            @Nullable final PostWriteRefresh postWriteRefresh,
+            @Nullable final Consumer<Runnable> postWriteAction
         ) {
             this.indexShard = indexShard;
             this.request = request;
-            boolean waitUntilRefresh = false;
-            switch (request.getRefreshPolicy()) {
-                case IMMEDIATE:
-                    indexShard.refresh("refresh_flag_index");
-                    refreshed.set(true);
-                    break;
-                case WAIT_UNTIL:
-                    if (location != null) {
-                        waitUntilRefresh = true;
-                        pendingOps.incrementAndGet();
-                    }
-                    break;
-                case NONE:
-                    break;
-                default:
-                    throw new IllegalArgumentException("unknown refresh policy: " + request.getRefreshPolicy());
-            }
-            this.waitUntilRefresh = waitUntilRefresh;
+            this.needsRefreshAction = request.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE;
             this.respond = respond;
             this.location = location;
+            this.postWriteRefresh = postWriteRefresh;
+            this.postWriteAction = postWriteAction;
+            if (needsRefreshAction) {
+                pendingOps.incrementAndGet();
+            }
             if ((sync = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null)) {
                 pendingOps.incrementAndGet();
             }
+            if (postWriteAction != null) {
+                pendingOps.incrementAndGet();
+            }
             this.logger = logger;
-            assert pendingOps.get() >= 0 && pendingOps.get() <= 3 : "pendingOpts was: " + pendingOps.get();
+            this.postWriteRefreshTimeout = request.timeout();
+            assert pendingOps.get() >= 0 && pendingOps.get() <= 3 : "pendingOps was: " + pendingOps.get();
         }
 
         /** calls the response listener if all pending operations have returned otherwise it just decrements the pending opts counter.*/
@@ -440,7 +461,12 @@ public abstract class TransportWriteAction<
                 if (syncFailure.get() != null) {
                     respond.onFailure(syncFailure.get());
                 } else {
-                    respond.onSuccess(refreshed.get());
+                    // TODO: Temporary until we fail unpromotable shard
+                    if (refreshFailure.get() != null) {
+                        respond.onFailure(refreshFailure.get());
+                    } else {
+                        respond.onSuccess(refreshed.get());
+                    }
                 }
             }
             assert numPending >= 0 && numPending <= 2 : "numPending must either 2, 1 or 0 but was " + numPending;
@@ -455,22 +481,47 @@ public abstract class TransportWriteAction<
             indexShard.afterWriteOperation();
             // decrement pending by one, if there is nothing else to do we just respond with success
             maybeFinish();
-            if (waitUntilRefresh) {
+            if (needsRefreshAction) {
                 assert pendingOps.get() > 0;
-                indexShard.addRefreshListener(location, forcedRefresh -> {
-                    if (forcedRefresh) {
-                        logger.warn("block until refresh ran out of slots and forced a refresh: [{}]", request);
+                ActionListener<Boolean> refreshListener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(Boolean forceRefresh) {
+                        // TODO: Maybe move this into PostWriteRefresh
+                        if (forceRefresh && request.getRefreshPolicy() == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
+                            logger.warn("block until refresh ran out of slots and forced a refresh: [{}]", request);
+                        }
+                        refreshed.set(forceRefresh);
+                        maybeFinish();
                     }
-                    refreshed.set(forcedRefresh);
-                    maybeFinish();
-                });
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        refreshFailure.set(e);
+                        maybeFinish();
+                    }
+                };
+                // If the post refresh action is null, this is just the replica and we only call the static method
+                if (postWriteRefresh != null) {
+                    postWriteRefresh.refreshShard(
+                        request.getRefreshPolicy(),
+                        indexShard,
+                        location,
+                        refreshListener,
+                        postWriteRefreshTimeout
+                    );
+                } else {
+                    PostWriteRefresh.refreshReplicaShard(request.getRefreshPolicy(), indexShard, location, refreshListener);
+                }
             }
             if (sync) {
                 assert pendingOps.get() > 0;
-                indexShard.sync(location, (ex) -> {
-                    syncFailure.set(ex);
+                indexShard.syncAfterWrite(location, e -> {
+                    syncFailure.set(e);
                     maybeFinish();
                 });
+            }
+            if (postWriteAction != null) {
+                postWriteAction.accept(this::maybeFinish);
             }
         }
     }

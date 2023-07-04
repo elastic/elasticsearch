@@ -8,7 +8,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -232,7 +232,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
         BucketScriptPipelineAggregationBuilder pipelineAgg = new BucketScriptPipelineAggregationBuilder("const", new Script("1"));
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addAggregator(filterAggBuilder)
             .addPipelineAggregator(pipelineAgg);
-        AggregatorFactories.Builder rewritten = builder.rewrite(new QueryRewriteContext(parserConfig(), null, null, () -> 0L));
+        AggregatorFactories.Builder rewritten = builder.rewrite(new QueryRewriteContext(parserConfig(), null, () -> 0L));
         assertNotSame(builder, rewritten);
         Collection<AggregationBuilder> aggregatorFactories = rewritten.getAggregatorFactories();
         assertEquals(1, aggregatorFactories.size());
@@ -245,7 +245,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
         assertThat(rewrittenFilter, instanceOf(TermsQueryBuilder.class));
 
         // Check that a further rewrite returns the same aggregation factories builder
-        AggregatorFactories.Builder secondRewritten = rewritten.rewrite(new QueryRewriteContext(parserConfig(), null, null, () -> 0L));
+        AggregatorFactories.Builder secondRewritten = rewritten.rewrite(new QueryRewriteContext(parserConfig(), null, () -> 0L));
         assertSame(rewritten, secondRewritten);
     }
 
@@ -254,7 +254,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
             new RewrittenPipelineAggregationBuilder()
         );
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addAggregator(filterAggBuilder);
-        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, null, () -> 0L);
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> 0L);
         AggregatorFactories.Builder rewritten = builder.rewrite(context);
         CountDownLatch latch = new CountDownLatch(1);
         context.executeAsyncActions(new ActionListener<Object>() {
@@ -281,7 +281,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
         FilterAggregationBuilder filterAggBuilder = new FilterAggregationBuilder("titles", new MatchAllQueryBuilder());
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addAggregator(filterAggBuilder)
             .addPipelineAggregator(new RewrittenPipelineAggregationBuilder());
-        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, null, () -> 0L);
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> 0L);
         AggregatorFactories.Builder rewritten = builder.rewrite(context);
         CountDownLatch latch = new CountDownLatch(1);
         context.executeAsyncActions(new ActionListener<Object>() {
@@ -347,8 +347,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.ZERO;
         }
 
         @Override

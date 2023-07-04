@@ -6,20 +6,23 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.Arrays;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationSerializationHelper;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -37,61 +40,100 @@ public class AuthenticationSerializationTests extends ESTestCase {
         assertThat(readFrom, not(sameInstance(user)));
         assertThat(readFrom.principal(), is(user.principal()));
         assertThat(Arrays.equals(readFrom.roles(), user.roles()), is(true));
-        assertThat(readFrom, not(instanceOf(Authentication.RunAsUser.class)));
     }
 
     public void testWriteToAndReadFromWithRunAs() throws Exception {
-        User authUser = new User(randomAlphaOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false));
-        User user = new Authentication.RunAsUser(
-            new User(randomAlphaOfLengthBetween(4, 30), randomBoolean() ? generateRandomStringArray(20, 30, false) : null),
-            authUser
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder().runAs().build();
+        assertThat(authentication.isRunAs(), is(true));
 
         BytesStreamOutput output = new BytesStreamOutput();
+        authentication.writeTo(output);
+        final Authentication readFrom = new Authentication(output.bytes().streamInput());
+        assertThat(readFrom.isRunAs(), is(true));
 
-        AuthenticationSerializationHelper.writeUserTo(user, output);
-        User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
+        assertThat(readFrom, not(sameInstance(authentication)));
+        final User readFromEffectiveUser = readFrom.getEffectiveSubject().getUser();
+        assertThat(readFromEffectiveUser, not(sameInstance(authentication.getEffectiveSubject().getUser())));
+        assertThat(readFromEffectiveUser, equalTo(authentication.getEffectiveSubject().getUser()));
 
-        assertThat(readFrom, not(sameInstance(user)));
-        assertThat(readFrom.principal(), is(user.principal()));
-        assertThat(Arrays.equals(readFrom.roles(), user.roles()), is(true));
+        User readFromAuthenticatingUser = readFrom.getAuthenticatingSubject().getUser();
+        assertThat(readFromAuthenticatingUser, is(notNullValue()));
+        assertThat(readFromAuthenticatingUser, not(sameInstance(authentication.getAuthenticatingSubject().getUser())));
+        assertThat(readFromAuthenticatingUser, equalTo(authentication.getAuthenticatingSubject().getUser()));
+    }
 
-        assertThat(readFrom, instanceOf(Authentication.RunAsUser.class));
-        User readFromAuthUser = ((Authentication.RunAsUser) readFrom).authenticatingUser;
-        assertThat(authUser, is(notNullValue()));
-        assertThat(readFromAuthUser.principal(), is(authUser.principal()));
-        assertThat(Arrays.equals(readFromAuthUser.roles(), authUser.roles()), is(true));
-        assertThat(readFromAuthUser, not(instanceOf(Authentication.RunAsUser.class)));
+    public void testWriteToAndReadFromWithCrossClusterAccess() throws Exception {
+        final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
+        assertThat(authentication.isCrossClusterAccess(), is(true));
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        authentication.writeTo(output);
+        final Authentication readFrom = new Authentication(output.bytes().streamInput());
+        assertThat(readFrom.isCrossClusterAccess(), is(true));
+
+        assertThat(readFrom, not(sameInstance(authentication)));
+        assertThat(readFrom, equalTo(authentication));
+    }
+
+    public void testWriteToWithCrossClusterAccessThrowsOnUnsupportedVersion() throws Exception {
+        final Authentication authentication = randomBoolean()
+            ? AuthenticationTestHelper.builder().crossClusterAccess().build()
+            : AuthenticationTestHelper.builder().build();
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_17_0,
+            TransportVersionUtils.getPreviousVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)
+        );
+        out.setTransportVersion(version);
+
+        if (authentication.isCrossClusterAccess()) {
+            final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.writeTo(out));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "versions of Elasticsearch before ["
+                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                        + "] can't handle cross cluster access authentication and attempted to send to ["
+                        + out.getTransportVersion()
+                        + "]"
+                )
+            );
+        } else {
+            authentication.writeTo(out);
+            final StreamInput in = out.bytes().streamInput();
+            in.setTransportVersion(out.getTransportVersion());
+            final Authentication readFrom = new Authentication(in);
+            assertThat(readFrom, equalTo(authentication.maybeRewriteForOlderVersion(out.getTransportVersion())));
+        }
     }
 
     public void testSystemUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        AuthenticationSerializationHelper.writeUserTo(SystemUser.INSTANCE, output);
+        AuthenticationSerializationHelper.writeUserTo(InternalUsers.SYSTEM_USER, output);
         User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
-        assertThat(readFrom, is(sameInstance(SystemUser.INSTANCE)));
-        assertThat(readFrom, not(instanceOf(Authentication.RunAsUser.class)));
+        assertThat(readFrom, is(sameInstance(InternalUsers.SYSTEM_USER)));
     }
 
     public void testXPackUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        AuthenticationSerializationHelper.writeUserTo(XPackUser.INSTANCE, output);
+        AuthenticationSerializationHelper.writeUserTo(InternalUsers.XPACK_USER, output);
         User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
-        assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
-        assertThat(readFrom, not(instanceOf(Authentication.RunAsUser.class)));
+        assertThat(readFrom, is(sameInstance(InternalUsers.XPACK_USER)));
     }
 
     public void testAsyncSearchUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        AuthenticationSerializationHelper.writeUserTo(AsyncSearchUser.INSTANCE, output);
+        AuthenticationSerializationHelper.writeUserTo(InternalUsers.ASYNC_SEARCH_USER, output);
         User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
-        assertThat(readFrom, is(sameInstance(AsyncSearchUser.INSTANCE)));
-        assertThat(readFrom, not(instanceOf(Authentication.RunAsUser.class)));
+        assertThat(readFrom, is(sameInstance(InternalUsers.ASYNC_SEARCH_USER)));
     }
 
     public void testFakeInternalUserSerialization() throws Exception {

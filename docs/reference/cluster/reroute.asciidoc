@@ -10,7 +10,7 @@ Changes the allocation of shards in a cluster.
 [[cluster-reroute-api-request]]
 ==== {api-request-title}
 
-`POST /_cluster/reroute`
+`POST /_cluster/reroute?metric=none`
 
 [[cluster-reroute-api-prereqs]]
 ==== {api-prereq-title}
@@ -73,7 +73,8 @@ query parameter, which will attempt a single retry round for these shards.
 
 `metric`::
     (Optional, string) Limits the information returned to the specified metrics.
-    Defaults to all but metadata The following options are available:
+    All options except `none` are deprecated and should be avoided for this parameter.
+    Defaults to all but metadata. The following options are available:
 
 +
 .Options for `metric`
@@ -95,6 +96,9 @@ query parameter, which will attempt a single retry round for these shards.
 
 `nodes`::
     Shows the `nodes` part of the response.
+
+`none`::
+    Excludes the entire `state` field from the response.
 
 `routing_table`::
     Shows the `routing_table` part of the response.
@@ -189,7 +193,7 @@ This is a short example of a simple reroute API call:
 
 [source,console]
 --------------------------------------------------
-POST /_cluster/reroute
+POST /_cluster/reroute?metric=none
 {
   "commands": [
     {

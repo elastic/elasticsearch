@@ -59,13 +59,13 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<
                 .calendarIds(calendarId);
 
             ActionListener<QueryPage<ScheduledEvent>> eventsListener = ActionListener.wrap(
-                events -> { listener.onResponse(new GetCalendarEventsAction.Response(events)); },
+                events -> listener.onResponse(new GetCalendarEventsAction.Response(events)),
                 listener::onFailure
             );
 
             if (request.getJobId() != null) {
 
-                jobConfigProvider.getJob(request.getJobId(), ActionListener.wrap(jobBuilder -> {
+                jobConfigProvider.getJob(request.getJobId(), null, ActionListener.wrap(jobBuilder -> {
                     Job job = jobBuilder.build();
                     jobResultsProvider.scheduledEventsForJob(request.getJobId(), job.getGroups(), query, eventsListener);
 

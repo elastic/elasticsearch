@@ -191,9 +191,9 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                 info.getMessage(),
                 equalTo(
                     "["
-                        + currentStepKey.getName()
+                        + currentStepKey.name()
                         + "] lifecycle step, as part of ["
-                        + currentStepKey.getAction()
+                        + currentStepKey.action()
                         + "] "
                         + "action, for index [follower-index] executed for more than [1h]. Abandoning execution and moving to the next "
                         + "fallback step ["
@@ -260,11 +260,6 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                 }
 
                 @Override
-                public boolean isCompletable() {
-                    return true;
-                }
-
-                @Override
                 public boolean isRetryable() {
                     return true;
                 }
@@ -274,7 +269,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
 
         assertFalse(step.isConditionMet(indexMetadata.getIndex(), clusterState).isComplete());
 
-        assertThat(step.getNextStepKey().getName(), equalTo("next-key"));
+        assertThat(step.getNextStepKey().name(), equalTo("next-key"));
 
         step = new ClusterStateWaitUntilThresholdStep(
             new ClusterStateWaitStep(new StepKey("phase", "action", "key"), new StepKey("phase", "action", "next-key")) {
@@ -296,6 +291,6 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             new StepKey("phase", "action", "breached")
         );
         assertTrue(step.isConditionMet(indexMetadata.getIndex(), clusterState).isComplete());
-        assertThat(step.getNextStepKey().getName(), equalTo("breached"));
+        assertThat(step.getNextStepKey().name(), equalTo("breached"));
     }
 }

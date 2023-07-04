@@ -34,10 +34,11 @@ public class RestUpdateDesiredNodesAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String historyId = request.param("history_id");
         final long version = request.paramAsLong("version", Long.MIN_VALUE);
+        boolean dryRun = request.paramAsBoolean("dry_run", false);
 
         final UpdateDesiredNodesRequest updateDesiredNodesRequest;
         try (XContentParser parser = request.contentParser()) {
-            updateDesiredNodesRequest = UpdateDesiredNodesRequest.fromXContent(historyId, version, parser);
+            updateDesiredNodesRequest = UpdateDesiredNodesRequest.fromXContent(historyId, version, dryRun, parser);
         }
 
         updateDesiredNodesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateDesiredNodesRequest.masterNodeTimeout()));

@@ -49,8 +49,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def guh = new File(testProjectDir.getRoot(), "gradle-user-home").absolutePath;
-        def runner = gradleRunner('clean', 'setupDistro', '-i', '-g', guh)
+        def runner = gradleRunner('clean', 'setupDistro', '-i', '-g', gradleUserHome)
         def unpackingMessage = "Unpacking elasticsearch-${version}-linux-${Architecture.current().classifier}.tar.gz " +
                 "using SymbolicLinkPreservingUntarTransform"
         def result = withMockedDistributionDownload(version, platform, runner) {
@@ -92,8 +91,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def customGradleUserHome = testProjectDir.newFolder().absolutePath;
-        def runner = gradleRunner('setupDistro', '-i', '-g', customGradleUserHome)
+        def runner = gradleRunner('setupDistro', '-i', '-g', gradleUserHome)
         def result = withMockedDistributionDownload(version, platform, runner) {
             build()
         }

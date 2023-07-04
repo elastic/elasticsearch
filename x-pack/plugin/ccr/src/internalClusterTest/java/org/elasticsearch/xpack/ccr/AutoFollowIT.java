@@ -25,13 +25,13 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -88,7 +88,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "test index"));
+            return Collections.singletonList(SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "test index"));
         }
 
         @Override
@@ -291,7 +291,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             request.getParameters().setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            request.getParameters().setMaxReadRequestSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(500));
@@ -303,10 +303,10 @@ public class AutoFollowIT extends CcrIntegTestCase {
             request.getParameters().setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.getParameters().setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            request.getParameters().setMaxWriteBufferSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            request.getParameters().setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+            request.getParameters().setMaxWriteRequestSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
 
         request.setName("my-pattern");
@@ -662,7 +662,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertAcked(leaderClient().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
         leaderClient().prepareIndex(datastream)
             .setCreate(true)
-            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD.getName(), randomNonNegativeLong())
+            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD_NAME, randomNonNegativeLong())
             .get();
 
         PutAutoFollowPatternAction.Request followRequest = new PutAutoFollowPatternAction.Request();
@@ -698,7 +698,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         );
         leaderClient().prepareIndex(indexInDatastream)
             .setCreate(true)
-            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD.getName(), randomNonNegativeLong())
+            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD_NAME, randomNonNegativeLong())
             .get();
         leaderClient().execute(
             ModifyDataStreamsAction.INSTANCE,

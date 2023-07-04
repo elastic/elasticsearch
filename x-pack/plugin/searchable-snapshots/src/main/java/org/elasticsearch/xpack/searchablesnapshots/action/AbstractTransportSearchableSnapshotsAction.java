@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.searchablesnapshots.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapsh
 
 public abstract class AbstractTransportSearchableSnapshotsAction<
     Request extends BroadcastRequest<Request>,
-    Response extends BroadcastResponse,
+    Response extends BaseBroadcastResponse,
     ShardOperationResult extends Writeable> extends TransportBroadcastByNodeAction<Request, Response, ShardOperationResult> {
 
     private final IndicesService indicesService;

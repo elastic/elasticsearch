@@ -1,5 +1,0 @@
-pr: 87800
-summary: Upgrade GCS Plugin to 1.118.1
-area: Snapshot/Restore
-type: upgrade
-issues: []

@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 
@@ -44,7 +45,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY = Setting.memorySizeSetting(
         "indices.fielddata.cache.size",
-        new ByteSizeValue(-1),
+        ByteSizeValue.MINUS_ONE,
         Property.NodeScope
     );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
@@ -162,16 +163,19 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
                 ElasticsearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
-                final Accountable ifd = (Accountable) indexFieldData.loadGlobalDirect(indexReader);
+                final IndexFieldData<?> ifd = indexFieldData.loadGlobalDirect(indexReader);
                 for (Listener listener : k.listeners) {
                     try {
-                        listener.onCache(shardId, fieldName, ifd);
+                        listener.onCache(shardId, fieldName, (Accountable) ifd);
+                        if (ifd instanceof GlobalOrdinalsAccounting) {
+                            listener.onCache(shardId, fieldName, (GlobalOrdinalsAccounting) ifd);
+                        }
                     } catch (Exception e) {
                         // load anyway since listeners should not throw exceptions
                         logger.error("Failed to call listener on global ordinals loading", e);
                     }
                 }
-                return ifd;
+                return (Accountable) ifd;
             });
             return (IFD) accountable;
         }

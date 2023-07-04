@@ -13,7 +13,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -40,7 +39,6 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -137,14 +135,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
         @Override
         public String toString() {
-            try {
-                XContentBuilder builder = XContentFactory.jsonBuilder();
-                builder.prettyPrint();
-                toXContent(builder, EMPTY_PARAMS);
-                return Strings.toString(builder);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            return Strings.toString(this, true, true);
         }
 
         @Override
@@ -228,7 +219,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
      */
     public PinnedQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_7_15_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_7_15_0)) {
             ids = in.readStringList();
             docs = null;
         } else {
@@ -240,7 +231,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_7_15_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_7_15_0)) {
             out.writeStringCollection(this.ids);
         } else {
             out.writeOptionalStringCollection(this.ids);
@@ -351,7 +342,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         if (idField == null) {
             return new MatchNoDocsQuery("No mappings");
         }
-        List<Item> items = (docs != null) ? docs : ids.stream().map(id -> new Item(id)).collect(Collectors.toList());
+        List<Item> items = (docs != null) ? docs : ids.stream().map(id -> new Item(id)).toList();
         if (items.isEmpty()) {
             return new CappedScoreQuery(organicQuery.toQuery(context), MAX_ORGANIC_SCORE);
         } else {
@@ -398,7 +389,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_4_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_4_0;
     }
 }

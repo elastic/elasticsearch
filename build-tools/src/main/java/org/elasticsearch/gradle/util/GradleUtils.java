@@ -127,7 +127,7 @@ public abstract class GradleUtils {
         Configuration runtimeClasspathConfiguration = project.getConfigurations().getByName(runtimeClasspathName);
         project.getPluginManager().withPlugin("idea", p -> {
             IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
-            idea.getModule().setTestSourceDirs(testSourceSet.getJava().getSrcDirs());
+            idea.getModule().getTestSources().from(testSourceSet.getJava().getSrcDirs());
             idea.getModule().getScopes().put(testSourceSet.getName(), Map.of("plus", List.of(runtimeClasspathConfiguration)));
         });
         project.getPluginManager().withPlugin("eclipse", p -> {
@@ -218,5 +218,16 @@ public abstract class GradleUtils {
 
     public static String projectPath(String taskPath) {
         return taskPath.lastIndexOf(':') == 0 ? ":" : taskPath.substring(0, taskPath.lastIndexOf(':'));
+    }
+
+    /**
+     * Determine if the given {@link Project} is part of a composite included build. Returns {@code false} for any projects that belong
+     * to the root "outer" build of a composite.
+     *
+     * @param project the current project
+     * @return true if the project is an included build
+     */
+    public static boolean isIncludedBuild(Project project) {
+        return project.getGradle().getParent() != null;
     }
 }

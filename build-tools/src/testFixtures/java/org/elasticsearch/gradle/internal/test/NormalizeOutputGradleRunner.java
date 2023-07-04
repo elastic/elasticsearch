@@ -27,9 +27,10 @@ import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString;
 
 public class NormalizeOutputGradleRunner extends GradleRunner {
 
-    public NormalizeOutputGradleRunner(GradleRunner delegate, File projectRootDir) {
+    private GradleRunner delegate;
+
+    public NormalizeOutputGradleRunner(GradleRunner delegate) {
         this.delegate = delegate;
-        this.projectRootDir = projectRootDir;
     }
 
     @Override
@@ -74,7 +75,8 @@ public class NormalizeOutputGradleRunner extends GradleRunner {
 
     @Override
     public GradleRunner withArguments(List<String> arguments) {
-        return delegate.withArguments(arguments);
+        delegate.withArguments(arguments);
+        return this;
     }
 
     @Override
@@ -150,8 +152,10 @@ public class NormalizeOutputGradleRunner extends GradleRunner {
         return new NormalizedBuildResult(delegate.buildAndFail());
     }
 
-    private GradleRunner delegate;
-    private File projectRootDir;
+    @Override
+    public BuildResult run() throws InvalidRunnerConfigurationException {
+        return new NormalizedBuildResult(delegate.run());
+    }
 
     private class NormalizedBuildResult implements BuildResult {
         private BuildResult delegate;
@@ -164,7 +168,7 @@ public class NormalizeOutputGradleRunner extends GradleRunner {
         @Override
         public String getOutput() {
             if (normalizedString == null) {
-                normalizedString = normalizeString(delegate.getOutput(), projectRootDir);
+                normalizedString = normalizeString(delegate.getOutput(), getProjectDir());
             }
             return normalizedString;
         }

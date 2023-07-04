@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -44,20 +43,14 @@ public class SettingsModule implements Module {
     private final SettingsFilter settingsFilter;
 
     public SettingsModule(Settings settings, Setting<?>... additionalSettings) {
-        this(settings, Arrays.asList(additionalSettings), Collections.emptyList(), Collections.emptySet());
+        this(settings, Arrays.asList(additionalSettings), Collections.emptyList());
     }
 
-    public SettingsModule(
-        Settings settings,
-        List<Setting<?>> additionalSettings,
-        List<String> settingsFilter,
-        Set<SettingUpgrader<?>> settingUpgraders
-    ) {
+    public SettingsModule(Settings settings, List<Setting<?>> additionalSettings, List<String> settingsFilter) {
         this(
             settings,
             additionalSettings,
             settingsFilter,
-            settingUpgraders,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
         );
@@ -67,7 +60,6 @@ public class SettingsModule implements Module {
         final Settings settings,
         final List<Setting<?>> additionalSettings,
         final List<String> settingsFilter,
-        final Set<SettingUpgrader<?>> settingUpgraders,
         final Set<Setting<?>> registeredClusterSettings,
         final Set<Setting<?>> registeredIndexSettings
     ) {
@@ -85,19 +77,8 @@ public class SettingsModule implements Module {
         for (String filter : settingsFilter) {
             registerSettingsFilter(filter);
         }
-        final Set<SettingUpgrader<?>> clusterSettingUpgraders = new HashSet<>();
-        for (final SettingUpgrader<?> settingUpgrader : ClusterSettings.BUILT_IN_SETTING_UPGRADERS) {
-            assert settingUpgrader.getSetting().hasNodeScope() : settingUpgrader.getSetting().getKey();
-            final boolean added = clusterSettingUpgraders.add(settingUpgrader);
-            assert added : settingUpgrader.getSetting().getKey();
-        }
-        for (final SettingUpgrader<?> settingUpgrader : settingUpgraders) {
-            assert settingUpgrader.getSetting().hasNodeScope() : settingUpgrader.getSetting().getKey();
-            final boolean added = clusterSettingUpgraders.add(settingUpgrader);
-            assert added : settingUpgrader.getSetting().getKey();
-        }
         this.indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
-        this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()), clusterSettingUpgraders);
+        this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()));
         Settings indexSettings = settings.filter((s) -> s.startsWith("index.") && clusterSettings.get(s) == null);
         if (indexSettings.isEmpty() == false) {
             try {
@@ -132,7 +113,7 @@ public class SettingsModule implements Module {
                 try (XContentBuilder xContentBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                     xContentBuilder.prettyPrint();
                     xContentBuilder.startObject();
-                    indexSettings.toXContent(xContentBuilder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                    indexSettings.toXContent(xContentBuilder, Settings.FLAT_SETTINGS_TRUE);
                     xContentBuilder.endObject();
                     builder.append(Strings.toString(xContentBuilder));
                 }
@@ -166,7 +147,7 @@ public class SettingsModule implements Module {
      * the setting during startup.
      */
     private void registerSetting(Setting<?> setting) {
-        if (setting.getKey().contains(".") == false) {
+        if (setting.getKey().contains(".") == false && isS3InsecureCredentials(setting) == false) {
             throw new IllegalArgumentException("setting [" + setting.getKey() + "] is not in any namespace, its name must contain a dot");
         }
         if (setting.isFiltered()) {
@@ -208,6 +189,13 @@ public class SettingsModule implements Module {
         } else {
             throw new IllegalArgumentException("No scope found for setting [" + setting.getKey() + "]");
         }
+    }
+
+    // TODO: remove this hack once we remove the deprecated ability to use repository settings in the cluster state in the S3 snapshot
+    // module
+    private boolean isS3InsecureCredentials(Setting<?> setting) {
+        final String settingKey = setting.getKey();
+        return settingKey.equals("access_key") || settingKey.equals("secret_key");
     }
 
     /**

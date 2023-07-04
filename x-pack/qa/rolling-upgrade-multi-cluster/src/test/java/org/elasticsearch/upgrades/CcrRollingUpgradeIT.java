@@ -12,10 +12,13 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.containsString;
@@ -242,8 +245,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                 case NONE -> {
                     createLeaderIndex(leaderClient(), "leader_index5");
                     index(leaderClient(), "leader_index5", 128);
-                    followIndex(followerClient(), "leader", "leader_index5", "follower_index5");
-                    followIndex(leaderClient(), "follower", "follower_index5", "follower_index6");
+                    followIndexIgnoringBadRequests(followerClient(), "leader", "leader_index5", "follower_index5");
+                    followIndexIgnoringBadRequests(leaderClient(), "follower", "follower_index5", "follower_index6");
                     assertTotalHitCount("follower_index5", 128, followerClient());
                     assertTotalHitCount("follower_index6", 128, leaderClient());
                     index(leaderClient(), "leader_index5", 128);
@@ -283,7 +286,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     private static void createLeaderIndex(RestClient client, String indexName) throws IOException {
-        Settings.Builder indexSettings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
+        Settings.Builder indexSettings = indexSettings(1, 0);
         if (randomBoolean()) {
             indexSettings.put("index.soft_deletes.enabled", true);
         }
@@ -292,21 +295,41 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
     private static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {"remote_cluster": "%s", "leader_index": "%s", "read_poll_timeout": "10ms"}
-            """.formatted(leaderCluster, leaderIndex));
+            """, leaderCluster, leaderIndex));
         assertOK(client.performRequest(request));
+    }
+
+    private static void followIndexIgnoringBadRequests(RestClient client, String leaderCluster, String leaderIndex, String followIndex)
+        throws Exception {
+        assertBusy(() -> {
+            try {
+                followIndex(client, leaderCluster, leaderIndex, followIndex);
+            } catch (ResponseException e) {
+                if (e.getResponse().getStatusLine().getStatusCode() == RestStatus.BAD_REQUEST.getStatus()) {
+                    // Following a CCR leader index requires to retrieve the index stats at some point, which can return a Bad Request
+                    // response if the coordinating node on the remote cluster doesn't know about the leader index yet. It often fails in
+                    // bi-directionnal CCR test so we work around this issue by retrying with some assertBusy backoff.
+                    throw new AssertionError(
+                        "Receive bad request response after trying to follow index [" + leaderIndex + "], retrying",
+                        e
+                    );
+                }
+                throw e;
+            }
+        }, 30L, TimeUnit.SECONDS);
     }
 
     private static void putAutoFollowPattern(RestClient client, String name, String remoteCluster, String pattern) throws IOException {
         Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {
               "leader_index_patterns": [ "%s" ],
               "remote_cluster": "%s",
               "follow_index_pattern": "copy-{{leader_index}}",
               "read_poll_timeout": "10ms"
-            }""".formatted(pattern, remoteCluster));
+            }""", pattern, remoteCluster));
         assertOK(client.performRequest(request));
     }
 

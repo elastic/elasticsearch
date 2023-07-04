@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -44,7 +45,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -312,17 +312,17 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         // index simple data with flushes, so we have many segments
         createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
-        client().admin().indices().prepareFlush().get();
+        indicesAdmin().prepareFlush().get();
         createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
-        client().admin().indices().prepareFlush().get();
+        indicesAdmin().prepareFlush().get();
         createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
-        client().admin().indices().prepareFlush().get();
+        indicesAdmin().prepareFlush().get();
         createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
-        client().admin().indices().prepareFlush().get();
+        indicesAdmin().prepareFlush().get();
         createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
-        client().admin().indices().prepareFlush().get();
+        indicesAdmin().prepareFlush().get();
         createIndexRequest("test", "child", "c4", "p2", "c_field", "red").get();
-        client().admin().indices().prepareFlush().get();
+        indicesAdmin().prepareFlush().get();
         refresh();
 
         // HAS CHILD QUERY
@@ -446,7 +446,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         // update p1 and see what that we get updated values...
 
         createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1_updated").get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         searchResponse = client().prepareSearch("test")
             .setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "yellow"), ScoreMode.None)))
@@ -748,7 +748,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
         createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
-        client().admin().indices().prepareFlush("test").get();
+        indicesAdmin().prepareFlush("test").get();
 
         client().prepareIndex("test").setId("3").setSource("p_field", 2).get();
 
@@ -800,7 +800,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         // query filter in case for p/c shouldn't execute per segment, but rather
         createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
-        client().admin().indices().prepareFlush("test").setForce(true).get();
+        indicesAdmin().prepareFlush("test").setForce(true).get();
         createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
         refresh();
 
@@ -844,11 +844,11 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         // index simple data
         int childId = 0;
         for (int i = 0; i < 10; i++) {
-            String parentId = String.format(Locale.ROOT, "p%03d", i);
+            String parentId = Strings.format("p%03d", i);
             createIndexRequest("test", "parent", parentId, null, "p_field", parentId).get();
             int j = childId;
             for (; j < childId + 50; j++) {
-                String childUid = String.format(Locale.ROOT, "c%03d", j);
+                String childUid = Strings.format("c%03d", j);
                 createIndexRequest("test", "child", childUid, parentId, "c_field", childUid).get();
             }
             childId = j;
@@ -924,7 +924,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             createIndexRequest("test", "child", "d" + i, "p1", "c_field", "red").get();
             createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
             createIndexRequest("test", "child", "c3", "p2", "c_field", "x").get();
-            client().admin().indices().prepareRefresh("test").get();
+            indicesAdmin().prepareRefresh("test").get();
         }
 
         searchResponse = client().prepareSearch("test")
@@ -1038,8 +1038,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         createIndexRequest("test", "parent", "p9", null, "p_field", "p_value9").get();
         createIndexRequest("test", "parent", "p10", null, "p_field", "p_value10").get();
         createIndexRequest("test", "child", "c1", "p1", "c_field", "blue").get();
-        client().admin().indices().prepareFlush("test").get();
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareFlush("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "blue"), ScoreMode.None)))
@@ -1048,7 +1048,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         createIndexRequest("test", "child", "c2", "p2", "c_field", "blue").get();
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         searchResponse = client().prepareSearch("test")
             .setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "blue"), ScoreMode.None)))
@@ -1312,14 +1312,14 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         createIndexRequest("test", "child", "c1", "p1", "c_field", "blue").get();
         createIndexRequest("test", "child", "c2", "p1", "c_field", "red").get();
         createIndexRequest("test", "child", "c3", "p2", "c_field", "red").get();
-        client().admin().indices().prepareForceMerge("test").setMaxNumSegments(1).setFlush(true).get();
+        indicesAdmin().prepareForceMerge("test").setMaxNumSegments(1).setFlush(true).get();
         createIndexRequest("test", "parent", "p3", null, "p_field", "p_value3").get();
         createIndexRequest("test", "parent", "p4", null, "p_field", "p_value4").get();
         createIndexRequest("test", "child", "c4", "p3", "c_field", "green").get();
         createIndexRequest("test", "child", "c5", "p3", "c_field", "blue").get();
         createIndexRequest("test", "child", "c6", "p4", "c_field", "blue").get();
-        client().admin().indices().prepareFlush("test").get();
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareFlush("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         for (int i = 0; i < 2; i++) {
             SearchResponse searchResponse = client().prepareSearch()
@@ -1334,7 +1334,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         }
 
         createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(
@@ -1781,9 +1781,9 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         refresh();
 
         assertAcked(
-            admin().indices().prepareAliases().addAlias("my-index", "filter1", hasChildQuery("child", matchAllQuery(), ScoreMode.None))
+            indicesAdmin().prepareAliases().addAlias("my-index", "filter1", hasChildQuery("child", matchAllQuery(), ScoreMode.None))
         );
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", hasParentQuery("parent", matchAllQuery(), false)));
+        assertAcked(indicesAdmin().prepareAliases().addAlias("my-index", "filter2", hasParentQuery("parent", matchAllQuery(), false)));
 
         SearchResponse response = client().prepareSearch("filter1").get();
         assertHitCount(response, 1);

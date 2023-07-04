@@ -9,24 +9,23 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Context for finalizing a snapshot.
  */
-public final class FinalizeSnapshotContext extends ActionListener.Delegating<
-    Tuple<RepositoryData, SnapshotInfo>,
-    Tuple<RepositoryData, SnapshotInfo>> {
+public final class FinalizeSnapshotContext extends DelegatingActionListener<RepositoryData, RepositoryData> {
 
     private final ShardGenerations updatedShardGenerations;
 
@@ -42,7 +41,9 @@ public final class FinalizeSnapshotContext extends ActionListener.Delegating<
 
     private final SnapshotInfo snapshotInfo;
 
-    private final Version repositoryMetaVersion;
+    private final IndexVersion repositoryMetaVersion;
+
+    private final Consumer<SnapshotInfo> onDone;
 
     /**
      * @param updatedShardGenerations updated shard generations
@@ -50,16 +51,19 @@ public final class FinalizeSnapshotContext extends ActionListener.Delegating<
      * @param clusterMetadata         cluster metadata
      * @param snapshotInfo            SnapshotInfo instance to write for this snapshot
      * @param repositoryMetaVersion   version of the updated repository metadata to write
-     * @param listener                listener to be invoked with the new {@link RepositoryData} and {@link SnapshotInfo} after completing
-     *                                the snapshot
+     * @param listener                listener to be invoked with the new {@link RepositoryData} after the snapshot has been successfully
+     *                                added to the repository
+     * @param onDone                  consumer of the new {@link SnapshotInfo} for the snapshot that is invoked after the {@code listener}
+     *                                once all cleanup operations after snapshot completion have executed
      */
     public FinalizeSnapshotContext(
         ShardGenerations updatedShardGenerations,
         long repositoryStateId,
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
-        Version repositoryMetaVersion,
-        ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener
+        IndexVersion repositoryMetaVersion,
+        ActionListener<RepositoryData> listener,
+        Consumer<SnapshotInfo> onDone
     ) {
         super(listener);
         this.updatedShardGenerations = updatedShardGenerations;
@@ -67,6 +71,7 @@ public final class FinalizeSnapshotContext extends ActionListener.Delegating<
         this.clusterMetadata = clusterMetadata;
         this.snapshotInfo = snapshotInfo;
         this.repositoryMetaVersion = repositoryMetaVersion;
+        this.onDone = onDone;
     }
 
     public long repositoryStateId() {
@@ -81,7 +86,7 @@ public final class FinalizeSnapshotContext extends ActionListener.Delegating<
         return snapshotInfo;
     }
 
-    public Version repositoryMetaVersion() {
+    public IndexVersion repositoryMetaVersion() {
         return repositoryMetaVersion;
     }
 
@@ -103,8 +108,12 @@ public final class FinalizeSnapshotContext extends ActionListener.Delegating<
         return updatedState;
     }
 
+    public void onDone(SnapshotInfo snapshotInfo) {
+        onDone.accept(snapshotInfo);
+    }
+
     @Override
-    public void onResponse(Tuple<RepositoryData, SnapshotInfo> repositoryData) {
+    public void onResponse(RepositoryData repositoryData) {
         delegate.onResponse(repositoryData);
     }
 }

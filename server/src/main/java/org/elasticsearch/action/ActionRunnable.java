@@ -44,7 +44,17 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
      * @return Wrapped {@code Runnable}
      */
     public static <T> ActionRunnable<T> supply(ActionListener<T> listener, CheckedSupplier<T, Exception> supplier) {
-        return ActionRunnable.wrap(listener, l -> l.onResponse(supplier.get()));
+        return ActionRunnable.wrap(listener, new CheckedConsumer<>() {
+            @Override
+            public void accept(ActionListener<T> l) throws Exception {
+                l.onResponse(supplier.get());
+            }
+
+            @Override
+            public String toString() {
+                return supplier.toString();
+            }
+        });
     }
 
     /**
@@ -60,6 +70,11 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
             @Override
             protected void doRun() throws Exception {
                 consumer.accept(listener);
+            }
+
+            @Override
+            public String toString() {
+                return "ActionRunnable#wrap[" + consumer + "]";
             }
         };
     }

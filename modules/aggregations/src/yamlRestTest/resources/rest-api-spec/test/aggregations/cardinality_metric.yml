@@ -1,0 +1,492 @@
+setup:
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                int_field:
+                   type : integer
+                double_field:
+                   type : double
+                string_field:
+                   type: keyword
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_1
+               _id:    "1"
+           - int_field: 1
+             double_field: 1.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    "2"
+           - int_field: 51
+             double_field: 51.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    "3"
+           - int_field: 101
+             double_field: 101.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    "4"
+           - int_field: 151
+             double_field: 151.0
+             string_field: foo
+
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              other_field:
+                type: keyword
+
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_2
+              _id:    "1"
+          - other_field: "other value"
+---
+"Basic test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          aggs:
+            distinct_int:
+              cardinality:
+                field: int_field
+            distinct_double:
+              cardinality:
+                field: double_field
+            distinct_string:
+              cardinality:
+                field: string_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.distinct_int.value: 4 }
+  - match: { aggregations.distinct_double.value: 4 }
+  - match: { aggregations.distinct_string.value: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          aggs:
+            distinct_int:
+              cardinality:
+                field: int_field
+                precision_threshold: 100
+            distinct_double:
+              cardinality:
+                field: double_field
+                precision_threshold: 100
+            distinct_string:
+              cardinality:
+                field: string_field
+                precision_threshold: 100
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.distinct_int.value: 4 }
+  - match: { aggregations.distinct_double.value: 4 }
+  - match: { aggregations.distinct_string.value: 1 }
+
+---
+"Only aggs test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            distinct_int:
+              cardinality:
+                field: int_field
+            distinct_double:
+              cardinality:
+                field: double_field
+            distinct_string:
+              cardinality:
+                field: string_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 0 }
+  - match: { aggregations.distinct_int.value: 4 }
+  - match: { aggregations.distinct_double.value: 4 }
+  - match: { aggregations.distinct_string.value: 1 }
+
+---
+"Filtered test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          query:
+            constant_score:
+              filter:
+                range:
+                  int_field:
+                    gte: 50
+          aggs:
+            distinct_int:
+              cardinality:
+                field: int_field
+            distinct_double:
+              cardinality:
+                field: double_field
+            distinct_string:
+              cardinality:
+                field: string_field
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+  - match: { aggregations.distinct_int.value: 3 }
+  - match: { aggregations.distinct_double.value: 3 }
+  - match: { aggregations.distinct_string.value: 1 }
+
+
+---
+"Missing field with missing param":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          aggs:
+            distinct_missing:
+              cardinality:
+                field: missing_field
+                missing: "foo"
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.distinct_missing.value: 1 }
+
+---
+"Missing field without missing param":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          aggs:
+            distinct_missing:
+              cardinality:
+                field: missing_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - is_false: aggregations.distinct_missing.value
+
+---
+"Metadata test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          aggs:
+            distinct_missing:
+              meta:
+                foo: bar
+              cardinality:
+                field: int_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.distinct_missing.value: 4 }
+  - match: { aggregations.distinct_missing.meta.foo: "bar" }
+
+---
+"Invalid Precision test":
+
+  - do:
+      catch: /\[precisionThreshold\] must be greater than or equal to 0. Found \[-1\] in \[distinct_int\]/
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          aggs:
+            distinct_int:
+              cardinality:
+                field: int_field
+                precision_threshold: -1
+
+---
+"profiler int":
+  - skip:
+      version: " - 7.9.99"
+      reason: introduced in 7.10.0
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_int:
+              cardinality:
+                field: int_field
+  - match: { aggregations.distinct_int.value: 4 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.empty_collectors_used: 0 }
+  - gt: { profile.shards.0.aggregations.0.debug.numeric_collectors_used: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_used: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_overhead_too_high: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.string_hashing_collectors_used: 0 }
+
+---
+"profiler double":
+  - skip:
+      version: " - 7.9.99"
+      reason: introduced in 7.10.0
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_double:
+              cardinality:
+                field: double_field
+  - match: { aggregations.distinct_double.value: 4 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.empty_collectors_used: 0 }
+  - gt: { profile.shards.0.aggregations.0.debug.numeric_collectors_used: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_used: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_overhead_too_high: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.string_hashing_collectors_used: 0 }
+
+---
+"profiler string":
+  - skip:
+      version: " - 7.9.99"
+      reason: introduced in 7.10.0
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_string:
+              cardinality:
+                field: string_field
+  - match: { aggregations.distinct_string.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: "GlobalOrdCardinalityAggregator" }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+---
+"profiler string save memory hint":
+  - skip:
+      version: " - 8.3.99"
+      reason: execution hints introduced in 8.4.0
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_string:
+              cardinality:
+                field: string_field
+                execution_hint: save_memory_heuristic
+  - match: { aggregations.distinct_string.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: "GlobalOrdCardinalityAggregator" }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+---
+"profiler string save time hint":
+  - skip:
+      version: " - 8.3.99"
+      reason: execution hints introduced in 8.4.0
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_string:
+              cardinality:
+                field: string_field
+                execution_hint: save_time_heuristic
+  - match: { aggregations.distinct_string.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: "GlobalOrdCardinalityAggregator" }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+---
+"profiler string global ords hint":
+  - skip:
+      version: " - 8.3.99"
+      reason: execution hints introduced in 8.4.0
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_string:
+              cardinality:
+                field: string_field
+                execution_hint: global_ordinals
+  - match: { aggregations.distinct_string.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: "GlobalOrdCardinalityAggregator" }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+---
+"profiler string segment ords hint":
+  - skip:
+      version: " - 8.3.99"
+      reason: execution hints introduced in 8.4.0
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_string:
+              cardinality:
+                field: string_field
+                execution_hint: segment_ordinals
+  - match: { aggregations.distinct_string.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: "CardinalityAggregator" }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+  - gt: { profile.shards.0.aggregations.0.debug.ordinals_collectors_used: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_overhead_too_high: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.string_hashing_collectors_used: 0 }
+---
+"profiler string direct hint":
+  - skip:
+      version: " - 8.3.99"
+      reason: execution hints introduced in 8.4.0
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_string:
+              cardinality:
+                field: string_field
+                execution_hint: direct
+  - match: { aggregations.distinct_string.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: "CardinalityAggregator" }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_used: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_overhead_too_high: 0 }
+  - gt: { profile.shards.0.aggregations.0.debug.string_hashing_collectors_used: 0 }
+---
+"invalid execution hint throws":
+  - skip:
+      version: " - 8.3.99"
+      reason: execution hints introduced in 8.4.0
+  - do:
+      catch: /Invalid execution mode for cardinality aggregation/
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_string:
+              cardinality:
+                field: string_field
+                execution_hint: bogus
+
+---
+"Partially unmapped":
+
+  - do:
+      search:
+        index: test_1,test_2
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            distinct_int:
+              cardinality:
+                field: int_field
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { aggregations.distinct_int.value: 4 }
+
+---
+"Partially unmapped with missing":
+
+  - do:
+      search:
+        index: test_1,test_2
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            distinct_int:
+              cardinality:
+                field: int_field
+                missing: 100000
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { aggregations.distinct_int.value: 5 }

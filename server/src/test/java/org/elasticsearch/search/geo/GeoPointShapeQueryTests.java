@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -25,7 +26,19 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
-public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
+public class GeoPointShapeQueryTests extends BasePointShapeQueryTestCase<GeoShapeQueryBuilder> {
+
+    private final SpatialQueryBuilders<GeoShapeQueryBuilder> geoShapeQueryBuilder = SpatialQueryBuilders.GEO;
+
+    @Override
+    protected SpatialQueryBuilders<GeoShapeQueryBuilder> queryBuilder() {
+        return geoShapeQueryBuilder;
+    }
+
+    @Override
+    protected String fieldTypeName() {
+        return "geo_shape";
+    }
 
     @Override
     protected void createMapping(String indexName, String fieldName, Settings settings) throws Exception {
@@ -45,12 +58,12 @@ public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
-                .startObject(defaultGeoFieldName)
+                .startObject(defaultFieldName)
                 .field("type", "geo_point")
                 .endObject()
                 .startObject("alias")
                 .field("type", "alias")
-                .field("path", defaultGeoFieldName)
+                .field("path", defaultFieldName)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -62,12 +75,26 @@ public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
         Point point = GeometryTestUtils.randomPoint(false);
         client().prepareIndex(defaultIndexName)
             .setId("1")
-            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(point)).endObject())
+            .setSource(jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(point)).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", point)).get();
         assertEquals(1, response.getHits().getTotalHits().value);
+    }
+
+    private final DatelinePointShapeQueryTestCase dateline = new DatelinePointShapeQueryTestCase();
+
+    public void testRectangleSpanningDateline() throws Exception {
+        dateline.testRectangleSpanningDateline(this);
+    }
+
+    public void testPolygonSpanningDateline() throws Exception {
+        dateline.testPolygonSpanningDateline(this);
+    }
+
+    public void testMultiPolygonSpanningDateline() throws Exception {
+        dateline.testMultiPolygonSpanningDateline(this);
     }
 
     /**

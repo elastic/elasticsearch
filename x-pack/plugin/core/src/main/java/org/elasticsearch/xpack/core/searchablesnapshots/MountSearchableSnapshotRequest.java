@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,11 +27,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -39,7 +37,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     public static final ConstructingObjectParser<MountSearchableSnapshotRequest, RestRequest> PARSER = new ConstructingObjectParser<>(
         "mount_searchable_snapshot",
-        true,
+        false,
         (a, request) -> new MountSearchableSnapshotRequest(
             Objects.requireNonNullElse((String) a[1], (String) a[0]),
             Objects.requireNonNull(request.param("repository")),
@@ -57,29 +55,42 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     private static final ParseField INDEX_SETTINGS_FIELD = new ParseField("index_settings");
     private static final ParseField IGNORE_INDEX_SETTINGS_FIELD = new ParseField("ignore_index_settings");
 
+    /**
+     * This field only exists to be silently ignored when the body of a Mount API request contains a "ignored_index_settings" instead of
+     * "ignore_index_settings" (note the missing 'd'). We need to silently ignores this field instead of rejecting the request because the
+     * High Level REST Client uses the wrong field name. See https://github.com/elastic/elasticsearch/issues/75982.
+     * TODO: remove in 9.0.
+     */
+    @Deprecated
+    private static final ParseField IGNORED_INDEX_SETTINGS_FIELD = new ParseField("ignored_index_settings");
+
     static {
         PARSER.declareField(constructorArg(), XContentParser::text, INDEX_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), XContentParser::text, RENAMED_INDEX_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), Settings::fromXContent, INDEX_SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(
             optionalConstructorArg(),
-            p -> p.list().stream().map(s -> (String) s).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY),
+            p -> p.list().stream().map(s -> (String) s).toArray(String[]::new),
             IGNORE_INDEX_SETTINGS_FIELD,
             ObjectParser.ValueType.STRING_ARRAY
         );
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
+            p.skipChildren();
+            return Strings.EMPTY_ARRAY;
+        }, IGNORED_INDEX_SETTINGS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
     }
 
     /**
      * Searchable snapshots partial storage was introduced in 7.12.0
      */
-    private static final Version SHARED_CACHE_VERSION = Version.V_7_12_0;
+    private static final TransportVersion SHARED_CACHE_VERSION = TransportVersion.V_7_12_0;
 
     private final String mountedIndexName;
     private final String repositoryName;
     private final String snapshotName;
     private final String snapshotIndexName;
     private final Settings indexSettings;
-    private final String[] ignoredIndexSettings;
+    private final String[] ignoreIndexSettings;
     private final boolean waitForCompletion;
     private final Storage storage;
 
@@ -92,7 +103,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         String snapshotName,
         String snapshotIndexName,
         Settings indexSettings,
-        String[] ignoredIndexSettings,
+        String[] ignoreIndexSettings,
         boolean waitForCompletion,
         Storage storage
     ) {
@@ -101,7 +112,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.snapshotName = Objects.requireNonNull(snapshotName);
         this.snapshotIndexName = Objects.requireNonNull(snapshotIndexName);
         this.indexSettings = Objects.requireNonNull(indexSettings);
-        this.ignoredIndexSettings = Objects.requireNonNull(ignoredIndexSettings);
+        this.ignoreIndexSettings = Objects.requireNonNull(ignoreIndexSettings);
         this.waitForCompletion = waitForCompletion;
         this.storage = storage;
     }
@@ -113,9 +124,9 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.snapshotName = in.readString();
         this.snapshotIndexName = in.readString();
         this.indexSettings = readSettingsFromStream(in);
-        this.ignoredIndexSettings = in.readStringArray();
+        this.ignoreIndexSettings = in.readStringArray();
         this.waitForCompletion = in.readBoolean();
-        if (in.getVersion().onOrAfter(SHARED_CACHE_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(SHARED_CACHE_VERSION)) {
             this.storage = Storage.readFromStream(in);
         } else {
             this.storage = Storage.FULL_COPY;
@@ -129,14 +140,14 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         out.writeString(repositoryName);
         out.writeString(snapshotName);
         out.writeString(snapshotIndexName);
-        writeSettingsToStream(indexSettings, out);
-        out.writeStringArray(ignoredIndexSettings);
+        indexSettings.writeTo(out);
+        out.writeStringArray(ignoreIndexSettings);
         out.writeBoolean(waitForCompletion);
-        if (out.getVersion().onOrAfter(SHARED_CACHE_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(SHARED_CACHE_VERSION)) {
             storage.writeTo(out);
         } else if (storage != Storage.FULL_COPY) {
             throw new UnsupportedOperationException(
-                "storage type [" + storage + "] is not supported on version [" + out.getVersion() + "]"
+                "storage type [" + storage + "] is not supported on version [" + out.getTransportVersion() + "]"
             );
         }
     }
@@ -199,7 +210,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
      * @return the names of settings that should be removed from the index when it is mounted
      */
     public String[] ignoreIndexSettings() {
-        return ignoredIndexSettings;
+        return ignoreIndexSettings;
     }
 
     /**
@@ -226,7 +237,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             && Objects.equals(snapshotName, that.snapshotName)
             && Objects.equals(snapshotIndexName, that.snapshotIndexName)
             && Objects.equals(indexSettings, that.indexSettings)
-            && Arrays.equals(ignoredIndexSettings, that.ignoredIndexSettings)
+            && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
             && Objects.equals(masterNodeTimeout, that.masterNodeTimeout);
     }
 
@@ -242,7 +253,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             masterNodeTimeout,
             storage
         );
-        result = 31 * result + Arrays.hashCode(ignoredIndexSettings);
+        result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         return result;
     }
 

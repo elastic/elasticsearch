@@ -74,6 +74,7 @@ public class BreakingChangesGenerator {
         bindings.put("deprecationsByNotabilityByArea", deprecationsByNotabilityByArea);
         bindings.put("isElasticsearchSnapshot", version.isSnapshot());
         bindings.put("majorDotMinor", version.major() + "." + version.minor());
+        bindings.put("majorDotMinorDotRevision", version.major() + "." + version.minor() + "." + version.revision());
         bindings.put("majorMinor", String.valueOf(version.major()) + version.minor());
         bindings.put("nextMajor", (version.major() + 1) + ".0");
         bindings.put("version", version);

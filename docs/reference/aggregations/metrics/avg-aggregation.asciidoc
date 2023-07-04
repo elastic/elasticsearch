@@ -4,7 +4,7 @@
 <titleabbrev>Avg</titleabbrev>
 ++++
 
-A `single-value` metrics aggregation that computes the average of numeric values that are extracted from the aggregated documents. These values can be extracted either from specific numeric fields in the documents.
+A `single-value` metrics aggregation that computes the average of numeric values that are extracted from the aggregated documents. These values can be extracted either from specific numeric or <<histogram,histogram>> fields in the documents.
 
 Assuming the data consists of documents representing exams grades (between 0
 and 100) of students we can average their scores with:

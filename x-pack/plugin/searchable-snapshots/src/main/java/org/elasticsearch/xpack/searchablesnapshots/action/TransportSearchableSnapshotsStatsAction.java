@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -27,7 +26,6 @@ import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.stream.Collectors;
 
 public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSearchableSnapshotsAction<
@@ -62,16 +60,17 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
     }
 
     @Override
-    protected SearchableSnapshotsStatsResponse newResponse(
+    protected ResponseFactory<SearchableSnapshotsStatsResponse, SearchableSnapshotShardStats> getResponseFactory(
         SearchableSnapshotsStatsRequest request,
-        int totalShards,
-        int successfulShards,
-        int failedShards,
-        List<SearchableSnapshotShardStats> shardsStats,
-        List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        return new SearchableSnapshotsStatsResponse(shardsStats, totalShards, successfulShards, failedShards, shardFailures);
+        return (totalShards, successfulShards, failedShards, shardsStats, shardFailures) -> new SearchableSnapshotsStatsResponse(
+            shardsStats,
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures
+        );
     }
 
     @Override
@@ -101,9 +100,9 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
         return new CacheIndexInputStats(
             fileExt,
             inputStats.getNumFiles(),
-            new ByteSizeValue(inputStats.getTotalSize()),
-            new ByteSizeValue(inputStats.getMinSize()),
-            new ByteSizeValue(inputStats.getMaxSize()),
+            ByteSizeValue.ofBytes(inputStats.getTotalSize()),
+            ByteSizeValue.ofBytes(inputStats.getMinSize()),
+            ByteSizeValue.ofBytes(inputStats.getMaxSize()),
             inputStats.getOpened().sum(),
             inputStats.getClosed().sum(),
             toCounter(inputStats.getForwardSmallSeeks()),

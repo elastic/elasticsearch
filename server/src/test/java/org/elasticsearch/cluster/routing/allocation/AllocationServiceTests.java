@@ -8,13 +8,16 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -48,6 +51,7 @@ import static org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus.
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -107,13 +111,10 @@ public class AllocationServiceTests extends ESTestCase {
             .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
             .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
             .build();
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final ClusterSettings clusterSettings = createBuiltInClusterSettings(settings);
         final AllocationService allocationService = new AllocationService(
             new AllocationDeciders(
-                Arrays.asList(
-                    new SameShardAllocationDecider(settings, clusterSettings),
-                    new ThrottlingAllocationDecider(settings, clusterSettings)
-                )
+                Arrays.asList(new SameShardAllocationDecider(clusterSettings), new ThrottlingAllocationDecider(clusterSettings))
             ),
             new ShardsAllocator() {
                 @Override
@@ -129,7 +130,8 @@ public class AllocationServiceTests extends ESTestCase {
                 }
             },
             new EmptyClusterInfoService(),
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -140,9 +142,9 @@ public class AllocationServiceTests extends ESTestCase {
         allocationService.setExistingShardsAllocators(allocatorMap);
 
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        nodesBuilder.add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT));
+        nodesBuilder.add(DiscoveryNodeUtils.create("node1"));
+        nodesBuilder.add(DiscoveryNodeUtils.create("node2"));
+        nodesBuilder.add(DiscoveryNodeUtils.create("node3"));
 
         final Metadata.Builder metadata = Metadata.builder()
             // create 3 indices with different priorities. The high and low priority indices use the default allocator which (in this test)
@@ -168,7 +170,7 @@ public class AllocationServiceTests extends ESTestCase {
                 )
             );
 
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder()
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsRecovery(metadata.get("highPriority"))
             .addAsRecovery(metadata.get("mediumPriority"))
             .addAsRecovery(metadata.get("lowPriority"))
@@ -228,14 +230,20 @@ public class AllocationServiceTests extends ESTestCase {
     }
 
     public void testExplainsNonAllocationOfShardWithUnknownAllocator() {
-        final AllocationService allocationService = new AllocationService(null, null, null, null);
+        final AllocationService allocationService = new AllocationService(
+            null,
+            null,
+            null,
+            null,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        );
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())
         );
 
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        nodesBuilder.add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT));
+        nodesBuilder.add(DiscoveryNodeUtils.create("node1"));
+        nodesBuilder.add(DiscoveryNodeUtils.create("node2"));
 
         final Metadata.Builder metadata = Metadata.builder()
             .put(
@@ -245,7 +253,8 @@ public class AllocationServiceTests extends ESTestCase {
                 )
             );
 
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsRecovery(metadata.get("index"));
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsRecovery(metadata.get("index"));
 
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(nodesBuilder)
@@ -364,7 +373,7 @@ public class AllocationServiceTests extends ESTestCase {
     }
 
     private static ClusterState rerouteAndStartShards(final AllocationService allocationService, final ClusterState clusterState) {
-        final ClusterState reroutedState = allocationService.reroute(clusterState, "test");
+        final ClusterState reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
         return allocationService.applyStartedShards(
             reroutedState,
             shardsWithState(reroutedState.getRoutingNodes(), ShardRoutingState.INITIALIZING)

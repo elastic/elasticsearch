@@ -8,22 +8,24 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -54,7 +56,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     public SnapshotDeletionsInProgress(StreamInput in) throws IOException {
-        this(in.readList(Entry::new));
+        this(in.readImmutableList(Entry::new));
     }
 
     private static boolean assertNoConcurrentDeletionsForSameRepository(List<Entry> entries) {
@@ -155,30 +157,32 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(TYPE);
-        for (Entry entry : entries) {
-            builder.startObject();
-            {
-                builder.field("repository", entry.repository());
-                builder.startArray("snapshots");
-                for (SnapshotId snapshot : entry.snapshots) {
-                    builder.value(snapshot.getName());
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            Iterators.single((builder, params) -> builder.startArray(TYPE)),
+            entries.stream().<ToXContent>map(entry -> (builder, params) -> {
+                builder.startObject();
+                {
+                    builder.field("repository", entry.repository());
+                    builder.startArray("snapshots");
+                    for (SnapshotId snapshot : entry.snapshots) {
+                        builder.value(snapshot.getName());
+                    }
+                    builder.endArray();
+                    builder.timeField("start_time_millis", "start_time", entry.startTime);
+                    builder.field("repository_state_id", entry.repositoryStateId);
+                    builder.field("state", entry.state);
                 }
-                builder.endArray();
-                builder.timeField("start_time_millis", "start_time", entry.startTime);
-                builder.field("repository_state_id", entry.repositoryStateId);
-                builder.field("state", entry.state);
-            }
-            builder.endObject();
-        }
-        builder.endArray();
-        return builder;
+                builder.endObject();
+                return builder;
+            }).iterator(),
+            Iterators.single((builder, params) -> builder.endArray())
+        );
     }
 
     @Override
@@ -220,7 +224,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         public Entry(StreamInput in) throws IOException {
             this.repoName = in.readString();
-            this.snapshots = in.readList(SnapshotId::new);
+            this.snapshots = in.readImmutableList(SnapshotId::new);
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
             this.state = State.readFrom(in);

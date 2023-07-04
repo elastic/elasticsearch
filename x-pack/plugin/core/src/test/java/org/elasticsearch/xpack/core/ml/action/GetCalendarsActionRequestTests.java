@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
-public class GetCalendarsActionRequestTests extends AbstractSerializingTestCase<GetCalendarsAction.Request> {
+public class GetCalendarsActionRequestTests extends AbstractXContentSerializingTestCase<GetCalendarsAction.Request> {
 
     @Override
     protected GetCalendarsAction.Request createTestInstance() {
@@ -26,6 +26,11 @@ public class GetCalendarsActionRequestTests extends AbstractSerializingTestCase<
     }
 
     @Override
+    protected GetCalendarsAction.Request mutateInstance(GetCalendarsAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<GetCalendarsAction.Request> instanceReader() {
         return GetCalendarsAction.Request::new;
     }
@@ -35,8 +40,4 @@ public class GetCalendarsActionRequestTests extends AbstractSerializingTestCase<
         return GetCalendarsAction.Request.parseRequest(null, parser);
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

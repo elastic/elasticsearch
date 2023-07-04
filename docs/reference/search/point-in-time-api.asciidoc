@@ -40,28 +40,31 @@ be passed to the `id` of the `pit` parameter of a search request.
 
 [source,console]
 --------------------------------------------------
-POST /_search <1>
+POST /_search  <1>
 {
-    "size": 100,
+    "size": 100,  <2>
     "query": {
         "match" : {
             "title" : "elasticsearch"
         }
     },
     "pit": {
-	    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <2>
-	    "keep_alive": "1m"  <3>
+	    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <3>
+	    "keep_alive": "1m"  <4>
     }
 }
 --------------------------------------------------
 // TEST[catch:unavailable]
 
 <1> A search request with the `pit` parameter must not specify `index`, `routing`,
-and {ref}/search-request-body.html#request-body-search-preference[`preference`]
+or <<search-preference,`preference`>>
 as these parameters are copied from the point in time.
-<2> The `id` parameter tells Elasticsearch to execute the request using contexts
+<2> Just like regular searches, you can <<paginate-search-results,use `from` and
+`size` to page through search results>>, up to the first 10,000 hits. If you 
+want to retrieve more hits, use PIT with <<search-after,`search_after`>>.
+<3> The `id` parameter tells Elasticsearch to execute the request using contexts
 from this point in time.
-<3> The `keep_alive` parameter tells Elasticsearch how long it should extend
+<4> The `keep_alive` parameter tells Elasticsearch how long it should extend
 the time to live of the point in time.
 
 IMPORTANT: The open point in time request and each subsequent search request can

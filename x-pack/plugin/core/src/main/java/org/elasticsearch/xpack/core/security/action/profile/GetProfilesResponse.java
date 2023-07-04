@@ -10,48 +10,57 @@ package org.elasticsearch.xpack.core.security.action.profile;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
-public class GetProfilesResponse extends ActionResponse implements StatusToXContentObject {
+public class GetProfilesResponse extends ActionResponse implements ToXContentObject {
 
-    private final Profile[] profiles;
+    private final List<Profile> profiles;
+    private final Map<String, Exception> errors;
 
-    public GetProfilesResponse(@Nullable Profile profile) {
-        this.profiles = profile != null ? new Profile[] { profile } : new Profile[0];
+    public GetProfilesResponse(List<Profile> profiles, Map<String, Exception> errors) {
+        this.profiles = Objects.requireNonNull(profiles);
+        this.errors = Objects.requireNonNull(errors);
     }
 
     public GetProfilesResponse(StreamInput in) throws IOException {
         super(in);
-        this.profiles = in.readArray(Profile::new, Profile[]::new);
+        this.profiles = in.readImmutableList(Profile::new);
+        this.errors = in.readMap(StreamInput::readException);
     }
 
-    public Profile[] getProfiles() {
+    public List<Profile> getProfiles() {
         return profiles;
+    }
+
+    public Map<String, Exception> getErrors() {
+        return errors;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeArray(profiles);
+        out.writeList(profiles);
+        out.writeMap(errors, StreamOutput::writeString, StreamOutput::writeException);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        for (Profile profile : profiles) {
-            builder.field(profile.uid());
-            profile.toXContent(builder, params);
+        {
+            builder.startArray("profiles");
+            for (Profile profile : profiles) {
+                profile.toXContent(builder, params);
+            }
+            builder.endArray();
+            XContentUtils.maybeAddErrorDetails(builder, errors);
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public RestStatus status() {
-        return profiles.length > 0 ? RestStatus.OK : RestStatus.NOT_FOUND;
     }
 }

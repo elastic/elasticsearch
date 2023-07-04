@@ -48,6 +48,19 @@
         "last_checkin_status": {
           "type": "keyword"
         },
+        "last_checkin_message": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "components": {
+          "type": "object",
+          "enabled": false
+        },
         "last_updated": {
           "type": "date"
         },
@@ -207,6 +220,9 @@
         "shared_id": {
           "type": "keyword"
         },
+        "enrollment_id": {
+          "type": "keyword"
+        },
         "type": {
           "type": "keyword"
         },
@@ -227,6 +243,9 @@
         },
         "upgraded_at": {
           "type": "date"
+        },
+        "upgrade_status": {
+          "type": "keyword"
         },
         "user_provided_metadata": {
           "type": "object",

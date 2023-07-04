@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
@@ -49,7 +50,12 @@ public class TransportPostDataAction extends TransportJobTaskAction<PostDataActi
     }
 
     @Override
-    protected void taskOperation(PostDataAction.Request request, JobTask task, ActionListener<PostDataAction.Response> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        PostDataAction.Request request,
+        JobTask task,
+        ActionListener<PostDataAction.Response> listener
+    ) {
         TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
         DataLoadParams params = new DataLoadParams(timeRange, Optional.ofNullable(request.getDataDescription()));
         try (InputStream contentStream = request.getContent().streamInput()) {

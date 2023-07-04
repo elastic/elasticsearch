@@ -20,7 +20,7 @@
         body:  { "foo": "hello world" }
         # make this doc visible in index stats
         refresh: true
- 
+
   - do:
       get:
         index: logs_search
@@ -149,3 +149,37 @@
           conditions:
             max_docs: 1
 
+---
+"Will not rollover with only min_* conditions":
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  # create index with alias and replica
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: 1
+        body:
+          aliases:
+            logs_search: {}
+
+  # index first document and wait for refresh
+  - do:
+      index:
+        index: logs-1
+        id:    "1"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # perform alias rollover with no result
+  - do:
+      catch: bad_request
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            min_age: "0s"
+            min_docs: 1
+  - match: { error.reason: "Validation Failed: 1: at least one max_* rollover condition must be set when using min_* conditions;" }

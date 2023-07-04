@@ -116,10 +116,12 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
 
         final ClusterState newClusterState = ClusterState.builder(oldClusterState).metadata(newMetadata).build();
 
-        terminal.println(
-            Terminal.Verbosity.VERBOSE,
-            "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
-        );
+        if (terminal.isPrintable(Terminal.Verbosity.VERBOSE)) {
+            terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
+            );
+        }
 
         confirm(terminal, CONFIRMATION_MSG);
 

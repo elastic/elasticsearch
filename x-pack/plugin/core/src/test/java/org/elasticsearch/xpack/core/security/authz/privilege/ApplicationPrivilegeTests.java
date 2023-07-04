@@ -19,9 +19,7 @@ import org.junit.Assert;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -34,6 +32,19 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.iterableWithSize;
 
 public class ApplicationPrivilegeTests extends ESTestCase {
+
+    public static ApplicationPrivilege createPrivilege(final String applicationName, final String privilegeName, final String... patterns) {
+        return createPrivilege(applicationName, Collections.singleton(privilegeName), patterns);
+    }
+
+    public static ApplicationPrivilege createPrivilege(
+        final String applicationName,
+        final Set<String> privilegeNames,
+        final String... patterns
+    ) {
+        // TODO rewrite this to use `ApplicationPrivilege.get()`
+        return new ApplicationPrivilege(applicationName, privilegeNames, patterns);
+    }
 
     public void testValidationOfApplicationName() {
         final String specialCharacters = ":;$#%()+='.{}[]!@^&'";
@@ -203,17 +214,13 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         final EqualsHashCodeTestUtils.MutateFunction<ApplicationPrivilege> mutate = randomFrom(
             orig -> createPrivilege("x" + orig.getApplication(), getPrivilegeName(orig), orig.getPatterns()),
             orig -> createPrivilege(orig.getApplication(), "x" + getPrivilegeName(orig), orig.getPatterns()),
-            orig -> new ApplicationPrivilege(orig.getApplication(), getPrivilegeName(orig), "*")
+            orig -> createPrivilege(orig.getApplication(), getPrivilegeName(orig), "*")
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             privilege,
             original -> createPrivilege(original.getApplication(), getPrivilegeName(original), original.getPatterns()),
             mutate
         );
-    }
-
-    private ApplicationPrivilege createPrivilege(String applicationName, String privilegeName, String... patterns) {
-        return new ApplicationPrivilege(applicationName, privilegeName, patterns);
     }
 
     private String getPrivilegeName(ApplicationPrivilege privilege) {
@@ -257,10 +264,6 @@ public class ApplicationPrivilegeTests extends ESTestCase {
             patterns[i] = randomAlphaOfLengthBetween(2, 5) + "/" + suffix;
         }
 
-        final Map<String, Object> metadata = new HashMap<>();
-        for (int i = randomInt(3); i > 0; i--) {
-            metadata.put(randomAlphaOfLengthBetween(2, 5), randomFrom(randomBoolean(), randomInt(10), randomAlphaOfLength(5)));
-        }
         return createPrivilege(applicationName, privilegeName, patterns);
     }
 

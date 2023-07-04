@@ -10,7 +10,7 @@ package org.elasticsearch.monitor.os;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -202,7 +202,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getFree() {
-            return new ByteSizeValue(free);
+            return ByteSizeValue.ofBytes(free);
         }
 
         public ByteSizeValue getUsed() {
@@ -217,13 +217,13 @@ public class OsStats implements Writeable, ToXContentFragment {
                 if (free > 0) {
                     logger.debug("cannot compute used swap when total swap is 0 and free swap is " + free);
                 }
-                return new ByteSizeValue(0);
+                return ByteSizeValue.ZERO;
             }
-            return new ByteSizeValue(total - free);
+            return ByteSizeValue.ofBytes(total - free);
         }
 
         public ByteSizeValue getTotal() {
-            return new ByteSizeValue(total);
+            return ByteSizeValue.ofBytes(total);
         }
 
         @Override
@@ -276,7 +276,7 @@ public class OsStats implements Writeable, ToXContentFragment {
                 total = 0;
             }
             this.total = total;
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
                 long adjustedTotal = in.readLong();
                 assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
                 if (adjustedTotal < 0) {
@@ -299,18 +299,18 @@ public class OsStats implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(total);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
                 out.writeLong(adjustedTotal);
             }
             out.writeLong(free);
         }
 
         public ByteSizeValue getTotal() {
-            return new ByteSizeValue(total);
+            return ByteSizeValue.ofBytes(total);
         }
 
         public ByteSizeValue getAdjustedTotal() {
-            return new ByteSizeValue(adjustedTotal);
+            return ByteSizeValue.ofBytes(adjustedTotal);
         }
 
         public ByteSizeValue getUsed() {
@@ -324,9 +324,9 @@ public class OsStats implements Writeable, ToXContentFragment {
                 if (free > 0) {
                     logger.debug("cannot compute used memory when total memory is 0 and free memory is " + free);
                 }
-                return new ByteSizeValue(0);
+                return ByteSizeValue.ZERO;
             }
-            return new ByteSizeValue(total - free);
+            return ByteSizeValue.ofBytes(total - free);
         }
 
         public short getUsedPercent() {
@@ -334,7 +334,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getFree() {
-            return new ByteSizeValue(free);
+            return ByteSizeValue.ofBytes(free);
         }
 
         public short getFreePercent() {

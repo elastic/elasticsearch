@@ -104,11 +104,6 @@ public class JobTaskState implements PersistentTaskState {
     }
 
     @Override
-    public boolean isFragment() {
-        return false;
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(STATE.getPreferredName(), state.value());

@@ -11,7 +11,7 @@ setup:
             number_of_shards: 1
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             properties:
               foo:
                 type: keyword
@@ -30,7 +30,6 @@ setup:
       index:
         index:   test
         id:      1
-        refresh: true
         body:
           foo: the quick brown fox jumped over the lazy dog
 
@@ -38,7 +37,6 @@ setup:
       index:
         index:   test
         id:      2
-        refresh: true
         body:
           foo:
             - "To be, or not to be, that is the question:"
@@ -74,6 +72,10 @@ setup:
             - "And enterprises of great pith and moment"
             - "With this regard their currents turn awry"
             - "And lose the name of action."
+
+  - do:
+      indices.refresh:
+        index: [test]
 
 ---
 keyword single plain:

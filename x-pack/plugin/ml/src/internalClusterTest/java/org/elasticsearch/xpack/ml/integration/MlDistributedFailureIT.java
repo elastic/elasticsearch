@@ -108,27 +108,19 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             GetJobsStatsAction.Request request = new GetJobsStatsAction.Request("fail-over-job");
             GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
             DiscoveryNode discoveryNode = response.getResponse().results().get(0).getNode();
-            internalCluster().stopRandomNode(settings -> discoveryNode.getName().equals(settings.get("node.name")));
+            internalCluster().stopNode(discoveryNode.getName());
             ensureStableCluster();
         });
     }
 
     @Before
     public void setLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE").build())
-            .get();
+        updateClusterSettings(Settings.builder().put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE"));
     }
 
     @After
     public void unsetLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.utils.persistence").build())
-            .get();
+        updateClusterSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.utils.persistence"));
     }
 
     public void testLoseDedicatedMasterNode() throws Exception {
@@ -331,7 +323,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // Stop the node running the failed job/stopping datafeed
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
-        internalCluster().stopRandomNode(settings -> jobNode.getName().equals(settings.get("node.name")));
+        internalCluster().stopNode(jobNode.getName());
         ensureStableCluster(3);
 
         // We should be allowed to force stop the unassigned datafeed even though it is stopping and its job has failed
@@ -725,7 +717,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // in a Lucene index it can take a while to update when there are many updates in quick
         // succession, like we see in internal cluster tests of node failure scenarios
         assertBusy(() -> {
-            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            ClusterState clusterState = clusterAdmin().prepareState().get().getState();
             List<PersistentTask<?>> tasks = findTasks(clusterState, Set.of(DATAFEED_TASK_NAME, JOB_TASK_NAME));
             assertNotNull(tasks);
             assertEquals("Expected 2 tasks, but got [" + tasks + "]", 2, tasks.size());

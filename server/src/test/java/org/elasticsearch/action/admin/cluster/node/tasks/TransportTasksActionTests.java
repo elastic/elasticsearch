@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -24,7 +25,6 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -33,11 +33,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -53,11 +56,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
@@ -66,7 +70,9 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
 
@@ -100,7 +106,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     }
 
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
-        private String requestName;
+        private final String requestName;
 
         NodesRequest(StreamInput in) throws IOException {
             super(in);
@@ -143,10 +149,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             return new NodeRequest(request);
         }
 
-        @Override
-        protected NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
-            return new NodeResponse(in);
-        }
     }
 
     static class TestTaskResponse implements Writeable {
@@ -178,11 +180,16 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         TestTasksRequest() {}
+
+        @Override
+        public CancellableTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "testTasksRequest", parentTaskId, headers);
+        }
     }
 
     static class TestTasksResponse extends BaseTasksResponse {
 
-        private List<TestTaskResponse> tasks;
+        private final List<TestTaskResponse> tasks;
 
         TestTasksResponse(
             List<TestTaskResponse> tasks,
@@ -243,24 +250,22 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     }
 
-    private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch) throws InterruptedException {
+    private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch) throws Exception {
         return startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request"));
     }
 
-    private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request)
-        throws InterruptedException {
+    private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request) throws Exception {
         PlainActionFuture<NodesResponse> future = newFuture();
         startBlockingTestNodesAction(checkLatch, request, future);
         return future;
     }
 
-    private Task startBlockingTestNodesAction(CountDownLatch checkLatch, ActionListener<NodesResponse> listener)
-        throws InterruptedException {
+    private Task startBlockingTestNodesAction(CountDownLatch checkLatch, ActionListener<NodesResponse> listener) throws Exception {
         return startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request"), listener);
     }
 
     private Task startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request, ActionListener<NodesResponse> listener)
-        throws InterruptedException {
+        throws Exception {
         CountDownLatch actionLatch = new CountDownLatch(nodesCount);
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
@@ -287,16 +292,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
         // Make sure no tasks are running
         for (TestNode node : testNodes) {
-            assertEquals(0, node.transportService.getTaskManager().getTasks().size());
+            assertBusy(() -> assertEquals(0, node.transportService.getTaskManager().getTasks().size()));
         }
         Task task = testNodes[0].transportService.getTaskManager()
-            .registerAndExecute(
-                "transport",
-                actions[0],
-                request,
-                testNodes[0].transportService.getLocalNodeConnection(),
-                ActionTestUtils.wrapAsTaskListener(listener)
-            );
+            .registerAndExecute("transport", actions[0], request, testNodes[0].transportService.getLocalNodeConnection(), listener);
         logger.info("Awaiting for all actions to start");
         assertTrue(actionLatch.await(10, TimeUnit.SECONDS));
         logger.info("Done waiting for all actions to start");
@@ -309,7 +308,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         CountDownLatch checkLatch = new CountDownLatch(1);
         CountDownLatch responseLatch = new CountDownLatch(1);
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
-        Task mainTask = startBlockingTestNodesAction(checkLatch, new ActionListener<NodesResponse>() {
+        Task mainTask = startBlockingTestNodesAction(checkLatch, new ActionListener<>() {
             @Override
             public void onResponse(NodesResponse listTasksResponse) {
                 responseReference.set(listTasksResponse);
@@ -405,7 +404,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Make sure that we don't have any lingering tasks
         for (TestNode node : testNodes) {
-            assertEquals(0, node.transportService.getTaskManager().getTasks().size());
+            assertBusy(() -> assertEquals(0, node.transportService.getTaskManager().getTasks().size()));
         }
     }
 
@@ -484,7 +483,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         CountDownLatch responseLatch = new CountDownLatch(1);
-        Task task = startBlockingTestNodesAction(checkLatch, ActionListener.wrap(responseLatch::countDown));
+        Task task = startBlockingTestNodesAction(checkLatch, ActionListener.running(responseLatch::countDown));
         String actionName = "internal:testAction"; // only pick the main action
 
         // Try to cancel main task using action name
@@ -535,12 +534,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         responseLatch.await(10, TimeUnit.SECONDS);
     }
 
-    @TestLogging(
-        reason = "debugging for https://github.com/elastic/elasticsearch/issues/69731",
-        value = "org.elasticsearch.transport.TcpTransport:TRACE,"
-            + "org.elasticsearch.transport.TransportService.tracer:TRACE,"
-            + "org.elasticsearch.tasks.TaskManager:TRACE"
-    )
     public void testFailedTasksCount() throws Exception {
         Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true).build();
         setupTestNodes(settings);
@@ -563,25 +556,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             };
         }
 
-        logger.info("--> checking for ongoing tasks before starting test actions");
-        final String immediateTaskDescriptions = getAllTaskDescriptions();
-
-        // Hunting for cause of https://github.com/elastic/elasticsearch/issues/69731: if there's an unexpected task then we check whether
-        // it goes away if we wait for long enough first.
+        // Since https://github.com/elastic/elasticsearch/pull/94865 task unregistration is not guaranteed to have happened upon
+        // receiving the response, e.g. for a `internal:transport/handshake` when connecting the test nodes. Therefore, wait
+        // for ongoing tasks to finish.
         assertBusy(() -> {
-            final String ongoingTaskDescriptions = getAllTaskDescriptions();
-            assertThat(
-                "initially:\n" + immediateTaskDescriptions + "\nongoing:\n" + ongoingTaskDescriptions,
-                ongoingTaskDescriptions.length(),
-                equalTo(0)
-            );
+            final List<String> ongoingTaskDescriptions = getAllTaskDescriptions();
+            assertThat("Ongoing tasks:" + ongoingTaskDescriptions, ongoingTaskDescriptions.size(), equalTo(0));
         });
-
-        assertThat(
-            "eventually completed, but still unexpected:\n" + immediateTaskDescriptions,
-            immediateTaskDescriptions.length(),
-            equalTo(0)
-        );
 
         NodesRequest request = new NodesRequest("Test Request");
         NodesResponse responses = ActionTestUtils.executeBlockingWithTask(
@@ -604,29 +585,243 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
     }
 
-    private String getAllTaskDescriptions() {
-        final StringBuilder taskDescriptions = new StringBuilder();
+    private List<String> getAllTaskDescriptions() {
+        List<String> taskDescriptions = new ArrayList<>();
         for (TestNode testNode : testNodes) {
-            final Map<Long, Task> tasks = testNode.transportService.getTaskManager().getTasks();
-            if (tasks.isEmpty() == false) {
-                taskDescriptions.append("still running tasks on node [").append(testNode.getNodeId()).append("]\n");
-                for (Map.Entry<Long, Task> entry : tasks.entrySet()) {
-                    final Task task = entry.getValue();
-                    taskDescriptions.append(entry.getKey())
-                        .append(": [")
-                        .append(task.getId())
-                        .append("][")
-                        .append(task.getAction())
-                        .append("] started at ")
-                        .append(task.getStartTime())
-                        .append('\n');
-                }
+            for (Task task : testNode.transportService.getTaskManager().getTasks().values()) {
+                taskDescriptions.add(
+                    Strings.format(
+                        "node [%s]: task [id:%d][%s] started at %d",
+                        testNode.getNodeId(),
+                        task.getId(),
+                        task.getAction(),
+                        task.getStartTime()
+                    )
+                );
             }
         }
-        return taskDescriptions.toString();
+        return taskDescriptions;
     }
 
-    public void testTaskLevelActionFailures() throws ExecutionException, InterruptedException, IOException {
+    public void testActionParentCancellationPropagates() throws Exception {
+        setupTestNodes(Settings.EMPTY);
+        connectNodes(testNodes);
+        CountDownLatch checkLatch = new CountDownLatch(1);
+        CountDownLatch taskLatch = new CountDownLatch(1);
+        ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+        int numNodes = 2;
+
+        CountDownLatch taskExecutesLatch = new CountDownLatch(numNodes);
+        TestTasksAction[] tasksActions = new TestTasksAction[numNodes];
+        for (int j = 0; j < numNodes; j++) {
+            final int nodeId = j;
+            tasksActions[j] = new TestTasksAction(
+                "internal:testTasksAction",
+                testNodes[nodeId].clusterService,
+                testNodes[nodeId].transportService
+            ) {
+                @Override
+                protected void taskOperation(
+                    CancellableTask actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
+                    try {
+                        taskExecutesLatch.countDown();
+                        logger.info("Task handled on node {} {}", nodeId, actionTask);
+                        taskLatch.await();
+                        assertThat(actionTask, instanceOf(CancellableTask.class));
+                        logger.info("Task is now proceeding with cancellation check {}", nodeId);
+                        assertBusy(() -> assertTrue(actionTask.isCancelled()));
+                        listener.onResponse(new TestTaskResponse("CANCELLED"));
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                        fail(e.getMessage());
+                    }
+                }
+            };
+        }
+
+        TestTasksRequest testTasksRequest = new TestTasksRequest();
+        testTasksRequest.setActions("internal:testAction[n]"); // pick all test actions
+        testTasksRequest.setNodes(testNodes[0].getNodeId(), testNodes[1].getNodeId()); // only first two nodes
+        PlainActionFuture<TestTasksResponse> taskFuture = newFuture();
+        CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
+            .registerAndExecute(
+                "direct",
+                tasksActions[0],
+                testTasksRequest,
+                testNodes[0].transportService.getLocalNodeConnection(),
+                taskFuture
+            );
+        logger.info("Executing test task request and awaiting their execution");
+        taskExecutesLatch.await();
+        logger.info("All test tasks are now executing");
+
+        PlainActionFuture<Void> cancellationFuture = newFuture();
+        logger.info("Cancelling tasks");
+
+        testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test case", false, cancellationFuture);
+        logger.info("Awaiting task cancellation");
+        cancellationFuture.actionGet();
+        logger.info("Parent task is now cancelled counting down task latch");
+        taskLatch.countDown();
+        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+
+        // Release all node tasks and wait for response
+        checkLatch.countDown();
+        NodesResponse responses = future.get();
+        assertEquals(0, responses.failureCount());
+    }
+
+    public void testTaskResponsesDiscardedOnCancellation() throws Exception {
+        setupTestNodes(Settings.EMPTY);
+        connectNodes(testNodes);
+        CountDownLatch blockedActionLatch = new CountDownLatch(1);
+        ActionFuture<NodesResponse> future = startBlockingTestNodesAction(blockedActionLatch);
+
+        final var taskResponseListeners = new LinkedBlockingQueue<ActionListener<TestTaskResponse>>();
+        final var taskResponseListenersCountDown = new CountDownLatch(2); // test action plus the list[n] action
+
+        final TestTasksAction tasksAction = new TestTasksAction(
+            "internal:testTasksAction",
+            testNodes[0].clusterService,
+            testNodes[0].transportService
+        ) {
+            @Override
+            protected void taskOperation(
+                CancellableTask actionTask,
+                TestTasksRequest request,
+                Task task,
+                ActionListener<TestTaskResponse> listener
+            ) {
+                taskResponseListeners.add(listener);
+                taskResponseListenersCountDown.countDown();
+            }
+        };
+
+        TestTasksRequest testTasksRequest = new TestTasksRequest();
+        testTasksRequest.setNodes(testNodes[0].getNodeId()); // only local node
+        PlainActionFuture<TestTasksResponse> taskFuture = newFuture();
+        CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
+            .registerAndExecute(
+                "direct",
+                tasksAction,
+                testTasksRequest,
+                testNodes[0].transportService.getLocalNodeConnection(),
+                taskFuture
+            );
+        safeAwait(taskResponseListenersCountDown);
+
+        final var reachabilityChecker = new ReachabilityChecker();
+
+        final var listener0 = Objects.requireNonNull(taskResponseListeners.poll());
+        if (randomBoolean()) {
+            listener0.onResponse(reachabilityChecker.register(new TestTaskResponse("status")));
+        } else {
+            listener0.onFailure(reachabilityChecker.register(new ElasticsearchException("simulated")));
+        }
+        reachabilityChecker.checkReachable();
+
+        PlainActionFuture.<Void, RuntimeException>get(
+            fut -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, fut),
+            10,
+            TimeUnit.SECONDS
+        );
+
+        reachabilityChecker.ensureUnreachable();
+
+        while (true) {
+            final var listener = taskResponseListeners.poll();
+            if (listener == null) {
+                break;
+            }
+            if (randomBoolean()) {
+                listener.onResponse(reachabilityChecker.register(new TestTaskResponse("status")));
+            } else {
+                listener.onFailure(reachabilityChecker.register(new ElasticsearchException("simulated")));
+            }
+            reachabilityChecker.ensureUnreachable();
+        }
+
+        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+
+        blockedActionLatch.countDown();
+        NodesResponse responses = future.get(10, TimeUnit.SECONDS);
+        assertEquals(0, responses.failureCount());
+    }
+
+    public void testNodeResponsesDiscardedOnCancellation() {
+        setupTestNodes(Settings.EMPTY);
+        connectNodes(testNodes);
+
+        final var taskResponseListeners = new AtomicReferenceArray<ActionListener<TestTaskResponse>>(testNodes.length);
+        final var taskResponseListenersCountDown = new CountDownLatch(testNodes.length); // one list[n] action per node
+        final var tasksActions = new TestTasksAction[testNodes.length];
+        for (int i = 0; i < testNodes.length; i++) {
+            final var nodeIndex = i;
+            tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
+                @Override
+                protected void taskOperation(
+                    CancellableTask actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
+                    assertThat(taskResponseListeners.getAndSet(nodeIndex, ActionListener.notifyOnce(listener)), nullValue());
+                    taskResponseListenersCountDown.countDown();
+                }
+            };
+        }
+
+        TestTasksRequest testTasksRequest = new TestTasksRequest();
+        testTasksRequest.setActions("internal:testTasksAction[n]");
+        PlainActionFuture<TestTasksResponse> taskFuture = newFuture();
+        CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
+            .registerAndExecute(
+                "direct",
+                tasksActions[0],
+                testTasksRequest,
+                testNodes[0].transportService.getLocalNodeConnection(),
+                taskFuture
+            );
+        safeAwait(taskResponseListenersCountDown);
+
+        final var reachabilityChecker = new ReachabilityChecker();
+
+        if (randomBoolean()) {
+            // local node does not de/serialize node-level response so retains references to the task-level response
+            if (randomBoolean()) {
+                taskResponseListeners.get(0).onResponse(reachabilityChecker.register(new TestTaskResponse("status")));
+            } else {
+                taskResponseListeners.get(0).onFailure(reachabilityChecker.register(new ElasticsearchException("simulated")));
+            }
+            reachabilityChecker.checkReachable();
+        }
+
+        PlainActionFuture.<Void, RuntimeException>get(
+            fut -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, fut),
+            10,
+            TimeUnit.SECONDS
+        );
+
+        reachabilityChecker.ensureUnreachable();
+        assertFalse(taskFuture.isDone());
+
+        for (int i = 0; i < testNodes.length; i++) {
+            if (randomBoolean()) {
+                taskResponseListeners.get(i).onResponse(reachabilityChecker.register(new TestTaskResponse("status")));
+            } else {
+                taskResponseListeners.get(i).onFailure(reachabilityChecker.register(new ElasticsearchException("simulated")));
+            }
+            reachabilityChecker.ensureUnreachable();
+        }
+
+        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+    }
+
+    public void testTaskLevelActionFailures() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
@@ -639,7 +834,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             // Simulate task action that fails on one of the tasks on one of the nodes
             tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
-                protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
+                protected void taskOperation(
+                    CancellableTask actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
                     logger.info("Task action on node {}", node);
                     if (failTaskOnNode == node && task.getParentTaskId().isSet()) {
                         logger.info("Failing on node {}", node);
@@ -677,80 +877,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // Get successful responses from all nodes except one
         assertEquals(testNodes.length - 1, response.tasks.size());
         assertEquals(0, response.getNodeFailures().size()); // no nodes failed
-
-        // Release all node tasks and wait for response
-        checkLatch.countDown();
-        NodesResponse responses = future.get();
-        assertEquals(0, responses.failureCount());
-    }
-
-    /**
-     * This test starts nodes actions that blocks on all nodes. While node actions are blocked in the middle of execution
-     * it executes a tasks action that targets these blocked node actions. The test verifies that task actions are only
-     * getting executed on nodes that are not listed in the node filter.
-     */
-    public void testTaskNodeFiltering() throws ExecutionException, InterruptedException, IOException {
-        setupTestNodes(Settings.EMPTY);
-        connectNodes(testNodes);
-        CountDownLatch checkLatch = new CountDownLatch(1);
-        // Start some test nodes action so we could have something to run tasks actions on
-        ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
-
-        String[] allNodes = new String[testNodes.length];
-        for (int i = 0; i < testNodes.length; i++) {
-            allNodes[i] = testNodes[i].getNodeId();
-        }
-
-        int filterNodesSize = randomInt(allNodes.length);
-        Set<String> filterNodes = new HashSet<>(randomSubsetOf(filterNodesSize, allNodes));
-        logger.info("Filtering out nodes {} size: {}", filterNodes, filterNodesSize);
-
-        TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
-        for (int i = 0; i < testNodes.length; i++) {
-            final int node = i;
-            // Simulate a task action that works on all nodes except nodes listed in filterNodes.
-            // We are testing that it works.
-            tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
-
-                @Override
-                protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
-                    String[] superNodes = super.filterNodeIds(nodes, nodesIds);
-                    List<String> filteredNodes = new ArrayList<>();
-                    for (String node : superNodes) {
-                        if (filterNodes.contains(node) == false) {
-                            filteredNodes.add(node);
-                        }
-                    }
-                    return filteredNodes.toArray(new String[filteredNodes.size()]);
-                }
-
-                @Override
-                protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
-                    if (randomBoolean()) {
-                        listener.onResponse(new TestTaskResponse(testNodes[node].getNodeId()));
-                    } else {
-                        threadPool.generic().execute(() -> listener.onResponse(new TestTaskResponse(testNodes[node].getNodeId())));
-                    }
-                }
-            };
-        }
-
-        // Run task action on node tasks that are currently running
-        // should be successful on all nodes except nodes that we filtered out
-        TestTasksRequest testTasksRequest = new TestTasksRequest();
-        testTasksRequest.setActions("internal:testAction[n]"); // pick all test actions
-        TestTasksResponse response = ActionTestUtils.executeBlocking(tasksActions[randomIntBetween(0, nodesCount - 1)], testTasksRequest);
-
-        // Get successful responses from all nodes except nodes that we filtered out
-        assertEquals(testNodes.length - filterNodes.size(), response.tasks.size());
-        assertEquals(0, response.getTaskFailures().size()); // no task failed
-        assertEquals(0, response.getNodeFailures().size()); // no nodes failed
-
-        // Make sure that filtered nodes didn't send any responses
-        for (TestTaskResponse taskResponse : response.tasks) {
-            String nodeId = taskResponse.getStatus();
-            assertFalse("Found response from filtered node " + nodeId, filterNodes.contains(nodeId));
-        }
 
         // Release all node tasks and wait for response
         checkLatch.countDown();
@@ -803,14 +929,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     private Map<String, Object> serialize(ListTasksResponse response, boolean byParents) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject();
         if (byParents) {
             DiscoveryNodes nodes = testNodes[0].clusterService.state().nodes();
-            response.toXContentGroupedByNode(builder, ToXContent.EMPTY_PARAMS, nodes);
+            ChunkedToXContent.wrapAsToXContent(response.groupedByNode(() -> nodes)).toXContent(builder, ToXContent.EMPTY_PARAMS);
         } else {
-            response.toXContentGroupedByParents(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(response.groupedByParent()).toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
-        builder.endObject();
         builder.flush();
         logger.info(Strings.toString(builder));
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();

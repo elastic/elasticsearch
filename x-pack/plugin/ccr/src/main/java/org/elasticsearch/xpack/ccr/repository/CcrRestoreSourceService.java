@@ -42,6 +42,7 @@ import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongConsumer;
 
@@ -85,7 +86,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     }
 
     @Override
-    protected synchronized void doClose() throws IOException {
+    protected synchronized void doClose() {
         sessionsForShard.clear();
         onGoingRestores.values().forEach(AbstractRefCounted::decRef);
         onGoingRestores.clear();
@@ -103,7 +104,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 if (indexShard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(indexShard.shardId(), "cannot open ccr restore session if shard closed");
                 }
-                restore = new RestoreSession(sessionUUID, indexShard, indexShard.acquireSafeIndexCommit(), scheduleTimeout(sessionUUID));
+                final Engine.IndexCommitRef commitRef = indexShard.acquireSafeIndexCommit();
+                final Set<String> fileNames = Set.copyOf(commitRef.getIndexCommit().getFileNames());
+                restore = new RestoreSession(sessionUUID, indexShard, commitRef, fileNames, scheduleTimeout(sessionUUID));
                 onGoingRestores.put(sessionUUID, restore);
                 HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) -> new HashSet<>());
                 sessions.add(sessionUUID);
@@ -118,6 +121,32 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                     restore.decRef();
                 }
             }
+        }
+    }
+
+    public void ensureSessionShardIdConsistency(String sessionUUID, ShardId shardId) {
+        final RestoreSession restore = onGoingRestores.get(sessionUUID);
+        if (restore == null) {
+            logger.debug("could not get session [{}] because session not found", sessionUUID);
+            throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
+        }
+        final ShardId sessionShardId = restore.indexShard.shardId();
+        if (false == sessionShardId.equals(shardId)) {
+            throw new IllegalArgumentException(
+                "session [" + sessionUUID + "] shardId [" + sessionShardId + "] does not match requested shardId [" + shardId + "]"
+            );
+        }
+    }
+
+    public void ensureFileNameIsKnownToSession(String sessionUUID, String fileName) {
+        final RestoreSession restore = onGoingRestores.get(sessionUUID);
+        if (restore == null) {
+            logger.debug("could not get session [{}] because session not found", sessionUUID);
+            throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
+        }
+        // Ensure no file system traversal is possible by only allowing file names known to the restore session
+        if (false == restore.fileNames.contains(fileName)) {
+            throw new IllegalArgumentException("invalid file name [" + fileName + "]");
         }
     }
 
@@ -185,6 +214,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         private final String sessionUUID;
         private final IndexShard indexShard;
         private final Engine.IndexCommitRef commitRef;
+        private final Set<String> fileNames;
         private final Scheduler.Cancellable timeoutTask;
         private final KeyedLock<String> keyedLock = new KeyedLock<>();
         private final Map<String, IndexInput> cachedInputs = new ConcurrentHashMap<>();
@@ -194,11 +224,13 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             String sessionUUID,
             IndexShard indexShard,
             Engine.IndexCommitRef commitRef,
+            Set<String> fileNames,
             Scheduler.Cancellable timeoutTask
         ) {
             this.sessionUUID = sessionUUID;
             this.indexShard = indexShard;
             this.commitRef = commitRef;
+            this.fileNames = fileNames;
             this.timeoutTask = timeoutTask;
         }
 

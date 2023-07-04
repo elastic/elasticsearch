@@ -51,6 +51,10 @@ gradlePlugin {
       id = 'elasticsearch.docs-test'
       implementationClass = 'org.elasticsearch.gradle.internal.doc.DocsTestPlugin'
     }
+    draArtifacts {
+      id = 'elasticsearch.dra-artifacts'
+      implementationClass = 'org.elasticsearch.gradle.internal.dra.DraResolvePlugin'
+    }
     globalBuildInfo {
       id = 'elasticsearch.global-build-info'
       implementationClass = 'org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin'
@@ -103,6 +107,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-test-rerun'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin'
     }
+    javaToolChainPlugin {
+      id = 'elasticsearch.java-toolchain'
+      implementationClass = 'org.elasticsearch.gradle.internal.toolchain.JavaToolChainResolverPlugin'
+    }
     javaDoc {
       id = 'elasticsearch.java-doc'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin'
@@ -110,6 +118,10 @@ gradlePlugin {
     java {
       id = 'elasticsearch.java'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'
+    }
+    legacyInternalJavaRestTest {
+      id = 'elasticsearch.legacy-java-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin'
     }
     internalJavaRestTest {
       id = 'elasticsearch.internal-java-rest-test'
@@ -163,9 +175,17 @@ gradlePlugin {
       id = 'elasticsearch.validate-rest-spec'
       implementationClass = 'org.elasticsearch.gradle.internal.precommit.ValidateRestSpecPlugin'
     }
+    legacyYamlRestCompatTest {
+      id = 'elasticsearch.legacy-yaml-rest-compat-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.LegacyYamlRestCompatTestPlugin'
+    }
     yamlRestCompatTest {
       id = 'elasticsearch.yaml-rest-compat-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin'
+    }
+    legacyYamlRestTest {
+      id = 'elasticsearch.legacy-yaml-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin'
     }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'
@@ -215,14 +235,15 @@ configurations {
 }
 
 dependencies {
-  constraints {
-      integTestImplementation('org.ow2.asm:asm:9.3')
-  }
   components.all(JacksonAlignmentRule)
   constraints {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
+    integTestImplementation('org.ow2.asm:asm:9.5')
+    api("org.yaml:snakeyaml") {
+      version { strictly(versions.snakeyaml) }
+    }
   }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform(buildLibs.jackson.platform)
@@ -291,7 +312,9 @@ dependencies {
     exclude module: "groovy"
   }
   testImplementation buildLibs.spock.junit4
+  testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
+
 }
 
 tasks.named('test').configure {
@@ -310,14 +333,19 @@ tasks.register("bootstrapPerformanceTests", Copy) {
   from('performance')
   into('build/performanceTests')
   def root = file('..')
+  inputs.property('branchWrapper', gradle.gradleVersion)
   filter(ReplaceTokens, tokens: [
           testGitCommit:GitInfo.gitInfo(root).revision,
-          masterWrapper:"${ -> resolveMasterWrapperVersion()}".toString(),
-          branchWrapper:"${-> new File(root, "build-tools-internal/src/main/resources/minimumGradleVersion").text}".toString()])
+          mainWrapper:"${ -> resolveMainWrapperVersion()}".toString(),
+          branchWrapper:"${-> gradle.gradleVersion}".toString()])
 }
 
-def resolveMasterWrapperVersion() {
-  new URL("https://raw.githubusercontent.com/elastic/elasticsearch/master/build-tools-internal/src/main/resources/minimumGradleVersion").text.trim()
+tasks.named("jar") {
+  exclude("classpath.index")
+}
+
+def resolveMainWrapperVersion() {
+  new URL("https://raw.githubusercontent.com/elastic/elasticsearch/main/build-tools-internal/src/main/resources/minimumGradleVersion").text.trim()
 }
 
 abstract class JacksonAlignmentRule implements ComponentMetadataRule {

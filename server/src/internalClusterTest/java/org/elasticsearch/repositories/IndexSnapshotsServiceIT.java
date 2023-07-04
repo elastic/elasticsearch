@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
@@ -18,7 +17,9 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -31,13 +32,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.index.IndexVersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -59,7 +59,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 assertThat(repositoryException, is(notNullValue()));
                 assertThat(
                     repositoryException.getMessage(),
-                    equalTo(String.format(Locale.ROOT, "[%s] Unable to find the latest snapshot for shard [[idx][0]]", repository))
+                    equalTo(Strings.format("[%s] Unable to find the latest snapshot for shard [[idx][0]]", repository))
                 );
             }
         } else {
@@ -113,7 +113,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         final boolean useBwCFormat = randomBoolean();
         if (useBwCFormat) {
-            final Version version = randomVersionBetween(random(), Version.V_7_5_0, Version.CURRENT);
+            final IndexVersion version = randomVersionBetween(random(), IndexVersion.V_7_5_0, IndexVersion.current());
             initWithSnapshotVersion(repoName, repoPath, version);
         }
 
@@ -133,7 +133,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 indexRandomDocs(indexName2, 10);
             }
             final List<String> snapshotIndices = randomSubsetOf(indices);
-            final SnapshotInfo snapshotInfo = createSnapshot(repoName, String.format(Locale.ROOT, "snap-%03d", i), snapshotIndices);
+            final SnapshotInfo snapshotInfo = createSnapshot(repoName, Strings.format("snap-%03d", i), snapshotIndices);
             if (snapshotInfo.indices().contains(indexName)) {
                 lastSnapshot = snapshotInfo;
                 ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().execute().actionGet();
@@ -175,9 +175,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         blockAllDataNodes(fsRepoName);
 
         final String snapshotName = "snap-1";
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(fsRepoName, snapshotName)
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(fsRepoName, snapshotName)
             .setIndices(indexName)
             .setWaitForCompletion(true)
             .execute();
@@ -206,10 +204,12 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithContent(indexName);
 
         int snapshotIdx = 0;
-        createSnapshot(failingRepoName, String.format(Locale.ROOT, "snap-%03d", snapshotIdx++), Collections.singletonList(indexName));
+        Object[] args1 = new Object[] { snapshotIdx++ };
+        createSnapshot(failingRepoName, Strings.format("snap-%03d", args1), Collections.singletonList(indexName));
         SnapshotInfo latestSnapshot = null;
         for (String workingRepoName : workingRepoNames) {
-            String snapshot = String.format(Locale.ROOT, "snap-%03d", snapshotIdx++);
+            Object[] args = new Object[] { snapshotIdx++ };
+            String snapshot = Strings.format("snap-%03d", args);
             latestSnapshot = createSnapshot(workingRepoName, snapshot, Collections.singletonList(indexName));
         }
 
@@ -234,7 +234,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         assertThat(error.isPresent(), is(equalTo(true)));
         assertThat(
             error.get().getMessage(),
-            equalTo(String.format(Locale.ROOT, "[%s] Unable to find the latest snapshot for shard [[%s][0]]", failingRepoName, indexName))
+            equalTo(Strings.format("[%s] Unable to find the latest snapshot for shard [[%s][0]]", failingRepoName, indexName))
         );
 
         for (String workingRepoName : workingRepoNames) {
@@ -264,7 +264,8 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         int snapshotIdx = 0;
         SnapshotInfo expectedLatestSnapshot = null;
         for (String repository : repositories) {
-            String snapshot = String.format(Locale.ROOT, "snap-%03d", snapshotIdx++);
+            Object[] args = new Object[] { snapshotIdx++ };
+            String snapshot = Strings.format("snap-%03d", args);
             expectedLatestSnapshot = createSnapshot(repository, snapshot, Collections.singletonList(indexName));
         }
 
@@ -290,9 +291,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             ((MockRepository) repositoriesService.repository(repoName)).setBlockAndFailOnWriteSnapFiles();
         }
 
-        client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repoName, "snap")
+        clusterAdmin().prepareCreateSnapshot(repoName, "snap")
             .setIndices(indexName)
             .setWaitForCompletion(false)
             .setFeatureStates(NO_FEATURE_STATES_VALUE)

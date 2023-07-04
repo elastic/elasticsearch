@@ -30,6 +30,9 @@
   "ip_field": {
     "type": "ip"
   },
+  "version_field": {
+    "type": "version"
+  },
   "text_field": {
     "type": "text"
   },

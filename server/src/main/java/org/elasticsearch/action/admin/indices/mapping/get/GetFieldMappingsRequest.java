@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -41,7 +41,7 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
     public GetFieldMappingsRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String[] types = in.readStringArray();
             if (types != Strings.EMPTY_ARRAY) {
                 throw new IllegalArgumentException("Expected empty type array but received [" + Arrays.toString(types) + "]");
@@ -50,7 +50,7 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         // Consume the deprecated local parameter
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readBoolean();
         }
         fields = in.readStringArray();
@@ -112,11 +112,11 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeBoolean(true);
         }
         out.writeStringArray(fields);

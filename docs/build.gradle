@@ -25,9 +25,9 @@ ext.docsFileTree = fileTree(projectDir) {
   // Broken code snippet tests
   exclude 'reference/graph/explore.asciidoc'
   if (BuildParams.inFipsJvm) {
-    // We don't install/support this plugin in FIPS 140
-    exclude 'plugins/ingest-attachment.asciidoc'
-    // We can't conditionally control output, this would be missing the ingest-attachment plugin
+    // We don't support this component in FIPS 140
+    exclude 'reference/ingest/processors/attachment.asciidoc'
+    // We can't conditionally control output, this would be missing the ingest-attachment component
     exclude 'reference/cat/plugins.asciidoc'
   }
 }
@@ -63,9 +63,14 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
-    // TODO: remove this once the disk usage indicator feature is finished #84811
-    requiresFeature 'es.health_node_feature_flag_enabled', Version.fromString("8.4.0")
   }
+
+  // debug ccr test failures:
+  // https://github.com/elastic/elasticsearch/issues/95678
+  // https://github.com/elastic/elasticsearch/issues/94359
+  // https://github.com/elastic/elasticsearch/issues/96561
+  setting 'logger.org.elasticsearch.transport.SniffConnectionStrategy', 'DEBUG'
+  setting 'logger.org.elasticsearch.transport.RemoteClusterService', 'DEBUG'
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
@@ -95,6 +100,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
   systemProperty 'es.transport.cname_in_publish_address', 'true'
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+  requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.8.0")
 
   // build the cluster with all plugins
   project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
@@ -105,7 +111,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
       return
     }
     // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-    if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
+    if (subproj.path.startsWith(':modules:ingest-attachment') && BuildParams.inFipsJvm) {
       return
     }
     plugin subproj.path
@@ -115,6 +121,18 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 tasks.named("yamlRestTest").configure {
   doFirst {
     delete("${buildDir}/cluster/shared/repo")
+  }
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
+}
+
+// TODO: Remove the following when RCS feature is released
+// The get-builtin-privileges doc test does not include the new cluster privilege for RCS
+// So we disable the test if the build is a snapshot where unreleased feature is enabled by default
+tasks.named("yamlRestTest").configure {
+  if (BuildParams.isSnapshotBuild()) {
+    systemProperty 'tests.rest.blacklist', 'reference/rest-api/usage/*'
   }
 }
 
@@ -1556,6 +1574,15 @@ setups['simple_kibana_continuous_pivot'] = setups['kibana_sample_data_ecommerce'
               }
             }
           }
+'''
+setups['setup_houseprices'] = '''
+  - do:
+        indices.create:
+          index: houses_sold_last_10_yrs
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
 '''
 setups['setup_logdata'] = '''
   - do:

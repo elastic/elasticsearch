@@ -11,15 +11,19 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
@@ -77,7 +81,7 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
 
         public static final ParseField FOLLOWER_INDICES_FIELD = new ParseField("follower_indices");
 
@@ -102,15 +106,12 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.startArray(FOLLOWER_INDICES_FIELD.getPreferredName());
-            for (FollowerInfo followInfo : followInfos) {
-                followInfo.toXContent(builder, params);
-            }
-            builder.endArray();
-            builder.endObject();
-            return builder;
+        public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+            return Iterators.concat(
+                Iterators.single((builder, params) -> builder.startObject().startArray(FOLLOWER_INDICES_FIELD.getPreferredName())),
+                followInfos.iterator(),
+                Iterators.single((builder, params) -> builder.endArray().endObject())
+            );
         }
 
         @Override

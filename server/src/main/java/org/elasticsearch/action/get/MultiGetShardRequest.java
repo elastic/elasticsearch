@@ -8,14 +8,17 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.SourceLoader;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardRequest> {
 
@@ -27,6 +30,14 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
     List<Integer> locations;
     List<MultiGetRequest.Item> items;
 
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    private boolean forceSyntheticSource;
+
     MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
         super(index);
         this.shardId = shardId;
@@ -35,6 +46,27 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         preference = multiGetRequest.preference;
         realtime = multiGetRequest.realtime;
         refresh = multiGetRequest.refresh;
+        forceSyntheticSource = multiGetRequest.isForceSyntheticSource();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof MultiGetShardRequest == false) return false;
+        MultiGetShardRequest other = (MultiGetShardRequest) o;
+        return shardId == other.shardId
+            && realtime == other.realtime
+            && refresh == other.refresh
+            && forceSyntheticSource == other.forceSyntheticSource
+            && Objects.equals(preference, other.preference)
+            && Objects.equals(index, other.index)
+            && Objects.equals(locations, other.locations)
+            && Objects.equals(items, other.items);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shardId, preference, realtime, refresh, index, locations, items, forceSyntheticSource);
     }
 
     MultiGetShardRequest(StreamInput in) throws IOException {
@@ -51,6 +83,11 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         realtime = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            forceSyntheticSource = in.readBoolean();
+        } else {
+            forceSyntheticSource = false;
+        }
     }
 
     @Override
@@ -66,6 +103,13 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            out.writeBoolean(forceSyntheticSource);
+        } else {
+            if (forceSyntheticSource) {
+                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
+            }
+        }
     }
 
     @Override
@@ -106,6 +150,21 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
 
     public MultiGetShardRequest refresh(boolean refresh) {
         this.refresh = refresh;
+        return this;
+    }
+
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    public boolean isForceSyntheticSource() {
+        return forceSyntheticSource;
+    }
+
+    public MultiGetShardRequest setForceSyntheticSource(boolean forceSyntheticSource) {
+        this.forceSyntheticSource = forceSyntheticSource;
         return this;
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -17,11 +18,10 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -33,8 +33,11 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -42,9 +45,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.SortedNumericDocValuesLongFieldScript;
 import org.elasticsearch.script.field.DateMillisDocValuesField;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
-import org.elasticsearch.script.field.SortedNumericDocValuesLongFieldScript;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -63,10 +66,10 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.time.DateUtils.toLong;
 
@@ -243,10 +246,10 @@ public final class DateFieldMapper extends FieldMapper {
         private final Parameter<Boolean> ignoreMalformed;
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
 
         private final Resolution resolution;
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
         private final ScriptCompiler scriptCompiler;
 
         public Builder(
@@ -255,7 +258,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateFormatter dateFormatter,
             ScriptCompiler scriptCompiler,
             boolean ignoreMalformedByDefault,
-            Version indexCreatedVersion
+            IndexVersion indexCreatedVersion
         ) {
             super(name);
             this.resolution = resolution;
@@ -281,9 +284,9 @@ public final class DateFieldMapper extends FieldMapper {
             }
         }
 
-        private DateFormatter buildFormatter() {
+        DateFormatter buildFormatter() {
             try {
-                return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+                return DateFormatter.forPattern(format.getValue(), indexCreatedVersion).withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
                 if (indexCreatedVersion.isLegacyIndexVersion()) {
                     logger.warn(() -> "Error parsing format [" + format.getValue() + "] of legacy index, falling back to default", e);
@@ -301,9 +304,13 @@ public final class DateFieldMapper extends FieldMapper {
             DateFieldScript.Factory factory = scriptCompiler.compile(script.get(), DateFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup, buildFormatter())
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer::accept);
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(
+                    name,
+                    script.get().getParams(),
+                    lookup,
+                    buildFormatter(),
+                    OnScriptError.FAIL
+                ).newInstance(ctx).runForDoc(doc, consumer::accept);
         }
 
         @Override
@@ -318,7 +325,7 @@ public final class DateFieldMapper extends FieldMapper {
             try {
                 return fieldType.parse(nullValue.getValue());
             } catch (Exception e) {
-                if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+                if (indexCreatedVersion.onOrAfter(IndexVersion.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
                     DEPRECATION_LOGGER.warn(
@@ -355,7 +362,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
     public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
@@ -515,6 +522,17 @@ public final class DateFieldMapper extends FieldMapper {
                     String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
                     // TODO can we emit a warning if we're losing precision here? I'm not sure we can.
                     return format(parse(date), formatter);
+                }
+            };
+        }
+
+        // returns a Long to support source fallback which emulates numeric doc values for dates
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, nullValue) {
+                @Override
+                public Long parseSourceValue(Object value) {
+                    String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
+                    return parse(date);
                 }
             };
         }
@@ -749,9 +767,35 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType(), resolution.getDefaultToScriptFieldFactory());
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            FielddataOperation operation = fieldDataContext.fielddataOperation();
+
+            if (operation == FielddataOperation.SEARCH) {
+                failIfNoDocValues();
+            }
+
+            if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
+                return new SortedNumericIndexFieldData.Builder(
+                    name(),
+                    resolution.numericType(),
+                    resolution.getDefaultToScriptFieldFactory()
+                );
+            }
+
+            if (operation == FielddataOperation.SCRIPT) {
+                SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
+
+                return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
+                    name(),
+                    resolution.numericType().getValuesSourceType(),
+                    sourceValueFetcher(sourcePaths),
+                    searchLookup,
+                    resolution.getDefaultToScriptFieldFactory()
+                );
+            }
+
+            throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
         }
 
         @Override
@@ -790,7 +834,7 @@ public final class DateFieldMapper extends FieldMapper {
     private final Resolution resolution;
 
     private final boolean ignoreMalformedByDefault;
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
 
     private final Script script;
     private final ScriptCompiler scriptCompiler;
@@ -864,16 +908,19 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, long timestamp) {
-        if (indexed) {
-            context.doc().add(new LongPoint(fieldType().name(), timestamp));
-        }
-        if (hasDocValues) {
+        if (indexed && hasDocValues) {
+            context.doc().add(new LongField(fieldType().name(), timestamp));
+        } else if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
-        } else if (store || indexed) {
-            context.addToFieldNames(fieldType().name());
+        } else if (indexed) {
+            context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
         if (store) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
+        }
+        if (hasDocValues == false && (indexed || store)) {
+            // When the field doesn't have doc values so that we can run exists queries, we also need to index the field name separately.
+            context.addToFieldNames(fieldType().name());
         }
     }
 
@@ -887,7 +934,8 @@ public final class DateFieldMapper extends FieldMapper {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, v -> indexValue(documentParserContext, v));
     }
 
-    public boolean getIgnoreMalformed() {
+    @Override
+    public boolean ignoreMalformed() {
         return ignoreMalformed;
     }
 
@@ -915,9 +963,9 @@ public final class DateFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
+        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName(), ignoreMalformed) {
             @Override
-            protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+            protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(fieldType().format(value, fieldType().dateTimeFormatter()));
             }
         };

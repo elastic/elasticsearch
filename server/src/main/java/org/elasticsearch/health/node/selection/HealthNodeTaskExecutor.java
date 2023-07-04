@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -63,18 +62,27 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     private final ClusterStateListener shutdownListener;
     private volatile boolean enabled;
 
-    public HealthNodeTaskExecutor(
-        ClusterService clusterService,
-        PersistentTasksService persistentTasksService,
-        Settings settings,
-        ClusterSettings clusterSettings
-    ) {
+    private HealthNodeTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService, Settings settings) {
         super(TASK_NAME, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.taskStarter = this::startTask;
         this.shutdownListener = this::shuttingDown;
         this.enabled = ENABLED_SETTING.get(settings);
+    }
+
+    public static HealthNodeTaskExecutor create(
+        ClusterService clusterService,
+        PersistentTasksService persistentTasksService,
+        Settings settings,
+        ClusterSettings clusterSettings
+    ) {
+        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings);
+        healthNodeTaskExecutor.registerListeners(clusterSettings);
+        return healthNodeTaskExecutor;
+    }
+
+    private void registerListeners(ClusterSettings clusterSettings) {
         if (this.enabled) {
             clusterService.addListener(taskStarter);
             clusterService.addListener(shutdownListener);
@@ -99,7 +107,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         HealthNode healthNode = (HealthNode) task;
         currentTask.set(healthNode);
         DiscoveryNode node = clusterService.localNode();
-        logger.info("Node [{{}{}}] is selected as the current health node.", node.getName(), node.getId());
+        logger.info("Node [{{}}{{}}] is selected as the current health node.", node.getName(), node.getId());
     }
 
     @Override
@@ -133,8 +141,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     // visible for testing
     void startTask(ClusterChangedEvent event) {
-        // Wait until every node in the cluster is upgraded to 8.4.0 or later
-        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
+        // Wait until every node in the cluster is upgraded to 8.5.0 or later
+        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
             boolean healthNodeTaskExists = HealthNode.findTask(event.state()) != null;
             boolean isElectedMaster = event.localNodeMaster();
             if (isElectedMaster || healthNodeTaskExists) {
@@ -178,8 +186,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     }
 
     private boolean isNodeShuttingDown(ClusterChangedEvent event, String nodeId) {
-        return NodesShutdownMetadata.isNodeShuttingDown(event.previousState(), nodeId) == false
-            && NodesShutdownMetadata.isNodeShuttingDown(event.state(), nodeId);
+        return event.previousState().metadata().nodeShutdowns().contains(nodeId) == false
+            && event.state().metadata().nodeShutdowns().contains(nodeId);
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

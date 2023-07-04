@@ -35,6 +35,11 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
         return createRandom();
     }
 
+    @Override
+    protected FrequencyEncoding mutateInstance(FrequencyEncoding instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static FrequencyEncoding createRandom() {
         return createRandom(randomBoolean() ? null : randomBoolean());
     }

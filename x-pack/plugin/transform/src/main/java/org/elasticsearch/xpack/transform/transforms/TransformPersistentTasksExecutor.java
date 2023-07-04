@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -73,6 +74,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
     private final TransformAuditor auditor;
+    private final Settings transformInternalIndexAdditionalSettings;
     private volatile int numFailureRetries;
 
     public TransformPersistentTasksExecutor(
@@ -81,6 +83,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ThreadPool threadPool,
         ClusterService clusterService,
         Settings settings,
+        Settings transformInternalIndexAdditionalSettings,
         IndexNameExpressionResolver resolver
     ) {
         super(TransformField.TASK_NAME, ThreadPool.Names.GENERIC);
@@ -92,6 +95,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         this.auditor = transformServices.getAuditor();
         this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
+        this.transformInternalIndexAdditionalSettings = transformInternalIndexAdditionalSettings;
     }
 
     @Override
@@ -214,8 +218,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
 
             final long lastCheckpoint = stateHolder.get().getCheckpoint();
+            final AuthorizationState authState = stateHolder.get().getAuthState();
 
-            startTask(buildTask, indexerBuilder, lastCheckpoint, startTaskListener);
+            startTask(buildTask, indexerBuilder, authState, lastCheckpoint, startTaskListener);
         }, error -> {
             // TODO: do not use the same error message as for loading the last checkpoint
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
@@ -282,7 +287,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     markAsFailed(buildTask, msg);
                 } else {
                     logger.trace("[{}] No stats found (new transform), starting the task", transformId);
-                    startTask(buildTask, indexerBuilder, null, startTaskListener);
+                    startTask(buildTask, indexerBuilder, null, null, startTaskListener);
                 }
             }
         );
@@ -337,7 +342,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         );
 
         // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, buildTask.getParentTaskClient(), templateCheckListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(
+            clusterService,
+            buildTask.getParentTaskClient(),
+            transformInternalIndexAdditionalSettings,
+            templateCheckListener
+        );
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {
@@ -377,12 +387,14 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private void startTask(
         TransformTask buildTask,
         ClientTransformIndexerBuilder indexerBuilder,
+        AuthorizationState authState,
         Long previousCheckpoint,
         ActionListener<StartTransformAction.Response> listener
     ) {
         // switch the threadpool to generic, because the caller is on the system_read threadpool
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+        threadPool.generic().execute(() -> {
             buildTask.initializeIndexer(indexerBuilder);
+            buildTask.setAuthState(authState);
             // TransformTask#start will fail if the task state is FAILED
             buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, listener);
         });
@@ -409,7 +421,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             client,
             persistentTask.getParams(),
             (TransformState) persistentTask.getState(),
-            transformServices.getSchedulerEngine(),
+            transformServices.getScheduler(),
             auditor,
             threadPool,
             headers

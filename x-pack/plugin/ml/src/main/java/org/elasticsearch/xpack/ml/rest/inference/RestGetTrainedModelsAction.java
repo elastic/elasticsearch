@@ -16,6 +16,9 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -39,6 +42,7 @@ import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Requ
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetTrainedModelsAction.class);
@@ -99,10 +103,10 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
             );
         }
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), request.isAllowNoResources()));
-        return channel -> client.execute(
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             GetTrainedModelsAction.INSTANCE,
             request,
-            new RestToXContentListenerWithDefaultValues<>(channel, DEFAULT_TO_XCONTENT_VALUES)
+            new RestToXContentListenerWithDefaultValues<>(channel, DEFAULT_TO_XCONTENT_VALUES, includes)
         );
     }
 
@@ -113,10 +117,16 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     private static class RestToXContentListenerWithDefaultValues<T extends ToXContentObject> extends RestToXContentListener<T> {
         private final Map<String, String> defaultToXContentParamValues;
+        private final Set<String> includes;
 
-        private RestToXContentListenerWithDefaultValues(RestChannel channel, Map<String, String> defaultToXContentParamValues) {
+        private RestToXContentListenerWithDefaultValues(
+            RestChannel channel,
+            Map<String, String> defaultToXContentParamValues,
+            Set<String> includes
+        ) {
             super(channel);
             this.defaultToXContentParamValues = defaultToXContentParamValues;
+            this.includes = includes;
         }
 
         @Override
@@ -124,6 +134,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
             assert response.isFragment() == false; // would be nice if we could make default methods final
             Map<String, String> params = new HashMap<>(channel.request().params());
             defaultToXContentParamValues.forEach((k, v) -> params.computeIfAbsent(k, defaultToXContentParamValues::get));
+            includes.forEach(include -> params.put(include, "true"));
             response.toXContent(builder, new ToXContent.MapParams(params));
             return new RestResponse(getStatus(response), builder);
         }

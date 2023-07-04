@@ -15,12 +15,10 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -28,12 +26,14 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.Hyperparameters;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.junit.After;
 
 import java.io.IOException;
@@ -80,15 +80,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     @After
     public void cleanup() {
         cleanUp();
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedXContents());
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-        entries.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
-        return new NamedXContentRegistry(entries);
     }
 
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
@@ -550,6 +541,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93228")
     public void testAliasFields() throws Exception {
         // The goal of this test is to assert alias fields are included in the analytics job.
         // We have a simple dataset with two integer fields: field_1 and field_2.
@@ -591,17 +583,13 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
 
-        Regression regression = new Regression(
-            "field_2",
-            BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
-            null,
-            90.0,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        // Very infrequently this test may fail as the algorithm underestimates the
+        // required number of trees for this simple problem. This failure is irrelevant
+        // for non-trivial real-world problem and improving estimation of the number of trees
+        // would introduce unnecessary overhead. Hence, to reduce the noise from this test we fix the seed.
+        long seed = 1000L; // fix seed
+
+        Regression regression = new Regression("field_2", BoostedTreeParams.builder().build(), null, 90.0, seed, null, null, null, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(jobId)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, Collections.emptyMap()))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
@@ -620,6 +608,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         double predictionErrorSum = 0.0;
 
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setSize(totalDocCount).get();
+        StringBuilder targetsPredictions = new StringBuilder(); // used to investigate #90599
         for (SearchHit hit : sourceData.getHits()) {
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
@@ -630,12 +619,32 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             int featureValue = (int) destDoc.get("field_1");
             double predictionValue = (double) resultsObject.get(predictionField);
             predictionErrorSum += Math.abs(predictionValue - 2 * featureValue);
+
+            // collect the log of targets and predictions for debugging #90599
+            targetsPredictions.append(2 * featureValue).append(", ").append(predictionValue).append("\n");
         }
 
         // We assert on the mean prediction error in order to reduce the probability
         // the test fails compared to asserting on the prediction of each individual doc.
         double meanPredictionError = predictionErrorSum / sourceData.getHits().getHits().length;
-        assertThat(meanPredictionError, lessThanOrEqualTo(10.0));
+
+        // obtain addition information for investigation of #90599
+        String modelId = getModelId(jobId);
+        TrainedModelMetadata modelMetadata = getModelMetadata(modelId);
+        assertThat(modelMetadata.getHyperparameters().size(), greaterThan(0));
+        StringBuilder hyperparameters = new StringBuilder(); // used to investigate #90599
+        for (Hyperparameters hyperparameter : modelMetadata.getHyperparameters()) {
+            hyperparameters.append(hyperparameter.hyperparameterName).append(": ").append(hyperparameter.value).append("\n");
+        }
+        TrainedModelDefinition modelDefinition = getModelDefinition(modelId);
+        Ensemble ensemble = (Ensemble) modelDefinition.getTrainedModel();
+        int numberTrees = ensemble.getModels().size();
+        String str = "Failure: failed for seed %d modelId %s numberTrees %d\n";
+        assertThat(
+            Strings.format(str, seed, modelId, numberTrees) + targetsPredictions + hyperparameters,
+            meanPredictionError,
+            lessThanOrEqualTo(3.0)
+        );
 
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
@@ -879,7 +888,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, boolean dataStream) {
-        String mapping = """
+        String mapping = Strings.format("""
             {
               "properties": {
                 "@timestamp": {
@@ -895,7 +904,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                   "type": "double"
                 }
               }
-            }""".formatted(NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_FIELD, DEPENDENT_VARIABLE_FIELD);
+            }""", NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_FIELD, DEPENDENT_VARIABLE_FIELD);
         if (dataStream) {
             try {
                 createDataStreamAndTemplate(sourceIndex, mapping);

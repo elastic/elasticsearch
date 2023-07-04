@@ -44,6 +44,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     private final String mapping;
     private final String origin;
     private final SystemIndices.Feature owningFeature;
+    private final boolean allowsTemplates;
 
     private static final Comparator<SystemIndexMigrationInfo> SAME_CLASS_COMPARATOR = Comparator.comparing(
         SystemIndexMigrationInfo::getFeatureName
@@ -55,7 +56,8 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         Settings settings,
         String mapping,
         String origin,
-        SystemIndices.Feature owningFeature
+        SystemIndices.Feature owningFeature,
+        boolean allowsTemplates
     ) {
         this.currentIndex = currentIndex;
         this.featureName = featureName;
@@ -63,6 +65,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         this.mapping = mapping;
         this.origin = origin;
         this.owningFeature = owningFeature;
+        this.allowsTemplates = allowsTemplates;
     }
 
     /**
@@ -112,6 +115,16 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
      */
     String getOrigin() {
         return origin;
+    }
+
+    /**
+     * By default, system indices should not be affected by user defined templates, so this
+     * method should return false in almost all cases. At the moment certain Kibana indices use
+     * templates, therefore we allow templates to be used on Kibana created system indices until
+     * Kibana removes the template use on system index creation.
+     */
+    boolean allowsTemplates() {
+        return allowsTemplates;
     }
 
     /**
@@ -197,7 +210,15 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             // Copy mapping from the old index
             mapping = currentIndex.mapping().source().string();
         }
-        return new SystemIndexMigrationInfo(currentIndex, feature.getName(), settings, mapping, descriptor.getOrigin(), feature);
+        return new SystemIndexMigrationInfo(
+            currentIndex,
+            feature.getName(),
+            settings,
+            mapping,
+            descriptor.getOrigin(),
+            feature,
+            descriptor.allowsTemplates()
+        );
     }
 
     private static Settings copySettingsForNewIndex(Settings currentIndexSettings, IndexScopedSettings indexScopedSettings) {
@@ -209,7 +230,9 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             .filter(Objects::nonNull)
             .filter(setting -> setting.getProperties().contains(Setting.Property.NotCopyableOnResize) == false)
             .filter(setting -> setting.getProperties().contains(Setting.Property.PrivateIndex) == false)
-            .forEach(setting -> { newIndexSettings.put(setting.getKey(), currentIndexSettings.get(setting.getKey())); });
+            .forEach(setting -> {
+                newIndexSettings.put(setting.getKey(), currentIndexSettings.get(setting.getKey()));
+            });
         return newIndexSettings.build();
     }
 

@@ -24,7 +24,6 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -40,19 +39,9 @@ public class Environment {
     private static final Path[] EMPTY_PATH_ARRAY = new Path[0];
 
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
-    public static final Setting<List<String>> PATH_DATA_SETTING = Setting.listSetting(
-        "path.data",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> PATH_DATA_SETTING = Setting.stringListSetting("path.data", Property.NodeScope);
     public static final Setting<String> PATH_LOGS_SETTING = new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> PATH_REPO_SETTING = Setting.listSetting(
-        "path.repo",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> PATH_REPO_SETTING = Setting.stringListSetting("path.repo", Property.NodeScope);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
 
     private final Settings settings;
@@ -156,6 +145,7 @@ public class Environment {
             assert sharedDataFile != null;
             finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataFile.toString());
         }
+
         this.settings = finalSettings.build();
     }
 

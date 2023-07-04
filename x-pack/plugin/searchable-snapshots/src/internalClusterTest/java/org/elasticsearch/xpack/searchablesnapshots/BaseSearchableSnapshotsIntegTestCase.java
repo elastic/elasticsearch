@@ -11,6 +11,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.blobcache.BlobCachePlugin;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -18,7 +20,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -42,7 +43,7 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
+import org.elasticsearch.xpack.snapshotbasedrecoveries.SnapshotBasedRecoveriesPlugin;
 import org.junit.After;
 
 import java.io.IOException;
@@ -50,6 +51,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -58,14 +60,15 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.blobcache.shared.SharedBytes.pageAligned;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TYPE;
+import static org.elasticsearch.license.LicenseSettings.SELF_GENERATED_LICENSE_TYPE;
 import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numClientNodes = 0)
@@ -77,7 +80,11 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), LocalStateSearchableSnapshots.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(BlobCachePlugin.class);
+        plugins.add(LocalStateSearchableSnapshots.class);
+        plugins.add(LicensedSnapshotBasedRecoveriesPlugin.class);
+        return Collections.unmodifiableList(plugins);
     }
 
     @Override
@@ -101,17 +108,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             );
         }
         if (DiscoveryNode.canContainData(otherSettings) && randomBoolean()) {
-            builder.put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO.getStringRep());
+            builder.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO.getStringRep());
         }
         builder.put(
-            FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+            SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()
                 ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                 : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
         );
         if (randomBoolean()) {
             builder.put(
-                FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
+                SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
                     ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                     : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
@@ -119,7 +126,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         }
         if (randomBoolean()) {
             builder.put(
-                FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
+                SharedBlobCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
                 rarely()
                     ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                     : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
@@ -202,7 +209,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         refresh(indexName);
         if (randomBoolean()) {
             assertThat(
-                client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+                indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
                 equalTo(0)
             );
         }
@@ -245,14 +252,22 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                     indexExists,
                     translogExists
                 );
-                assertThat(snapshotDirectory, not(indexExists));
-                assertTrue(translogExists);
+                assertThat(
+                    snapshotDirectory ? "Index file should not exist" : "Index file should exist",
+                    indexExists,
+                    not(snapshotDirectory)
+                );
+                assertThat("Translog should exist", translogExists, is(true));
                 try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
                     final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
                     if (snapshotDirectory) {
-                        assertEquals(2L, translogFiles);
+                        assertThat("There should be 2 translog files for a snapshot directory", translogFiles, equalTo(2L));
                     } else {
-                        assertThat(translogFiles, greaterThanOrEqualTo(2L));
+                        assertThat(
+                            "There should be 2+ translog files for a non-snapshot directory",
+                            translogFiles,
+                            greaterThanOrEqualTo(2L)
+                        );
                     }
                 }
             }
@@ -306,7 +321,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     protected void assertRecoveryStats(String indexName, boolean preWarmEnabled) throws Exception {
         int shardCount = getNumShards(indexName).totalNumShards;
         assertBusy(() -> {
-            final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
+            final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).get();
             assertThat(recoveryResponse.toString(), recoveryResponse.shardRecoveryStates().get(indexName).size(), equalTo(shardCount));
 
             for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
@@ -324,7 +339,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     }
 
     protected DiscoveryNodes getDiscoveryNodes() {
-        return client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
+        return clusterAdmin().prepareState().clear().setNodes(true).get().getState().nodes();
     }
 
     protected void assertExecutorIsIdle(String executorName) throws Exception {
@@ -335,5 +350,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));
             }
         });
+    }
+
+    public static class LicensedSnapshotBasedRecoveriesPlugin extends SnapshotBasedRecoveriesPlugin {
+
+        public LicensedSnapshotBasedRecoveriesPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public boolean isLicenseEnabled() {
+            return true;
+        }
     }
 }

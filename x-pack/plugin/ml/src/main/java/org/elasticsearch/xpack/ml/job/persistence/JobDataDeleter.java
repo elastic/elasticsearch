@@ -63,7 +63,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
@@ -86,10 +86,16 @@ public class JobDataDeleter {
 
     private final Client client;
     private final String jobId;
+    private final boolean deleteUserAnnotations;
 
     public JobDataDeleter(Client client, String jobId) {
+        this(client, jobId, false);
+    }
+
+    public JobDataDeleter(Client client, String jobId, boolean deleteUserAnnotations) {
         this.client = Objects.requireNonNull(client);
         this.jobId = Objects.requireNonNull(jobId);
+        this.deleteUserAnnotations = deleteUserAnnotations;
     }
 
     /**
@@ -135,8 +141,11 @@ public class JobDataDeleter {
     }
 
     /**
-     * Asynchronously delete all the auto-generated (i.e. created by the _xpack user) annotations
-     *
+     * Asynchronously delete the annotations
+     * If the deleteUserAnnotations field is set to true then all
+     * annotations - both auto-generated and user-added - are removed, else
+     * only the auto-generated ones, (i.e. created by the _xpack user) are
+     * removed.
      * @param listener Response listener
      */
     public void deleteAllAnnotations(ActionListener<Boolean> listener) {
@@ -158,9 +167,10 @@ public class JobDataDeleter {
         @Nullable Set<String> eventsToDelete,
         ActionListener<Boolean> listener
     ) {
-        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-            .filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), XPackUser.NAME));
+        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId));
+        if (deleteUserAnnotations == false) {
+            boolQuery.filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), InternalUsers.XPACK_USER.principal()));
+        }
         if (fromEpochMs != null || toEpochMs != null) {
             boolQuery.filter(QueryBuilders.rangeQuery(Annotation.TIMESTAMP.getPreferredName()).gte(fromEpochMs).lt(toEpochMs));
         }
@@ -408,7 +418,7 @@ public class JobDataDeleter {
 
         // Step 5. Get the job as the initial result index name is required
         ActionListener<Boolean> deleteAnnotationsHandler = ActionListener.wrap(
-            response -> jobConfigProvider.getJob(jobId, getJobHandler),
+            response -> jobConfigProvider.getJob(jobId, null, getJobHandler),
             failureHandler
         );
 
@@ -505,9 +515,7 @@ public class JobDataDeleter {
         return aliases.isEmpty()
             ? null
             : new IndicesAliasesRequest().addAliasAction(
-                IndicesAliasesRequest.AliasActions.remove()
-                    .aliases(aliases.toArray(new String[aliases.size()]))
-                    .indices(indices.toArray(new String[indices.size()]))
+                IndicesAliasesRequest.AliasActions.remove().aliases(aliases.toArray(new String[0])).indices(indices.toArray(new String[0]))
             );
     }
 

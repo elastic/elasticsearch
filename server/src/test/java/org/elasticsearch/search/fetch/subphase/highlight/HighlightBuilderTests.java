@@ -15,12 +15,15 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -48,7 +51,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -297,10 +299,11 @@ public class HighlightBuilderTests extends ESTestCase {
             0,
             0,
             idxSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             parserConfig(),
@@ -317,7 +320,7 @@ public class HighlightBuilderTests extends ESTestCase {
             @Override
             public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
-                return builder.build(MapperBuilderContext.ROOT).fieldType();
+                return builder.build(MapperBuilderContext.root(false)).fieldType();
             }
         };
         mockContext.setMapUnmappedFieldAsString(true);
@@ -560,6 +563,17 @@ public class HighlightBuilderTests extends ESTestCase {
         }
     }
 
+    public void testForceSourceDeprecation() throws IOException {
+        String highlightJson = """
+            { "fields" : { }, "force_source" : true }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightJson)) {
+            HighlightBuilder.fromXContent(parser);
+        }
+
+        assertWarnings("Deprecated field [force_source] used, this field is unused and will be removed entirely");
+    }
+
     protected static XContentBuilder toXContent(HighlightBuilder highlight, XContentType contentType) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(contentType);
         if (randomBoolean()) {
@@ -634,9 +648,6 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.highlightFilter(randomBoolean());
         }
         if (randomBoolean()) {
-            highlightBuilder.forceSource(randomBoolean());
-        }
-        if (randomBoolean()) {
             if (randomBoolean()) {
                 highlightBuilder.boundaryScannerType(randomFrom(BoundaryScannerType.values()));
             } else {
@@ -682,7 +693,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void mutateCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
-        switch (randomIntBetween(1, 17)) {
+        switch (randomIntBetween(1, 16)) {
             case 1:
                 highlightBuilder.preTags(randomStringArray(4, 6));
                 break;
@@ -717,21 +728,18 @@ public class HighlightBuilderTests extends ESTestCase {
                 highlightBuilder.highlightFilter(toggleOrSet(highlightBuilder.highlightFilter()));
                 break;
             case 10:
-                highlightBuilder.forceSource(toggleOrSet(highlightBuilder.forceSource()));
-                break;
-            case 11:
                 highlightBuilder.boundaryMaxScan(randomIntBetween(11, 20));
                 break;
-            case 12:
+            case 11:
                 highlightBuilder.boundaryChars(randomAlphaOfLengthBetween(11, 20).toCharArray());
                 break;
-            case 13:
+            case 12:
                 highlightBuilder.noMatchSize(randomIntBetween(11, 20));
                 break;
-            case 14:
+            case 13:
                 highlightBuilder.phraseLimit(randomIntBetween(11, 20));
                 break;
-            case 15:
+            case 14:
                 int items = 6;
                 Map<String, Object> options = Maps.newMapWithExpectedSize(items);
                 for (int i = 0; i < items; i++) {
@@ -739,10 +747,10 @@ public class HighlightBuilderTests extends ESTestCase {
                 }
                 highlightBuilder.options(options);
                 break;
-            case 16:
+            case 15:
                 highlightBuilder.requireFieldMatch(toggleOrSet(highlightBuilder.requireFieldMatch()));
                 break;
-            case 17:
+            case 16:
                 highlightBuilder.maxAnalyzedOffset(
                     randomValueOtherThan(highlightBuilder.maxAnalyzedOffset(), () -> randomIntBetween(1, 100))
                 );
@@ -764,7 +772,7 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     private static String[] randomStringArray(int minSize, int maxSize) {
         int size = randomIntBetween(minSize, maxSize);
-        Set<String> randomStrings = new HashSet<>(size);
+        Set<String> randomStrings = Sets.newHashSetWithExpectedSize(size);
         for (int f = 0; f < size; f++) {
             randomStrings.add(randomAlphaOfLengthBetween(3, 10));
         }

@@ -1,0 +1,177 @@
+setup:
+  - skip:
+      version: " - 8.8.99"
+      reason: Introduced in 8.9.0
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-query-ruleset-3
+        body:
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: elastic
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+            - rule_id: query-rule-id2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: kibana
+              actions:
+                ids:
+                  - 'id3'
+                  - 'id4'
+
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-query-ruleset-1
+        body:
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: elastic
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+            - rule_id: query-rule-id2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: kibana
+              actions:
+                ids:
+                  - 'id3'
+                  - 'id4'
+            - rule_id: query-rule-id3
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: logstash
+              actions:
+                ids:
+                  - 'id5'
+                  - 'id6'
+
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-query-ruleset-2
+        body:
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: elastic
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+            - rule_id: query-rule-id2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: kibana
+              actions:
+                ids:
+                  - 'id3'
+                  - 'id4'
+            - rule_id: query-rule-id3
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: logstash
+              actions:
+                ids:
+                  - 'id5'
+                  - 'id6'
+            - rule_id: query-rule-id4
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: beats
+              actions:
+                ids:
+                  - 'id7'
+                  - 'id8'
+
+---
+"List Query Rulesets":
+  - do:
+      query_ruleset.list: { }
+
+  - match: { count: 3 }
+
+  # Alphabetical order by ruleset_id for results
+  - match: { results.0.ruleset_id: "test-query-ruleset-1" }
+  - match: { results.0.rules_count: 3 }
+
+  - match: { results.1.ruleset_id: "test-query-ruleset-2" }
+  - match: { results.1.rules_count: 4 }
+
+  - match: { results.2.ruleset_id: "test-query-ruleset-3" }
+  - match: { results.2.rules_count: 2 }
+
+---
+"List Query Rulesets - with from":
+  - do:
+      query_ruleset.list:
+        from: 1
+
+  - match: { count: 3 }
+
+  # Alphabetical order by ruleset_id for results
+  - match: { results.0.ruleset_id: "test-query-ruleset-2" }
+  - match: { results.0.rules_count: 4 }
+
+  - match: { results.1.ruleset_id: "test-query-ruleset-3" }
+  - match: { results.1.rules_count: 2 }
+
+---
+"List Query Rulesets - with size":
+  - do:
+      query_ruleset.list:
+        size: 2
+
+  - match: { count: 3 }
+
+  # Alphabetical order by ruleset_id for results
+  - match: { results.0.ruleset_id: "test-query-ruleset-1" }
+  - match: { results.0.rules_count: 3 }
+
+  - match: { results.1.ruleset_id: "test-query-ruleset-2" }
+  - match: { results.1.rules_count: 4 }
+
+---
+"List Query Rulesets - empty":
+  - do:
+      query_ruleset.delete:
+        ruleset_id: test-query-ruleset-1
+
+  - do:
+      query_ruleset.delete:
+        ruleset_id: test-query-ruleset-2
+
+  - do:
+      query_ruleset.delete:
+        ruleset_id: test-query-ruleset-3
+
+  - do:
+      query_ruleset.list: { }
+
+  - match: { count: 0 }

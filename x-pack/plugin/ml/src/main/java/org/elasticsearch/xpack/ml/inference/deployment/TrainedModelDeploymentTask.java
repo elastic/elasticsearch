@@ -29,15 +29,17 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentNodeService;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 public class TrainedModelDeploymentTask extends CancellableTask implements StartTrainedModelDeploymentAction.TaskMatcher {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelDeploymentTask.class);
 
-    private final TaskParams params;
+    private volatile TaskParams params;
     private final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService;
     private volatile boolean stopped;
+    private volatile boolean failed;
     private final SetOnce<String> stoppedReasonHolder = new SetOnce<>();
     private final SetOnce<InferenceConfig> inferenceConfigHolder = new SetOnce<>();
     private final XPackLicenseState licenseState;
@@ -54,8 +56,8 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         XPackLicenseState licenseState,
         LicensedFeature.Persistent licensedFeature
     ) {
-        super(id, type, action, MlTasks.trainedModelAssignmentTaskDescription(taskParams.getModelId()), parentTask, headers);
-        this.params = taskParams;
+        super(id, type, action, MlTasks.trainedModelAssignmentTaskDescription(taskParams.getDeploymentId()), parentTask, headers);
+        this.params = Objects.requireNonNull(taskParams);
         this.trainedModelAssignmentNodeService = ExceptionsHelper.requireNonNull(
             trainedModelAssignmentNodeService,
             "trainedModelAssignmentNodeService"
@@ -66,12 +68,30 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
 
     void init(InferenceConfig inferenceConfig) {
         if (this.inferenceConfigHolder.trySet(inferenceConfig)) {
+            // track the model usage not the deployment Id
             licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
         }
     }
 
+    public void updateNumberOfAllocations(int numberOfAllocations) {
+        params = new TaskParams(
+            params.getModelId(),
+            params.getDeploymentId(),
+            params.getModelBytes(),
+            numberOfAllocations,
+            params.getThreadsPerAllocation(),
+            params.getQueueCapacity(),
+            params.getCacheSize().orElse(null),
+            params.getPriority()
+        );
+    }
+
     public String getModelId() {
         return params.getModelId();
+    }
+
+    public String getDeploymentId() {
+        return params.getDeploymentId();
     }
 
     public long estimateMemoryUsageBytes() {
@@ -87,8 +107,9 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     }
 
     public void markAsStopped(String reason) {
+        // stop tracking the model usage
         licensedFeature.stopTracking(licenseState, "model-" + params.getModelId());
-        logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
+        logger.debug("[{}] Stopping due to reason [{}]", getDeploymentId(), reason);
         stoppedReasonHolder.trySet(reason);
         stopped = true;
     }
@@ -104,25 +125,28 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     @Override
     protected void onCancelled() {
         String reason = getReasonCancelled();
-        logger.info("[{}] task cancelled due to reason [{}]", getModelId(), reason);
+        logger.info("[{}] task cancelled due to reason [{}]", getDeploymentId(), reason);
         stop(
             reason,
             ActionListener.wrap(
                 acknowledgedResponse -> {},
-                e -> logger.error(() -> "[" + getModelId() + "] error stopping the model after task cancellation", e)
+                e -> logger.error(() -> "[" + getDeploymentId() + "] error stopping the deployment after task cancellation", e)
             )
         );
     }
 
     public void infer(
-        Map<String, Object> doc,
+        NlpInferenceInput input,
         InferenceConfigUpdate update,
         boolean skipQueue,
         TimeValue timeout,
+        CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         if (inferenceConfigHolder.get() == null) {
-            listener.onFailure(ExceptionsHelper.conflictStatusException("Trained model [{}] is not initialized", params.getModelId()));
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException("Trained model deployment [{}] is not initialized", params.getDeploymentId())
+            );
             return;
         }
         if (update.isSupported(inferenceConfigHolder.get()) == false) {
@@ -137,14 +161,31 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             );
             return;
         }
-        trainedModelAssignmentNodeService.infer(this, update.apply(inferenceConfigHolder.get()), doc, skipQueue, timeout, listener);
+        trainedModelAssignmentNodeService.infer(
+            this,
+            update.apply(inferenceConfigHolder.get()),
+            input,
+            skipQueue,
+            timeout,
+            parentActionTask,
+            listener
+        );
     }
 
     public Optional<ModelStats> modelStats() {
         return trainedModelAssignmentNodeService.modelStats(this);
     }
 
+    public void clearCache(ActionListener<AcknowledgedResponse> listener) {
+        trainedModelAssignmentNodeService.clearCache(this, listener);
+    }
+
     public void setFailed(String reason) {
+        failed = true;
         trainedModelAssignmentNodeService.failAssignment(this, reason);
+    }
+
+    public boolean isFailed() {
+        return failed;
     }
 }

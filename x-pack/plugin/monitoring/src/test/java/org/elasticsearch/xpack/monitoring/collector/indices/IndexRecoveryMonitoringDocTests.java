@@ -12,12 +12,15 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -88,7 +91,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             singletonMap("attr", "value_0"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            null
         );
 
         final DiscoveryNode discoveryNodeOne = new DiscoveryNode(
@@ -100,14 +103,18 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
             new TransportAddress(TransportAddress.META_ADDRESS, 9301),
             singletonMap("attr", "value_1"),
             singleton(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT.minimumIndexCompatibilityVersion()
+            new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
         );
 
         final ShardId shardId = new ShardId("_index_a", "_uuid_a", 0);
-        final RecoverySource source = RecoverySource.PeerRecoverySource.INSTANCE;
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_index_info_a");
-        final ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, source, unassignedInfo)
-            .initialize("_node_id", "_allocation_id", 123L);
+        final ShardRouting shardRouting = ShardRouting.newUnassigned(
+            shardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            unassignedInfo,
+            ShardRouting.Role.DEFAULT
+        ).initialize("_node_id", "_allocation_id", 123L);
 
         final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
         final RecoveryState recoveryState = new RecoveryState(shardRouting, discoveryNodeOne, discoveryNodeOne);
@@ -131,7 +138,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
         );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = XContentHelper.stripWhitespace("""
+        final String expected = XContentHelper.stripWhitespace(Strings.format("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-09T08:18:59.402Z",
@@ -152,7 +159,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                     "id": 0,
                     "type": "PEER",
                     "stage": "INIT",
-                    "primary": true,
+                    "primary": false,
                     "start_time_in_millis": %s,
                     "stop_time_in_millis": %s,
                     "total_time_in_millis": %s,
@@ -202,7 +209,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                   }
                 ]
               }
-            }""".formatted(timer.startTime(), timer.stopTime(), timer.time()));
+            }""", timer.startTime(), timer.stopTime(), timer.time()));
         assertEquals(expected, xContent.utf8ToString());
     }
 }

@@ -1,0 +1,99 @@
+// tag::cloud[]
+In order to start {ilm} we need to go to Kibana and execute the <<ilm-start, start command>>.
+
+**Use {kib}**
+
+//tag::kibana-api-ex[]
+. Log in to the {ess-console}[{ecloud} console].
++
+
+. On the **Elasticsearch Service** panel, click the name of your deployment. 
++
+
+NOTE: If the name of your deployment is disabled your {kib} instances might be
+unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
+If your deployment doesn't include {kib}, all you need to do is 
+{cloud}/ec-access-kibana.html[enable it first].
+
+. Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
+and go to **Dev Tools > Console**.
++
+[role="screenshot"]
+image::images/kibana-console.png[{kib} Console,align="center"]
+
+. <<ilm-start, Start>> {ilm}:
++
+[source,console]
+----
+POST _ilm/start
+----
++
+The response will look like this:
++
+[source,console-result]
+----
+{
+  "acknowledged": true
+}
+----
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
++
+
+. Verify {ilm} is now running:
++
+[source,console]
+----
+GET _ilm/status
+----
++
+The response will look like this:
++
+[source,console-result]
+----
+{
+  "operation_mode": "RUNNING"
+}
+----
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
+
+//end::kibana-api-ex[]
+// end::cloud[]
+
+// tag::self-managed[]
+<<ilm-start, Start>> {ilm}:
+
+[source,console]
+----
+POST _ilm/start
+----
+
+The response will look like this:
+
+[source,console-result]
+----
+{
+  "acknowledged": true
+}
+----
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
+
+
+Verify {ilm} is now running:
+
+[source,console]
+----
+GET _ilm/status
+----
+
+The response will look like this:
+
+[source,console-result]
+----
+{
+  "operation_mode": "RUNNING"
+}
+----
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
+
+// end::self-managed[]
+

@@ -18,6 +18,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -193,6 +195,16 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
             "[Donald](_hit_term=donald) Trump visited Singapore",
             "[Donald](_hit_term=donald) duck is a [Disney](Disney+Inc) invention" };
         Query query = new TermQuery(new Term("text", "donald"));
+        BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
+        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
+    }
+
+    public void testAnnotatedTextHighlightQueryHasOverlappingTermAndAnnotation() throws Exception {
+        final String[] markedUpInputs = { "[Donald Trump](president) visited Singapore" };
+        String[] expectedPassages = { "[Donald Trump](_hit_term=president&president) visited Singapore" };
+        Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("text", "donald")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "president")), BooleanClause.Occur.SHOULD)
+            .build();
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
     }

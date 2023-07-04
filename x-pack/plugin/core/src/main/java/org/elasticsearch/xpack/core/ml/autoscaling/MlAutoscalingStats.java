@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public record AutoscalingResources(
+public record MlAutoscalingStats(
     int nodes,
     long memoryBytesSum,
     long modelMemoryBytesSum,
@@ -25,7 +25,7 @@ public record AutoscalingResources(
     long removeNodeMemoryInBytes
 ) implements Writeable {
 
-    public AutoscalingResources(StreamInput in) throws IOException {
+    public MlAutoscalingStats(StreamInput in) throws IOException {
         this(
             in.readVInt(), // nodes
             in.readVLong(),  // memoryBytesSum

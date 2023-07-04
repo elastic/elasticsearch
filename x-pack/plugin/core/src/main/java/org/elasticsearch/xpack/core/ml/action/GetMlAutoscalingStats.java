@@ -18,7 +18,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats.Response;
-import org.elasticsearch.xpack.core.ml.autoscaling.AutoscalingResources;
+import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
 
 import java.io.IOException;
 import java.util.Map;
@@ -73,18 +73,18 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
 
     public static class Response extends ActionResponse {
 
-        private final AutoscalingResources autoscalingResources;
+        private final MlAutoscalingStats autoscalingResources;
 
-        public Response(final AutoscalingResources autoscalingResources) {
+        public Response(final MlAutoscalingStats autoscalingResources) {
             this.autoscalingResources = autoscalingResources;
         }
 
         public Response(final StreamInput in) throws IOException {
             super(in);
-            this.autoscalingResources = new AutoscalingResources(in);
+            this.autoscalingResources = new MlAutoscalingStats(in);
         }
 
-        public AutoscalingResources getAutoscalingResources() {
+        public MlAutoscalingStats getAutoscalingResources() {
             return autoscalingResources;
         }
 

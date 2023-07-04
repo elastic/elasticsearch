@@ -12,10 +12,10 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-public class AutoscalingResourcesTests extends AbstractWireSerializingTestCase<AutoscalingResources> {
+public class MlAutoscalingStatsTests extends AbstractWireSerializingTestCase<MlAutoscalingStats> {
 
-    public static AutoscalingResources randomAutoscalingResources() {
-        return new AutoscalingResources(
+    public static MlAutoscalingStats randomAutoscalingResources() {
+        return new MlAutoscalingStats(
             randomIntBetween(0, 100), // nodes
             randomNonNegativeLong(), // memoryBytesSum
             randomNonNegativeLong(), // modelMemoryInBytes
@@ -29,17 +29,17 @@ public class AutoscalingResourcesTests extends AbstractWireSerializingTestCase<A
     }
 
     @Override
-    protected Writeable.Reader<AutoscalingResources> instanceReader() {
-        return AutoscalingResources::new;
+    protected Writeable.Reader<MlAutoscalingStats> instanceReader() {
+        return MlAutoscalingStats::new;
     }
 
     @Override
-    protected AutoscalingResources createTestInstance() {
+    protected MlAutoscalingStats createTestInstance() {
         return randomAutoscalingResources();
     }
 
     @Override
-    protected AutoscalingResources mutateInstance(AutoscalingResources instance) throws IOException {
+    protected MlAutoscalingStats mutateInstance(MlAutoscalingStats instance) throws IOException {
         return null; // TODO
     }
 }

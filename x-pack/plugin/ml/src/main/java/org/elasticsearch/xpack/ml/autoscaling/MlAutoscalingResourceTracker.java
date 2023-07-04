@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.core.ml.autoscaling.AutoscalingResources;
+import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
@@ -39,7 +39,7 @@ public final class MlAutoscalingResourceTracker {
         Client client,
         TimeValue timeout,
         MlMemoryTracker mlMemoryTracker,
-        ActionListener<AutoscalingResources> listener
+        ActionListener<MlAutoscalingStats> listener
     ) {
         String[] mlNodes = clusterState.nodes()
             .stream()
@@ -82,7 +82,7 @@ public final class MlAutoscalingResourceTracker {
         ClusterState clusterState,
         MlMemoryTracker mlMemoryTracker,
         Map<String, OsStats> osStatsPerNode,
-        ActionListener<AutoscalingResources> listener
+        ActionListener<MlAutoscalingStats> listener
     ) {
         Set<String> nodesWithRunningJobs = new HashSet<>();
         long memoryBytesSum = osStatsPerNode.values()
@@ -144,7 +144,7 @@ public final class MlAutoscalingResourceTracker {
         }
 
         listener.onResponse(
-            new AutoscalingResources(
+            new MlAutoscalingStats(
                 osStatsPerNode.size(),
                 memoryBytesSum,
                 modelMemoryBytesSum,

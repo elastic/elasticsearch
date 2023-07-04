@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats.Response;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.core.ml.autoscaling.AutoscalingResourcesTests.randomAutoscalingResources;
+import static org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStatsTests.randomAutoscalingResources;
 
 public class GetMlAutoscalingStatsResponseTests extends AbstractWireSerializingTestCase<Response> {
 

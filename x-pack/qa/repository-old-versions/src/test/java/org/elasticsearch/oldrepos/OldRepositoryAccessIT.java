@@ -118,7 +118,18 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()
         ) {
             if (afterRestart == false) {
-                beforeRestart(sourceOnlyRepository, repoLocation, oldVersion, indexVersion, numDocs, extraDocs, expectedIds, client, oldEs, indexName);
+                beforeRestart(
+                    sourceOnlyRepository,
+                    repoLocation,
+                    oldVersion,
+                    indexVersion,
+                    numDocs,
+                    extraDocs,
+                    expectedIds,
+                    client,
+                    oldEs,
+                    indexName
+                );
             } else {
                 afterRestart(indexName);
             }

@@ -86,7 +86,6 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
         return IndexVersion.fromId(version.id);
     }
 
-
     public static Version getOldClusterTestVersion() {
         return Version.fromString(OLD_CLUSTER_VERSION.toString());
     }

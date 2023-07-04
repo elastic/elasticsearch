@@ -3922,9 +3922,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             		"test_constant_keyword_field_2": {
                         "type": "constant_keyword",
                         "value": "constant_value_2"
-            		},
-            		"another_constant_field": {
-                        "type": "keyword"
             		}
             	}
             }
@@ -3959,9 +3956,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             		"test_constant_keyword_field_2": {
                         "type": "constant_keyword",
                         "value": "constant_value_2"
-            		},
-            		"another_constant_field": {
-                        "type": "keyword"
             		}
             	}
             }

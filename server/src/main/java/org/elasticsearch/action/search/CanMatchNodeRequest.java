@@ -40,8 +40,6 @@ import java.util.Map;
 public class CanMatchNodeRequest extends TransportRequest implements IndicesRequest {
 
     private final SearchSourceBuilder source;
-
-    private final SearchSourceBuilder originalSource;
     private final List<Shard> shards;
     private final SearchType searchType;
     private final Boolean requestCache;
@@ -132,7 +130,6 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         @Nullable String clusterAlias
     ) {
         this.source = searchRequest.source();
-        this.originalSource = searchRequest.source();
         this.indicesOptions = indicesOptions;
         this.shards = new ArrayList<>(shards);
         this.searchType = searchRequest.searchType();
@@ -152,7 +149,6 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
     public CanMatchNodeRequest(StreamInput in) throws IOException {
         super(in);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        originalSource = in.readOptionalWriteable(SearchSourceBuilder::new);
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         searchType = SearchType.fromId(in.readByte());
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
@@ -179,7 +175,6 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(source);
-        out.writeOptionalWriteable(originalSource);
         indicesOptions.writeIndicesOptions(out);
         out.writeByte(searchType.id());
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {

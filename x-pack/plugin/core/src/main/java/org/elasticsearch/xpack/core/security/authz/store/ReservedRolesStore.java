@@ -374,7 +374,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .build() },
                     null,
                     null,
-                    MetadataUtils.getDeprecatedReservedMetadata("This role will be removed in 8.0"),
+                    MetadataUtils.getDeprecatedReservedMetadata("This role will be removed in 9.0"),
                     null
                 )
             ),

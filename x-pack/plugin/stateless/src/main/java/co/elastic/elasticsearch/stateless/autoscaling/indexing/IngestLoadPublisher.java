@@ -29,7 +29,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 public class IngestLoadPublisher {
-    public static final String VERSION_CHECK_MESSAGE_PREFIX = "Cannot publish ingest load metric until entire cluster is: [";
     private static final TransportVersion REQUIRED_VERSION = TransportVersion.V_8_500_025;
     private final NodeClient client;
     private final Supplier<String> nodeIdSupplier;
@@ -68,7 +67,13 @@ public class IngestLoadPublisher {
             });
         } else {
             listener.onFailure(
-                new ElasticsearchException(VERSION_CHECK_MESSAGE_PREFIX + REQUIRED_VERSION + "], found: [" + minTransportVersion + "]")
+                new ElasticsearchException(
+                    "Cannot publish ingest load metric until entire cluster is: ["
+                        + REQUIRED_VERSION
+                        + "], found: ["
+                        + minTransportVersion
+                        + "]"
+                )
             );
         }
     }

@@ -46,6 +46,8 @@ import org.junit.Before;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -54,6 +56,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -125,7 +128,6 @@ public class ShardSizesCollectorTests extends ESTestCase {
         assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq(Map.of(shardId1, size, shardId2, size)), any()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/486")
     public void testPublishPeriodicallyEvenIfNoChanges() throws Exception {
 
         var shardId = new ShardId("index-1", "_na_", 0);
@@ -137,7 +139,8 @@ public class ShardSizesCollectorTests extends ESTestCase {
 
         assertBusy(() -> {
             verify(publisher).publishSearchShardDiskUsage(eq(Map.of(shardId, size)), any());
-            verify(publisher).publishSearchShardDiskUsage(eq(Map.of()), any());// second empty publication after interval passed
+            // second empty publication after interval passed
+            verify(publisher, atLeastOnce()).publishSearchShardDiskUsage(eq(Map.of()), any());
         });
     }
 
@@ -216,16 +219,19 @@ public class ShardSizesCollectorTests extends ESTestCase {
                 Map.entry(new ShardId(indexMetadata2.getIndex(), 1), size)
             )
         );
+        var listenerWasCalled = new CountDownLatch(1);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<Void>) invocation.getArgument(1, ActionListener.class);
             listener.onResponse(null);
+            listenerWasCalled.countDown();
             return null;
         }).when(publisher).publishSearchShardDiskUsage(any(), any());
 
         service.clusterChanged(new ClusterChangedEvent("test", state1, ClusterState.EMPTY_STATE));
 
-        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(any(), any()));
+        listenerWasCalled.await(10, TimeUnit.SECONDS);
+        verify(publisher).publishSearchShardDiskUsage(any(), any());
         assertThat(
             service.getPastPublications(),
             allOf(
@@ -251,7 +257,6 @@ public class ShardSizesCollectorTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/488")
     public void testMovedShardsAreRemovedFromState() throws Exception {
 
         var indexMetadata1 = createIndex(1, 1);
@@ -282,16 +287,18 @@ public class ShardSizesCollectorTests extends ESTestCase {
         when(statsReader.getAllShardSizes()).thenReturn(
             Map.of(new ShardId(indexMetadata1.getIndex(), 0), size, new ShardId(indexMetadata2.getIndex(), 0), size)
         );
+        var listenerWasCalled = new CountDownLatch(1);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<Void>) invocation.getArgument(1, ActionListener.class);
             listener.onResponse(null);
+            listenerWasCalled.countDown();
             return null;
         }).when(publisher).publishSearchShardDiskUsage(any(), any());
 
         service.clusterChanged(new ClusterChangedEvent("test", state0, ClusterState.EMPTY_STATE));
 
-        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(any(), any()));
+        listenerWasCalled.await(10, TimeUnit.SECONDS);
         assertThat(
             service.getPastPublications(),
             allOf(aMapWithSize(2), hasKey(new ShardId(indexMetadata1.getIndex(), 0)), hasKey(new ShardId(indexMetadata2.getIndex(), 0)))

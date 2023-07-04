@@ -1166,7 +1166,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
-        final String supportedTypes = "boolean, datetime, double, integer, ip, keyword, long or version";
+        final String supportedTypes = "boolean, datetime, double, integer, ip, keyword, long, unsigned_long or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"

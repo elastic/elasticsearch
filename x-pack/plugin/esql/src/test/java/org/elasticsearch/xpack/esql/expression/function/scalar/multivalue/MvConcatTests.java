@@ -41,7 +41,7 @@ public class MvConcatTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> data) {
+    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         List<?> field = (List<?>) data.get(0);
         BytesRef delim = (BytesRef) data.get(1);
         if (field == null || delim == null) {

@@ -32,7 +32,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> data) {
+    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         return equalTo(1683244800000L);
     }
 

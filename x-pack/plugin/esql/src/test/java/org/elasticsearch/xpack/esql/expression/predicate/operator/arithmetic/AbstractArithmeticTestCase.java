@@ -19,15 +19,19 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorTestCase {
-    protected final Matcher<Object> resultMatcher(List<Object> data) {
+    protected final Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         Number lhs = (Number) data.get(0);
         Number rhs = (Number) data.get(1);
         if (lhs instanceof Double || rhs instanceof Double) {
             return equalTo(expectedValue(lhs.doubleValue(), rhs.doubleValue()));
         }
         if (lhs instanceof Long || rhs instanceof Long) {
+            if (dataType == DataTypes.UNSIGNED_LONG) {
+                return equalTo(expectedUnsignedLongValue(lhs.longValue(), rhs.longValue()));
+            }
             return equalTo(expectedValue(lhs.longValue(), rhs.longValue()));
         }
         if (lhs instanceof Integer || rhs instanceof Integer) {
@@ -41,6 +45,8 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
     protected abstract int expectedValue(int lhs, int rhs);
 
     protected abstract long expectedValue(long lhs, long rhs);
+
+    protected abstract long expectedUnsignedLongValue(long lhs, long rhs);
 
     @Override
     protected final DataType expressionForSimpleDataType() {
@@ -81,6 +87,11 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
     private DataType expectedType(DataType lhsType, DataType rhsType) {
         if (lhsType == DataTypes.DOUBLE || rhsType == DataTypes.DOUBLE) {
             return DataTypes.DOUBLE;
+        }
+        if (lhsType == DataTypes.UNSIGNED_LONG || rhsType == DataTypes.UNSIGNED_LONG) {
+            assertThat(lhsType, is(DataTypes.UNSIGNED_LONG));
+            assertThat(rhsType, is(DataTypes.UNSIGNED_LONG));
+            return DataTypes.UNSIGNED_LONG;
         }
         if (lhsType == DataTypes.LONG || rhsType == DataTypes.LONG) {
             return DataTypes.LONG;

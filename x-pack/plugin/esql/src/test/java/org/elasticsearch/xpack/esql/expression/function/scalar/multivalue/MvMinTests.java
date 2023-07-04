@@ -33,7 +33,7 @@ public class MvMinTests extends AbstractMultivalueFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcherForInput(List<?> input) {
+    protected Matcher<Object> resultMatcherForInput(List<?> input, DataType dataType) {
         if (input == null) {
             return nullValue();
         }

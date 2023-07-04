@@ -47,7 +47,7 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> data) {
+    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         String str = ((BytesRef) data.get(0)).utf8ToString();
         int start = (Integer) data.get(1);
         int end = (Integer) data.get(2);

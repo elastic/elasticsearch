@@ -70,7 +70,9 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public final class ExpressionTranslators {
 
@@ -306,6 +308,8 @@ public final class ExpressionTranslators {
                 } else if (value instanceof Version version) {
                     value = version.toString();
                 }
+            } else if (field.dataType() == UNSIGNED_LONG && value instanceof Long ul) {
+                value = unsignedLongAsNumber(ul);
             }
 
             ZoneId zoneId = null;
@@ -406,17 +410,19 @@ public final class ExpressionTranslators {
             return handler.wrapFunctionQuery(in, in.value(), () -> translate(in, handler));
         }
 
+        private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
+            return DataTypes.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
+        }
+
         private static Query translate(In in, TranslatorHandler handler) {
             FieldAttribute field = checkIsFieldAttribute(in.value());
-            DataType fieldType = field.dataType();
-            boolean needsTypeSpecificValueHandling = DataTypes.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION;
 
             Set<Object> terms = new LinkedHashSet<>();
             List<Query> queries = new ArrayList<>();
 
             for (Expression rhs : in.list()) {
                 if (DataTypes.isNull(rhs.dataType()) == false) {
-                    if (needsTypeSpecificValueHandling) {
+                    if (needsTypeSpecificValueHandling(field.dataType())) {
                         // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                         Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), handler);
 

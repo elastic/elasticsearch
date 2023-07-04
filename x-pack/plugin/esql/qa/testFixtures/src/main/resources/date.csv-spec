@@ -180,6 +180,15 @@ string:keyword                                          |datetime:date
 // end::to_datetime-str-result[]
 ;
 
+convertFromUnsignedLong
+row ul = [9223372036854775808, 520128000000] | eval dt = to_datetime(ul);
+warning:Line 1:58: evaluation of [to_datetime(ul)] failed, treating result as null. Only first 20 failures recorded.
+warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [9223372036854775808] out of [long] range
+
+                ul:ul              |           dt:date
+[9223372036854775808, 520128000000]|1986-06-26T00:00:00.000Z
+;
+
 convertFromLong
 row long = [501379200000, 520128000000] | eval dt = to_datetime(long);
 

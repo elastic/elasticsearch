@@ -93,6 +93,8 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         var exp = argTypes.get(1);
         if (base.isRational() || exp.isRational()) {
             return DataTypes.DOUBLE;
+        } else if (base == DataTypes.UNSIGNED_LONG || exp == DataTypes.UNSIGNED_LONG) {
+            return DataTypes.DOUBLE;
         } else if (base == DataTypes.LONG || exp == DataTypes.LONG) {
             return DataTypes.LONG;
         } else {
@@ -101,7 +103,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> data) {
+    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         return equalTo(Math.pow(((Number) data.get(0)).doubleValue(), ((Number) data.get(1)).doubleValue()));
     }
 

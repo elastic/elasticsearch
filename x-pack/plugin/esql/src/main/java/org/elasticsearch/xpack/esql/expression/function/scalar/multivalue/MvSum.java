@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -39,7 +41,9 @@ public class MvSum extends AbstractMultivalueFunction {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
             case DOUBLE -> () -> new MvSumDoubleEvaluator(fieldEval.get());
             case INT -> () -> new MvSumIntEvaluator(fieldEval.get());
-            case LONG -> () -> new MvSumLongEvaluator(fieldEval.get());
+            case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
+                ? () -> new MvSumUnsignedLongEvaluator(fieldEval.get())
+                : () -> new MvSumLongEvaluator(fieldEval.get());
             case NULL -> () -> EvalOperator.CONSTANT_NULL;
             default -> throw new UnsupportedOperationException("unsupported type [" + field().dataType() + "]");
         };
@@ -74,5 +78,10 @@ public class MvSum extends AbstractMultivalueFunction {
     @MvEvaluator(extraName = "Long")
     static long process(long current, long v) {
         return current + v;
+    }
+
+    @MvEvaluator(extraName = "UnsignedLong")
+    static long processUnsignedLong(long current, long v) {
+        return Add.processUnsignedLongs(current, v);
     }
 }

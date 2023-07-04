@@ -25,6 +25,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 public class ToDatetime extends AbstractConvertFunction {
 
@@ -38,6 +39,8 @@ public class ToDatetime extends AbstractConvertFunction {
             ToDatetimeFromStringEvaluator::new,
             DOUBLE,
             ToLongFromDoubleEvaluator::new,
+            UNSIGNED_LONG,
+            ToLongFromUnsignedLongEvaluator::new,
             INTEGER,
             ToLongFromIntEvaluator::new // CastIntToLongEvaluator would be a candidate, but not MV'd
         );

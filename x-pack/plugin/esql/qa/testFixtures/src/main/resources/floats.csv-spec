@@ -70,6 +70,13 @@ str1:keyword |str2:keyword |dbl:double |dbl1:double |dbl2:double
 // end::to_double-str-result[]
 ;
 
+convertFromUnsignedLong
+row ul = 9223372036854775808 | eval dbl = to_double(ul);
+
+        ul:ul      |        dbl:double
+9223372036854775808|9.223372036854776E18
+;
+
 convertFromLong
 row long = 520128000000 | eval dbl = to_double(long);
 

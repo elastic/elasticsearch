@@ -122,6 +122,10 @@ abstract class ComparisonMapper<T extends BinaryComparison> extends EvalMapper.E
             if (type == DataTypes.DOUBLE) {
                 return castToEvaluator(bc, layout, DataTypes.DOUBLE, doubles);
             }
+            if (type == DataTypes.UNSIGNED_LONG) {
+                // using the long comparators will work on UL as well
+                return castToEvaluator(bc, layout, DataTypes.UNSIGNED_LONG, longs);
+            }
         }
         Supplier<EvalOperator.ExpressionEvaluator> leftEval = EvalMapper.toEvaluator(bc.left(), layout);
         Supplier<EvalOperator.ExpressionEvaluator> rightEval = EvalMapper.toEvaluator(bc.right(), layout);

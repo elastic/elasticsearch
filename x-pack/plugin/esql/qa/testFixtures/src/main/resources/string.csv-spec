@@ -449,6 +449,13 @@ emp_no:integer |byte:keyword   |short:keyword  |long:keyword |int:keyword |langu
 10002          |5              |5              |5            |5           |5
 ;
 
+convertFromUnsignedLong
+row ul = [9223372036854775808, 9223372036854775807, 1, 0] | eval str = to_str(ul);
+
+                       ul:ul                    |                      str:keyword
+[9223372036854775808, 9223372036854775807, 1, 0]|[9223372036854775808, 9223372036854775807, 1, 0]
+;
+
 convertFromIntSimple
 // tag::to_string[]
 ROW a=10

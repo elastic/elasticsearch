@@ -74,7 +74,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         return new Page(columns.stream().map(c -> {
             Block.Builder builder = LocalExecutionPlanner.toElementType(EsqlDataTypes.fromEs(c.type())).newBlockBuilder(1);
             switch (c.type()) {
-                case "long" -> ((LongBlock.Builder) builder).appendLong(randomLong());
+                case "unsigned_long", "long" -> ((LongBlock.Builder) builder).appendLong(randomLong());
                 case "integer" -> ((IntBlock.Builder) builder).appendInt(randomInt());
                 case "double" -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
                 case "keyword" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));

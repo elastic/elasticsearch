@@ -11,6 +11,11 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.math.BigInteger;
+
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
+
 public class SubTests extends AbstractArithmeticTestCase {
     @Override
     protected String expectedEvaluatorSimpleToString() {
@@ -35,5 +40,12 @@ public class SubTests extends AbstractArithmeticTestCase {
     @Override
     protected long expectedValue(long lhs, long rhs) {
         return lhs - rhs;
+    }
+
+    @Override
+    protected long expectedUnsignedLongValue(long lhs, long rhs) {
+        BigInteger lhsBI = unsignedLongAsBigInteger(lhs);
+        BigInteger rhsBI = unsignedLongAsBigInteger(rhs);
+        return asLongUnsigned(lhsBI.subtract(rhsBI).longValue());
     }
 }

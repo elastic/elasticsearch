@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -53,6 +54,7 @@ import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -87,8 +89,12 @@ public class StatementParserTests extends ESTestCase {
 
     public void testRowCommandHugeInt() {
         assertEquals(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(9223372036854775808.0)))),
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalUnsignedLong("9223372036854775808")))),
             statement("row c = 9223372036854775808")
+        );
+        assertEquals(
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(18446744073709551616.)))),
+            statement("row c = 18446744073709551616")
         );
     }
 
@@ -113,14 +119,22 @@ public class StatementParserTests extends ESTestCase {
 
     public void testRowCommandMultivalueHugeInts() {
         assertEquals(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(9223372036854775808.0, 9223372036854775809.0)))),
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(18446744073709551616., 18446744073709551617.)))),
+            statement("row c = [18446744073709551616, 18446744073709551617]")
+        );
+        assertEquals(
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalUnsignedLongs("9223372036854775808", "9223372036854775809")))),
             statement("row c = [9223372036854775808, 9223372036854775809]")
         );
     }
 
     public void testRowCommandMultivalueHugeIntAndNormalInt() {
         assertEquals(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(9223372036854775808.0, 1.0)))),
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(18446744073709551616., 1.0)))),
+            statement("row c = [18446744073709551616, 1]")
+        );
+        assertEquals(
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalUnsignedLongs("9223372036854775808", "1")))),
             statement("row c = [9223372036854775808, 1]")
         );
     }
@@ -714,6 +728,14 @@ public class StatementParserTests extends ESTestCase {
 
     private static Literal literalDoubles(double... doubles) {
         return new Literal(EMPTY, Arrays.stream(doubles).boxed().toList(), DataTypes.DOUBLE);
+    }
+
+    private static Literal literalUnsignedLong(String ulong) {
+        return new Literal(EMPTY, asLongUnsigned(new BigInteger(ulong)), DataTypes.UNSIGNED_LONG);
+    }
+
+    private static Literal literalUnsignedLongs(String... ulongs) {
+        return new Literal(EMPTY, Arrays.stream(ulongs).map(s -> asLongUnsigned(new BigInteger(s))).toList(), DataTypes.UNSIGNED_LONG);
     }
 
     private static Literal literalBoolean(boolean b) {

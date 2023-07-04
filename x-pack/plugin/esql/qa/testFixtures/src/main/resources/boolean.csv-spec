@@ -181,6 +181,13 @@ emp_no:integer |height:double |double2bool:boolean
 10038          |1.53          |true
 ;
 
+convertFromUnsignedLong
+row ul = [9223372036854775808, 9223372036854775807, 1, 0] | eval bool = to_bool(ul);
+
+                       ul:ul                    |          bool:boolean 
+[9223372036854775808, 9223372036854775807, 1, 0]|[true, true, true, false]
+;
+
 convertFromIntAndLong
 from employees | keep emp_no, salary_change* | eval int2bool = to_boolean(salary_change.int), long2bool = to_boolean(salary_change.long) | limit 10;
 

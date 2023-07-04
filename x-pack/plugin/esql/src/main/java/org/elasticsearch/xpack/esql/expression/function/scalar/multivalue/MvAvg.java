@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -22,6 +23,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongToDouble;
 
 /**
  * Reduce a multivalued field to a single valued field containing the average value.
@@ -46,7 +48,9 @@ public class MvAvg extends AbstractMultivalueFunction {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
             case DOUBLE -> () -> new MvAvgDoubleEvaluator(fieldEval.get());
             case INT -> () -> new MvAvgIntEvaluator(fieldEval.get());
-            case LONG -> () -> new MvAvgLongEvaluator(fieldEval.get());
+            case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
+                ? () -> new MvAvgUnsignedLongEvaluator(fieldEval.get())
+                : () -> new MvAvgLongEvaluator(fieldEval.get());
             case NULL -> () -> EvalOperator.CONSTANT_NULL;
             default -> throw new UnsupportedOperationException("unsupported type [" + field().dataType() + "]");
         };
@@ -99,4 +103,16 @@ public class MvAvg extends AbstractMultivalueFunction {
         return value;
     }
 
+    @MvEvaluator(extraName = "UnsignedLong", finish = "finishUnsignedLong", single = "singleUnsignedLong")
+    static long processUnsignedLong(long current, long v) {
+        return Add.processUnsignedLongs(current, v);
+    }
+
+    public static double finishUnsignedLong(long sum, int valueCount) {
+        return unsignedLongToDouble(sum) / valueCount;
+    }
+
+    static double singleUnsignedLong(long value) {
+        return unsignedLongToDouble(value);
+    }
 }

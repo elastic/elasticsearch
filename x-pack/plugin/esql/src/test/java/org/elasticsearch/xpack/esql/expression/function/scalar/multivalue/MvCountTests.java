@@ -35,7 +35,7 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcherForInput(List<?> input) {
+    protected Matcher<Object> resultMatcherForInput(List<?> input, DataType dataType) {
         return input == null ? nullValue() : equalTo(input.size());
     }
 

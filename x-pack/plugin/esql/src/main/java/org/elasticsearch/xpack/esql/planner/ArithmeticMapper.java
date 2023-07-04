@@ -27,6 +27,7 @@ abstract class ArithmeticMapper<T extends ArithmeticOperation> extends EvalMappe
     static final EvalMapper.ExpressionMapper<?> ADD = new ArithmeticMapper<Add>(
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AddIntsEvaluator::new,
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AddLongsEvaluator::new,
+        org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AddUnsignedLongsEvaluator::new,
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AddDoublesEvaluator::new
     ) {
     };
@@ -34,6 +35,7 @@ abstract class ArithmeticMapper<T extends ArithmeticOperation> extends EvalMappe
     static final EvalMapper.ExpressionMapper<?> DIV = new ArithmeticMapper<Div>(
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivIntsEvaluator::new,
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivLongsEvaluator::new,
+        org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivUnsignedLongsEvaluator::new,
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivDoublesEvaluator::new
     ) {
     };
@@ -41,6 +43,7 @@ abstract class ArithmeticMapper<T extends ArithmeticOperation> extends EvalMappe
     static final EvalMapper.ExpressionMapper<?> MOD = new ArithmeticMapper<Mod>(
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.ModIntsEvaluator::new,
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.ModLongsEvaluator::new,
+        org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.ModUnsignedLongsEvaluator::new,
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.ModDoublesEvaluator::new
     ) {
     };
@@ -48,6 +51,7 @@ abstract class ArithmeticMapper<T extends ArithmeticOperation> extends EvalMappe
     static final EvalMapper.ExpressionMapper<?> MUL = new ArithmeticMapper<Mul>(
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.MulIntsEvaluator::new,
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.MulLongsEvaluator::new,
+        org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.MulUnsignedLongsEvaluator::new,
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.MulDoublesEvaluator::new
     ) {
     };
@@ -55,21 +59,25 @@ abstract class ArithmeticMapper<T extends ArithmeticOperation> extends EvalMappe
     static final EvalMapper.ExpressionMapper<?> SUB = new ArithmeticMapper<Sub>(
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.SubIntsEvaluator::new,
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.SubLongsEvaluator::new,
+        org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.SubUnsignedLongsEvaluator::new,
         org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.SubDoublesEvaluator::new
     ) {
     };
 
     private final BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> ints;
     private final BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> longs;
+    private final BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> ulongs;
     private final BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> doubles;
 
     private ArithmeticMapper(
         BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> ints,
         BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> longs,
+        BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> ulongs,
         BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> doubles
     ) {
         this.ints = ints;
         this.longs = longs;
+        this.ulongs = ulongs;
         this.doubles = doubles;
     }
 
@@ -87,6 +95,9 @@ abstract class ArithmeticMapper<T extends ArithmeticOperation> extends EvalMappe
             }
             if (type == DataTypes.LONG) {
                 return castToEvaluator(op, layout, DataTypes.LONG, longs);
+            }
+            if (type == DataTypes.UNSIGNED_LONG) {
+                return castToEvaluator(op, layout, DataTypes.UNSIGNED_LONG, ulongs);
             }
             if (type == DataTypes.DOUBLE) {
                 return castToEvaluator(op, layout, DataTypes.DOUBLE, doubles);

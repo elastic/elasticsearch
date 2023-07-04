@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -31,6 +32,10 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class Round extends ScalarFunction implements OptionalArgument, Mappable {
 
@@ -63,20 +68,15 @@ public class Round extends ScalarFunction implements OptionalArgument, Mappable 
 
     @Override
     public Object fold() {
+        if (field.dataType() == DataTypes.UNSIGNED_LONG) {
+            return decimals == null
+                ? field.fold()
+                : processUnsignedLong(safeToLong((Number) field.fold()), safeToLong((Number) decimals.fold()));
+        }
         if (decimals == null) {
             return Maths.round((Number) field.fold(), 0L);
         }
-        return Maths.round((Number) field.fold(), (Number) decimals.fold());
-    }
-
-    @Evaluator(extraName = "IntNoDecimals")
-    static int process(int val) {
-        return Maths.round((long) val, 0L).intValue();
-    }
-
-    @Evaluator(extraName = "LongNoDecimals")
-    static long process(long val) {
-        return Maths.round(val, 0L).longValue();
+        return Maths.round((Number) field.fold(), ((Number) decimals.fold()).longValue());
     }
 
     @Evaluator(extraName = "DoubleNoDecimals")
@@ -86,12 +86,24 @@ public class Round extends ScalarFunction implements OptionalArgument, Mappable 
 
     @Evaluator(extraName = "Int")
     static int process(int val, long decimals) {
-        return Maths.round((long) val, decimals).intValue();
+        return Maths.round(val, decimals).intValue();
     }
 
     @Evaluator(extraName = "Long")
     static long process(long val, long decimals) {
         return Maths.round(val, decimals).longValue();
+    }
+
+    @Evaluator(extraName = "UnsignedLong")
+    static long processUnsignedLong(long val, long decimals) {
+        Number ul = unsignedLongAsNumber(val);
+        if (ul instanceof BigInteger bi) {
+            BigInteger rounded = Maths.round(bi, decimals);
+            BigInteger unsignedLong = asUnsignedLong(rounded);
+            return asLongUnsigned(unsignedLong);
+        } else {
+            return asLongUnsigned(Maths.round(ul.longValue(), decimals));
+        }
     }
 
     @Evaluator(extraName = "Double")
@@ -131,14 +143,18 @@ public class Round extends ScalarFunction implements OptionalArgument, Mappable 
     public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
-        if (field.dataType() == DataTypes.DOUBLE) {
+        DataType fieldType = dataType();
+        if (fieldType == DataTypes.DOUBLE) {
             return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator::new, RoundDoubleEvaluator::new);
         }
-        if (field.dataType() == DataTypes.INTEGER) {
-            return toEvaluator(toEvaluator, RoundIntNoDecimalsEvaluator::new, RoundIntEvaluator::new);
+        if (fieldType == DataTypes.INTEGER) {
+            return toEvaluator(toEvaluator, Function.identity(), RoundIntEvaluator::new);
         }
-        if (field.dataType() == DataTypes.LONG) {
-            return toEvaluator(toEvaluator, RoundLongNoDecimalsEvaluator::new, RoundLongEvaluator::new);
+        if (fieldType == DataTypes.LONG) {
+            return toEvaluator(toEvaluator, Function.identity(), RoundLongEvaluator::new);
+        }
+        if (fieldType == DataTypes.UNSIGNED_LONG) {
+            return toEvaluator(toEvaluator, Function.identity(), RoundUnsignedLongEvaluator::new);
         }
         throw new UnsupportedOperationException();
     }

@@ -33,7 +33,7 @@ public class ETests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> data) {
+    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         return equalTo(Math.E);
     }
 

@@ -28,15 +28,15 @@ import static org.hamcrest.Matchers.nullValue;
 public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarFunctionTestCase {
     protected abstract Expression build(Source source, Expression field);
 
-    protected abstract Matcher<Object> resultMatcherForInput(List<?> input);
+    protected abstract Matcher<Object> resultMatcherForInput(List<?> input, DataType dataType);
 
     protected abstract DataType[] supportedTypes();
 
     /**
      * Matcher for single valued fields.
      */
-    private Matcher<Object> singleValueMatcher(Object o) {
-        return o == null ? nullValue() : resultMatcherForInput(List.of(o));
+    private Matcher<Object> singleValueMatcher(Object o, DataType dataType) {
+        return o == null ? nullValue() : resultMatcherForInput(List.of(o), dataType);
     }
 
     @Override
@@ -60,8 +60,8 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     @Override
-    protected final Matcher<Object> resultMatcher(List<Object> data) {
-        return resultMatcherForInput((List<?>) data.get(0));
+    protected final Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
+        return resultMatcherForInput((List<?>) data.get(0), dataType);
     }
 
     @Override
@@ -81,7 +81,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             Block result = evaluator(expression).get().eval(new Page(BlockUtils.fromList(data)));
             assertThat(result.asVector(), type == DataTypes.NULL ? nullValue() : notNullValue());
             for (int p = 0; p < data.size(); p++) {
-                assertThat(toJavaObject(result, p), singleValueMatcher(data.get(p).get(0)));
+                assertThat(toJavaObject(result, p), singleValueMatcher(data.get(p).get(0), type));
             }
         }
     }
@@ -101,7 +101,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                         assertTrue(type.toString(), result.isNull(p));
                     } else {
                         assertFalse(type.toString(), result.isNull(p));
-                        assertThat(type.toString(), toJavaObject(result, p), resultMatcherForInput((List<?>) data.get(p).get(0)));
+                        assertThat(type.toString(), toJavaObject(result, p), resultMatcherForInput((List<?>) data.get(p).get(0), type));
                     }
                 }
             }
@@ -113,7 +113,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             Literal lit = randomLiteral(type);
             Expression expression = build(Source.EMPTY, lit);
             assertTrue(expression.foldable());
-            assertThat(expression.fold(), singleValueMatcher(lit.value()));
+            assertThat(expression.fold(), singleValueMatcher(lit.value(), type));
         }
     }
 
@@ -122,7 +122,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             List<Object> data = type == DataTypes.NULL ? null : randomList(1, 100, () -> randomLiteral(type).value());
             Expression expression = build(Source.EMPTY, new Literal(Source.EMPTY, data, type));
             assertTrue(expression.foldable());
-            assertThat(expression.fold(), resultMatcherForInput(data));
+            assertThat(expression.fold(), resultMatcherForInput(data, type));
         }
     }
 

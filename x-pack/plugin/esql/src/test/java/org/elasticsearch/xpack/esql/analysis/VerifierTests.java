@@ -10,9 +10,14 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.hamcrest.Matchers.containsString;
 
 public class VerifierTests extends ESTestCase {
 
@@ -124,6 +129,82 @@ public class VerifierTests extends ESTestCase {
             "1:19: 2nd argument of [emp_no in (1, \"two\")] must be [integer], found value [\"two\"] type [keyword]",
             error("from test | where emp_no in (1, \"two\")")
         );
+    }
+
+    public void testUnsignedLongTypeMixInComparisons() {
+        List<String> types = EsqlDataTypes.types()
+            .stream()
+            .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .map(DataType::typeName)
+            .toList();
+        for (var type : types) {
+            for (var comp : List.of("==", "!=", ">", ">=", "<=", "<")) {
+                String left, right, leftType, rightType;
+                if (randomBoolean()) {
+                    left = "ul";
+                    leftType = "unsigned_long";
+                    right = "n";
+                    rightType = type;
+                } else {
+                    left = "n";
+                    leftType = type;
+                    right = "ul";
+                    rightType = "unsigned_long";
+                }
+                var operation = left + " " + comp + " " + right;
+                assertThat(
+                    error("row n = to_" + type + "(1), ul = to_ul(1) | where " + operation),
+                    containsString(
+                        "first argument of ["
+                            + operation
+                            + "] is ["
+                            + leftType
+                            + "] and second is ["
+                            + rightType
+                            + "]."
+                            + " [unsigned_long] can only be operated on together with another [unsigned_long]"
+                    )
+                );
+            }
+        }
+    }
+
+    public void testUnsignedLongTypeMixInArithmetics() {
+        List<String> types = EsqlDataTypes.types()
+            .stream()
+            .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .map(DataType::typeName)
+            .toList();
+        for (var type : types) {
+            for (var operation : List.of("+", "-", "*", "/", "%")) {
+                String left, right, leftType, rightType;
+                if (randomBoolean()) {
+                    left = "ul";
+                    leftType = "unsigned_long";
+                    right = "n";
+                    rightType = type;
+                } else {
+                    left = "n";
+                    leftType = type;
+                    right = "ul";
+                    rightType = "unsigned_long";
+                }
+                var op = left + " " + operation + " " + right;
+                assertThat(
+                    error("row n = to_" + type + "(1), ul = to_ul(1) | eval " + op),
+                    containsString(
+                        "first argument of ["
+                            + op
+                            + "] is ["
+                            + leftType
+                            + "] and second is ["
+                            + rightType
+                            + "]."
+                            + " [unsigned_long] can only be operated on together with another [unsigned_long]"
+                    )
+                );
+            }
+        }
     }
 
     public void testSumOnDate() {

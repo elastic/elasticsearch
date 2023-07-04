@@ -108,6 +108,9 @@ public class Pow extends ScalarFunction implements OptionalArgument, Mappable {
         if (base.dataType().isRational() || exponent.dataType().isRational()) {
             return DataTypes.DOUBLE;
         }
+        if (base.dataType() == DataTypes.UNSIGNED_LONG || exponent.dataType() == DataTypes.UNSIGNED_LONG) {
+            return DataTypes.DOUBLE;
+        }
         if (base.dataType() == DataTypes.LONG || exponent.dataType() == DataTypes.LONG) {
             return DataTypes.LONG;
         }
@@ -125,7 +128,7 @@ public class Pow extends ScalarFunction implements OptionalArgument, Mappable {
     ) {
         var baseEvaluator = toEvaluator.apply(base);
         var exponentEvaluator = toEvaluator.apply(exponent);
-        if (dataType == DataTypes.DOUBLE) {
+        if (dataType == DataTypes.DOUBLE || dataType == DataTypes.UNSIGNED_LONG) {
             return () -> new PowDoubleEvaluator(
                 cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(),
                 cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get()

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
@@ -162,12 +163,16 @@ public class Verifier {
                     );
                 }
             }
-            p.forEachExpression(e -> {
-                if (e instanceof BinaryComparison bc) {
-                    Failure f = validateBinaryComparison(bc);
-                    if (f != null) {
-                        failures.add(f);
-                    }
+            p.forEachExpression(BinaryOperator.class, bo -> {
+                Failure f = validateUnsignedLongOperator(bo);
+                if (f != null) {
+                    failures.add(f);
+                }
+            });
+            p.forEachExpression(BinaryComparison.class, bc -> {
+                Failure f = validateBinaryComparison(bc);
+                if (f != null) {
+                    failures.add(f);
                 }
             });
         });
@@ -246,6 +251,30 @@ public class Verifier {
                 bc.left().dataType().typeName(),
                 bc.left().dataType().typeName(),
                 bc.right().dataType().typeName()
+            );
+        }
+        return null;
+    }
+
+    // Ensure that UNSIGNED_LONG types are not implicitly converted when used in arithmetic binary operator, as this cannot be done since:
+    // - unsigned longs are passed through the engine as longs, so/and
+    // - negative values cannot be represented (i.e. range [Long.MIN_VALUE, "abs"(Long.MIN_VALUE) + Long.MAX_VALUE] won't fit on 64 bits);
+    // - a conversion to double isn't possible, since upper range UL values can no longer be distinguished
+    // ex: (double) 18446744073709551615 == (double) 18446744073709551614
+    // - the implicit ESQL's Cast doesn't currently catch Exception and nullify the result.
+    // Let the user handle the operation explicitly.
+    public static Failure validateUnsignedLongOperator(BinaryOperator<?, ?, ?, ?> bo) {
+        DataType leftType = bo.left().dataType();
+        DataType rightType = bo.right().dataType();
+        if ((leftType == DataTypes.UNSIGNED_LONG || rightType == DataTypes.UNSIGNED_LONG) && leftType != rightType) {
+            return fail(
+                bo,
+                "first argument of [{}] is [{}] and second is [{}]. [{}] can only be operated on together with another [{}]",
+                bo.sourceText(),
+                leftType.typeName(),
+                rightType.typeName(),
+                DataTypes.UNSIGNED_LONG.typeName(),
+                DataTypes.UNSIGNED_LONG.typeName()
             );
         }
         return null;

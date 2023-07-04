@@ -49,7 +49,7 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> data) {
+    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         String str = ((BytesRef) data.get(0)).utf8ToString();
         String delim = ((BytesRef) data.get(1)).utf8ToString();
         List<BytesRef> split = Arrays.stream(str.split(Pattern.quote(delim))).map(BytesRef::new).toList();

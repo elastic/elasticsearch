@@ -50,13 +50,14 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
@@ -64,6 +65,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
@@ -104,26 +106,30 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Literal visitIntegerValue(EsqlBaseParser.IntegerValueContext ctx) {
         Source source = source(ctx);
         String text = ctx.getText();
-        long value;
+        Number number;
 
         try {
-            value = Long.valueOf(StringUtils.parseLong(text));
+            number = StringUtils.parseIntegral(text);
         } catch (QlIllegalArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
-                return new Literal(source, Double.valueOf(StringUtils.parseDouble(text)), DataTypes.DOUBLE);
+                return new Literal(source, StringUtils.parseDouble(text), DataTypes.DOUBLE);
             } catch (QlIllegalArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
         }
 
-        Object val = Long.valueOf(value);
-        DataType type = DataTypes.LONG;
-
-        // try to downsize to int if possible (since that's the most common type)
-        if ((int) value == value) {
+        Object val;
+        DataType type;
+        if (number instanceof BigInteger bi) {
+            val = asLongUnsigned(bi);
+            type = DataTypes.UNSIGNED_LONG;
+        } else if (number.intValue() == number.longValue()) { // try to downsize to int if possible (since that's the most common type)
+            val = number.intValue();
             type = DataTypes.INTEGER;
-            val = Integer.valueOf((int) value);
+        } else {
+            val = number.longValue();
+            type = DataTypes.LONG;
         }
         return new Literal(source, val, type);
     }
@@ -133,16 +139,26 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         List<Literal> numbers = visitList(this, ctx.numericValue(), Literal.class);
         if (numbers.stream().anyMatch(l -> l.dataType() == DataTypes.DOUBLE)) {
-            return new Literal(source, mapNumbers(numbers, Number::doubleValue), DataTypes.DOUBLE);
+            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.doubleValue()), DataTypes.DOUBLE);
+        }
+        if (numbers.stream().anyMatch(l -> l.dataType() == DataTypes.UNSIGNED_LONG)) {
+            return new Literal(
+                source,
+                mapNumbers(
+                    numbers,
+                    (no, dt) -> dt == DataTypes.UNSIGNED_LONG ? no.longValue() : asLongUnsigned(BigInteger.valueOf(no.longValue()))
+                ),
+                DataTypes.UNSIGNED_LONG
+            );
         }
         if (numbers.stream().anyMatch(l -> l.dataType() == DataTypes.LONG)) {
-            return new Literal(source, mapNumbers(numbers, Number::longValue), DataTypes.LONG);
+            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.longValue()), DataTypes.LONG);
         }
-        return new Literal(source, mapNumbers(numbers, Number::intValue), DataTypes.INTEGER);
+        return new Literal(source, mapNumbers(numbers, (no, dt) -> no.intValue()), DataTypes.INTEGER);
     }
 
-    private List<Object> mapNumbers(List<Literal> numbers, Function<Number, Object> map) {
-        return numbers.stream().map(l -> map.apply((Number) l.value())).toList();
+    private List<Object> mapNumbers(List<Literal> numbers, BiFunction<Number, DataType, Object> map) {
+        return numbers.stream().map(l -> map.apply((Number) l.value(), l.dataType())).toList();
     }
 
     @Override

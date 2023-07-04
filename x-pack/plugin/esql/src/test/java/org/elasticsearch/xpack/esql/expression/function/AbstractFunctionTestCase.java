@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.planner.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -54,7 +55,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "byte" -> randomByte();
             case "short" -> randomShort();
             case "integer" -> randomInt();
-            case "long" -> randomLong();
+            case "unsigned_long", "long" -> randomLong();
             case "date_period" -> Period.ofDays(randomInt(10));
             case "datetime" -> randomMillisUpToYear9999();
             case "double", "scaled_float" -> randomDouble();
@@ -75,7 +76,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     protected abstract DataType expressionForSimpleDataType();
 
-    protected abstract Matcher<Object> resultMatcher(List<Object> data);
+    protected abstract Matcher<Object> resultMatcher(List<Object> data, DataType dataType);
+
+    protected Matcher<Object> resultMatcher(List<Object> data) {
+        return resultMatcher(data, EsqlDataTypes.fromJava(data.get(0) instanceof List<?> list ? list.get(0) : data.get(0)));
+    }
 
     protected abstract String expectedEvaluatorSimpleToString();
 

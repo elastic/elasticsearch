@@ -23,8 +23,10 @@ import java.util.function.Function;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -115,7 +117,7 @@ public final class CsvAssert {
                 var block = page.getBlock(column);
                 var blockType = Type.asType(block.elementType());
 
-                if (blockType == Type.LONG && expectedType == Type.DATETIME) {
+                if (blockType == Type.LONG && (expectedType == Type.DATETIME || expectedType == UNSIGNED_LONG)) {
                     continue;
                 }
                 if (blockType == Type.KEYWORD && (expectedType == Type.IP || expectedType == Type.VERSION)) {
@@ -184,8 +186,9 @@ public final class CsvAssert {
                         } else if (expectedType == Type.VERSION) {
                             // convert BytesRef-packed Version to String
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> new Version((BytesRef) x).toString());
+                        } else if (expectedType == UNSIGNED_LONG) {
+                            expectedValue = rebuildExpected(expectedValue, Long.class, x -> unsignedLongAsNumber((long) x));
                         }
-
                     }
                     assertEquals(valueTransformer.apply(expectedValue), valueTransformer.apply(actualValue));
                 }

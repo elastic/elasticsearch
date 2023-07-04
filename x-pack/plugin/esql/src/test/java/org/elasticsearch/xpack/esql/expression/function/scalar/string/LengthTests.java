@@ -40,7 +40,7 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> simpleData) {
+    protected Matcher<Object> resultMatcher(List<Object> simpleData, DataType dataType) {
         return equalTo(UnicodeUtil.codePointCount((BytesRef) simpleData.get(0)));
     }
 

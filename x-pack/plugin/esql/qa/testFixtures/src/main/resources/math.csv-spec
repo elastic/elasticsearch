@@ -70,6 +70,13 @@ emp_no:integer | s:double
          10002 | 7.08
 ;
 
+absUnsignedLong
+row ul = [0, 1, 9223372036854775807, 9223372036854775808, 18446744073709551615] | eval abs = abs(ul);
+
+                                  ul:ul                               |                                 abs:ul
+[0, 1, 9223372036854775807, 9223372036854775808, 18446744073709551615]|[0, 1, 9223372036854775807, 9223372036854775808, 18446744073709551615]
+;
+
 absLong
 from employees | eval l = abs(0-languages.long) | keep l | sort l asc | limit 3;
 
@@ -185,6 +192,97 @@ row s = 1.0 + pow(2, 2);
 
 s:double
 5
+;
+
+powIntUL
+row x = pow(1, 9223372036854775808);
+
+x:double
+1.0
+;
+
+powLongUL
+row x = to_long(1) | eval x = pow(x, 9223372036854775808);
+
+x:double
+1.0
+;
+
+powUnsignedLongUL
+row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
+
+x:double
+1.0
+;
+
+powDoubleUL
+row x = pow(1.0, 9223372036854775808);
+
+x:double
+1.0
+;
+
+powIntULInfinity
+row x = pow(2, 9223372036854775808);
+
+x:double
+Infinity
+;
+
+powULInt
+row x = pow(9223372036854775808, 1);
+
+x:double
+9.223372036854776E18
+;
+
+powULLong
+row x = to_long(1) | eval x = pow(9223372036854775808, x);
+
+x:double
+9.223372036854776E18
+;
+
+powULDouble
+row x = pow(9223372036854775808, -.1);
+
+x:double
+0.012691443693066178
+;
+
+roundLongAsUL
+row x = to_ul(9223372036854775804) | eval x = round(x, -1);
+
+x:ul
+9223372036854775800
+;
+
+roundUL
+row x = round(9223372036854775808, -1);
+
+x:ul
+9223372036854775810
+;
+
+roundMaxMinusOneUL
+row ul = round(18446744073709551614, -1);
+
+ul:ul
+18446744073709551610
+;
+
+roundULNoFold
+row ul = 18446744073709551614 | eval ul = round(ul, -4);
+
+ul:ul
+18446744073709550000
+;
+
+roundMaxULNoDecimals
+row ul = round(18446744073709551615);
+
+ul:ul
+18446744073709551615
 ;
 
 mvAvg
@@ -357,4 +455,114 @@ ROW a=2 | EVAL c = abs(a + e());
 
 a:integer | c:double
         2 | 4.718281828459045
+;
+
+//
+// unsigned_long arithmetics, MV functions
+//
+
+ulAddition
+row x = to_ul(100), y = to_ul(1) | eval x = x + y | keep x;
+
+x:ul
+101
+;
+
+ulAdditionOverLongLimit
+row x = to_ul(9223372036854775807), y = to_ul(1) | eval x = x + y | keep x;
+
+x:ul
+9223372036854775808
+;
+
+ulAdditionToUnsignedLongLimit
+row x = 18446744073709551614, y = to_ul(1) | eval x = x + y | keep x;
+
+x:ul
+18446744073709551615
+;
+
+ulAdditionPastUnsignedLongLimit
+row x = 18446744073709551615, y = to_ul(1) | eval x = x + y | keep x;
+
+x:ul
+0
+;
+
+ulSubtraction
+row x = to_ul(100), y = to_ul(1) | eval x = x - y | keep x;
+
+x:ul
+99
+;
+
+ulSubtractionToLongLimit
+row x = 9223372036854775808, y = to_ul(1) | eval x = x - y | keep x;
+
+x:ul
+9223372036854775807
+;
+
+ulSubtractionFromUnsignedLongLimit
+row x = 18446744073709551615, y = to_ul(1) | eval x = x - y | keep x;
+
+x:ul
+18446744073709551614
+;
+
+ulSubtractionFromZero
+row x = to_ul(0), y = to_ul(1) | eval x = x - y | keep x;
+
+x:ul
+18446744073709551615
+;
+
+ulMultiplication
+row x = to_ul(9223372036854775807), y = to_ul(2) | eval x = x * y | keep x;
+
+x:ul
+18446744073709551614
+;
+
+ulMultiplicationPastULMaxValue
+row x = 9223372036854775808, two = to_ul(2), three = to_ul(3) | eval times2 = x * two, times3 = x * three | keep times*;
+
+times2:ul |times3:ul
+0         |9223372036854775808
+;
+
+ulMultiplicationPastULMaxValue2
+row x = 9223372036854775808, y = 9223372036854775809 | eval x = x * y | keep x;
+
+x:ul
+9223372036854775808
+;
+
+ulDivision
+row max = 18446744073709551615, halfplus = 9223372036854775808, two = to_ul(2) | eval x = max / two, y = max / halfplus | keep x, y;
+
+x:ul                |y:ul
+9223372036854775807 |1
+;
+
+ulModulo
+row max = 18446744073709551615, halfplus = 9223372036854775808, two = to_ul(2) | eval x = max % halfplus, y = halfplus % two | keep x, y;
+
+x:ul                |y:ul
+9223372036854775807 |0
+;
+
+
+ulMvFunctions
+row ul = [18446744073709551615, 0, 1, 9223372036854775807, 9223372036854775808] | eval mv_min(ul), mv_max(ul), mv_avg(ul), mv_median(ul), mv_count(ul), mv_sum(ul) | drop ul;
+
+  mv_min(ul):ul|     mv_max(ul):ul  | mv_avg(ul):double   |   mv_median(ul):ul| mv_count(ul):i |     mv_sum(ul):ul
+0              |18446744073709551615|3.6893488147419105E18|9223372036854775807|5               |18446744073709551615
+;
+
+ulMedianEvenCount
+row ul = [18446744073709551615, 0, 1, 9223372036854775807, 9223372036854775808, 2] | eval mv_median(ul) | drop ul;
+
+mv_median(ul):ul
+4611686018427387904
 ;

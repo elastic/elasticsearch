@@ -14,13 +14,17 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 
 /**
  * Reduce a multivalued field to a single valued field containing the average value.
@@ -40,7 +44,9 @@ public class MvMedian extends AbstractMultivalueFunction {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
             case DOUBLE -> () -> new MvMedianDoubleEvaluator(fieldEval.get());
             case INT -> () -> new MvMedianIntEvaluator(fieldEval.get());
-            case LONG -> () -> new MvMedianLongEvaluator(fieldEval.get());
+            case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
+                ? () -> new MvMedianUnsignedLongEvaluator(fieldEval.get())
+                : () -> new MvMedianLongEvaluator(fieldEval.get());
             default -> throw new UnsupportedOperationException("unsupported type [" + field().dataType() + "]");
         };
     }
@@ -97,6 +103,24 @@ public class MvMedian extends AbstractMultivalueFunction {
         long median = longs.count % 2 == 1 ? longs.values[middle] : (longs.values[middle - 1] + longs.values[middle]) >>> 1;
         longs.count = 0;
         return median;
+    }
+
+    @MvEvaluator(extraName = "UnsignedLong", finish = "finishUnsignedLong")
+    static void processUnsignedLong(Longs longs, long v) {
+        process(longs, v);
+    }
+
+    static long finishUnsignedLong(Longs longs) {
+        if (longs.count % 2 == 1) {
+            return finish(longs);
+        }
+        // TODO quickselect
+        Arrays.sort(longs.values, 0, longs.count);
+        int middle = longs.count / 2;
+        longs.count = 0;
+        BigInteger a = unsignedLongAsBigInteger(longs.values[middle - 1]);
+        BigInteger b = unsignedLongAsBigInteger(longs.values[middle]);
+        return asLongUnsigned(a.add(b).shiftRight(1).longValue());
     }
 
     static class Ints {

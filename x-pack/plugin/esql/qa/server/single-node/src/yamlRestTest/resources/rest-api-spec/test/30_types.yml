@@ -505,3 +505,31 @@ version:
   - match: { columns.0.type: version }
   - length: { values: 1 }
   - match: { values.0.0: [ "1.2.3", "4.5.6-SNOOPY" ] }
+
+---
+unsigned_long:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              number:
+                type: unsigned_long
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "number": [ "1", "9223372036854775808", "0", "18446744073709551615" ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: number }
+  - match: { columns.0.type: unsigned_long }
+  - length: { values: 1 }
+  - match: { values.0.0: [ 0, 1, 9223372036854775808, 18446744073709551615 ] }

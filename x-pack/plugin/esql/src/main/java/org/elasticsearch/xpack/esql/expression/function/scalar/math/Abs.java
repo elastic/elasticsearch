@@ -53,6 +53,9 @@ public class Abs extends UnaryScalarFunction implements Mappable {
         if (dataType() == DataTypes.DOUBLE) {
             return () -> new AbsDoubleEvaluator(field.get());
         }
+        if (dataType() == DataTypes.UNSIGNED_LONG) {
+            return field;
+        }
         if (dataType() == DataTypes.LONG) {
             return () -> new AbsLongEvaluator(field.get());
         }

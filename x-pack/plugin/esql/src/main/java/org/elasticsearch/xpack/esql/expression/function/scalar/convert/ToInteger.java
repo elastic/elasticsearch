@@ -27,6 +27,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 public class ToInteger extends AbstractConvertFunction {
 
@@ -42,6 +43,8 @@ public class ToInteger extends AbstractConvertFunction {
             ToIntegerFromStringEvaluator::new,
             DOUBLE,
             ToIntegerFromDoubleEvaluator::new,
+            UNSIGNED_LONG,
+            ToIntegerFromUnsignedLongEvaluator::new,
             LONG,
             ToIntegerFromLongEvaluator::new
         );
@@ -92,6 +95,11 @@ public class ToInteger extends AbstractConvertFunction {
     @ConvertEvaluator(extraName = "FromDouble")
     static int fromDouble(double dbl) {
         return fromLong(safeDoubleToLong(dbl));
+    }
+
+    @ConvertEvaluator(extraName = "FromUnsignedLong")
+    static int fromUnsignedLong(long lng) {
+        return fromLong(ToLong.fromUnsignedLong(lng));
     }
 
     @ConvertEvaluator(extraName = "FromLong")

@@ -42,7 +42,7 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> data) {
+    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         String str = ((BytesRef) data.get(0)).utf8ToString();
         String prefix = ((BytesRef) data.get(1)).utf8ToString();
         return equalTo(str.startsWith(prefix));

@@ -44,7 +44,7 @@ public abstract class AbstractRationalUnaryPredicateTests extends AbstractScalar
     }
 
     @Override
-    protected final Matcher<Object> resultMatcher(List<Object> data) {
+    protected final Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         double d = (Double) data.get(0);
         return resultMatcher(d);
     }

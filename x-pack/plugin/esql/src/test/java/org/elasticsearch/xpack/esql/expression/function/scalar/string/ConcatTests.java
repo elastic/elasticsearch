@@ -41,7 +41,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> simpleData) {
+    protected Matcher<Object> resultMatcher(List<Object> simpleData, DataType dataType) {
         return equalTo(new BytesRef(simpleData.stream().map(o -> ((BytesRef) o).utf8ToString()).collect(Collectors.joining())));
     }
 

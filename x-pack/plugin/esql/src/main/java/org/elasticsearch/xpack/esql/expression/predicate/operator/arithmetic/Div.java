@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
 
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+
 public class Div {
     @Evaluator(extraName = "Ints")
     static int processInts(int lhs, int rhs) {
@@ -18,6 +20,11 @@ public class Div {
     @Evaluator(extraName = "Longs")
     static long processLongs(long lhs, long rhs) {
         return lhs / rhs;
+    }
+
+    @Evaluator(extraName = "UnsignedLongs")
+    static long processUnsignedLongs(long lhs, long rhs) {
+        return asLongUnsigned(Long.divideUnsigned(asLongUnsigned(lhs), asLongUnsigned(rhs)));
     }
 
     @Evaluator(extraName = "Doubles")

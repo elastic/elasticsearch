@@ -101,8 +101,8 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> data) {
-        return equalTo(Maths.round((Number) data.get(0), (Number) data.get(1)));
+    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
+        return equalTo(Maths.round((Number) data.get(0), ((Number) data.get(1)).longValue()));
     }
 
     @Override

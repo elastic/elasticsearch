@@ -41,7 +41,9 @@ import java.util.function.Function;
 import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.SpecReader.shouldSkipLine;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 
 public final class CsvTestUtils {
     private static final int MAX_WIDTH = 20;
@@ -290,6 +292,7 @@ public final class CsvTestUtils {
     public enum Type {
         INTEGER(Integer::parseInt, Integer.class),
         LONG(Long::parseLong, Long.class),
+        UNSIGNED_LONG(s -> asLongUnsigned(safeToUnsignedLong(s)), Long.class),
         DOUBLE(Double::parseDouble, Double.class),
         FLOAT(
             // Simulate writing the index as `float` precision by parsing as a float and rounding back to double
@@ -323,6 +326,7 @@ public final class CsvTestUtils {
             // add also the types with short names
             LOOKUP.put("I", INTEGER);
             LOOKUP.put("L", LONG);
+            LOOKUP.put("UL", UNSIGNED_LONG);
             LOOKUP.put("D", DOUBLE);
             LOOKUP.put("K", KEYWORD);
             LOOKUP.put("S", KEYWORD);

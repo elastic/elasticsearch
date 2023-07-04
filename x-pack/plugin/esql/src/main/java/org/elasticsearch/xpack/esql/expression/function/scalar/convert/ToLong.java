@@ -20,12 +20,15 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeDoubleToLong;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToLong extends AbstractConvertFunction {
 
@@ -41,6 +44,8 @@ public class ToLong extends AbstractConvertFunction {
             ToLongFromStringEvaluator::new,
             DOUBLE,
             ToLongFromDoubleEvaluator::new,
+            UNSIGNED_LONG,
+            ToLongFromUnsignedLongEvaluator::new,
             INTEGER,
             ToLongFromIntEvaluator::new // CastIntToLongEvaluator would be a candidate, but not MV'd
         );
@@ -91,6 +96,11 @@ public class ToLong extends AbstractConvertFunction {
     @ConvertEvaluator(extraName = "FromDouble")
     static long fromDouble(double dbl) {
         return safeDoubleToLong(dbl);
+    }
+
+    @ConvertEvaluator(extraName = "FromUnsignedLong")
+    static long fromUnsignedLong(long ul) {
+        return safeToLong(unsignedLongAsNumber(ul));
     }
 
     @ConvertEvaluator(extraName = "FromInt")

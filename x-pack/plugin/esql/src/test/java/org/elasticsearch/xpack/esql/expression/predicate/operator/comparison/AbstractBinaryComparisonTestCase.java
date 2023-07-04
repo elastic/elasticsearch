@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOperatorTestCase {
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    protected final Matcher<Object> resultMatcher(List<Object> data) {
+    protected final Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         Comparable lhs = (Comparable) data.get(0);
         Comparable rhs = (Comparable) data.get(1);
         if (lhs instanceof Double || rhs instanceof Double) {

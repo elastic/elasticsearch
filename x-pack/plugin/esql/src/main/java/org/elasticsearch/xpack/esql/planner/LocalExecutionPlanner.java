@@ -229,7 +229,7 @@ public class LocalExecutionPlanner {
      * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
      */
     public static ElementType toElementType(DataType dataType) {
-        if (dataType == DataTypes.LONG || dataType == DataTypes.DATETIME) {
+        if (dataType == DataTypes.LONG || dataType == DataTypes.DATETIME || dataType == DataTypes.UNSIGNED_LONG) {
             return ElementType.LONG;
         }
         if (dataType == DataTypes.INTEGER) {

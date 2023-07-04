@@ -80,7 +80,7 @@ public class CaseTests extends AbstractFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> data) {
+    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         for (int i = 0; i < data.size() - 1; i += 2) {
             Object cond = data.get(i);
             if (cond != null && ((Boolean) cond).booleanValue()) {

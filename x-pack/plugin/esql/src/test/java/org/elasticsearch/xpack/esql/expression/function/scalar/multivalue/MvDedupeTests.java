@@ -34,7 +34,7 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Matcher<Object> resultMatcherForInput(List<?> input) {
+    protected Matcher<Object> resultMatcherForInput(List<?> input, DataType dataType) {
         if (input == null) {
             return nullValue();
         }

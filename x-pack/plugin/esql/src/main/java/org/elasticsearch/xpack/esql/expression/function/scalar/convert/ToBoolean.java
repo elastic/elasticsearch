@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -24,6 +25,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToBoolean extends AbstractConvertFunction {
 
@@ -37,6 +40,8 @@ public class ToBoolean extends AbstractConvertFunction {
             ToBooleanFromDoubleEvaluator::new,
             LONG,
             ToBooleanFromLongEvaluator::new,
+            UNSIGNED_LONG,
+            ToBooleanFromUnsignedLongEvaluator::new,
             INTEGER,
             ToBooleanFromIntEvaluator::new
         );
@@ -78,6 +83,12 @@ public class ToBoolean extends AbstractConvertFunction {
     @ConvertEvaluator(extraName = "FromLong")
     static boolean fromLong(long l) {
         return l != 0;
+    }
+
+    @ConvertEvaluator(extraName = "FromUnsignedLong")
+    static boolean fromUnsignedLong(long ul) {
+        Number n = unsignedLongAsNumber(ul);
+        return n instanceof BigInteger || n.longValue() != 0;
     }
 
     @ConvertEvaluator(extraName = "FromInt")

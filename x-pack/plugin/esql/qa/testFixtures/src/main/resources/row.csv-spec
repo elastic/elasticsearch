@@ -36,6 +36,13 @@ a:integer
 // end::multivalue-result[]
 ;
 
+unsignedLongLiteral
+ROW long_max = 9223372036854775807, ul_start = 9223372036854775808, ul_end = 18446744073709551615, double=18446744073709551616;
+
+long_max:long       |ul_start:unsigned_long |ul_end:ul            |double:double
+9223372036854775807 |9223372036854775808    |18446744073709551615 |1.8446744073709552E19
+;
+
 fieldFromFunctionEvaluation
 // tag::function[]
 ROW a = ROUND(1.23, 0)

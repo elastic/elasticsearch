@@ -31,6 +31,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public record ColumnInfo(String name, String type) implements Writeable {
 
@@ -117,6 +118,14 @@ public record ColumnInfo(String name, String type) implements Writeable {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((DoubleBlock) block).getDouble(valueIndex));
+                }
+            };
+            case "unsigned_long" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    long l = ((LongBlock) block).getLong(valueIndex);
+                    return builder.value(unsignedLongAsNumber(l));
                 }
             };
             case "keyword" -> new PositionToXContent(block) {

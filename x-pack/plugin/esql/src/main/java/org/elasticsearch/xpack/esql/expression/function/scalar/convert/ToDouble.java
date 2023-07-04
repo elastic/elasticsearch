@@ -25,6 +25,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToDouble extends AbstractConvertFunction {
 
@@ -38,6 +40,8 @@ public class ToDouble extends AbstractConvertFunction {
             ToDoubleFromLongEvaluator::new, // CastLongToDoubleEvaluator would be a candidate, but not MV'd
             KEYWORD,
             ToDoubleFromStringEvaluator::new,
+            UNSIGNED_LONG,
+            ToDoubleFromUnsignedLongEvaluator::new,
             LONG,
             ToDoubleFromLongEvaluator::new, // CastLongToDoubleEvaluator would be a candidate, but not MV'd
             INTEGER,
@@ -76,6 +80,11 @@ public class ToDouble extends AbstractConvertFunction {
     @ConvertEvaluator(extraName = "FromString")
     static double fromKeyword(BytesRef in) {
         return Double.parseDouble(in.utf8ToString());
+    }
+
+    @ConvertEvaluator(extraName = "FromUnsignedLong")
+    static double fromUnsignedLong(long l) {
+        return unsignedLongAsNumber(l).doubleValue();
     }
 
     @ConvertEvaluator(extraName = "FromLong")

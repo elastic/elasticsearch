@@ -29,8 +29,10 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToString extends AbstractConvertFunction implements Mappable {
 
@@ -51,7 +53,9 @@ public class ToString extends AbstractConvertFunction implements Mappable {
             INTEGER,
             ToStringFromIntEvaluator::new,
             VERSION,
-            ToStringFromVersionEvaluator::new
+            ToStringFromVersionEvaluator::new,
+            UNSIGNED_LONG,
+            ToStringFromUnsignedLongEvaluator::new
         );
 
     public ToString(Source source, Expression field) {
@@ -111,5 +115,10 @@ public class ToString extends AbstractConvertFunction implements Mappable {
     @ConvertEvaluator(extraName = "FromVersion")
     static BytesRef fromVersion(BytesRef version) {
         return new BytesRef(new Version(version).toString());
+    }
+
+    @ConvertEvaluator(extraName = "FromUnsignedLong")
+    static BytesRef fromUnsignedLong(long lng) {
+        return new BytesRef(unsignedLongAsNumber(lng).toString());
     }
 }

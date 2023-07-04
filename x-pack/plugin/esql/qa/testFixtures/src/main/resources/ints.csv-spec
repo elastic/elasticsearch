@@ -37,6 +37,70 @@ emp_no:integer |languages:integer
 10030          |3
 ;
 
+// conversions to UNSIGNED_LONG
+
+convertULtoUL
+row ul = [9223372036854775808, 18446744073709551615] | eval ulul = to_unsigned_long(ul);
+
+                    ul:ul                  |                   ulul:ul
+[9223372036854775808, 18446744073709551615]|[9223372036854775808, 18446744073709551615]
+;
+
+convertIntToUL
+row int = [5013792, 520128] | eval ul = to_ulong(int);
+
+int:integer       |ul:ul
+[5013792, 520128] |[5013792, 520128]
+;
+
+convertLongToUL
+row long = [501379200000, 520128000000] | eval ul = to_ul(long);
+
+long:long                    |ul:ul
+[501379200000, 520128000000] |[501379200000, 520128000000]
+;
+
+convertDoubleToUL
+row d = 123.4 | eval ul = to_ul(d), overflow = to_ul(1e20);
+warning:Line 1:48: evaluation of [to_ul(1e20)] failed, treating result as null. Only first 20 failures recorded.
+warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [1.0E20] out of [unsigned_long] range
+
+d:double       |ul:ul      |overflow:ul
+123.4          |123        |null
+;
+
+convertBooleanToUL
+row tf = [true, false] | eval t2ul = to_ul(true), f2ul = to_ul(false), tf2ul = to_ul(tf);
+
+tf:boolean     |t2ul:ul      |f2ul:ul      |tf2ul:ul
+[true, false]  |1            |0            |[1, 0]
+;
+
+convertDatetimeToUL
+from employees | sort emp_no | eval hired_ul = to_ul(hire_date) | keep emp_no, hire_date, hired_ul  | limit 3;
+
+emp_no:integer |hire_date:date          |hired_ul:ul
+10001          |1986-06-26T00:00:00.000Z|520128000000
+10002          |1985-11-21T00:00:00.000Z|501379200000
+10003          |1986-08-28T00:00:00.000Z|525571200000
+;
+
+convertStringToUL
+// tag::to_unsigned_long-str[]
+ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
+| EVAL long1 = TO_UNSIGNED_LONG(str1), long2 = TO_ULONG(str2), long3 = TO_UL(str3)
+// end::to_unsigned_long-str[]
+;
+warning:Line 2:72: evaluation of [TO_UL(str3)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: Character f is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.
+
+
+// tag::to_unsigned_long-str-result[]
+str1:keyword |str2:keyword |str3:keyword |long1:unsigned_long  |long2:unsigned_long |long3:unsigned_long
+2147483648   |2147483648.2 |foo          |2147483648           |2147483648          |null
+// end::to_unsigned_long-str-result[]
+;
+
 // conversions to LONG
 
 convertLongToLong
@@ -51,6 +115,15 @@ row int = [5013792, 520128] | eval long = to_long(int);
 
 int:integer       |long:long
 [5013792, 520128] |[5013792, 520128]
+;
+
+convertULToLong
+row ul = [9223372036854775807, 9223372036854775808] | eval long = to_long(ul);
+warning:Line 1:67: evaluation of [to_long(ul)] failed, treating result as null. Only first 20 failures recorded.
+warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [9223372036854775808] out of [long] range
+
+                    ul:ul                 |       long:long
+[9223372036854775807, 9223372036854775808]|9223372036854775807
 ;
 
 convertDatetimeToLong
@@ -116,6 +189,16 @@ warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [501379200000] ou
 long:long                           |int:integer
 [5013792, 2147483647, 501379200000] |[5013792, 2147483647]
 // end::to_int-long-result[]
+;
+
+convertULToInt
+row ul = [2147483647, 9223372036854775808] | eval int = to_int(ul);
+warning:Line 1:57: evaluation of [to_int(ul)] failed, treating result as null. Only first 20 failures recorded.
+// UL conversion to int dips into long; not the most efficient, but it's how SQL does it too.
+warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [9223372036854775808] out of [long] range
+
+                    ul:ul        |int:integer
+[2147483647, 9223372036854775808]|2147483647
 ;
 
 convertDatetimeToInt

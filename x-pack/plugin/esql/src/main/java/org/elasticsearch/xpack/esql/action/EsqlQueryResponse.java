@@ -45,6 +45,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
 public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContent {
@@ -219,6 +221,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     private static Object valueAt(String dataType, Block block, int offset, BytesRef scratch) {
         return switch (dataType) {
+            case "unsigned_long" -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
             case "long" -> ((LongBlock) block).getLong(offset);
             case "integer" -> ((IntBlock) block).getInt(offset);
             case "double" -> ((DoubleBlock) block).getDouble(offset);
@@ -252,6 +255,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                 var builder = results.get(c);
                 var value = row.get(c);
                 switch (dataTypes.get(c)) {
+                    case "unsigned_long" -> ((LongBlock.Builder) builder).appendLong(asLongUnsigned(((Number) value).longValue()));
                     case "long" -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case "integer" -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
                     case "double" -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());

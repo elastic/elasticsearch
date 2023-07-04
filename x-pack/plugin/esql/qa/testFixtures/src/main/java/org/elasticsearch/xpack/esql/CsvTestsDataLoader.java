@@ -50,6 +50,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset HOSTS = new TestsDataset("hosts", "mapping-hosts.json", "hosts.csv");
     private static final TestsDataset APPS = new TestsDataset("apps", "mapping-apps.json", "apps.csv");
     private static final TestsDataset LANGUAGES = new TestsDataset("languages", "mapping-languages.json", "languages.csv");
+    private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs", "mapping-ul_logs.json", "ul_logs.csv");
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.of(
         EMPLOYEES.indexName,
@@ -59,7 +60,9 @@ public class CsvTestsDataLoader {
         APPS.indexName,
         APPS,
         LANGUAGES.indexName,
-        LANGUAGES
+        LANGUAGES,
+        UL_LOGS.indexName,
+        UL_LOGS
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enricy-policy-languages.json");

@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
@@ -61,7 +62,8 @@ public final class EsqlDataTypes {
         OBJECT,
         NESTED,
         SCALED_FLOAT,
-        VERSION
+        VERSION,
+        UNSIGNED_LONG
     ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));

@@ -60,3 +60,32 @@ setup:
       synonym_rule.delete:
         synonyms_set: test-synonyms
         synonym_rule: test-non-existing-id
+
+---
+"Delete synonym rule - does not impact other synonym sets":
+  - do:
+      synonyms.put:
+        synonyms_set: test-other-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hola, hi"
+              id: "test-id-1"
+            - synonyms: "test => check"
+              id: "test-id-2"
+  - do:
+      synonym_rule.delete:
+        synonyms_set: test-synonyms
+        synonym_rule: test-id-1
+
+  - do:
+      synonyms.get:
+        synonyms_set: test-other-synonyms
+
+  - match:
+      count: 2
+  - match:
+      synonyms_set:
+        - synonyms: "hola, hi"
+          id: "test-id-1"
+        - synonyms: "test => check"
+          id: "test-id-2"

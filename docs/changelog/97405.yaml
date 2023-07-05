@@ -1,0 +1,5 @@
+pr: 97405
+summary: Made `_mvt` REST handler public in serverless
+area: Geo
+type: enhancement
+issues: []

@@ -44,7 +44,9 @@ public class PartialHitCountCollectorTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
             doc.add(new StringField("string", "a" + i, Field.Store.NO));
-            doc.add(new StringField("string", "b" + i, Field.Store.NO));
+            if (i < 3) {
+                doc.add(new StringField("string", "foo", Field.Store.NO));
+            }
             writer.addDocument(doc);
         }
         if (randomBoolean()) {
@@ -95,7 +97,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
 
     public void testCollectedHitCount() throws Exception {
         Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("string", "a1")), BooleanClause.Occur.SHOULD)
-            .add(new TermQuery(new Term("string", "b3")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("string", "a3")), BooleanClause.Occur.SHOULD)
             .build();
         // there's two docs matching the query: any totalHitsThreshold greater than or equal to 2 will non cause early termination
         PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(randomIntBetween(2, Integer.MAX_VALUE));
@@ -105,10 +107,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
     }
 
     public void testCollectedHitCountEarlyTerminated() throws Exception {
-        Query query = new BooleanQuery.Builder().add(termQuery(new Term("string", "a1")), BooleanClause.Occur.SHOULD)
-            .add(termQuery(new Term("string", "b3")), BooleanClause.Occur.SHOULD)
-            .add(termQuery(new Term("string", "b6")), BooleanClause.Occur.SHOULD)
-            .build();
+        Query query = new NonCountingTermQuery(new Term("string", "foo"));
         // there's three docs matching the query: any totalHitsThreshold lower than 3 will trigger early termination
         int totalHitsThreshold = randomInt(2);
         PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(totalHitsThreshold);
@@ -119,19 +118,22 @@ public class PartialHitCountCollectorTests extends ESTestCase {
     }
 
     /**
-     * Create a {@link TermQuery} which cannot terminate collection early
+     * A {@link TermQuery} which cannot terminate collection early
      */
-    private TermQuery termQuery(Term term) {
-        return new TermQuery(term) {
-            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+    public static class NonCountingTermQuery extends TermQuery {
 
-                Weight w = super.createWeight(searcher, scoreMode, boost);
-                return new FilterWeight(w) {
-                    public int count(LeafReaderContext context) throws IOException {
-                        return -1;
-                    }
-                };
-            }
-        };
+        public NonCountingTermQuery(Term term) {
+            super(term);
+        }
+
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            Weight w = super.createWeight(searcher, scoreMode, boost);
+            return new FilterWeight(w) {
+                public int count(LeafReaderContext context) throws IOException {
+                    return -1;
+                }
+            };
+        }
     }
+
 }

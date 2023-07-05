@@ -11,7 +11,9 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-archivesBaseName = 'x-pack-security'
+base {
+  archivesName = 'x-pack-security'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

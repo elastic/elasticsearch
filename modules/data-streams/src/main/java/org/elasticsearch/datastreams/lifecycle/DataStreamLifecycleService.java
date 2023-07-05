@@ -251,7 +251,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
              * on rollover criteria. We're keeping a reference to it because regardless of whether it's rolled over or not we want to
              * exclude it from force merging later in this data stream lifecycle run.
              */
-            Index originalWriteIndex = dataStream.getWriteIndex();
+            Index currentRunWriteIndex = dataStream.getWriteIndex();
             try {
                 maybeExecuteRollover(state, dataStream);
             } catch (Exception e) {
@@ -261,10 +261,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 );
                 DataStream latestDataStream = clusterService.state().metadata().dataStreams().get(dataStream.getName());
                 if (latestDataStream != null) {
-                    if (latestDataStream.getWriteIndex().getName().equals(originalWriteIndex.getName())) {
+                    if (latestDataStream.getWriteIndex().getName().equals(currentRunWriteIndex.getName())) {
                         // data stream has not been rolled over in the meantime so record the error against the write index we
                         // attempted the rollover
-                        errorStore.recordError(originalWriteIndex.getName(), e);
+                        errorStore.recordError(currentRunWriteIndex.getName(), e);
                     }
                 }
             }
@@ -293,9 +293,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                  * of deleting because they'll be gone soon anyway.
                  */
                 Set<Index> indicesToExclude = new HashSet<>();
-                Index currentWriteIndex = dataStream.getWriteIndex();
-                indicesToExclude.add(currentWriteIndex);
-                indicesToExclude.add(originalWriteIndex); // Could be the same as currentWriteIndex, but that's fine
+                indicesToExclude.add(currentRunWriteIndex);
                 indicesToExclude.addAll(indicesBeingRemoved);
                 List<Index> potentialForceMergeIndices = dataStream.getIndices()
                     .stream()

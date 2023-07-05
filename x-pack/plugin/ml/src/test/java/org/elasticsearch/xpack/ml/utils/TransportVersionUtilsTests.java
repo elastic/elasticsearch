@@ -50,10 +50,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
     public void testIsMinTransformVersionSameAsCurrent() {
         assertThat(TransportVersionUtils.isMinTransformVersionSameAsCurrent(state), equalTo(false));
 
-        Map<String, TransportVersion> transportVersions1 = Map.of(
-            "Eugene",
-            TransportVersion.current()
-        );
+        Map<String, TransportVersion> transportVersions1 = Map.of("Eugene", TransportVersion.current());
 
         ClusterState state1 = new ClusterState(
             new ClusterName("harry"),

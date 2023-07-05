@@ -12,6 +12,14 @@ The following APIs are available for managing <<data-streams,data streams>>:
 * <<promote-data-stream-api>>
 * <<modify-data-streams-api>>
 
+[[data-stream-lifecycle-api]]
+The following APIs are available for managing the built-in lifecycle of data streams:
+
+* <<data-streams-put-lifecycle,Update data stream lifecycle>> preview:[]
+* <<data-streams-get-lifecycle,Get data stream lifecycle>> preview:[]
+* <<data-streams-delete-lifecycle,Delete data stream lifecycle>> preview:[]
+* <<data-streams-explain-lifecycle,Explain data stream lifecycle>> preview:[]
+
 The following API is available for <<tsds,time series data streams>>:
 
 * <<indices-downsample-data-stream>>
@@ -32,5 +40,13 @@ include::{es-repo-dir}/indices/data-stream-stats.asciidoc[]
 include::{es-repo-dir}/data-streams/promote-data-stream-api.asciidoc[]
 
 include::{es-repo-dir}/data-streams/modify-data-streams-api.asciidoc[]
+
+include::{es-repo-dir}/data-streams/lifecycle/apis/put-lifecycle.asciidoc[]
+
+include::{es-repo-dir}/data-streams/lifecycle/apis/get-lifecycle.asciidoc[]
+
+include::{es-repo-dir}/data-streams/lifecycle/apis/delete-lifecycle.asciidoc[]
+
+include::{es-repo-dir}/data-streams/lifecycle/apis/explain-lifecycle.asciidoc[]
 
 include::{es-repo-dir}/indices/downsample-data-stream.asciidoc[]

@@ -62,23 +62,15 @@ public class PostWriteRefresh {
                     listener.onFailure(e);
                 }
             });
-            case IMMEDIATE -> immediate(indexShard, new ActionListener<>() {
-                @Override
-                public void onResponse(Engine.RefreshResult refreshResult) {
-                    // Fast refresh indices do not depend on the unpromotables being refreshed
-                    boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexShard.indexSettings().getSettings());
-                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0 && fastRefresh == false) {
-                        sendUnpromotableRequests(indexShard, refreshResult.generation(), true, listener, postWriteRefreshTimeout);
-                    } else {
-                        listener.onResponse(true);
-                    }
+            case IMMEDIATE -> immediate(indexShard, listener.delegateFailureAndWrap((l, r) -> {
+                // Fast refresh indices do not depend on the unpromotables being refreshed
+                boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexShard.indexSettings().getSettings());
+                if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0 && fastRefresh == false) {
+                    sendUnpromotableRequests(indexShard, r.generation(), true, l, postWriteRefreshTimeout);
+                } else {
+                    l.onResponse(true);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            }));
             default -> throw new IllegalArgumentException("unknown refresh policy: " + policy);
         }
     }

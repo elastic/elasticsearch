@@ -188,7 +188,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             state.metadata(),
             state.routingTable(),
             state.nodes(),
-            state.transportVersions(),
+            state.transportVersions,
             state.blocks(),
             state.customs(),
             false,
@@ -736,7 +736,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.version = state.version();
             this.uuid = state.stateUUID();
             this.nodes = state.nodes();
-            this.transportVersions = new HashMap<>(state.transportVersions());
+            this.transportVersions = new HashMap<>(state.transportVersions);
             this.routingTable = state.routingTable();
             this.metadata = state.metadata();
             this.blocks = state.blocks();

@@ -331,7 +331,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 .endArray()
                 .endObject()
         );
-        MapperService mapperService = createMapperService(IndexVersion.CURRENT, Settings.EMPTY, () -> true);
+        MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> true);
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.INDEX_TEMPLATE);
 
         // There should be no update if templates are not set.

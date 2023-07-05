@@ -8,7 +8,9 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
-archivesBaseName = 'x-pack'
+base {
+  archivesName = 'x-pack'
+}
 
 dependencies {
   testImplementation project(xpackModule('core'))
@@ -224,6 +226,7 @@ testClusters.configureEach {
   extraConfigFile serviceTokens.name, serviceTokens
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+  requiresFeature 'es.inference_rescorer_feature_flag_enabled', Version.fromString("8.10.0")
 }
 
 tasks.register('enforceApiSpecsConvention').configure {

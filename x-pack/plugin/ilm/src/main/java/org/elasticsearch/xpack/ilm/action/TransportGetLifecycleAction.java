@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -55,12 +56,18 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
             Request::new,
             indexNameExpressionResolver,
             Response::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT
         );
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+        assert task instanceof CancellableTask : "get lifecycle requests should be cancellable";
+        final CancellableTask cancellableTask = (CancellableTask) task;
+        if (cancellableTask.notifyIfCancelled(listener)) {
+            return;
+        }
+
         IndexLifecycleMetadata metadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
             if (request.getPolicyNames().length == 0) {
@@ -78,7 +85,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                 names = Arrays.asList(request.getPolicyNames());
             }
 
-            if (names.size() > 1 && names.stream().filter(Regex::isSimpleMatchPattern).count() > 0) {
+            if (names.size() > 1 && names.stream().anyMatch(Regex::isSimpleMatchPattern)) {
                 throw new IllegalArgumentException(
                     "wildcard only supports a single value, please use comma-separated values or a single wildcard value"
                 );
@@ -88,6 +95,9 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
             for (String name : names) {
                 if (Regex.isSimpleMatchPattern(name)) {
                     for (Map.Entry<String, LifecyclePolicyMetadata> entry : metadata.getPolicyMetadatas().entrySet()) {
+                        if (cancellableTask.notifyIfCancelled(listener)) {
+                            return;
+                        }
                         LifecyclePolicyMetadata policyMetadata = entry.getValue();
                         if (Regex.simpleMatch(name, entry.getKey())) {
                             policyResponseItemMap.put(

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.profiler;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -62,7 +62,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         indexManager = new ProfilingIndexManager(threadPool, client, clusterService) {
             @Override
-            protected boolean isAllTemplatesCreated(ClusterChangedEvent event) {
+            protected boolean isAllResourcesCreated(ClusterChangedEvent event) {
                 return templatesCreated.get();
             }
         };
@@ -172,7 +172,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         for (String index : existingIndices) {
             IndexMetadata mockMetadata = mock(IndexMetadata.class);
             when(mockMetadata.getIndex()).thenReturn(new Index(index, index));
-            when(mockMetadata.getCompatibilityVersion()).thenReturn(Version.CURRENT);
+            when(mockMetadata.getCompatibilityVersion()).thenReturn(IndexVersion.current());
             indices.put(index, mockMetadata);
         }
         return ClusterState.builder(new ClusterName("test"))

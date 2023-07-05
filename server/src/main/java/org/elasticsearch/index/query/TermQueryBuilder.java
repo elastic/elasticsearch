@@ -168,15 +168,10 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
-        return doIndexMetadataRewrite(searchExecutionContext);
-    }
-
-    @Override
     protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(this.fieldName);
         if (fieldType == null) {
-            return new MatchNoneQueryBuilder();
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         } else if (fieldType instanceof ConstantFieldType constantFieldType) {
             // This logic is correct for all field types, but by only applying it to constant
             // fields we also have the guarantee that it doesn't perform I/O, which is important
@@ -191,7 +186,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
             if (query instanceof MatchAllDocsQuery) {
                 return new MatchAllQueryBuilder();
             } else if (query instanceof MatchNoDocsQuery) {
-                return new MatchNoneQueryBuilder();
+                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
             } else {
                 assert false : "Constant fields must produce match-all or match-none queries, got " + query;
             }

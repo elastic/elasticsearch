@@ -9,8 +9,10 @@ import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTas
 
 apply plugin: 'elasticsearch.build'
 
-targetCompatibility = JavaVersion.VERSION_1_8
-sourceCompatibility = JavaVersion.VERSION_1_8
+java {
+  targetCompatibility = JavaVersion.VERSION_1_8
+  sourceCompatibility = JavaVersion.VERSION_1_8
+}
 
 group = "${group}.client.test"
 
@@ -25,9 +27,9 @@ dependencies {
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   // mockito
-  api 'org.mockito:mockito-core:5.1.1'
-  api 'org.mockito:mockito-subclass:5.1.1'
-  api 'net.bytebuddy:byte-buddy:1.12.22'
+  api 'org.mockito:mockito-core:5.4.0'
+  api 'org.mockito:mockito-subclass:5.4.0'
+  api 'net.bytebuddy:byte-buddy:1.14.5'
   api 'org.objenesis:objenesis:3.3'
 }
 

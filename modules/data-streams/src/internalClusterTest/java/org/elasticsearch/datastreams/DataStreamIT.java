@@ -60,10 +60,10 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
@@ -1309,7 +1309,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
     public void testGetDataStream() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
-        DataLifecycle lifecycle = new DataLifecycle(randomMillisUpToYear9999());
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle(randomMillisUpToYear9999());
         putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null, null, lifecycle);
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);
@@ -2310,7 +2310,7 @@ public class DataStreamIT extends ESIntegTestCase {
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
         @Nullable Map<String, AliasMetadata> aliases,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(

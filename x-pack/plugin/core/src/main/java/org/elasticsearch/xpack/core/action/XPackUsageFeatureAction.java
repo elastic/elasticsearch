@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.XPackField;
 
@@ -60,7 +60,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         ANALYTICS,
         CCR,
         DATA_STREAMS,
-        DataLifecycle.isEnabled() ? DATA_LIFECYCLE : null,
+        DataStreamLifecycle.isEnabled() ? DATA_LIFECYCLE : null,
         DATA_TIERS,
         EQL,
         ESQL,

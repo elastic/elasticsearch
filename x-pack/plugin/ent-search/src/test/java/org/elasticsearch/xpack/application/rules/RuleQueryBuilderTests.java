@@ -73,10 +73,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     }
 
     public void testIllegalArguments() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, "rulesetId")
-        );
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, "rulesetId"));
         expectThrows(
             IllegalArgumentException.class,
             () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), null)
@@ -85,21 +82,11 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
             IllegalArgumentException.class,
             () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), "")
         );
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, generateRandomMatchCriteria(), "rulesetId"));
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, Collections.emptyMap(), "rulesetId"));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(null, generateRandomMatchCriteria(), "rulesetId")
-        );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(null, Collections.emptyMap(), "rulesetId")
-        );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(
-                new MatchAllQueryBuilder(),
-                generateRandomMatchCriteria("invalid_value"),
-                "rulesetId"
-            )
+            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria("invalid_value"), "rulesetId")
         );
     }
 
@@ -140,11 +127,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     }
 
     public void testRewrite() throws IOException {
-        RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(
-            new TermQueryBuilder("foo", 1),
-            Map.of("query_string", "bar"),
-            "baz"
-        );
+        RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(new TermQueryBuilder("foo", 1), Map.of("query_string", "bar"), "baz");
         QueryBuilder rewritten = ruleQueryBuilder.rewrite(createSearchExecutionContext());
         assertThat(rewritten, instanceOf(RuleQueryBuilder.class));
     }

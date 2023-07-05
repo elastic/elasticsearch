@@ -223,10 +223,10 @@ follow the progress. It may take a couple of minutes to complete the process.
 [[text-expansion-query]]
 === Semantic search by using the `text_expansion` query
 
-To perform semantic search, use the `text_expansion` query, 
-and provide the query text and the ELSER model ID. The example below uses 
-the query text "How to avoid muscle soreness after running?", the `ml-tokens` 
-field contains the generated ELSER output:
+To perform semantic search, use the `text_expansion` query, and provide the 
+query text and the ELSER model ID. The example below uses the query text "How to 
+avoid muscle soreness after running?", the `ml-tokens` field contains the 
+generated ELSER output:
 
 [source,console]
 ----
@@ -287,6 +287,9 @@ weights.
 ]
 ----
 // NOTCONSOLE
+
+To learn about optimizing your `text_expansion` query, refer to 
+<<optimizing-text-expansion>>.
 
 
 [discrete]

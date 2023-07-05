@@ -41,10 +41,10 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<ProfilingIndexManager.ProfilingIndex> {
     // For testing
     public static final List<ProfilingIndex> PROFILING_INDICES = List.of(
-        ProfilingIndex.regular("profiling-returnpads-private", 1, OnVersionBump.IGNORE_OLD),
+        ProfilingIndex.regular("profiling-returnpads-private", 1, OnVersionBump.KEEP_OLD),
         ProfilingIndex.regular("profiling-sq-executables", 1, OnVersionBump.DELETE_OLD),
         ProfilingIndex.regular("profiling-sq-leafframes", 1, OnVersionBump.DELETE_OLD),
-        ProfilingIndex.regular("profiling-symbols-private", 1, OnVersionBump.IGNORE_OLD),
+        ProfilingIndex.regular("profiling-symbols-private", 1, OnVersionBump.KEEP_OLD),
         ProfilingIndex.kv("profiling-executables", 1),
         ProfilingIndex.kv("profiling-stackframes", 1),
         ProfilingIndex.kv("profiling-stacktraces", 1),
@@ -301,7 +301,7 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
 
     enum OnVersionBump {
         DELETE_OLD,
-        IGNORE_OLD
+        KEEP_OLD
     }
 
     /**
@@ -319,7 +319,7 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
 
         public static ProfilingIndex kv(String name, int version) {
             // K/V indices will age automatically as per the ILM policy, and we won't force-upgrade them on version bumps
-            return new ProfilingIndex(name, version, "000001", OnVersionBump.IGNORE_OLD);
+            return new ProfilingIndex(name, version, "000001", OnVersionBump.KEEP_OLD);
         }
 
         private ProfilingIndex(String namePrefix, int version, String generation, OnVersionBump onVersionBump) {

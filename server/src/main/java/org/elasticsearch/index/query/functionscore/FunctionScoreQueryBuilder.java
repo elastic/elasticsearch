@@ -652,4 +652,9 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public Query toHighlightQuery(String fieldName) {
+        return query.toHighlightQuery(fieldName);
+    }
 }

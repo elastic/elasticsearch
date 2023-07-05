@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * The BoostingQuery class can be used to effectively demote results that match a given query.
@@ -231,5 +232,16 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
+    }
+
+    @Override
+    public Query toHighlightQuery(String fieldName) {
+        return Stream.of(positiveQuery, negativeQuery)
+            .map(qb -> qb.toHighlightQuery(fieldName))
+            .filter(Objects::nonNull)
+            .toList()
+            .stream()
+            .findFirst()
+            .orElse(null);
     }
 }

@@ -163,4 +163,9 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public Query toHighlightQuery(String fieldName) {
+        return filterBuilder.toHighlightQuery(fieldName);
+    }
 }

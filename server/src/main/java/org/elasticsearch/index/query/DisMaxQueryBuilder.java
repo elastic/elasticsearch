@@ -226,4 +226,15 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public Query toHighlightQuery(String fieldName) {
+        return queries.stream()
+            .map(qb -> qb.toHighlightQuery(fieldName))
+            .filter(Objects::nonNull)
+            .toList()
+            .stream()
+            .findFirst()
+            .orElse(null);
+    }
 }

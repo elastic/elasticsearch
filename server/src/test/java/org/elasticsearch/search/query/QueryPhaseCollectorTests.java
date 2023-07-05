@@ -102,6 +102,8 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         );
     }
 
+    //TODO remove some of these tests as they are now duplicated?
+
     public void testTopDocsOnly() throws IOException {
         {
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(1, 1000);

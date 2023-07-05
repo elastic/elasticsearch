@@ -118,9 +118,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.fetchSourceContext(fetchSourceContext);
         }
         if (highlightBuilder != null) {
-            subSearchContext.highlight(
-                highlightBuilder.build(subSearchContext.getSearchExecutionContext(), highlightBuilder.highlightQuery())
-            );
+            subSearchContext.highlight(highlightBuilder.build(subSearchContext.getSearchExecutionContext()));
         }
         return new TopHitsAggregator(subSearchContext, name, context, parent, metadata);
     }

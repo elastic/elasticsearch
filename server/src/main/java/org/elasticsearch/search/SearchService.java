@@ -1288,7 +1288,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();
             try {
-                context.highlight(highlightBuilder.build(searchExecutionContext, source.query()));
+                context.highlight(highlightBuilder.build(searchExecutionContext));
             } catch (IOException e) {
                 throw new SearchException(shardTarget, "failed to create SearchContextHighlighter", e);
             }

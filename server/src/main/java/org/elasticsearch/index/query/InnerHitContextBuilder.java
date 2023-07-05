@@ -118,7 +118,7 @@ public abstract class InnerHitContextBuilder {
             }
         }
         if (innerHitBuilder.getHighlightBuilder() != null) {
-            innerHitsContext.highlight(innerHitBuilder.getHighlightBuilder().build(searchExecutionContext, query));
+            innerHitsContext.highlight(innerHitBuilder.getHighlightBuilder().build(searchExecutionContext));
         }
         ParsedQuery parsedQuery = new ParsedQuery(query.toQuery(searchExecutionContext), searchExecutionContext.copyNamedQueries());
         innerHitsContext.parsedQuery(parsedQuery);

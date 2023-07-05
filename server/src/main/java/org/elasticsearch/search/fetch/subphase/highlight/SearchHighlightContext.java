@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class SearchHighlightContext {
+
     private final Map<String, Field> fields;
 
     public SearchHighlightContext(Collection<Field> fields) {

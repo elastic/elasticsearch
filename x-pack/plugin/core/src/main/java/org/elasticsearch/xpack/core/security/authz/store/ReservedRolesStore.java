@@ -64,9 +64,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     /** Alerts, Rules, Cases (RAC) preview index used by multiple solutions */
     public static final String PREVIEW_ALERTS_INDEX_ALIAS = ".preview.alerts*";
-
-    /** Alerts, Rules, Cases (RAC) preview index used by multiple solutions */
     public static final String PREVIEW_ALERTS_BACKING_INDEX_ALIAS = ".internal.preview.alerts*";
+
+    /** Alerts, Rules, Cases (RAC) percolator index used by security solution */
+    public static final String PERCOLATOR_ALERTS_INDEX_ALIAS = ".percolator.alerts*";
+    public static final String PERCOLATOR_ALERTS_BACKING_INDEX_ALIAS = ".internal.percolator.alerts*";
 
     /** "Security Solutions" only lists index for value lists for detections */
     public static final String LISTS_INDEX = ".lists-*";
@@ -651,7 +653,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // Alerts-as-data
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.ALERTS_INDEX_ALIAS, ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS)
+                    .indices(
+                        ReservedRolesStore.ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.PERCOLATOR_ALERTS_INDEX_ALIAS
+                    )
                     .privileges("read", "view_index_metadata")
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
@@ -693,7 +699,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.ALERTS_BACKING_INDEX,
                         ReservedRolesStore.ALERTS_INDEX_ALIAS,
                         ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_ALIAS,
-                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS
+                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.PERCOLATOR_ALERTS_BACKING_INDEX_ALIAS,
+                        ReservedRolesStore.PERCOLATOR_ALERTS_INDEX_ALIAS
                     )
                     .privileges("read", "view_index_metadata", "write", "maintenance")
                     .build() },
@@ -842,6 +850,18 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Kibana system user creates these indices; reads / writes to them via the aliases (see below).
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_ALIAS)
+                    .privileges("all")
+                    .build(),
+                // "Alerts as data" internal backing indices used in Security Solution
+                // Kibana system user creates these indices; reads / writes to them via the aliases (see below).
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.PERCOLATOR_ALERTS_BACKING_INDEX_ALIAS)
+                    .privileges("all")
+                    .build(),
+                // "Alerts as data" internal backing indices used in Security Solution
+                // Kibana system user creates these indices; reads / writes to them via the aliases (see below).
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.PERCOLATOR_ALERTS_INDEX_ALIAS)
                     .privileges("all")
                     .build(),
                 // Endpoint / Fleet policy responses. Kibana requires read access to send telemetry

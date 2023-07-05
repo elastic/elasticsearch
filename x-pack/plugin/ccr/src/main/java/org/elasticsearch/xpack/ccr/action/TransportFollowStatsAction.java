@@ -130,11 +130,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     private long getDocumentCountLag(final String followerIndex, final String leaderIndex, final String remoteCluster) throws Exception {
 
         final CompletableFuture<Long> localIndexDocCount = new CompletableFuture<>();
-        spawnDocCountRequest(
-            transportService::getLocalNodeConnection,
-            followerIndex,
-            localIndexDocCount::complete
-        );
+        spawnDocCountRequest(transportService::getLocalNodeConnection, followerIndex, localIndexDocCount::complete);
 
         final CompletableFuture<Long> remoteIndexDocCount = new CompletableFuture<>();
         spawnDocCountRequest(
@@ -150,7 +146,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
         final Supplier<Transport.Connection> connection,
         final String indexName,
         final Consumer<Long> docCount
-        ) {
+    ) {
         SearchRequest countRequest = new SearchRequest(indexName);
         countRequest.source(new SearchSourceBuilder().size(0).trackTotalHits(true));
         transportService.sendRequest(
@@ -163,6 +159,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
                 public void onResponse(SearchResponse response) {
                     docCount.accept(response.getHits().getTotalHits().value);
                 }
+
                 @Override
                 public void onFailure(Exception e) {
                     throw new RuntimeException(e);

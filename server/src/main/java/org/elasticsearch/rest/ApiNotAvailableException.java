@@ -20,7 +20,7 @@ import static org.elasticsearch.rest.RestStatus.GONE;
  */
 public class ApiNotAvailableException extends ElasticsearchException {
 
-    ApiNotAvailableException(String msg, Object... args) {
+    public ApiNotAvailableException(String msg, Object... args) {
         super(msg, args);
     }
 
@@ -32,5 +32,4 @@ public class ApiNotAvailableException extends ElasticsearchException {
     public RestStatus status() {
         return GONE;
     }
-
 }

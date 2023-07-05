@@ -9,6 +9,9 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestStatus.GONE;
 
@@ -21,8 +24,13 @@ public class ApiNotAvailableException extends ElasticsearchException {
         super(msg, args);
     }
 
+    public ApiNotAvailableException(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
     public RestStatus status() {
         return GONE;
     }
+
 }

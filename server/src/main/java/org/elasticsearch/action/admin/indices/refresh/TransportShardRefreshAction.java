@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
@@ -67,7 +68,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             ThreadPool.Names.REFRESH
         );
         // registers the unpromotable version of shard refresh action
-        new TransportUnpromotableShardRefreshAction(clusterService, transportService, actionFilters, indicesService);
+        new TransportUnpromotableShardRefreshAction(clusterService, transportService, shardStateAction, actionFilters, indicesService);
     }
 
     @Override
@@ -81,21 +82,20 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         IndexShard primary,
         ActionListener<PrimaryResult<ShardRefreshReplicaRequest, ReplicationResponse>> listener
     ) {
-        ActionListener.completeWith(listener, () -> {
-            ShardRefreshReplicaRequest replicaRequest = new ShardRefreshReplicaRequest(shardRequest.shardId(), primary.refresh(SOURCE_API));
+        primary.externalRefresh(SOURCE_API, listener.delegateFailure((l, refreshResult) -> {
+            ShardRefreshReplicaRequest replicaRequest = new ShardRefreshReplicaRequest(shardRequest.shardId(), refreshResult);
             replicaRequest.setParentTask(shardRequest.getParentTask());
             logger.trace("{} refresh request executed on primary", primary.shardId());
-            return new PrimaryResult<>(replicaRequest, new ReplicationResponse());
-        });
+            l.onResponse(new PrimaryResult<>(replicaRequest, new ReplicationResponse()));
+        }));
     }
 
     @Override
     protected void shardOperationOnReplica(ShardRefreshReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> {
-            replica.refresh(SOURCE_API);
+        replica.externalRefresh(SOURCE_API, listener.delegateFailure((l, refreshResult) -> {
             logger.trace("{} refresh request executed on replica", replica.shardId());
-            return new ReplicaResult();
-        });
+            l.onResponse(new ReplicaResult());
+        }));
     }
 
     @Override
@@ -112,20 +112,30 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             ActionListener<Void> listener
         ) {
             assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
-            UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
-                indexShardRoutingTable,
-                replicaRequest.primaryRefreshResult.generation()
+            boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(
+                clusterService.state().metadata().index(indexShardRoutingTable.shardId().getIndex()).getSettings()
             );
-            transportService.sendRequest(
-                transportService.getLocalNode(),
-                TransportUnpromotableShardRefreshAction.NAME,
-                unpromotableReplicaRequest,
-                new ActionListenerResponseHandler<>(
-                    listener.delegateFailure((l, r) -> l.onResponse(null)),
-                    (in) -> ActionResponse.Empty.INSTANCE,
-                    ThreadPool.Names.REFRESH
-                )
-            );
+
+            // Indices marked with fast refresh do not rely on refreshing the unpromotables
+            if (fastRefresh) {
+                listener.onResponse(null);
+            } else {
+                UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
+                    indexShardRoutingTable,
+                    replicaRequest.primaryRefreshResult.generation(),
+                    false
+                );
+                transportService.sendRequest(
+                    transportService.getLocalNode(),
+                    TransportUnpromotableShardRefreshAction.NAME,
+                    unpromotableReplicaRequest,
+                    new ActionListenerResponseHandler<>(
+                        listener.delegateFailure((l, r) -> l.onResponse(null)),
+                        (in) -> ActionResponse.Empty.INSTANCE,
+                        ThreadPool.Names.REFRESH
+                    )
+                );
+            }
         }
     }
 }

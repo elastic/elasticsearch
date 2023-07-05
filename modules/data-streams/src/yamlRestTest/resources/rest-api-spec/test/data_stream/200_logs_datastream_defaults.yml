@@ -1,0 +1,108 @@
+---
+Verify default logs-*-* settings and mappings:
+  - do:
+      indices.create_data_stream:
+        name: logs-generic-default
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-generic-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  # default backing index settings should be "ignore_malformed": true
+  - do:
+      indices.get_settings:
+        index: $idx0name
+  - match: { .$idx0name.settings.index.mapping.ignore_malformed: "true" }
+
+  # add test field mapping
+  - do:
+      indices.put_mapping:
+        index: $idx0name
+        body:
+          properties:
+            numeric_field:
+              type: integer
+  - is_true: acknowledged
+
+  # default backing index mapping should contain an exception for the @timestamp field - "ignore_malformed": false
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+  - match: { .$idx0name.mappings.properties.@timestamp.ignore_malformed: false }
+  - match: { .$idx0name.mappings.properties.numeric_field.type: "integer" }
+
+  - do:
+      index:
+        index: logs-generic-default
+        refresh: true
+        body:
+          '@timestamp': '2023-04-18'
+          message: 'valid'
+          numeric_field: 42
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              message:
+                value: 'valid'
+          fields:
+            - field: 'numeric_field'
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match: { hits.hits.0.fields.numeric_field.0: 42 }
+
+  - do:
+      index:
+        index:  logs-generic-default
+        refresh: true
+        body:
+          '@timestamp': '2023-04-18'
+          message: 'number_as_string'
+          numeric_field: "42"
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              message:
+                value: 'number_as_string'
+          fields:
+            - field: 'numeric_field'
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match: { hits.hits.0.fields.numeric_field.0: 42 }
+
+  - do:
+      index:
+        index:  logs-generic-default
+        refresh: true
+        body:
+          '@timestamp': '2023-04-18'
+          message: 'invalid'
+          numeric_field: "forty-two"
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              message:
+                value: 'invalid'
+          fields:
+            - field: 'numeric_field'
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0._ignored: 1 }
+  - match: { hits.hits.0._ignored.0: 'numeric_field' }
+  - length: { hits.hits.0.ignored_field_values.numeric_field: 1 }
+  - match: { hits.hits.0.ignored_field_values.numeric_field.0: 'forty-two' }

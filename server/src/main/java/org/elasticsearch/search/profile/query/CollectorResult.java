@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.profile.query;
 
+import org.apache.lucene.sandbox.search.ProfilerCollectorResult;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,14 +33,12 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * Collectors used in the search.  Children CollectorResult's may be
  * embedded inside of a parent CollectorResult
  */
-public class CollectorResult implements ToXContentObject, Writeable {
+public class CollectorResult extends ProfilerCollectorResult implements ToXContentObject, Writeable {
 
     public static final String REASON_SEARCH_COUNT = "search_count";
     public static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
-    public static final String REASON_SEARCH_TERMINATE_AFTER_COUNT = "search_terminate_after_count";
-    public static final String REASON_SEARCH_POST_FILTER = "search_post_filter";
-    public static final String REASON_SEARCH_MIN_SCORE = "search_min_score";
     public static final String REASON_SEARCH_MULTI = "search_multi";
+    public static final String REASON_SEARCH_QUERY_PHASE = "search_query_phase";
     public static final String REASON_AGGREGATION = "aggregation";
     public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
 
@@ -49,85 +48,27 @@ public class CollectorResult implements ToXContentObject, Writeable {
     private static final ParseField TIME_NANOS = new ParseField("time_in_nanos");
     private static final ParseField CHILDREN = new ParseField("children");
 
-    /**
-     * A more friendly representation of the Collector's class name
-     */
-    private final String collectorName;
-
-    /**
-     * A "hint" to help provide some context about this Collector
-     */
-    private final String reason;
-
-    /**
-     * The total elapsed time for this Collector
-     */
-    private final long time;
-
-    /**
-     * A list of children collectors "embedded" inside this collector
-     */
-    private List<CollectorResult> children;
-
     public CollectorResult(String collectorName, String reason, long time, List<CollectorResult> children) {
-        this.collectorName = collectorName;
-        this.reason = reason;
-        this.time = time;
-        this.children = children;
+        super(collectorName, reason, time, new ArrayList<>(children));
     }
 
     /**
      * Read from a stream.
      */
     public CollectorResult(StreamInput in) throws IOException {
-        this.collectorName = in.readString();
-        this.reason = in.readString();
-        this.time = in.readLong();
-        int size = in.readVInt();
-        this.children = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            CollectorResult child = new CollectorResult(in);
-            this.children.add(child);
-        }
+        super(in.readString(), in.readString(), in.readLong(), in.readList(CollectorResult::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(collectorName);
-        out.writeString(reason);
-        out.writeLong(time);
-        out.writeVInt(children.size());
-        for (CollectorResult child : children) {
-            child.writeTo(out);
-        }
+        out.writeString(getName());
+        out.writeString(getReason());
+        out.writeLong(getTime());
+        out.writeList(getCollectorResults());
     }
 
-    /**
-     * @return the profiled time for this collector (inclusive of children)
-     */
-    public long getTime() {
-        return this.time;
-    }
-
-    /**
-     * @return a human readable "hint" about what this collector was used for
-     */
-    public String getReason() {
-        return this.reason;
-    }
-
-    /**
-     * @return the lucene class name of the collector
-     */
-    public String getName() {
-        return this.collectorName;
-    }
-
-    /**
-     * @return a list of children collectors
-     */
-    public List<CollectorResult> getProfiledChildren() {
-        return children;
+    public List<CollectorResult> getCollectorResults() {
+        return super.getProfiledChildren().stream().map(profilerCollectorResult -> (CollectorResult) profilerCollectorResult).toList();
     }
 
     @Override
@@ -136,15 +77,15 @@ public class CollectorResult implements ToXContentObject, Writeable {
             return false;
         }
         CollectorResult other = (CollectorResult) obj;
-        return collectorName.equals(other.collectorName)
-            && reason.equals(other.reason)
-            && time == other.time
-            && children.equals(other.children);
+        return getName().equals(other.getName())
+            && getReason().equals(other.getReason())
+            && getTime() == other.getTime()
+            && getCollectorResults().equals(other.getCollectorResults());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(collectorName, reason, time, children);
+        return Objects.hash(getName(), getReason(), getTime(), getCollectorResults());
     }
 
     @Override
@@ -162,9 +103,9 @@ public class CollectorResult implements ToXContentObject, Writeable {
         }
         builder.field(TIME_NANOS.getPreferredName(), getTime());
 
-        if (children.isEmpty() == false) {
+        if (getProfiledChildren().isEmpty() == false) {
             builder = builder.startArray(CHILDREN.getPreferredName());
-            for (CollectorResult child : children) {
+            for (CollectorResult child : getCollectorResults()) {
                 builder = child.toXContent(builder, params);
             }
             builder = builder.endArray();

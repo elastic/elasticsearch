@@ -1,6 +1,0 @@
-pr: 93533
-summary: Better names and types for ingest stats
-area: Ingest Node
-type: bug
-issues:
- - 80763

@@ -66,7 +66,7 @@ public class MetadataCreateDataStreamService {
 
     public void createDataStream(CreateDataStreamClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> finalListener) {
         AtomicReference<String> firstBackingIndexRef = new AtomicReference<>();
-        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> {
+        ActionListener<AcknowledgedResponse> listener = finalListener.delegateFailureAndWrap((l, response) -> {
             if (response.isAcknowledged()) {
                 String firstBackingIndexName = firstBackingIndexRef.get();
                 assert firstBackingIndexName != null;
@@ -75,12 +75,12 @@ public class MetadataCreateDataStreamService {
                     new String[] { firstBackingIndexName },
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),
-                    finalListener.map(shardsAcked -> AcknowledgedResponse.TRUE)
+                    l.map(shardsAcked -> AcknowledgedResponse.TRUE)
                 );
             } else {
-                finalListener.onResponse(AcknowledgedResponse.FALSE);
+                l.onResponse(AcknowledgedResponse.FALSE);
             }
-        }, finalListener::onFailure);
+        });
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
             "create-data-stream [" + request.name + "]",
@@ -264,7 +264,7 @@ public class MetadataCreateDataStreamService {
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
         final IndexMode indexMode = metadata.isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
-        final DataLifecycle lifecycle = isSystem
+        final DataStreamLifecycle lifecycle = isSystem
             ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveLifecycle(template, metadata.componentTemplates());
         DataStream newDataStream = new DataStream(

@@ -27,7 +27,9 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
@@ -493,9 +495,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("-->  creating repository");
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("fs")
                 .setSettings(
                     Settings.builder()
@@ -532,9 +532,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         GetRolesResponse getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
         assertThat(getRolesResponse.roles().length, is(0));
         // restore
-        RestoreSnapshotResponse response = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot("test-repo", "test-snap-1")
+        RestoreSnapshotResponse response = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-1")
             .setWaitForCompletion(true)
             .setIncludeAliases(randomBoolean()) // Aliases are always restored for system indices
             .setFeatureStates(SECURITY_FEATURE_NAME)
@@ -560,7 +558,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             .prepareCreate("idx")
             .get();
         assertThat(createIndexResponse.isAcknowledged(), is(true));
-        assertAcked(client().admin().cluster().prepareDeleteRepository("test-repo"));
+        assertAcked(clusterAdmin().prepareDeleteRepository("test-repo"));
     }
 
     public void testAuthenticateWithDeletedRole() {
@@ -860,6 +858,35 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(usage.get("size"), is(roles));
         assertThat(usage.get("fls"), is(fls));
         assertThat(usage.get("dls"), is(dls));
+
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            final PutRoleResponse roleResponse = new PutRoleRequestBuilder(client()).source("role_remote_indices", new BytesArray("""
+                {
+                  "remote_indices": [
+                    {
+                      "names": [
+                        "shared-*"
+                      ],
+                      "privileges": [
+                        "read"
+                      ],
+                      "clusters": [
+                        "remote-*"
+                      ]
+                    }
+                  ]
+                }"""), XContentType.JSON).get();
+            assertThat(roleResponse.isCreated(), is(true));
+            roles++;
+
+            future = new PlainActionFuture<>();
+            rolesStore.usageStats(future);
+            usage = future.get();
+            assertThat(usage.get("size"), is(roles));
+            assertThat(usage.get("fls"), is(fls));
+            assertThat(usage.get("dls"), is(dls));
+            assertThat(usage.get("remote_indices"), equalTo(1L));
+        }
     }
 
     @SuppressWarnings("unchecked")

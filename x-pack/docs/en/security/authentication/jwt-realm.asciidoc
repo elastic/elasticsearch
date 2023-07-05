@@ -2,8 +2,6 @@
 [[jwt-auth-realm]]
 === JWT authentication
 
-beta::[]
-
 {es} can be configured to trust JSON Web Tokens (JWTs) issued from an external service
 as bearer tokens for authentication.
 
@@ -344,8 +342,8 @@ it, while a JWT realm of `access_token` will just ignore it.
 
 `principal`::
 (Required, String) Contains the user's principal (username). The value is
-configurable using the realm setting `claims.principal`. If not set, the value
-defaults to `sub`. You can configure an optional regular expression using the
+configurable using the realm setting `claims.principal`.
+You can configure an optional regular expression using the
 `claims.principal_pattern` to extract a substring.
 
 `groups`::
@@ -536,8 +534,8 @@ the `jwt_role1` role that you mapped to this user in the JWT realm:
 ----
 
 If you want to specify a request as the `run_as` user, include the
-the `es-security-runas-user` header with the name of the user that you
-want to submit requests as. The following request uses the `user123_runas` user:
+`es-security-runas-user` header with the name of the user that you want to
+submit requests as. The following request uses the `user123_runas` user:
 
 [source,sh]
 ----

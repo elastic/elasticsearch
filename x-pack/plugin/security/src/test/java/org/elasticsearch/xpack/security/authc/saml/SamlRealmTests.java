@@ -706,7 +706,7 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat("Encryption Credentials should not be null", credentials, notNullValue());
         final int expectedCredentials = (isEncryptionKeyStoreAliasSet) ? 1 : (testMultipleEncryptionKeyPair) ? 2 : 1;
         assertEquals("Expected encryption credentials size does not match", expectedCredentials, credentials.size());
-        credentials.stream().forEach((credential) -> {
+        credentials.forEach((credential) -> {
             assertTrue(
                 "Unexpected private key in the list of encryption credentials",
                 Arrays.asList(new PrivateKey[] { certKeyPair1.v2(), certKeyPair2.v2() }).contains(credential.getPrivateKey())

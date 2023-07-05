@@ -101,7 +101,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             );
         }
 
-        if (collapseField != null && (sortFields.length > 1 || sortFields[0].getField().equals(collapseField) == false)) {
+        if (collapseField != null && (sortFields.length > 1 || Objects.equals(sortFields[0].getField(), collapseField) == false)) {
             throw new IllegalArgumentException(
                 "Cannot use [collapse] in conjunction with ["
                     + SEARCH_AFTER.getPreferredName()

@@ -42,7 +42,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -51,6 +50,8 @@ import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -211,9 +212,9 @@ public class WildcardFieldMapper extends FieldMapper {
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        final Version indexVersionCreated;
+        final IndexVersion indexVersionCreated;
 
-        public Builder(String name, Version indexVersionCreated) {
+        public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
         }
@@ -262,9 +263,9 @@ public class WildcardFieldMapper extends FieldMapper {
         private final int ignoreAbove;
         private final NamedAnalyzer analyzer;
 
-        private WildcardFieldType(String name, String nullValue, int ignoreAbove, Version version, Map<String, String> meta) {
+        private WildcardFieldType(String name, String nullValue, int ignoreAbove, IndexVersion version, Map<String, String> meta) {
             super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
-            if (version.onOrAfter(Version.V_7_10_0)) {
+            if (version.onOrAfter(IndexVersion.V_7_10_0)) {
                 this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {
                 this.analyzer = WILDCARD_ANALYZER_7_9;
@@ -628,8 +629,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 TermQuery tq = new TermQuery(new Term(name(), token));
                 bqBuilder.add(new BooleanClause(tq, occur));
             } else {
-                PrefixQuery wq = new PrefixQuery(new Term(name(), token));
-                wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+                PrefixQuery wq = new PrefixQuery(new Term(name(), token), MultiTermQuery.CONSTANT_SCORE_REWRITE);
                 bqBuilder.add(new BooleanClause(wq, occur));
             }
         }
@@ -680,8 +680,7 @@ public class WildcardFieldMapper extends FieldMapper {
                             TermQuery tq = new TermQuery(new Term(name(), token));
                             bqBuilder.add(new BooleanClause(tq, Occur.FILTER));
                         } else {
-                            PrefixQuery wq = new PrefixQuery(new Term(name(), token));
-                            wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+                            PrefixQuery wq = new PrefixQuery(new Term(name(), token), MultiTermQuery.CONSTANT_SCORE_REWRITE);
                             bqBuilder.add(new BooleanClause(wq, Occur.FILTER));
                         }
                     }
@@ -706,7 +705,8 @@ public class WildcardFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             String searchTerm = BytesRefs.toString(value);
             try {
@@ -767,13 +767,22 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery ngramQ = approxBuilder.build();
 
                 // Verification query
-                FuzzyQuery fq = new FuzzyQuery(
-                    new Term(name(), searchTerm),
-                    fuzziness.asDistance(searchTerm),
-                    prefixLength,
-                    maxExpansions,
-                    transpositions
-                );
+                FuzzyQuery fq = rewriteMethod == null
+                    ? new FuzzyQuery(
+                        new Term(name(), searchTerm),
+                        fuzziness.asDistance(searchTerm),
+                        prefixLength,
+                        maxExpansions,
+                        transpositions
+                    )
+                    : new FuzzyQuery(
+                        new Term(name(), searchTerm),
+                        fuzziness.asDistance(searchTerm),
+                        prefixLength,
+                        maxExpansions,
+                        transpositions,
+                        rewriteMethod
+                    );
                 if (ngramQ.clauses().size() == 0) {
                     return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), searchTerm, fq.getAutomata().automaton);
                 }
@@ -873,7 +882,7 @@ public class WildcardFieldMapper extends FieldMapper {
     private final int ignoreAbove;
     private final String nullValue;
     private final FieldType ngramFieldType;
-    private final Version indexVersionCreated;
+    private final IndexVersion indexVersionCreated;
     private final boolean storeIgnored;
 
     private WildcardFieldMapper(
@@ -884,7 +893,7 @@ public class WildcardFieldMapper extends FieldMapper {
         MultiFields multiFields,
         CopyTo copyTo,
         String nullValue,
-        Version indexVersionCreated
+        IndexVersion indexVersionCreated
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.nullValue = nullValue;

@@ -35,6 +35,32 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     private final BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup;
     private final LeafReaderContext reader;
 
+    /*
+      Field factories require a privileged action to advance to docids (files could be loaded). This wrapper
+      is a place for that privileged action to be cached so that it does not need to be recreated for every document.
+     */
+    class FieldFactoryWrapper {
+        final DocValuesScriptFieldFactory factory;
+        private final PrivilegedAction<Void> advancer;
+
+        FieldFactoryWrapper(DocValuesScriptFieldFactory factory) {
+            this.factory = factory;
+            this.advancer = () -> {
+                try {
+                    factory.setNextDocId(docId);
+                } catch (IOException ioe) {
+                    throw ExceptionsHelper.convertToElastic(ioe);
+                }
+                return null;
+            };
+        }
+
+        // advances the factory to the current docid for the enclosing LeafDocLookup
+        void advanceToDoc() {
+            AccessController.doPrivileged(this.advancer);
+        }
+    }
+
     private int docId = -1;
 
     /*
@@ -49,8 +75,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
                      per-segment computation as opposed to per-document computation
     Note that we share doc values between both caches when possible.
     */
-    final Map<String, DocValuesScriptFieldFactory> fieldFactoryCache = Maps.newMapWithExpectedSize(4);
-    final Map<String, DocValuesScriptFieldFactory> docFactoryCache = Maps.newMapWithExpectedSize(4);
+    final Map<String, FieldFactoryWrapper> fieldFactoryCache = Maps.newMapWithExpectedSize(4);
+    final Map<String, FieldFactoryWrapper> docFactoryCache = Maps.newMapWithExpectedSize(4);
 
     LeafDocLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
@@ -67,7 +93,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     }
 
     // used to load data for a field-style api accessor
-    private DocValuesScriptFieldFactory getFactoryForField(String fieldName) {
+    private FieldFactoryWrapper getFactoryForField(String fieldName) {
         final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
 
         if (fieldType == null) {
@@ -76,13 +102,13 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
         // Load the field data on behalf of the script. Otherwise, it would require
         // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-        return AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldFactory>() {
+        return AccessController.doPrivileged(new PrivilegedAction<FieldFactoryWrapper>() {
             @Override
-            public DocValuesScriptFieldFactory run() {
-                DocValuesScriptFieldFactory fieldFactory = null;
+            public FieldFactoryWrapper run() {
+                FieldFactoryWrapper fieldFactory = null;
                 IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
 
-                DocValuesScriptFieldFactory docFactory = null;
+                FieldFactoryWrapper docFactory = null;
 
                 if (docFactoryCache.isEmpty() == false) {
                     docFactory = docFactoryCache.get(fieldName);
@@ -93,7 +119,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
                 if (docFactory != null && indexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
                     fieldFactory = docFactory;
                 } else {
-                    fieldFactory = indexFieldData.load(reader).getScriptFieldFactory(fieldName);
+                    fieldFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
                 }
 
                 fieldFactoryCache.put(fieldName, fieldFactory);
@@ -104,18 +130,18 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     }
 
     public Field<?> getScriptField(String fieldName) {
-        DocValuesScriptFieldFactory factory = fieldFactoryCache.get(fieldName);
+        FieldFactoryWrapper factoryWrapper = fieldFactoryCache.get(fieldName);
 
-        if (factory == null) {
-            factory = getFactoryForField(fieldName);
+        if (factoryWrapper == null) {
+            factoryWrapper = getFactoryForField(fieldName);
         }
-        advanceToDoc(factory);
+        factoryWrapper.advanceToDoc();
 
-        return factory.toScriptField();
+        return factoryWrapper.factory.toScriptField();
     }
 
     // used to load data for a doc-style api accessor
-    private DocValuesScriptFieldFactory getFactoryForDoc(String fieldName) {
+    private FieldFactoryWrapper getFactoryForDoc(String fieldName) {
         final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
 
         if (fieldType == null) {
@@ -124,11 +150,11 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
         // Load the field data on behalf of the script. Otherwise, it would require
         // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-        return AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldFactory>() {
+        return AccessController.doPrivileged(new PrivilegedAction<FieldFactoryWrapper>() {
             @Override
-            public DocValuesScriptFieldFactory run() {
-                DocValuesScriptFieldFactory docFactory = null;
-                DocValuesScriptFieldFactory fieldFactory = null;
+            public FieldFactoryWrapper run() {
+                FieldFactoryWrapper docFactory = null;
+                FieldFactoryWrapper fieldFactory = null;
 
                 if (fieldFactoryCache.isEmpty() == false) {
                     fieldFactory = fieldFactoryCache.get(fieldName);
@@ -146,7 +172,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
                 if (docFactory == null) {
                     IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SEARCH);
-                    docFactory = indexFieldData.load(reader).getScriptFieldFactory(fieldName);
+                    docFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
                 }
 
                 docFactoryCache.put(fieldName, docFactory);
@@ -159,27 +185,14 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     @Override
     public ScriptDocValues<?> get(Object key) {
         String fieldName = key.toString();
-        DocValuesScriptFieldFactory factory = docFactoryCache.get(fieldName);
+        FieldFactoryWrapper factoryWrapper = docFactoryCache.get(fieldName);
 
-        if (factory == null) {
-            factory = getFactoryForDoc(key.toString());
+        if (factoryWrapper == null) {
+            factoryWrapper = getFactoryForDoc(key.toString());
         }
-        advanceToDoc(factory);
+        factoryWrapper.advanceToDoc();
 
-        return factory.toScriptDocValues();
-    }
-
-    // ensures the factory is advanced to the current doc
-    private void advanceToDoc(DocValuesScriptFieldFactory factory) {
-        // advancing to the current doc could trigger low level paging, network loading, etc, so do so outside scripting privileges
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                factory.setNextDocId(docId);
-            } catch (IOException ioe) {
-                throw ExceptionsHelper.convertToElastic(ioe);
-            }
-            return null;
-        });
+        return factoryWrapper.factory.toScriptDocValues();
     }
 
     @Override

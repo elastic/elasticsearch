@@ -892,19 +892,19 @@ public class HotThreadsTests extends ESTestCase {
 
         assertThat(
             innerResult,
-            containsString("0.0% [cpu=0.0%, idle=0.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 1'")
+            containsString("0.0% [cpu=0.0%, idle=100.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 1'")
         );
         assertThat(
             innerResult,
-            containsString("0.0% [cpu=0.0%, idle=0.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 2'")
+            containsString("0.0% [cpu=0.0%, idle=100.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 2'")
         );
         assertThat(
             innerResult,
-            containsString("0.0% [cpu=0.0%, idle=0.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 3'")
+            containsString("0.0% [cpu=0.0%, idle=100.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 3'")
         );
         assertThat(
             innerResult,
-            containsString("0.0% [cpu=0.0%, idle=0.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 4'")
+            containsString("0.0% [cpu=0.0%, idle=100.0%] (0s out of 10ms) cpu usage by thread '__mock_network_thread 4'")
         );
 
         // Test with the legacy sort order

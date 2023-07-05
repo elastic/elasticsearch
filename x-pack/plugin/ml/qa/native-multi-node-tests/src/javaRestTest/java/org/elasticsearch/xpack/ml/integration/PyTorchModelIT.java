@@ -190,7 +190,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelStarted);
 
         CheckedBiConsumer<String, AllocationStatus.State, IOException> assertAtLeast = (modelId, state) -> {
-            startDeployment(modelId, state.toString());
+            startDeployment(modelId, state);
             Response response = getTrainedModelStats(modelId);
             var responseMap = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
@@ -246,7 +246,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         createPassThroughModel(modelId);
         putVocabulary(List.of("once", "twice"), modelId);
         putModelDefinition(modelId);
-        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED);
         {
             Response noInferenceCallsStatsResponse = getTrainedModelStats(modelId);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
@@ -315,7 +315,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         request.setJsonEntity(Strings.format("""
             {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", length, poorlyFormattedModelBase64));
         client().performRequest(request);
-        startDeployment(badModel, AllocationStatus.State.STARTING.toString());
+        startDeployment(badModel, AllocationStatus.State.STARTING);
         assertBusy(() -> {
             Response noInferenceCallsStatsResponse = getTrainedModelStats(badModel);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
@@ -340,8 +340,8 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putVocabulary(List.of("once", "twice"), modelBar);
         putModelDefinition(modelBar);
 
-        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED.toString());
-        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED);
+        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED);
         infer("once", modelFoo);
         infer("once", modelBar);
         {
@@ -372,8 +372,8 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putVocabulary(List.of("once", "twice"), modelBar);
         putModelDefinition(modelBar);
 
-        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED.toString());
-        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED);
+        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED);
         infer("once", modelFoo);
         infer("once", modelBar);
 
@@ -434,7 +434,20 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
             modelId
         );
-        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+
+        if (randomBoolean()) {
+            // Set an allocation awareness attribute that doesn't exist on the ML nodes.
+            // It shouldn't make any difference to the result of the test.
+            // The setting is cleared in the cleanup method of these tests.
+            Request clusterSettings = new Request("PUT", "_cluster/settings");
+            clusterSettings.setJsonEntity("""
+                {"persistent" : {
+                        "cluster.routing.allocation.awareness.attributes": "rack"
+                    }}""");
+            client().performRequest(clusterSettings);
+        }
+
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED);
 
         List<String> inputs = List.of(
             "my words",
@@ -601,7 +614,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         putVocabulary(List.of("once", "twice", "thrice"), modelId);
         putModelDefinition(modelId);
-        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED);
 
         String input = "once twice thrice";
         var e = expectThrows(ResponseException.class, () -> EntityUtils.toString(infer("once twice thrice", modelId).getEntity()));
@@ -654,7 +667,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(
             EntityUtils.toString(ex.getResponse().getEntity()),
             containsString(
-                "Cannot stop deployment for model [test_stop_used_deployment_by_ingest_processor] as it is referenced by"
+                "Cannot stop deployment [test_stop_used_deployment_by_ingest_processor] as it is referenced by"
                     + " ingest processors; use force to stop the deployment"
             )
         );
@@ -686,7 +699,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(
             EntityUtils.toString(ex.getResponse().getEntity()),
             containsString(
-                "Cannot stop deployment for model [test_stop_model_alias_used_deployment_by_ingest_processor] as it has a "
+                "Cannot stop deployment [test_stop_model_alias_used_deployment_by_ingest_processor] as it has a "
                     + "model_alias [used_model_alias] that is still referenced"
                     + " by ingest processors; use force to stop the deployment"
             )
@@ -816,12 +829,12 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         // Enable lazy starting so that the deployments start even if they cannot get fully allocated.
         // The setting is cleared in the cleanup method of these tests.
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
+        Request clusterSettings = new Request("PUT", "_cluster/settings");
+        clusterSettings.setJsonEntity("""
             {"persistent" : {
                     "xpack.ml.max_lazy_ml_nodes": 5
                 }}""");
-        client().performRequest(loggingSettings);
+        client().performRequest(clusterSettings);
 
         String modelId1 = "stopping_triggers_rebalance_1";
         createPassThroughModel(modelId1);
@@ -833,8 +846,8 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
 
-        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL);
-        startDeployment(modelId2, AllocationStatus.State.STARTING.toString(), 1, 1, Priority.NORMAL);
+        startDeployment(modelId1, modelId1, AllocationStatus.State.STARTED, 100, 1, Priority.NORMAL);
+        startDeployment(modelId2, modelId2, AllocationStatus.State.STARTING, 1, 1, Priority.NORMAL);
 
         // Check second model did not get any allocations
         assertAllocationCount(modelId2, 0);
@@ -875,7 +888,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         ResponseException ex = expectThrows(
             ResponseException.class,
-            () -> startDeployment(modelId, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL)
+            () -> startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 100, 1, Priority.NORMAL)
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
         assertThat(
@@ -894,12 +907,12 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         // Enable lazy starting so that the deployments start even if they cannot get fully allocated.
         // The setting is cleared in the cleanup method of these tests.
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
+        Request clusterSettings = new Request("PUT", "_cluster/settings");
+        clusterSettings.setJsonEntity("""
             {"persistent" : {
                     "xpack.ml.max_lazy_ml_nodes": 5
                 }}""");
-        client().performRequest(loggingSettings);
+        client().performRequest(clusterSettings);
 
         String modelId1 = "start_no_processors_left_lazy_start_1";
         createPassThroughModel(modelId1);
@@ -911,7 +924,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
 
-        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL);
+        startDeployment(modelId1, modelId1, AllocationStatus.State.STARTED, 100, 1, Priority.NORMAL);
 
         {
             Request request = new Request(
@@ -955,7 +968,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
     public void testUpdateDeployment_GivenMissingModel() throws IOException {
         ResponseException ex = expectThrows(ResponseException.class, () -> updateDeployment("missing", 4));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("deployment for model with id [missing] not found"));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("No known model deployment with id [missing]"));
     }
 
     public void testUpdateDeployment_GivenAllocationsAreIncreased() throws Exception {
@@ -974,12 +987,12 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
     }
 
     public void testUpdateDeployment_GivenAllocationsAreIncreasedOverResources_AndScalingIsPossible() throws Exception {
-        Request maxLazyNodeSetting = new Request("PUT", "_cluster/settings");
-        maxLazyNodeSetting.setJsonEntity("""
+        Request clusterSettings = new Request("PUT", "_cluster/settings");
+        clusterSettings.setJsonEntity("""
             {"persistent" : {
                     "xpack.ml.max_lazy_ml_nodes": 5
                 }}""");
-        client().performRequest(maxLazyNodeSetting);
+        client().performRequest(clusterSettings);
 
         String modelId = "update_deployment_allocations_increased_scaling_possible";
         createPassThroughModel(modelId);
@@ -1020,7 +1033,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         createPassThroughModel(modelId);
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
-        startDeployment(modelId, "started", 2, 1, Priority.NORMAL);
+        startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 2, 1, Priority.NORMAL);
 
         assertBusy(() -> assertAllocationCount(modelId, 2));
 
@@ -1038,7 +1051,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             createPassThroughModel(modelId);
             putModelDefinition(modelId);
             putVocabulary(List.of("these", "are", "my", "words"), modelId);
-            startDeployment(modelId, "started", 1, 1, Priority.LOW);
+            startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 1, 1, Priority.LOW);
             assertAllocationCount(modelId, 1);
         }
     }

@@ -7,13 +7,14 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -42,6 +43,7 @@ public class RemoteClusterClientTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97080")
     public void testConnectAndExecuteRequest() throws Exception {
         Settings remoteSettings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster")
@@ -51,7 +53,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             MockTransportService remoteTransport = startTransport(
                 "remote_node",
                 Collections.emptyList(),
-                Version.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool,
                 remoteSettings
             )
@@ -63,7 +66,15 @@ public class RemoteClusterClientTests extends ESTestCase {
                 .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
                 .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
                 .build();
-            try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    localSettings,
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
+                    threadPool,
+                    null
+                )
+            ) {
                 service.start();
                 // following two log lines added to investigate #41745, can be removed once issue is closed
                 logger.info("Start accepting incoming requests on local transport service");
@@ -95,7 +106,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             MockTransportService remoteTransport = startTransport(
                 "remote_node",
                 Collections.emptyList(),
-                Version.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool,
                 remoteSettings
             )
@@ -105,7 +117,15 @@ public class RemoteClusterClientTests extends ESTestCase {
                 .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
                 .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
                 .build();
-            try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    localSettings,
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
+                    threadPool,
+                    null
+                )
+            ) {
                 service.start();
                 // this test is not perfect since we might reconnect concurrently but it will fail most of the time if we don't have
                 // the right calls in place in the RemoteAwareClient
@@ -134,7 +154,15 @@ public class RemoteClusterClientTests extends ESTestCase {
 
     public void testRemoteClusterServiceNotEnabled() {
         final Settings settings = removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool,
+                null
+            )
+        ) {
             service.start();
             service.acceptIncomingRequests();
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -152,7 +180,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             MockTransportService remoteTransport = startTransport(
                 "remote_node",
                 Collections.emptyList(),
-                Version.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool,
                 remoteSettings
             )
@@ -165,7 +194,15 @@ public class RemoteClusterClientTests extends ESTestCase {
                 .put("cluster.remote.test.skip_unavailable", true)
                 .put("cluster.remote.initial_connect_timeout", "0s")
                 .build();
-            try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    localSettings,
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
+                    threadPool,
+                    null
+                )
+            ) {
                 CountDownLatch latch = new CountDownLatch(1);
                 service.addConnectBehavior(remoteTransport, (transport, discoveryNode, profile, listener) -> {
                     try {

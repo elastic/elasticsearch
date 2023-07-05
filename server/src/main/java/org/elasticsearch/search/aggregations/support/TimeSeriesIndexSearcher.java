@@ -22,11 +22,14 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.lucene.search.function.MinScoreScorer;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -46,20 +49,38 @@ public class TimeSeriesIndexSearcher {
 
     // We need to delegate to the other searcher here as opposed to extending IndexSearcher and inheriting default implementations as the
     // IndexSearcher would most of the time be a ContextIndexSearcher that has important logic related to e.g. document-level security.
-    private final IndexSearcher searcher;
+    private final ContextIndexSearcher searcher;
     private final List<Runnable> cancellations;
     private final boolean tsidReverse;
     private final boolean timestampReverse;
 
+    private Float minimumScore = null;
+
     public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
-        this.searcher = searcher;
+        try {
+            this.searcher = new ContextIndexSearcher(
+                searcher.getIndexReader(),
+                searcher.getSimilarity(),
+                searcher.getQueryCache(),
+                searcher.getQueryCachingPolicy(),
+                false
+            );
+        } catch (IOException e) {
+            // IOException from wrapping the index searcher which should never happen.
+            throw new RuntimeException(e);
+        }
         this.cancellations = cancellations;
+        cancellations.forEach(cancellation -> this.searcher.addQueryCancellation(cancellation));
 
         assert TIME_SERIES_SORT.length == 2;
         assert TIME_SERIES_SORT[0].getField().equals(TimeSeriesIdFieldMapper.NAME);
         assert TIME_SERIES_SORT[1].getField().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
         this.timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
+    }
+
+    public void setMinimumScore(Float minimumScore) {
+        this.minimumScore = minimumScore;
     }
 
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
@@ -76,6 +97,9 @@ public class TimeSeriesIndexSearcher {
             }
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
+                if (minimumScore != null) {
+                    scorer = new MinScoreScorer(weight, scorer, minimumScore);
+                }
                 LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, () -> tsidOrd[0]);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
@@ -118,6 +142,12 @@ public class TimeSeriesIndexSearcher {
                 }
             } while (queue.size() > 0);
             tsidOrd[0]++;
+        }
+    }
+
+    public void setProfiler(SearchContext context) {
+        if ((context.getProfilers() != null) && (context.getProfilers().getCurrentQueryProfiler() != null)) {
+            searcher.setProfiler(context.getProfilers().getCurrentQueryProfiler());
         }
     }
 
@@ -177,6 +207,9 @@ public class TimeSeriesIndexSearcher {
         private final SortedDocValues tsids;
         private final SortedNumericDocValues timestamps;    // TODO can we have this just a NumericDocValues?
         private final BytesRefBuilder scratch = new BytesRefBuilder();
+
+        private final Scorer scorer;
+
         int docId = -1;
         int tsidOrd;
         long timestamp;
@@ -187,9 +220,10 @@ public class TimeSeriesIndexSearcher {
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
+            this.scorer = scorer;
             iterator = scorer.iterator();
             tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
-            timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TIMESTAMP_FIELD_NAME);
         }
 
         void collectCurrent() throws IOException {

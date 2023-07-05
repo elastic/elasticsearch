@@ -254,7 +254,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery booleanQuery = (BooleanQuery) query;
             for (BooleanClause booleanClause : booleanQuery) {
-                if (booleanClause.getQuery()instanceof MoreLikeThisQuery moreLikeThisQuery) {
+                if (booleanClause.getQuery() instanceof MoreLikeThisQuery moreLikeThisQuery) {
                     assertThat(moreLikeThisQuery.getLikeFields().length, greaterThan(0));
                 }
             }

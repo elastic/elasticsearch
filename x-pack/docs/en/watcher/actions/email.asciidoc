@@ -379,15 +379,19 @@ http://aws.amazon.com/ses[Amazon Simple Email Service] (SES) SMTP service:
 --------------------------------------------------
 xpack.notification.email.account:
     ses_account:
+        email_defaults:
+            from: <email address of service account> <1>
         smtp:
             auth: true
             starttls.enable: true
             starttls.required: true
-            host: email-smtp.us-east-1.amazonaws.com <1>
+            host: email-smtp.us-east-1.amazonaws.com <2>
             port: 587
             user: <username>
 --------------------------------------------------
-<1> `smtp.host` varies depending on the region
+<1> In certain cases `email_defaults.from` is validated by Amazon SES to ensure
+that it is a valid local email account.
+<2> `smtp.host` varies depending on the region.
 
 To store the account SMTP password, use the keystore command
 (see {ref}/secure-settings.html[secure settings])

@@ -8,7 +8,6 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -138,12 +137,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
     @After
     public void cleanUp() {
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull("indices.recovery.max_bytes_per_sec"))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().putNull("indices.recovery.max_bytes_per_sec"));
     }
 
     private void writeJSONFile(String node, String json) throws Exception {
@@ -152,15 +146,15 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
         assertTrue(fileSettingsService.watching());
 
-        Files.deleteIfExists(fileSettingsService.operatorSettingsFile());
+        Files.deleteIfExists(fileSettingsService.watchedFile());
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         logger.info("--> writing JSON config to node {} with path {}", node, tempFilePath);
         logger.info(Strings.format(json, version));
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
@@ -211,10 +205,9 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .get();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+        ).get();
 
         ReservedStateMetadata reservedState = clusterStateResponse.getState()
             .metadata()
@@ -242,7 +235,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             "java.lang.IllegalArgumentException: Failed to process request "
                 + "[org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest/unset] "
                 + "with errors: [[indices.recovery.max_bytes_per_sec] set as read-only by [file_settings]]",
-            expectThrows(ExecutionException.class, () -> client().admin().cluster().updateSettings(req).get()).getMessage()
+            expectThrows(ExecutionException.class, () -> clusterAdmin().updateSettings(req).get()).getMessage()
         );
 
         var request = new GetRoleMappingsRequest();
@@ -291,10 +284,9 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get()))
-            .get();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get())
+        ).get();
 
         assertNull(
             clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
@@ -352,10 +344,9 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get()))
-            .get();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get())
+        ).get();
 
         assertNull(
             clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
@@ -397,10 +388,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         var savedClusterState = setupClusterStateListenerForSecurityWriteError(internalCluster().getMasterName());
 
-        final CloseIndexResponse closeIndexResponse = client().admin()
-            .indices()
-            .close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7))
-            .get();
+        final CloseIndexResponse closeIndexResponse = indicesAdmin().close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
         assertTrue(closeIndexResponse.isAcknowledged());
 
         writeJSONFile(internalCluster().getMasterName(), testJSON);
@@ -413,10 +401,9 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
         assertFalse(response.hasMappings());
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get()))
-            .get();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get())
+        ).get();
 
         assertNull(
             clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())

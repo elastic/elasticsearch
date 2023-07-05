@@ -1,0 +1,47 @@
+{
+  "indices.get_data_lifecycle":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams-get-lifecycle.html",
+      "description":"Returns the data stream lifecycle of the selected data streams."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_stream/{name}/_lifecycle",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "name":{
+              "type":"list",
+              "description":"A comma-separated list of data streams to get; use `*` to get all data streams"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default":"open",
+        "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+      },
+      "include_defaults":{
+        "type":"boolean",
+        "description":"Return all relevant default configurations for the data stream (default: false)"
+      }
+    }
+  }
+}

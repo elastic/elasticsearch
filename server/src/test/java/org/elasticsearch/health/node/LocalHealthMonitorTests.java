@@ -8,7 +8,6 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,7 +39,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -86,24 +85,14 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 .floodStageWatermark(new RelativeByteSizeValue(ByteSizeValue.ofBytes(50)))
                 .frozenFloodStageWatermark(new RelativeByteSizeValue(ByteSizeValue.ofBytes(50)))
                 .frozenFloodStageMaxHeadroom(ByteSizeValue.ofBytes(10))
-                .build()
+                .build(),
+            HealthMetadata.ShardLimits.newBuilder().maxShardsPerNode(999).maxShardsPerNodeFrozen(100).build()
         );
-        node = new DiscoveryNode(
-            "node",
-            "node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        frozenNode = new DiscoveryNode(
-            "frozen-node",
-            "frozen-node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE),
-            Version.CURRENT
-        );
+        node = DiscoveryNodeUtils.create("node", "node");
+        frozenNode = DiscoveryNodeUtils.builder("frozen-node")
+            .name("frozen-node")
+            .roles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
+            .build();
         clusterState = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
             .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
 
@@ -260,6 +249,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(false),
+                eq(false),
                 eq(false)
             )
         ).thenReturn(nodeStats());
@@ -310,14 +300,10 @@ public class LocalHealthMonitorTests extends ESTestCase {
     }
 
     public void testYellowStatusForNonDataNode() {
-        DiscoveryNode dedicatedMasterNode = new DiscoveryNode(
-            "master-node",
-            "master-node-1",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        DiscoveryNode dedicatedMasterNode = DiscoveryNodeUtils.builder("master-node-1")
+            .name("master-node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         clusterState = ClusterStateCreationUtils.state(
             dedicatedMasterNode,
             dedicatedMasterNode,
@@ -338,14 +324,10 @@ public class LocalHealthMonitorTests extends ESTestCase {
         DiscoveryNode localNode = state.nodes().getLocalNode();
         assertThat(LocalHealthMonitor.DiskCheck.hasRelocatingShards(state, localNode), is(true));
 
-        DiscoveryNode dedicatedMasterNode = new DiscoveryNode(
-            "master-node",
-            "master-node-1",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        DiscoveryNode dedicatedMasterNode = DiscoveryNodeUtils.builder("master-node-1")
+            .name("master-node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         ClusterState newState = ClusterState.builder(state)
             .nodes(new DiscoveryNodes.Builder(state.nodes()).add(dedicatedMasterNode))
             .build();
@@ -361,6 +343,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(true),
+                eq(false),
                 eq(false),
                 eq(false),
                 eq(false),
@@ -391,6 +374,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(false),
+                eq(false),
                 eq(false)
             )
         ).thenReturn(nodeStats(1000, 80));
@@ -405,6 +389,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(true),
+                eq(false),
                 eq(false),
                 eq(false),
                 eq(false),
@@ -437,6 +422,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
             null,
             null,
             fs,
+            null,
             null,
             null,
             null,

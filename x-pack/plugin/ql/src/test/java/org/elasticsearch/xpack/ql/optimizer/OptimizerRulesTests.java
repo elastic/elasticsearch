@@ -40,6 +40,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
@@ -224,6 +226,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testConstantFoldingLikes() {
         assertEquals(TRUE, new ConstantFolding().rule(new Like(EMPTY, of("test_emp"), new LikePattern("test%", (char) 0))).canonical());
+        assertEquals(TRUE, new ConstantFolding().rule(new WildcardLike(EMPTY, of("test_emp"), new WildcardPattern("test*"))).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(new RLike(EMPTY, of("test_emp"), new RLikePattern("test.emp"))).canonical());
     }
 
@@ -1434,6 +1437,18 @@ public class OptimizerRulesTests extends ESTestCase {
         }
     }
 
+    public void testMatchAllWildcardLikeToExist() throws Exception {
+        for (String s : asList("*", "**", "***")) {
+            WildcardPattern pattern = new WildcardPattern(s);
+            FieldAttribute fa = getFieldAttribute();
+            WildcardLike l = new WildcardLike(EMPTY, fa, pattern);
+            Expression e = new ReplaceRegexMatch().rule(l);
+            assertEquals(IsNotNull.class, e.getClass());
+            IsNotNull inn = (IsNotNull) e;
+            assertEquals(fa, inn.field());
+        }
+    }
+
     public void testMatchAllRLikeToExist() throws Exception {
         RLikePattern pattern = new RLikePattern(".*");
         FieldAttribute fa = getFieldAttribute();
@@ -1455,6 +1470,18 @@ public class OptimizerRulesTests extends ESTestCase {
             assertEquals(fa, eq.left());
             assertEquals(s.replace("0", StringUtils.EMPTY), eq.right().fold());
         }
+    }
+
+    public void testExactMatchWildcardLike() throws Exception {
+        String s = "ab";
+        WildcardPattern pattern = new WildcardPattern(s);
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike l = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = new ReplaceRegexMatch().rule(l);
+        assertEquals(Equals.class, e.getClass());
+        Equals eq = (Equals) e;
+        assertEquals(fa, eq.left());
+        assertEquals(s, eq.right().fold());
     }
 
     public void testExactMatchRLike() throws Exception {

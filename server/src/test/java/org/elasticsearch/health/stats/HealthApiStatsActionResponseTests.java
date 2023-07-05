@@ -8,9 +8,8 @@
 
 package org.elasticsearch.health.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.metrics.Counters;
 import org.elasticsearch.test.ESTestCase;
 
@@ -22,22 +21,16 @@ public class HealthApiStatsActionResponseTests extends ESTestCase {
 
     public void testMerging() {
 
-        HealthApiStatsAction.Response.Node nodeResponse1 = new HealthApiStatsAction.Response.Node(
-            new DiscoveryNode("remote_node", buildNewFakeTransportAddress(), Version.CURRENT)
-        );
+        HealthApiStatsAction.Response.Node nodeResponse1 = new HealthApiStatsAction.Response.Node(DiscoveryNodeUtils.create("remote_node"));
         {
             Counters counters = new Counters();
             counters.inc("merged.metric", randomIntBetween(1, 10));
             counters.inc("only.one.metric", randomIntBetween(1, 10));
             nodeResponse1.setStats(counters);
         }
-        HealthApiStatsAction.Response.Node nodeResponse2 = new HealthApiStatsAction.Response.Node(
-            new DiscoveryNode("remote_node", buildNewFakeTransportAddress(), Version.CURRENT)
-        );
+        HealthApiStatsAction.Response.Node nodeResponse2 = new HealthApiStatsAction.Response.Node(DiscoveryNodeUtils.create("remote_node"));
 
-        HealthApiStatsAction.Response.Node nodeResponse3 = new HealthApiStatsAction.Response.Node(
-            new DiscoveryNode("remote_node", buildNewFakeTransportAddress(), Version.CURRENT)
-        );
+        HealthApiStatsAction.Response.Node nodeResponse3 = new HealthApiStatsAction.Response.Node(DiscoveryNodeUtils.create("remote_node"));
         {
             Counters counters = new Counters();
             counters.inc("merged.metric", randomIntBetween(1, 10));

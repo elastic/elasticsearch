@@ -13,7 +13,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -28,7 +27,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
@@ -49,6 +50,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -67,14 +69,12 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
     @After
     public void cleanUpPipelines() {
-        client().admin().indices().prepareDelete("*").get();
+        indicesAdmin().prepareDelete("*").get();
 
-        final GetPipelineResponse response = client().admin()
-            .cluster()
-            .getPipeline(new GetPipelineRequest("default_pipeline", "final_pipeline", "request_pipeline"))
-            .actionGet();
+        final GetPipelineResponse response = clusterAdmin().prepareGetPipeline("default_pipeline", "final_pipeline", "request_pipeline")
+            .get();
         for (final PipelineConfiguration pipeline : response.pipelines()) {
-            client().admin().cluster().deletePipeline(new DeletePipelineRequest(pipeline.getId())).actionGet();
+            clusterAdmin().deletePipeline(new DeletePipelineRequest(pipeline.getId())).actionGet();
         }
     }
 
@@ -84,7 +84,27 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         final BytesReference finalPipelineBody = new BytesArray("""
             {"processors": [{"changing_dest": {}}]}""");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
+        );
+        assertThat(
+            e,
+            hasToString(
+                endsWith("final pipeline [final_pipeline] can't change the target index (from [index] to [target]) for document [1]")
+            )
+        );
+    }
+
+    public void testFinalPipelineCantRerouteDestination() {
+        final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
+        createIndex("index", settings);
+
+        final BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"reroute": {}}]}""");
+        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
@@ -107,14 +127,11 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         BytesReference defaultPipelineBody = new BytesArray("""
             {"processors": [{"changing_dest": {}}]}""");
-        client().admin()
-            .cluster()
-            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
-            .actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
 
         BytesReference finalPipelineBody = new BytesArray("""
             {"processors": [{"final": {"exists":"no_such_field"}}]}""");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("index")
             .setId("1")
@@ -136,14 +153,11 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         BytesReference defaultPipelineBody = new BytesArray("""
             {"processors": [{"changing_dest": {}}]}""");
-        client().admin()
-            .cluster()
-            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
-            .actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
 
         BytesReference finalPipelineBody = new BytesArray("""
             {"processors": [{"final": {}}]}""");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("index")
             .setId("1")
@@ -165,17 +179,11 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         BytesReference defaultPipelineBody = new BytesArray("""
             {"processors": [{"changing_dest": {}}]}""");
-        client().admin()
-            .cluster()
-            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
-            .actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
 
         BytesReference targetPipeline = new BytesArray("""
             {"processors": [{"final": {}}]}""");
-        client().admin()
-            .cluster()
-            .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON))
-            .actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON)).actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("index")
             .setId("1")
@@ -186,6 +194,61 @@ public class FinalPipelineIT extends ESIntegTestCase {
         SearchResponse target = client().prepareSearch("target").get();
         assertEquals(1, target.getHits().getTotalHits().value);
         assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+    }
+
+    public void testDefaultPipelineOfRerouteDestinationIsInvoked() {
+        Settings settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build();
+        createIndex("index", settings);
+
+        settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "target_default_pipeline").build();
+        createIndex("target", settings);
+
+        BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"reroute": {}}]}""");
+        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
+
+        BytesReference targetPipeline = new BytesArray("""
+            {"processors": [{"final": {}}]}""");
+        clusterAdmin().putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON)).actionGet();
+
+        IndexResponse indexResponse = client().prepareIndex("index")
+            .setId("1")
+            .setSource(Map.of("field", "value"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+        SearchResponse target = client().prepareSearch("target").get();
+        assertEquals(1, target.getHits().getTotalHits().value);
+        assertTrue(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+    }
+
+    public void testAvoidIndexingLoop() {
+        Settings settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build();
+        createIndex("index", settings);
+
+        settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "target_default_pipeline").build();
+        createIndex("target", settings);
+
+        BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"reroute": {"dest": "target"}}]}""");
+        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
+
+        BytesReference targetPipeline = new BytesArray("""
+            {"processors": [{"reroute": {"dest": "index"}}]}""");
+        clusterAdmin().putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON)).actionGet();
+
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> client().prepareIndex("index")
+                .setId("1")
+                .setSource(Map.of("dest", "index"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get()
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("index cycle detected while processing pipeline [target_default_pipeline] for document [1]: [index, target, index]")
+        );
     }
 
     public void testFinalPipeline() {
@@ -203,13 +266,10 @@ public class FinalPipelineIT extends ESIntegTestCase {
     public void testRequestPipelineAndFinalPipeline() {
         final BytesReference requestPipelineBody = new BytesArray("""
             {"processors": [{"request": {}}]}""");
-        client().admin()
-            .cluster()
-            .putPipeline(new PutPipelineRequest("request_pipeline", requestPipelineBody, XContentType.JSON))
-            .actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("request_pipeline", requestPipelineBody, XContentType.JSON)).actionGet();
         final BytesReference finalPipelineBody = new BytesArray("""
             {"processors": [{"final": {"exists":"request"}}]}""");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("index", settings);
         final IndexRequestBuilder index = client().prepareIndex("index").setId("1");
@@ -231,13 +291,10 @@ public class FinalPipelineIT extends ESIntegTestCase {
     public void testDefaultAndFinalPipeline() {
         final BytesReference defaultPipelineBody = new BytesArray("""
             {"processors": [{"default": {}}]}""");
-        client().admin()
-            .cluster()
-            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
-            .actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
         final BytesReference finalPipelineBody = new BytesArray("""
             {"processors": [{"final": {"exists":"default"}}]}""");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final Settings settings = Settings.builder()
             .put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
             .put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline")
@@ -261,13 +318,10 @@ public class FinalPipelineIT extends ESIntegTestCase {
     public void testDefaultAndFinalPipelineFromTemplates() {
         final BytesReference defaultPipelineBody = new BytesArray("""
             {"processors": [{"default": {}}]}""");
-        client().admin()
-            .cluster()
-            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
-            .actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
         final BytesReference finalPipelineBody = new BytesArray("""
             {"processors": [{"final": {"exists":"default"}}]}""");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final int lowOrder = randomIntBetween(0, Integer.MAX_VALUE - 1);
         final int highOrder = randomIntBetween(lowOrder + 1, Integer.MAX_VALUE);
         final int finalPipelineOrder;
@@ -282,15 +336,13 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings defaultPipelineSettings = Settings.builder()
             .put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
             .build();
-        admin().indices()
-            .preparePutTemplate("default")
+        indicesAdmin().preparePutTemplate("default")
             .setPatterns(List.of("index*"))
             .setOrder(defaultPipelineOrder)
             .setSettings(defaultPipelineSettings)
             .get();
         final Settings finalPipelineSettings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
-        admin().indices()
-            .preparePutTemplate("final")
+        indicesAdmin().preparePutTemplate("final")
             .setPatterns(List.of("index*"))
             .setOrder(finalPipelineOrder)
             .setSettings(finalPipelineSettings)
@@ -316,8 +368,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings lowOrderFinalPipelineSettings = Settings.builder()
             .put(IndexSettings.FINAL_PIPELINE.getKey(), "low_order_final_pipeline")
             .build();
-        admin().indices()
-            .preparePutTemplate("low_order")
+        indicesAdmin().preparePutTemplate("low_order")
             .setPatterns(List.of("index*"))
             .setOrder(lowOrder)
             .setSettings(lowOrderFinalPipelineSettings)
@@ -325,8 +376,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings highOrderFinalPipelineSettings = Settings.builder()
             .put(IndexSettings.FINAL_PIPELINE.getKey(), "high_order_final_pipeline")
             .build();
-        admin().indices()
-            .preparePutTemplate("high_order")
+        indicesAdmin().preparePutTemplate("high_order")
             .setPatterns(List.of("index*"))
             .setOrder(highOrder)
             .setSettings(highOrderFinalPipelineSettings)
@@ -356,7 +406,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
             final IndexNameExpressionResolver expressionResolver,
             final Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationService allocationService
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             return List.of();
         }
@@ -394,6 +445,26 @@ public class FinalPipelineIT extends ESIntegTestCase {
                         return "changing_dest";
                     }
 
+                },
+                "reroute",
+                (processorFactories, tag, description, config) -> {
+                    final String dest = Objects.requireNonNullElse(
+                        ConfigurationUtils.readOptionalStringProperty(description, tag, config, "dest"),
+                        "target"
+                    );
+                    return new AbstractProcessor(tag, description) {
+                        @Override
+                        public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                            ingestDocument.reroute(dest);
+                            return ingestDocument;
+                        }
+
+                        @Override
+                        public String getType() {
+                            return "reroute";
+                        }
+
+                    };
                 }
             );
         }

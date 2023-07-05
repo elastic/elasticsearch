@@ -65,10 +65,10 @@ public enum TaskType {
             return new TextSimilarityProcessor(tokenizer);
         }
     },
-    SLIM {
+    TEXT_EXPANSION {
         @Override
         public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
-            return new SlimProcessor(tokenizer);
+            return new TextExpansionProcessor(tokenizer);
         }
     };
 

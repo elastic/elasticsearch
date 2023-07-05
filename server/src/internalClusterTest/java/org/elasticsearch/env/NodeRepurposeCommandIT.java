@@ -32,7 +32,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         );
 
         logger.info("--> creating index");
-        prepareCreate(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get();
+        prepareCreate(indexName, indexSettings(1, 0)).get();
 
         logger.info("--> indexing a simple document");
         client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();

@@ -10,10 +10,11 @@ package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.node.tasks.TaskManagerTestCase;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -112,7 +113,8 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
             final MockTransportService parentTransportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool
             );
             resources.add(parentTransportService);
@@ -122,7 +124,8 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
             final MockTransportService childTransportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool
             );
             resources.add(childTransportService);
@@ -200,6 +203,11 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         @Override
         public void setParentTask(TaskId taskId) {
             fail("setParentTask should not be called");
+        }
+
+        @Override
+        public void setRequestId(long requestId) {
+            fail("setRequestId should not be called");
         }
 
         @Override

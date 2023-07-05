@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.BatchSummary;
 import org.elasticsearch.common.UUIDs;
@@ -38,6 +39,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -76,18 +78,18 @@ import static org.mockito.Mockito.when;
 public class PublicationTransportHandlerTests extends ESTestCase {
 
     public void testDiffSerializationFailure() {
-        final DiscoveryNode localNode = new DiscoveryNode("localNode", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("localNode");
 
         final TransportService transportService = mock(TransportService.class);
         final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         when(transportService.newNetworkBytesStream()).then(invocation -> new RecyclerBytesStreamOutput(recycler));
         Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
         when(transportService.getConnection(any())).thenReturn(connection);
 
         final PublicationTransportHandler handler = new PublicationTransportHandler(transportService, writableRegistry(), pu -> null);
 
-        final DiscoveryNode otherNode = new DiscoveryNode("otherNode", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode otherNode = DiscoveryNodeUtils.create("otherNode");
         final ClusterState clusterState = CoordinationStateTests.clusterState(
             2L,
             1L,
@@ -120,7 +122,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             ElasticsearchException.class,
             () -> handler.newPublicationContext(
                 new ClusterStatePublicationEvent(
-                    new BatchSummary("test"),
+                    new BatchSummary(() -> "test"),
                     clusterState,
                     unserializableClusterState,
                     new Task(randomNonNegativeLong(), "test", STATE_UPDATE_ACTION_NAME, "", TaskId.EMPTY_TASK_ID, emptyMap()),
@@ -160,13 +162,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
             final boolean simulateFailures = randomBoolean();
             final Map<DiscoveryNode, TransportVersion> nodeTransports = new HashMap<>();
-            final DiscoveryNode localNode = new DiscoveryNode(
-                "localNode",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT
-            );
+            final DiscoveryNode localNode = DiscoveryNodeUtils.builder("localNode").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
             final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
             final MockTransport mockTransport = new MockTransport() {
 
@@ -226,13 +222,14 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
             final List<DiscoveryNode> allNodes = new ArrayList<>();
             while (allNodes.size() < 10) {
-                var node = new DiscoveryNode(
-                    "node-" + allNodes.size(),
-                    buildNewFakeTransportAddress(),
-                    VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
-                );
+                var node = DiscoveryNodeUtils.builder("node-" + allNodes.size())
+                    .version(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT))
+                    .build();
                 allNodes.add(node);
-                nodeTransports.put(node, node.getVersion().transportVersion);
+                nodeTransports.put(
+                    node,
+                    TransportVersionUtils.randomVersionBetween(random(), TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.current())
+                );
             }
 
             final DiscoveryNodes.Builder prevNodes = DiscoveryNodes.builder();
@@ -303,7 +300,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             try {
                 context = handler.newPublicationContext(
                     new ClusterStatePublicationEvent(
-                        new BatchSummary("test"),
+                        new BatchSummary(() -> "test"),
                         prevClusterState,
                         nextClusterState,
                         new Task(randomNonNegativeLong(), "test", STATE_UPDATE_ACTION_NAME, "", TaskId.EMPTY_TASK_ID, emptyMap()),
@@ -355,12 +352,10 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final var receivedStateRef = new AtomicReference<ClusterState>();
         final var completed = new AtomicBoolean();
 
-        final var localNode = new DiscoveryNode("localNode", buildNewFakeTransportAddress(), Version.CURRENT);
-        final var otherNode = new DiscoveryNode(
-            "otherNode",
-            buildNewFakeTransportAddress(),
-            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
-        );
+        final var localNode = DiscoveryNodeUtils.create("localNode");
+        final var otherNode = DiscoveryNodeUtils.builder("otherNode")
+            .version(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT))
+            .build();
         for (final var discoveryNode : List.of(localNode, otherNode)) {
             final var transport = new MockTransport() {
                 @Override
@@ -438,7 +433,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         var context0 = transportHandlersByNode.get(localNode)
             .newPublicationContext(
                 new ClusterStatePublicationEvent(
-                    new BatchSummary("test"),
+                    new BatchSummary(() -> "test"),
                     clusterState0,
                     clusterState0,
                     new Task(randomNonNegativeLong(), "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of()),
@@ -479,7 +474,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         var context1 = transportHandlersByNode.get(localNode)
             .newPublicationContext(
                 new ClusterStatePublicationEvent(
-                    new BatchSummary("test"),
+                    new BatchSummary(() -> "test"),
                     committedClusterState0,
                     clusterState1,
                     new Task(randomNonNegativeLong(), "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of()),

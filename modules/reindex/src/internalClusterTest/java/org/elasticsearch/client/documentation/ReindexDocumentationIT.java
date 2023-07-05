@@ -69,7 +69,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
 
     @Before
     public void setup() {
-        client().admin().indices().prepareCreate(INDEX_NAME).get();
+        indicesAdmin().prepareCreate(INDEX_NAME).get();
     }
 
     @SuppressWarnings("unused")

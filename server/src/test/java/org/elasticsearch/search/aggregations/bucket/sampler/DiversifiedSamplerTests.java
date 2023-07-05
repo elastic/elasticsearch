@@ -90,8 +90,8 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
         writeBooks(indexWriter);
         indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
         Consumer<InternalSampler> verify = result -> {
             Terms terms = result.getAggregations().get("terms");
             assertEquals(2, terms.getBuckets().size());
@@ -122,8 +122,8 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         writeBooks(indexWriter);
         indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
         Consumer<InternalSampler> verify = result -> {

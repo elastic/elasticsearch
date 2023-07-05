@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -36,15 +37,22 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     public static final String TYPE = "health";
 
     private static final ParseField DISK_METADATA = new ParseField(Disk.TYPE);
+    private static final ParseField SHARD_LIMITS_METADATA = new ParseField(ShardLimits.TYPE);
 
     private final Disk diskMetadata;
+    @Nullable
+    private final ShardLimits shardLimitsMetadata;
 
-    public HealthMetadata(Disk diskMetadata) {
+    public HealthMetadata(Disk diskMetadata, ShardLimits shardLimitsMetadata) {
         this.diskMetadata = diskMetadata;
+        this.shardLimitsMetadata = shardLimitsMetadata;
     }
 
     public HealthMetadata(StreamInput in) throws IOException {
         this.diskMetadata = Disk.readFrom(in);
+        this.shardLimitsMetadata = in.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)
+            ? in.readOptionalWriteable(ShardLimits::readFrom)
+            : null;
     }
 
     @Override
@@ -60,6 +68,9 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         diskMetadata.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)) {
+            out.writeOptionalWriteable(shardLimitsMetadata);
+        }
     }
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -72,6 +83,11 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             builder.startObject(DISK_METADATA.getPreferredName());
             diskMetadata.toXContent(builder, params);
             builder.endObject();
+            if (shardLimitsMetadata != null) {
+                builder.startObject(SHARD_LIMITS_METADATA.getPreferredName());
+                shardLimitsMetadata.toXContent(builder, params);
+                builder.endObject();
+            }
             return builder;
         });
     }
@@ -84,22 +100,120 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         return diskMetadata;
     }
 
+    public ShardLimits getShardLimitsMetadata() {
+        return shardLimitsMetadata;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         HealthMetadata that = (HealthMetadata) o;
-        return Objects.equals(diskMetadata, that.diskMetadata);
+        return Objects.equals(diskMetadata, that.diskMetadata) && Objects.equals(shardLimitsMetadata, that.shardLimitsMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(diskMetadata);
+        return Objects.hash(diskMetadata, shardLimitsMetadata);
     }
 
     @Override
     public String toString() {
-        return "HealthMetadata{diskMetadata=" + Strings.toString(diskMetadata) + '}';
+        return "HealthMetadata{diskMetadata=" + Strings.toString(diskMetadata) + ", shardLimitsMetadata=" + shardLimitsMetadata + "}";
+    }
+
+    public static Builder newBuilder(HealthMetadata healthMetadata) {
+        return new Builder(healthMetadata);
+    }
+
+    public static class Builder {
+        private Disk disk;
+        private ShardLimits shardLimits;
+
+        private Builder() {}
+
+        private Builder(HealthMetadata healthMetadata) {
+            this.disk = healthMetadata.diskMetadata;
+            this.shardLimits = healthMetadata.shardLimitsMetadata;
+        }
+
+        public Builder disk(Disk disk) {
+            this.disk = disk;
+            return this;
+        }
+
+        public Builder shardLimits(ShardLimits shardLimits) {
+            this.shardLimits = shardLimits;
+            return this;
+        }
+
+        public HealthMetadata build() {
+            return new HealthMetadata(disk, shardLimits);
+        }
+    }
+
+    /**
+     * Contains the thresholds needed to determine the health of a cluster when it comes to the amount of room available to create new
+     * shards. These values are determined by the elected master.
+     */
+    public record ShardLimits(int maxShardsPerNode, int maxShardsPerNodeFrozen) implements ToXContentFragment, Writeable {
+
+        private static final String TYPE = "shard_limits";
+        private static final ParseField MAX_SHARDS_PER_NODE = new ParseField("max_shards_per_node");
+        private static final ParseField MAX_SHARDS_PER_NODE_FROZEN = new ParseField("max_shards_per_node_frozen");
+        static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersion.V_8_8_0;
+
+        static ShardLimits readFrom(StreamInput in) throws IOException {
+            return new ShardLimits(in.readInt(), in.readInt());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(MAX_SHARDS_PER_NODE.getPreferredName(), maxShardsPerNode);
+            builder.field(MAX_SHARDS_PER_NODE_FROZEN.getPreferredName(), maxShardsPerNodeFrozen);
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(maxShardsPerNode);
+            out.writeInt(maxShardsPerNodeFrozen);
+        }
+
+        public static Builder newBuilder() {
+            return new Builder();
+        }
+
+        public static Builder newBuilder(ShardLimits shardLimits) {
+            return new Builder(shardLimits);
+        }
+
+        public static class Builder {
+
+            private int maxShardsPerNode;
+            private int maxShardsPerNodeFrozen;
+
+            private Builder() {}
+
+            private Builder(ShardLimits shardLimits) {
+                this.maxShardsPerNode = shardLimits.maxShardsPerNode;
+                this.maxShardsPerNodeFrozen = shardLimits.maxShardsPerNodeFrozen;
+            }
+
+            public Builder maxShardsPerNode(int maxShardsPerNode) {
+                this.maxShardsPerNode = maxShardsPerNode;
+                return this;
+            }
+
+            public Builder maxShardsPerNodeFrozen(int maxShardsPerNodeFrozen) {
+                this.maxShardsPerNodeFrozen = maxShardsPerNodeFrozen;
+                return this;
+            }
+
+            public ShardLimits build() {
+                return new ShardLimits(maxShardsPerNode, maxShardsPerNodeFrozen);
+            }
+        }
     }
 
     /**
@@ -165,11 +279,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
                 highMaxHeadroom.writeTo(out);
                 floodStageMaxHeadroom.writeTo(out);
             }
-        }
-
-        @Override
-        public boolean isFragment() {
-            return true;
         }
 
         @Override

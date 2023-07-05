@@ -199,8 +199,15 @@ public class WellKnownBinary {
     /**
      * Reads a {@link Geometry} from the given WKB byte array.
      */
-    public static Geometry fromWKB(GeometryValidator validator, boolean coerce, byte[] wkb) throws IOException {
-        final ByteBuffer byteBuffer = ByteBuffer.wrap(wkb);
+    public static Geometry fromWKB(GeometryValidator validator, boolean coerce, byte[] wkb) {
+        return fromWKB(validator, coerce, wkb, 0, wkb.length);
+    }
+
+    /**
+     * Reads a {@link Geometry} from the given WKB byte array with offset.
+     */
+    public static Geometry fromWKB(GeometryValidator validator, boolean coerce, byte[] wkb, int offset, int length) {
+        final ByteBuffer byteBuffer = ByteBuffer.wrap(wkb, offset, length);
         final Geometry geometry = parseGeometry(byteBuffer, coerce);
         validator.validate(geometry);
         return geometry;

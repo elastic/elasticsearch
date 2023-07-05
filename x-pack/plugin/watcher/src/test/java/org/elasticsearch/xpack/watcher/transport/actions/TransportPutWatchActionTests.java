@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -43,8 +43,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -86,10 +84,8 @@ public class TransportPutWatchActionTests extends ESTestCase {
 
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
-        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.current());
 
         action = new TransportPutWatchAction(
             transportService,
@@ -119,7 +115,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
 
         PutWatchRequest putWatchRequest = new PutWatchRequest();
         putWatchRequest.setId("_id");
-        action.doExecute(putWatchRequest, ActionListener.wrap(r -> {}, e -> assertThat(e, is(nullValue()))));
+        action.doExecute(putWatchRequest, ActionTestUtils.assertNoFailureListener(r -> {}));
 
         ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
         verify(watch.status()).setHeaders(captor.capture());

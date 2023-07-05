@@ -120,13 +120,8 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
     ) {
         try {
             final Task task = store.getTaskAndCheckAuthentication(taskManager, searchId, asyncTaskClass);
-            if (task == null) {
+            if (task == null || task.isCancelled()) {
                 getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
-                return;
-            }
-
-            if (task.isCancelled()) {
-                listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
                 return;
             }
 

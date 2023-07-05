@@ -8,12 +8,14 @@
 package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -155,7 +157,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 final byte[] disruptedContents = actualContents == null ? null : Arrays.copyOf(actualContents, actualContents.length);
                 if (actualContents != null && countDown.countDown()) {
                     // CRC32 should always detect a single bit flip
-                    disruptedContents[Math.toIntExact(position + randomLongBetween(0, length - 1))] ^= 1 << between(0, 7);
+                    disruptedContents[Math.toIntExact(position + randomLongBetween(0, length - 1))] ^= (byte) (1 << between(0, 7));
                 }
                 return disruptedContents;
             }
@@ -292,6 +294,58 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    public void testFailsIfRegisterIncorrect() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+
+        blobStore.setDisruption(new Disruption() {
+            private final AtomicBoolean registerWasCorrupted = new AtomicBoolean();
+
+            @Override
+            public BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+                if (registerWasCorrupted.compareAndSet(false, true)) {
+                    register.updateAndGet(bytes -> RegisterAnalyzeAction.bytesFromLong(RegisterAnalyzeAction.longFromBytes(bytes) + 1));
+                }
+                return register.compareAndExchange(expected, updated);
+            }
+        });
+        expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+    }
+
+    public void testFailsIfRegisterHoldsSpuriousValue() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+
+        final AtomicBoolean sawSpuriousValue = new AtomicBoolean();
+        final long expectedMax = Math.max(request.getConcurrency(), internalCluster().getNodeNames().length);
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+                if (randomBoolean() && sawSpuriousValue.compareAndSet(false, true)) {
+                    final var currentValue = RegisterAnalyzeAction.longFromBytes(register.get());
+                    if (currentValue == expectedMax) {
+                        return RegisterAnalyzeAction.bytesFromLong(
+                            randomFrom(
+                                randomLongBetween(0L, expectedMax - 1),
+                                randomLongBetween(expectedMax + 1, Long.MAX_VALUE),
+                                randomLongBetween(Long.MIN_VALUE, -1)
+                            )
+                        );
+                    } else {
+                        return RegisterAnalyzeAction.bytesFromLong(
+                            randomFrom(expectedMax, randomLongBetween(expectedMax, Long.MAX_VALUE), randomLongBetween(Long.MIN_VALUE, -1))
+                        );
+                    }
+                }
+                return register.compareAndExchange(expected, updated);
+            }
+        });
+        try {
+            analyseRepository(request);
+            assertFalse(sawSpuriousValue.get());
+        } catch (RepositoryVerificationException e) {
+            assertTrue(sawSpuriousValue.get());
+        }
+    }
+
     private RepositoryAnalyzeAction.Response analyseRepository(RepositoryAnalyzeAction.Request request) {
         return client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
     }
@@ -399,6 +453,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         default boolean createBlobOnAbort() {
             return false;
         }
+
+        default BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+            return register.compareAndExchange(expected, updated);
+        }
     }
 
     static class DisruptableBlobContainer implements BlobContainer {
@@ -407,6 +465,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         private final Consumer<DisruptableBlobContainer> deleteContainer;
         private final Disruption disruption;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
+        private final Map<String, BytesRegister> registers = ConcurrentCollections.newConcurrentMap();
 
         DisruptableBlobContainer(BlobPath path, Consumer<DisruptableBlobContainer> deleteContainer, Disruption disruption) {
             this.path = path;
@@ -539,9 +598,14 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public long compareAndExchangeRegister(String key, long expected, long updated) {
-            assert false : "should not have been called";
-            throw new UnsupportedOperationException();
+        public void compareAndExchangeRegister(
+            String key,
+            BytesReference expected,
+            BytesReference updated,
+            ActionListener<OptionalBytesReference> listener
+        ) {
+            final var register = registers.computeIfAbsent(key, ignored -> new BytesRegister());
+            listener.onResponse(OptionalBytesReference.of(disruption.onCompareAndExchange(register, expected, updated)));
         }
     }
 

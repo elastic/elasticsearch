@@ -9,8 +9,6 @@ your application to {es} 8.8.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[8.8.0]
-
 
 [discrete]
 [[breaking-changes-8.8]]
@@ -19,4 +17,34 @@ coming::[8.8.0]
 // tag::notable-breaking-changes[]
 There are no breaking changes in {es} 8.8.
 // end::notable-breaking-changes[]
+
+
+[discrete]
+[[deprecated-8.8]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 8.8
+and will be removed in a future version.
+While this won't have an immediate impact on your applications,
+we strongly encourage you to take the described steps to update your code
+after upgrading to 8.8.
+
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+
+[discrete]
+[[deprecations_88_cluster_and_node_setting]]
+==== Cluster and node setting deprecations
+
+[[deprecate_cluster_routing_allocation_type]]
+.Deprecate `cluster.routing.allocation.type`
+[%collapsible]
+====
+*Details* +
+The `cluster.routing.allocation.type` setting is deprecated and will be removed in a future version.
+
+*Impact* +
+Discontinue use of the `cluster.routing.allocation.type` setting.
+====
 

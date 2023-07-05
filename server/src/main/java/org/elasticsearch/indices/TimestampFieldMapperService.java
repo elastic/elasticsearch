@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -23,7 +22,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -143,7 +141,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
             return false;
         }
 
-        if (indexMetadata.getTimeSeriesTimestampRange() != null) {
+        if (indexMetadata.hasTimeSeriesTimestampRange()) {
             // Tsdb indices have @timestamp field and index.time_series.start_time / index.time_series.end_time range
             return true;
         }
@@ -153,7 +151,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
     }
 
     private static DateFieldMapper.DateFieldType fromMapperService(MapperService mapperService) {
-        final MappedFieldType mappedFieldType = mapperService.fieldType(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        final MappedFieldType mappedFieldType = mapperService.fieldType(DataStream.TIMESTAMP_FIELD_NAME);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
             return (DateFieldMapper.DateFieldType) mappedFieldType;
         } else {
@@ -174,17 +172,8 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         if (future == null || future.isDone() == false) {
             return null;
         }
-
-        try {
-            // It's possible that callers of this class are executed
-            // in a transport thread, for that reason we request
-            // the future value with a timeout of 0. That won't
-            // trigger assertion errors.
-            return future.actionGet(TimeValue.ZERO);
-        } catch (ElasticsearchTimeoutException e) {
-            assert false : "Unexpected timeout exception while getting a timestamp mapping";
-            throw e;
-        }
+        // call non-blocking actionResult() as we could be on a network or scheduler thread which we must not block
+        return future.actionResult();
     }
 
 }

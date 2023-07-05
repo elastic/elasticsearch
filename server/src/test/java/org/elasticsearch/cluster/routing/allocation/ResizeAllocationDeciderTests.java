@@ -75,12 +75,9 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         routingTableBuilder.addAsNew(metadata.index("source"));
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1", Version.CURRENT)).add(newNode("node2", Version.CURRENT)))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
@@ -312,23 +309,13 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testGetForcedInitialShardAllocationToNodes() {
         var source = IndexMetadata.builder("source")
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid-1")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            )
+            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid-1"))
             .build();
         var target = IndexMetadata.builder("target")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
+                indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID.getKey(), "uuid-1")
                     .put(IndexMetadata.SETTING_INDEX_UUID, "uuid-2")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             )
             .build();
         var clusterState = ClusterState.builder(new ClusterName("test-cluster"))

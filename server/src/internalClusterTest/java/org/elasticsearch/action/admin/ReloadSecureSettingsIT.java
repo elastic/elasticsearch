@@ -66,9 +66,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
-        client().admin()
-            .cluster()
-            .prepareReloadSecureSettings()
+        clusterAdmin().prepareReloadSecureSettings()
             .setSecureStorePassword(emptyPassword)
             .setNodesIds(Strings.EMPTY_ARRAY)
             .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
@@ -122,9 +120,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         }
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
-        client().admin()
-            .cluster()
-            .prepareReloadSecureSettings()
+        clusterAdmin().prepareReloadSecureSettings()
             .setSecureStorePassword(emptyPassword)
             .setNodesIds(Strings.EMPTY_ARRAY)
             .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
@@ -170,9 +166,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final char[] password = randomAlphaOfLength(12).toCharArray();
         writeEmptyKeystore(environment, password);
         final CountDownLatch latch = new CountDownLatch(1);
-        client().admin()
-            .cluster()
-            .prepareReloadSecureSettings()
+        clusterAdmin().prepareReloadSecureSettings()
             // No filter should try to hit all nodes
             .setNodesIds(Strings.EMPTY_ARRAY)
             .setSecureStorePassword(new SecureString(password))
@@ -210,9 +204,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final char[] password = randomAlphaOfLength(12).toCharArray();
         writeEmptyKeystore(environment, password);
         final CountDownLatch latch = new CountDownLatch(1);
-        client().admin()
-            .cluster()
-            .prepareReloadSecureSettings()
+        clusterAdmin().prepareReloadSecureSettings()
             .setNodesIds("_local")
             .setSecureStorePassword(new SecureString(password))
             .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
@@ -256,9 +248,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         // "some" keystore should be present in this case
         writeEmptyKeystore(environment, new char[0]);
         final CountDownLatch latch = new CountDownLatch(1);
-        client().admin()
-            .cluster()
-            .prepareReloadSecureSettings()
+        clusterAdmin().prepareReloadSecureSettings()
             .setNodesIds("_local")
             .setSecureStorePassword(new SecureString(new char[] { 'W', 'r', 'o', 'n', 'g' }))
             .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
@@ -319,9 +309,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         ).toString();
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
-        client().admin()
-            .cluster()
-            .prepareReloadSecureSettings()
+        clusterAdmin().prepareReloadSecureSettings()
             .setSecureStorePassword(emptyPassword)
             .setNodesIds(Strings.EMPTY_ARRAY)
             .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
@@ -393,9 +381,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
-        client().admin()
-            .cluster()
-            .prepareReloadSecureSettings()
+        clusterAdmin().prepareReloadSecureSettings()
             .setSecureStorePassword(emptyPassword)
             .setNodesIds(Strings.EMPTY_ARRAY)
             .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {

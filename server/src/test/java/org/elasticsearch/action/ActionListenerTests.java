@@ -8,14 +8,15 @@
 package org.elasticsearch.action;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -219,18 +220,25 @@ public class ActionListenerTests extends ESTestCase {
             refList.add(reference);
             excList.add(exReference);
             boolean fail = i == listenerToFail;
-            CheckedConsumer<Boolean, ? extends Exception> handler = (o) -> { reference.set(o); };
-            listeners.add(ActionListener.wrap(handler, (e) -> {
-                exReference.set(e);
-                if (fail) {
-                    throw new RuntimeException("double boom");
+            listeners.add(new ActionListener<>() {
+                @Override
+                public void onResponse(Boolean result) {
+                    reference.set(result);
                 }
-            }));
+
+                @Override
+                public void onFailure(Exception e) {
+                    exReference.set(e);
+                    if (fail) {
+                        throw new RuntimeException("double boom");
+                    }
+                }
+            });
         }
 
         try {
             ActionListener.onFailure(listeners, new Exception("booom"));
-            assertTrue("unexpected succces listener to fail: " + listenerToFail, listenerToFail == -1);
+            assertEquals("unexpected succces listener to fail: " + listenerToFail, -1, listenerToFail);
         } catch (RuntimeException ex) {
             assertTrue("listener to fail: " + listenerToFail, listenerToFail >= 0);
             assertNotNull(ex.getCause());
@@ -256,7 +264,7 @@ public class ActionListenerTests extends ESTestCase {
         {
             AtomicBoolean afterFailure = new AtomicBoolean();
             ActionListener<Object> listener = ActionListener.runAfter(ActionListener.noop(), () -> afterFailure.set(true));
-            listener.onFailure(null);
+            listener.onFailure(new RuntimeException("test"));
             assertThat(afterFailure.get(), equalTo(true));
         }
     }
@@ -271,7 +279,7 @@ public class ActionListenerTests extends ESTestCase {
         {
             AtomicBoolean afterFailure = new AtomicBoolean();
             ActionListener<Object> listener = ActionListener.runBefore(ActionListener.noop(), () -> afterFailure.set(true));
-            listener.onFailure(null);
+            listener.onFailure(new RuntimeException("test"));
             assertThat(afterFailure.get(), equalTo(true));
         }
     }
@@ -391,8 +399,8 @@ public class ActionListenerTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 exReference.set(e);
-                if (e instanceof IllegalArgumentException) {
-                    throw (IllegalArgumentException) e;
+                if (e instanceof IllegalArgumentException iae) {
+                    throw iae;
                 }
             }
         };
@@ -401,11 +409,11 @@ public class ActionListenerTests extends ESTestCase {
         assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertNull(exReference.get());
 
-        assertionError = expectThrows(
-            AssertionError.class,
-            () -> ActionListener.completeWith(listener, () -> { throw new IllegalArgumentException(); })
-        );
-        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
+        assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener, () -> {
+            throw new IllegalArgumentException();
+        }));
+        assertThat(assertionError.getCause(), instanceOf(AssertionError.class));
+        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
     }
 
@@ -621,5 +629,9 @@ public class ActionListenerTests extends ESTestCase {
                 return description;
             }
         };
+    }
+
+    public static <T> Matcher<T> isMappedActionListener() {
+        return instanceOf(ActionListenerImplementations.MappedActionListener.class);
     }
 }

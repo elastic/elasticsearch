@@ -181,9 +181,8 @@ public class MonthTimes implements Times {
                 }
             }
         }
-        int[] days = daysSet.isEmpty() ? DEFAULT_DAYS : CollectionUtils.toArray(daysSet);
-        DayTimes[] times = timesSet.isEmpty() ? new DayTimes[] { new DayTimes(0, 0) } : timesSet.toArray(new DayTimes[timesSet.size()]);
-        return new MonthTimes(days, times);
+
+        return new MonthTimes(CollectionUtils.toArray(daysSet), timesSet.toArray(DayTimes[]::new));
     }
 
     static int parseDayValue(XContentParser parser, XContentParser.Token token) throws IOException {

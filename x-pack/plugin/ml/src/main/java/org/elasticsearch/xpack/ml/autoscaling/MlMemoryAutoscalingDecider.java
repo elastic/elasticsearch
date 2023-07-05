@@ -47,7 +47,6 @@ import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.time.Instant.ofEpochMilli;
@@ -454,12 +453,7 @@ class MlMemoryAutoscalingDecider {
         if (unassignedJobs.isEmpty()) {
             return Optional.empty();
         }
-        List<Long> jobSizes = unassignedJobs.stream()
-            .map(sizeFunction)
-            .map(l -> l == null ? 0L : l)
-            .sorted(Comparator.comparingLong(Long::longValue).reversed())
-            .collect(Collectors.toList());
-
+        List<Long> jobSizes = computeJobSizes(unassignedJobs, sizeFunction);
         long tierMemory = 0L;
         // Node memory needs to be AT LEAST the size of the largest job + the required overhead.
         long nodeMemory = jobSizes.get(0);
@@ -720,11 +714,7 @@ class MlMemoryAutoscalingDecider {
         for (NodeLoad load : nodeLoads) {
             mostFreeMemoryFirst.add(NodeLoad.builder(load));
         }
-        List<Long> jobSizes = unassignedJobs.stream()
-            .map(sizeFunction)
-            .map(l -> l == null ? 0L : l)
-            .sorted(Comparator.comparingLong(Long::longValue).reversed())
-            .collect(Collectors.toList());
+        List<Long> jobSizes = computeJobSizes(unassignedJobs, sizeFunction);
 
         Iterator<Long> assignmentIter = jobSizes.iterator();
         while (jobSizes.size() > maxNumInQueue && assignmentIter.hasNext()) {
@@ -944,5 +934,14 @@ class MlMemoryAutoscalingDecider {
 
     private Long getAnomalyMemoryRequirement(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         return getAnomalyMemoryRequirement(MlTasks.jobId(task.getId()));
+    }
+
+    private static List<Long> computeJobSizes(List<String> unassignedJobs, Function<String, Long> sizeFunction) {
+        List<Long> jobSizes = new ArrayList<>(unassignedJobs.size());
+        for (String unassignedJob : unassignedJobs) {
+            jobSizes.add(Objects.requireNonNullElse(sizeFunction.apply(unassignedJob), 0L));
+        }
+        jobSizes.sort(Comparator.comparingLong(Long::longValue).reversed());
+        return jobSizes;
     }
 }

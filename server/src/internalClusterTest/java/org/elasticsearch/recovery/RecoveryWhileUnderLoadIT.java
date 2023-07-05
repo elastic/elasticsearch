@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -41,8 +40,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -73,10 +70,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             prepareCreate(
                 "test",
                 1,
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                indexSettings(numberOfShards, 1).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             )
         );
 
@@ -94,7 +88,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             indexer.continueIndexing(extraDocs);
             logger.info("--> flushing the index ....");
             // now flush, just to make sure we have some data in the index, not just translog
-            client().admin().indices().prepareFlush().execute().actionGet();
+            indicesAdmin().prepareFlush().execute().actionGet();
 
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
@@ -110,9 +104,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
             logger.info("--> waiting for GREEN health status ...");
             // make sure the cluster state is green, and all has been recovered
-            assertNoTimeout(
-                client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus()
-            );
+            assertNoTimeout(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus());
 
             logger.info("--> waiting for {} docs to be indexed ...", totalNumDocs);
             waitForDocs(totalNumDocs, indexer);
@@ -137,10 +129,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             prepareCreate(
                 "test",
                 1,
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                indexSettings(numberOfShards, 1).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             )
         );
 
@@ -158,7 +147,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             indexer.continueIndexing(extraDocs);
             logger.info("--> flushing the index ....");
             // now flush, just to make sure we have some data in the index, not just translog
-            client().admin().indices().prepareFlush().execute().actionGet();
+            indicesAdmin().prepareFlush().execute().actionGet();
 
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
@@ -171,9 +160,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             allowNodes("test", 4);
 
             logger.info("--> waiting for GREEN health status ...");
-            assertNoTimeout(
-                client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus()
-            );
+            assertNoTimeout(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus());
 
             logger.info("--> waiting for {} docs to be indexed ...", totalNumDocs);
             waitForDocs(totalNumDocs, indexer);
@@ -198,10 +185,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             prepareCreate(
                 "test",
                 2,
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                indexSettings(numberOfShards, 1).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             )
         );
 
@@ -219,7 +203,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             indexer.continueIndexing(extraDocs);
             logger.info("--> flushing the index ....");
             // now flush, just to make sure we have some data in the index, not just translog
-            client().admin().indices().prepareFlush().execute().actionGet();
+            indicesAdmin().prepareFlush().execute().actionGet();
 
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
@@ -234,9 +218,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
             logger.info("--> waiting for GREEN health status ...");
             assertNoTimeout(
-                client().admin()
-                    .cluster()
-                    .prepareHealth()
+                clusterAdmin().prepareHealth()
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout("5m")
                     .setWaitForGreenStatus()
@@ -253,36 +235,21 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             allowNodes("test", 3);
             logger.info("--> waiting for relocations ...");
             assertNoTimeout(
-                client().admin()
-                    .cluster()
-                    .prepareHealth()
-                    .setWaitForEvents(Priority.LANGUID)
-                    .setTimeout("5m")
-                    .setWaitForNoRelocatingShards(true)
+                clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForNoRelocatingShards(true)
             );
 
             logger.info("--> allow 2 nodes for index [test] ...");
             allowNodes("test", 2);
             logger.info("--> waiting for relocations ...");
             assertNoTimeout(
-                client().admin()
-                    .cluster()
-                    .prepareHealth()
-                    .setWaitForEvents(Priority.LANGUID)
-                    .setTimeout("5m")
-                    .setWaitForNoRelocatingShards(true)
+                clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForNoRelocatingShards(true)
             );
 
             logger.info("--> allow 1 nodes for index [test] ...");
             allowNodes("test", 1);
             logger.info("--> waiting for relocations ...");
             assertNoTimeout(
-                client().admin()
-                    .cluster()
-                    .prepareHealth()
-                    .setWaitForEvents(Priority.LANGUID)
-                    .setTimeout("5m")
-                    .setWaitForNoRelocatingShards(true)
+                clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForNoRelocatingShards(true)
             );
 
             logger.info("--> marking and waiting for indexing threads to stop ...");
@@ -290,12 +257,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> indexing threads stopped");
 
             assertNoTimeout(
-                client().admin()
-                    .cluster()
-                    .prepareHealth()
-                    .setWaitForEvents(Priority.LANGUID)
-                    .setTimeout("5m")
-                    .setWaitForNoRelocatingShards(true)
+                clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForNoRelocatingShards(true)
             );
 
             logger.info("--> refreshing the index");
@@ -314,11 +276,10 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             prepareCreate(
                 "test",
                 3,
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
-                    .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), randomFrom("100ms", "1s", "5s", "30s", "60s"))
+                indexSettings(numShards, numReplicas).put(
+                    IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(),
+                    Translog.Durability.ASYNC
+                ).put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), randomFrom("100ms", "1s", "5s", "30s", "60s"))
             )
         );
 
@@ -343,9 +304,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> indexing threads stopped");
             logger.info("--> bump up number of replicas to 1 and allow all nodes to hold the index");
             allowNodes("test", 3);
-            assertAcked(
-                client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("number_of_replicas", 1)).get()
-            );
+            setReplicaCount(1, "test");
             ensureGreen(TimeValue.timeValueMinutes(5));
 
             logger.info("--> refreshing the index");
@@ -375,7 +334,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
         if (error) {
             // Printing out shards and their doc count
-            IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().get();
+            IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats().get();
             for (ShardStats shardStats : indicesStatsResponse.getShards()) {
                 DocsStats docsStats = shardStats.getStats().docs;
                 logger.info(
@@ -452,7 +411,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
     private void refreshAndAssert() throws Exception {
         assertBusy(() -> {
-            RefreshResponse actionGet = client().admin().indices().prepareRefresh().get();
+            RefreshResponse actionGet = indicesAdmin().prepareRefresh().get();
             assertAllSuccessful(actionGet);
         }, 5, TimeUnit.MINUTES);
     }

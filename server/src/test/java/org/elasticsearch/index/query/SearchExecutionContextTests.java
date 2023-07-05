@@ -23,10 +23,12 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
@@ -70,6 +72,7 @@ import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -93,7 +96,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -170,35 +172,14 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     public void testIndexSortedOnField() {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.sort.field", "sort_field")
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).put("index.sort.field", "sort_field").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
 
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
-        SearchExecutionContext context = new SearchExecutionContext(
-            0,
-            0,
+        SearchExecutionContext context = SearchExecutionContextHelper.createSimple(
             indexSettings,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
             XContentParserConfiguration.EMPTY,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
+            new NamedWriteableRegistry(Collections.emptyList())
         );
 
         assertTrue(context.indexSortedOnField("sort_field"));
@@ -412,7 +393,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
         // Setting the source provider explicitly then gives us a new SearchLookup that can use source
         Source source = Source.fromMap(Map.of("field", "value"), XContentType.JSON);
-        sec.setSourceProvider((ctx, doc) -> source);
+        sec.setLookupProviders((ctx, doc) -> source, LeafFieldLookupProvider.fromStoredFields());
         SearchLookup searchLookup1 = sec.lookup();
         assertNotSame(searchLookup, searchLookup1);
         assertSame(source, searchLookup1.getSource(null, 0));
@@ -439,13 +420,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         Map<String, Object> runtimeMappings
     ) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
-        indexMetadataBuilder.settings(
-            Settings.builder()
-                .put("index.version.created", Version.CURRENT)
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 1)
-                .put(IndexMetadata.SETTING_INDEX_UUID, indexUuid)
-        );
+        indexMetadataBuilder.settings(indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, indexUuid));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         MapperService mapperService = createMapperService(indexSettings, mappingLookup);
@@ -454,6 +429,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             0,
             0,
             indexSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
             mapperService,
@@ -474,11 +450,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static MapperService createMapperService(IndexSettings indexSettings, MappingLookup mappingLookup) {
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
-            singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
-            emptyMap(),
-            emptyMap()
-        );
+        IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)));
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         Supplier<SearchExecutionContext> searchExecutionContextSupplier = () -> { throw new UnsupportedOperationException(); };
@@ -490,6 +462,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
                 mapperRegistry.getRuntimeFieldParsers()::get,
                 indexSettings.getIndexVersionCreated(),
+                () -> TransportVersion.current(),
                 searchExecutionContextSupplier,
                 ScriptCompiler.NONE,
                 indexAnalyzers,

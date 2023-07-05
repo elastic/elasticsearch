@@ -9,7 +9,9 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-archivesBaseName = 'x-pack-identity-provider'
+base {
+  archivesName = 'x-pack-identity-provider'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
@@ -38,7 +40,8 @@ dependencies {
       exclude group: 'org.bouncycastle'
   }
   api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+  //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
@@ -161,8 +164,6 @@ tasks.named("thirdPartyAudit").configure {
         // [missing classes] Http Client cache has optional ehcache support
         'net.sf.ehcache.Ehcache',
         'net.sf.ehcache.Element',
-        // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
-        'org.slf4j.ext.EventData',
         // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
         // acknowledge them here instead of adding bouncy castle as a compileOnly dependency
         'org.bouncycastle.asn1.ASN1Encodable',

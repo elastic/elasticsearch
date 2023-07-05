@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.ccs;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -15,6 +16,11 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.SearchShardsGroup;
+import org.elasticsearch.action.search.SearchShardsRequest;
+import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -26,6 +32,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
@@ -37,6 +44,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -55,11 +63,14 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -216,7 +227,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest("demo", "cluster_a:prod");
         searchRequest.allowPartialSearchResults(false);
-        searchRequest.setCcsMinimizeRoundtrips(false);
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1000));
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
         SearchListenerPlugin.waitSearchStarted();
@@ -231,6 +242,25 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             .filter(t -> t.parentTaskId().isSet() == false)
             .findFirst()
             .get();
+
+        AtomicReference<List<TaskInfo>> remoteClusterSearchTasks = new AtomicReference<>();
+        assertBusy(() -> {
+            List<TaskInfo> remoteSearchTasks = client("cluster_a").admin()
+                .cluster()
+                .prepareListTasks()
+                .get()
+                .getTasks()
+                .stream()
+                .filter(t -> t.action().startsWith("indices:data/read/search"))
+                .collect(Collectors.toList());
+            assertThat(remoteSearchTasks.size(), greaterThan(0));
+            remoteClusterSearchTasks.set(remoteSearchTasks);
+        });
+
+        for (TaskInfo taskInfo : remoteClusterSearchTasks.get()) {
+            assertFalse("taskInfo is cancelled: " + taskInfo, taskInfo.cancelled());
+        }
+
         final CancelTasksRequest cancelRequest = new CancelTasksRequest().setTargetTaskId(rootTask.taskId());
         cancelRequest.setWaitForCompletion(randomBoolean());
         final ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().cancelTasks(cancelRequest);
@@ -245,6 +275,19 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 }
             }
         });
+
+        List<TaskInfo> remoteSearchTasksAfterCancellation = client("cluster_a").admin()
+            .cluster()
+            .prepareListTasks()
+            .get()
+            .getTasks()
+            .stream()
+            .filter(t -> t.action().startsWith("indices:data/read/search"))
+            .collect(Collectors.toList());
+        for (TaskInfo taskInfo : remoteSearchTasksAfterCancellation) {
+            assertTrue(taskInfo.description(), taskInfo.cancelled());
+        }
+
         SearchListenerPlugin.allowQueryPhase();
         assertBusy(() -> assertTrue(queryFuture.isDone()));
         assertBusy(() -> assertTrue(cancelFuture.isDone()));
@@ -254,6 +297,12 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
             }
         });
+
+        RuntimeException e = expectThrows(RuntimeException.class, () -> queryFuture.result());
+        assertNotNull(e);
+        assertNotNull(e.getCause());
+        Throwable t = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+        assertNotNull(t);
     }
 
     /**
@@ -445,6 +494,66 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 }
             });
             super.onIndexModule(indexModule);
+        }
+    }
+
+    public void testSearchShardsWithIndexNameQuery() {
+        int numShards = randomIntBetween(1, 10);
+        Client remoteClient = client("cluster_a");
+        remoteClient.admin()
+            .indices()
+            .prepareCreate("my_index")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
+            .get();
+        int numDocs = randomIntBetween(100, 500);
+        for (int i = 0; i < numDocs; i++) {
+            remoteClient.prepareIndex("my_index").setSource("f", "v").get();
+        }
+        remoteClient.admin().indices().prepareRefresh("my_index").get();
+        String[] indices = new String[] { "my_index" };
+        IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        {
+            QueryBuilder query = new TermQueryBuilder("_index", "cluster_a:my_index");
+            SearchShardsRequest request = new SearchShardsRequest(indices, indicesOptions, query, null, null, randomBoolean(), "cluster_a");
+            SearchShardsResponse resp = remoteClient.execute(SearchShardsAction.INSTANCE, request).actionGet();
+            assertThat(resp.getGroups(), hasSize(numShards));
+            for (SearchShardsGroup group : resp.getGroups()) {
+                assertFalse(group.skipped());
+            }
+        }
+        {
+            QueryBuilder query = new TermQueryBuilder("_index", "cluster_a:my_index");
+            SearchShardsRequest request = new SearchShardsRequest(
+                indices,
+                indicesOptions,
+                query,
+                null,
+                null,
+                randomBoolean(),
+                randomFrom("cluster_b", null)
+            );
+            SearchShardsResponse resp = remoteClient.execute(SearchShardsAction.INSTANCE, request).actionGet();
+            assertThat(resp.getGroups(), hasSize(numShards));
+            for (SearchShardsGroup group : resp.getGroups()) {
+                assertTrue(group.skipped());
+            }
+        }
+        {
+            QueryBuilder query = new TermQueryBuilder("_index", "cluster_a:not_my_index");
+            SearchShardsRequest request = new SearchShardsRequest(
+                indices,
+                indicesOptions,
+                query,
+                null,
+                null,
+                randomBoolean(),
+                randomFrom("cluster_a", "cluster_b", null)
+            );
+            SearchShardsResponse resp = remoteClient.execute(SearchShardsAction.INSTANCE, request).actionGet();
+            assertThat(resp.getGroups(), hasSize(numShards));
+            for (SearchShardsGroup group : resp.getGroups()) {
+                assertTrue(group.skipped());
+            }
         }
     }
 }

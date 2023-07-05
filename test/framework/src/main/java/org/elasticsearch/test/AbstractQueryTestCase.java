@@ -607,7 +607,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected QueryBuilder assertSerialization(QueryBuilder testQuery) throws IOException {
-        return assertSerialization(testQuery, TransportVersion.CURRENT);
+        return assertSerialization(testQuery, TransportVersion.current());
     }
 
     /**
@@ -742,11 +742,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected static String getRandomRewriteMethod() {
         String rewrite;
         if (randomBoolean()) {
-            rewrite = randomFrom(QueryParsers.CONSTANT_SCORE, QueryParsers.SCORING_BOOLEAN, QueryParsers.CONSTANT_SCORE_BOOLEAN)
-                .getPreferredName();
+            rewrite = randomFrom(
+                QueryParsers.CONSTANT_SCORE,
+                QueryParsers.SCORING_BOOLEAN,
+                QueryParsers.CONSTANT_SCORE_BOOLEAN,
+                QueryParsers.CONSTANT_SCORE_BLENDED
+            ).getPreferredName();
         } else {
             rewrite = randomFrom(QueryParsers.TOP_TERMS, QueryParsers.TOP_TERMS_BOOST, QueryParsers.TOP_TERMS_BLENDED_FREQS)
-                .getPreferredName() + "1";
+                .getPreferredName()
+                + "1";
         }
         return rewrite;
     }

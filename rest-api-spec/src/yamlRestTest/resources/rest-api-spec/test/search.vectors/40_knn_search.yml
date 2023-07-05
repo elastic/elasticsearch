@@ -94,8 +94,9 @@ setup:
 ---
 "kNN search plus query":
   - skip:
-      version: ' - 8.3.99'
-      reason: 'kNN added to search endpoint in 8.4'
+      version: all #' - 8.3.99'
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/97144"
+      # reason: 'kNN added to search endpoint in 8.4'
   - do:
       search:
         index: test
@@ -121,8 +122,9 @@ setup:
 ---
 "kNN multi-field search with query":
   - skip:
-      version: ' - 8.6.99'
-      reason: 'multi-field kNN search added to search endpoint in 8.7'
+      version: all #' - 8.6.99'
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/97144"
+      # reason: 'multi-field kNN search added to search endpoint in 8.7'
   - do:
       search:
         index: test
@@ -310,3 +312,61 @@ setup:
               num_candidates: 1
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "[knn] queries cannot be provided directly, use the [knn] body parameter instead" }
+---
+"KNN Vector similarity search only":
+  - skip:
+      version: ' - 8.7.99'
+      reason: 'kNN similarity added in 8.8'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 11
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+  - length: {hits.hits: 1}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+---
+"Vector similarity with filter only":
+  - skip:
+      version: ' - 8.7.99'
+      reason: 'kNN similarity added in 8.8'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 11
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            filter: {"term": {"name": "moose.jpg"}}
+
+  - length: {hits.hits: 1}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 110
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            filter: {"term": {"name": "cow.jpg"}}
+
+  - length: {hits.hits: 0}

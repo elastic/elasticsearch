@@ -46,16 +46,11 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request createTestInstance() {
         TransformConfig config = new TransformConfig(
             "transform-preview",
             randomSourceConfig(),
-            new DestConfig("unused-transform-preview-index", null),
+            new DestConfig("unused-transform-preview-index", null, null),
             null,
             randomBoolean() ? TransformConfigTests.randomSyncConfig() : null,
             null,

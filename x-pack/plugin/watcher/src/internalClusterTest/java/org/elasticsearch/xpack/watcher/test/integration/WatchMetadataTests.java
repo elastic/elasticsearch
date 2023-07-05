@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -62,11 +64,24 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
 
         timeWarp().trigger("_name");
 
-        refresh();
-        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-            .setQuery(termQuery("metadata.foo", "bar"))
-            .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        assertBusy(() -> {
+            refresh();
+            SearchResponse searchResponse;
+            try {
+                searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
+                    .setQuery(termQuery("metadata.foo", "bar"))
+                    .get();
+            } catch (SearchPhaseExecutionException e) {
+                if (e.getCause() instanceof NoShardAvailableActionException) {
+                    // Nothing has created the index yet
+                    searchResponse = null;
+                } else {
+                    throw e;
+                }
+            }
+            assertNotNull(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        });
     }
 
     public void testWatchMetadataAvailableAtExecution() throws Exception {

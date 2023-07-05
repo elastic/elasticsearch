@@ -37,8 +37,8 @@ public class ClusterStateRequestTests extends ESTestCase {
 
             TransportVersion testVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersion.CURRENT.minimumCompatibilityVersion(),
-                TransportVersion.CURRENT
+                TransportVersion.MINIMUM_COMPATIBLE,
+                TransportVersion.current()
             );
             // TODO: change version to V_6_6_0 after backporting:
             if (testVersion.onOrAfter(TransportVersion.V_7_0_0)) {

@@ -107,7 +107,7 @@ that it will increase the risk of failure since the failure of any one SSD
 destroys the index. However this is typically the right tradeoff to make:
 optimize single shards for maximum performance, and then add replicas across
 different nodes so there's redundancy for any node failures. You can also use
-<<modules-snapshots,snapshot and restore>> to backup the index for further
+<<snapshot-restore,snapshot and restore>> to backup the index for further
 insurance.
 
 Directly-attached (local) storage generally performs better than remote storage
@@ -142,6 +142,14 @@ setting up two clusters, configuring <<xpack-ccr,{ccr}>> to replicate data from
 one cluster to the other one, and routing all searches to the cluster that has
 the follower indices, search activity will no longer steal resources from
 indexing on the cluster that hosts the leader indices.
+
+[discrete]
+=== Avoid hot spotting
+
+<<hotspotting,Hot Spotting>> can occur when node resources, shards, or requests 
+are not evenly distributed. {es} maintains cluster state by syncing it across 
+nodes, so continually hot spotted nodes can cause overall cluster performance 
+degredation.
 
 [discrete]
 === Additional optimizations

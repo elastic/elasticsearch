@@ -1,5 +1,0 @@
-pr: 92197
-summary: Optimize composite agg with leading global ordinal value source
-area: Aggregations
-type: enhancement
-issues: []

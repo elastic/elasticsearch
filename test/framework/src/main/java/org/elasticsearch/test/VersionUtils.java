@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -17,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -192,23 +190,9 @@ public class VersionUtils {
         return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
     }
 
-    /**
-     * Returns the highest Version that has this or a lesser TransportVersion.
-     */
-    static Version findVersion(TransportVersion transportVersion) {
-        // search backwards
-        for (int i = ALL_VERSIONS.size() - 1; i >= 0; i--) {
-            Version v = ALL_VERSIONS.get(i);
-            if (v.transportVersion.compareTo(transportVersion) <= 0) {
-                return v;
-            }
-        }
-        throw new NoSuchElementException("No valid Version found");
-    }
-
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
     public static Version randomCompatibleVersion(Random random, Version version) {
-        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).collect(Collectors.toList());
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).toList();
         return compatible.get(random.nextInt(compatible.size()));
     }
 
@@ -244,10 +228,7 @@ public class VersionUtils {
 
     /** Returns the maximum {@link Version} that is compatible with the given version. */
     public static Version maxCompatibleVersion(Version version) {
-        final List<Version> compatible = ALL_VERSIONS.stream()
-            .filter(version::isCompatible)
-            .filter(version::onOrBefore)
-            .collect(Collectors.toList());
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).filter(version::onOrBefore).toList();
         assert compatible.size() > 0;
         return compatible.get(compatible.size() - 1);
     }

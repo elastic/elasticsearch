@@ -163,20 +163,10 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void enableMonitoringCollection() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(MonitoringService.ENABLED.getKey(), true))
-        );
+        updateClusterSettings(Settings.builder().put(MonitoringService.ENABLED.getKey(), true));
     }
 
     protected void disableMonitoringCollection() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().putNull(MonitoringService.ENABLED.getKey()))
-        );
+        updateClusterSettings(Settings.builder().putNull(MonitoringService.ENABLED.getKey()));
     }
 }

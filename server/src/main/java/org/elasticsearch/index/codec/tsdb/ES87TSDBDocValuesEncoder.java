@@ -16,6 +16,43 @@ import org.apache.lucene.util.packed.PackedInts;
 import java.io.IOException;
 import java.util.Arrays;
 
+/**
+ * This class provides encoding and decoding of doc values using the following schemes:
+ * <ul>
+ * <li>
+ *     delta encoding: encodes numeric fields in such a way to store the initial value and the difference between the initial value and
+ *     all subsequent values. Delta values normally require much less bits than the original 32 or 64 bits.
+ * </li>
+ *
+ * <li>
+ *     offset encoding: encodes numeric fields in such a way to store values in range [0, max - min] instead of [min, max]. Reducing the
+ *     range makes delta encoding much more effective since numbers in range [0, max - min] require less bits than values in range
+ *     [min, max].
+ * </li>
+ *
+ * <li>
+ *     gcd encoding: encodes numeric fields in such a way to store values divided by their Greatest Common Divisor. Diving values by their
+ *     GCD reduces values magnitude making delta encoding much more effective as a result of the fact that dividing a number by another
+ *     number reduces its magnitude and, as a result, the bits required to represent it.
+ * </li>
+ *
+ * <li>
+ *     (f)or encoding: encodes numeric fields in such a way to store the initial value and then the XOR between each value and the previous
+ *     one, making delta encoding much more effective. Values sharing common values for higher bits will require less bits when delta
+ *     encoded. This is expected to be effective especially with floating point values sharing a common exponent and sign bit.
+ * </li>
+ * </ul>
+ *
+ * Notice that encoding and decoding are written in a nested way, for instance {@link ES87TSDBDocValuesEncoder#deltaEncode} calling
+ * {@link ES87TSDBDocValuesEncoder#removeOffset} and so on. This allows us to easily introduce new encoding schemes or remove existing
+ * (non-effective) encoding schemes in a backward-compatible way.
+ *
+ * A token is used as a bitmask to represent which encoding is applied and allows us to detect the applied encoding scheme at decoding time.
+ * This encoding and decoding scheme is meant to work on blocks of 128 values. Larger block sizes incur a decoding penalty when random
+ * access to doc values is required since a full block must be decoded.
+ *
+ * Of course, decoding follows the opposite order with respect to encoding.
+ */
 public class ES87TSDBDocValuesEncoder {
     private final DocValuesForUtil forUtil;
 
@@ -125,8 +162,7 @@ public class ES87TSDBDocValuesEncoder {
             or |= l;
         }
 
-        final int bitsPerValue = or == 0 ? 0 : PackedInts.unsignedBitsRequired(or);
-
+        int bitsPerValue = or == 0 ? 0 : DocValuesForUtil.roundBits(PackedInts.unsignedBitsRequired(or));
         out.writeVInt((bitsPerValue << tokenBits) | token);
         if (bitsPerValue > 0) {
             forUtil.encode(in, bitsPerValue, out);

@@ -38,6 +38,8 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Before;
 
@@ -54,6 +56,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -79,7 +82,7 @@ public class LimitedRoleTests extends ESTestCase {
         assertThat(npe.getMessage(), containsString("limited by role is required to create limited role"));
     }
 
-    public void testGetRemoteAccessRoleDescriptorsIntersection() {
+    public void testGetRoleDescriptorsIntersectionForRemoteCluster() {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         String remoteClusterPrefix = randomAlphaOfLengthBetween(6, 8);
@@ -188,11 +191,11 @@ public class LimitedRoleTests extends ESTestCase {
         );
 
         // for the existing remote cluster alias, check that the result is equal to the expected intersection
-        assertThat(role.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias), equalTo(expected));
+        assertThat(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias), equalTo(expected));
 
         // and for a random cluster alias, check that it returns empty intersection
         assertThat(
-            role.getRemoteAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(5, 7)),
+            role.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLengthBetween(5, 7)),
             equalTo(RoleDescriptorsIntersection.EMPTY)
         );
     }
@@ -211,7 +214,7 @@ public class LimitedRoleTests extends ESTestCase {
         return IndexPrivilege.get(Set.of(randomFrom(IndexPrivilege.names())));
     }
 
-    public void testGetRemoteAccessRoleDescriptorsIntersectionReturnsEmpty() {
+    public void testGetRoleDescriptorsIntersectionForRemoteClusterReturnsEmpty() {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         String remoteClusterAlias = randomAlphaOfLengthBetween(5, 8);
@@ -283,25 +286,15 @@ public class LimitedRoleTests extends ESTestCase {
         }
 
         Role role = baseRole.build().limitedBy(limitedByRole1.build().limitedBy(limitedByRole2.build()));
-        assertThat(role.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias).roleDescriptorsList().isEmpty(), equalTo(true));
+        assertThat(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias).roleDescriptorsList().isEmpty(), equalTo(true));
     }
 
     public void testAuthorize() {
         IndexMetadata.Builder imbBuilder = IndexMetadata.builder("_index")
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            )
+            .settings(indexSettings(Version.CURRENT, 1, 1))
             .putAlias(AliasMetadata.builder("_alias"));
         IndexMetadata.Builder imbBuilder1 = IndexMetadata.builder("_index1")
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            )
+            .settings(indexSettings(Version.CURRENT, 1, 1))
             .putAlias(AliasMetadata.builder("_alias1"));
         Metadata md = Metadata.builder().put(imbBuilder).put(imbBuilder1).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
@@ -651,6 +644,12 @@ public class LimitedRoleTests extends ESTestCase {
 
         {
             Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
+            if (randomBoolean()) {
+                final Role nestedLimitedRole = Role.builder(EMPTY_RESTRICTED_INDICES, "nested-limited-role")
+                    .add(IndexPrivilege.READ, "*")
+                    .build();
+                limitedByRole = randomBoolean() ? limitedByRole.limitedBy(nestedLimitedRole) : nestedLimitedRole.limitedBy(limitedByRole);
+            }
 
             verifyResourcesPrivileges(
                 limitedByRole,
@@ -727,6 +726,12 @@ public class LimitedRoleTests extends ESTestCase {
             );
 
             Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
+            if (randomBoolean()) {
+                final Role nestedLimitedRole = Role.builder(EMPTY_RESTRICTED_INDICES, "nested-limited-role")
+                    .add(IndexPrivilege.READ, "*")
+                    .build();
+                limitedByRole = randomBoolean() ? limitedByRole.limitedBy(nestedLimitedRole) : nestedLimitedRole.limitedBy(limitedByRole);
+            }
 
             verifyResourcesPrivileges(
                 limitedByRole,
@@ -762,6 +767,41 @@ public class LimitedRoleTests extends ESTestCase {
                         .map()
                 )
             );
+        }
+    }
+
+    public void testForWorkflowRestriction() {
+        // Test when role is restricted to the same workflow as originating workflow
+        {
+            Workflow workflow = WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW;
+            Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "role-a")
+                .add(IndexPrivilege.READ, "index-a")
+                .workflows(Set.of(workflow.name()))
+                .build();
+            Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
+            Role role = baseRole.limitedBy(limitedBy);
+            assertThat(role.hasWorkflowsRestriction(), equalTo(true));
+            assertThat(role.forWorkflow(workflow.name()), sameInstance(role));
+        }
+        // Test restriction when role is not restricted regardless of originating workflow
+        {
+            String originatingWorkflow = randomBoolean() ? null : WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name();
+            Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "role-a").add(IndexPrivilege.READ, "index-a").build();
+            Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
+            Role role = baseRole.limitedBy(limitedBy);
+            assertThat(role.forWorkflow(originatingWorkflow), sameInstance(role));
+            assertThat(role.hasWorkflowsRestriction(), equalTo(false));
+        }
+        // Test when role is restricted but originating workflow is not allowed
+        {
+            Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "role-a")
+                .add(IndexPrivilege.READ, "index-a")
+                .workflows(Set.of(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name()))
+                .build();
+            Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
+            Role role = baseRole.limitedBy(limitedBy);
+            assertThat(role.forWorkflow(randomFrom(randomAlphaOfLength(9), null, "")), sameInstance(Role.EMPTY_RESTRICTED_BY_WORKFLOW));
+            assertThat(role.hasWorkflowsRestriction(), equalTo(true));
         }
     }
 
@@ -862,6 +902,15 @@ public class LimitedRoleTests extends ESTestCase {
                 .addApplicationPrivilege(app2Read, Collections.singleton("foo/bar/*"))
                 .addApplicationPrivilege(app2Write, Collections.singleton("moo/bar/*"))
                 .build();
+
+            if (randomBoolean()) {
+                final Role nestedLimitedRole = Role.builder(EMPTY_RESTRICTED_INDICES, "nested-limited-role")
+                    .addApplicationPrivilege(app1Read, Set.of("*"))
+                    .addApplicationPrivilege(app2Read, Set.of("*"))
+                    .addApplicationPrivilege(app2Write, Set.of("*"))
+                    .build();
+                limitedByRole = randomBoolean() ? limitedByRole.limitedBy(nestedLimitedRole) : nestedLimitedRole.limitedBy(limitedByRole);
+            }
 
             verifyResourcesPrivileges(
                 limitedByRole,

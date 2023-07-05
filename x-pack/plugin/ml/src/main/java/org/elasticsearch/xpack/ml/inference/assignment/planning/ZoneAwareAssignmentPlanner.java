@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 
 import java.util.ArrayList;
@@ -39,17 +38,15 @@ public class ZoneAwareAssignmentPlanner {
      */
     private final Map<List<String>, List<Node>> nodesByZone;
 
-    private final List<Model> models;
+    private final List<AssignmentPlan.Deployment> deployments;
 
-    public ZoneAwareAssignmentPlanner(Map<List<String>, List<Node>> nodesByZone, List<Model> models) {
+    public ZoneAwareAssignmentPlanner(Map<List<String>, List<Node>> nodesByZone, List<AssignmentPlan.Deployment> deployments) {
         this.nodesByZone = sortByZone(Objects.requireNonNull(nodesByZone));
-        this.models = Objects.requireNonNull(models);
+        this.deployments = Objects.requireNonNull(deployments);
     }
 
     private static Map<List<String>, List<Node>> sortByZone(Map<List<String>, List<Node>> nodesByZone) {
-        Map<List<String>, List<Node>> sortedByZone = new TreeMap<>(
-            Comparator.comparing(zoneAttributes -> zoneAttributes.stream().collect(Collectors.joining()))
-        );
+        Map<List<String>, List<Node>> sortedByZone = new TreeMap<>(Comparator.comparing(zoneAttributes -> String.join("", zoneAttributes)));
         sortedByZone.putAll(nodesByZone);
         return sortedByZone;
     }
@@ -57,7 +54,7 @@ public class ZoneAwareAssignmentPlanner {
     public AssignmentPlan computePlan() {
         // There is only one zone; we can optimize and compute a plan directly.
         if (nodesByZone.size() == 1) {
-            return new AssignmentPlanner(nodesByZone.values().iterator().next(), models).computePlan(true);
+            return new AssignmentPlanner(nodesByZone.values().iterator().next(), deployments).computePlan(true);
         }
 
         // First we try to compute a plan without forcing assigning previously assigned models as this may
@@ -83,7 +80,8 @@ public class ZoneAwareAssignmentPlanner {
         // allocated on the first per zone assignment plans.
 
         int remainingZones = nodesByZone.size();
-        Map<String, Integer> modelIdToRemainingAllocations = models.stream().collect(Collectors.toMap(Model::id, Model::allocations));
+        Map<String, Integer> modelIdToRemainingAllocations = deployments.stream()
+            .collect(Collectors.toMap(AssignmentPlan.Deployment::id, AssignmentPlan.Deployment::allocations));
         List<AssignmentPlan> plans = new ArrayList<>();
         for (var zoneToNodes : nodesByZone.entrySet()) {
             logger.debug(() -> format("computing plan for availability zone %s", zoneToNodes.getKey()));
@@ -119,10 +117,10 @@ public class ZoneAwareAssignmentPlanner {
             .filter(e -> e.getValue() > 0)
             .collect(Collectors.toMap(e -> e.getKey(), e -> (e.getValue() - 1) / remainingZones + 1));
 
-        List<Model> modifiedModels = models.stream()
+        List<AssignmentPlan.Deployment> modifiedDeployments = deployments.stream()
             .filter(m -> modelIdToTargetAllocations.getOrDefault(m.id(), 0) > 0)
             .map(
-                m -> new Model(
+                m -> new AssignmentPlan.Deployment(
                     m.id(),
                     m.memoryBytes(),
                     modelIdToTargetAllocations.get(m.id()),
@@ -135,7 +133,7 @@ public class ZoneAwareAssignmentPlanner {
                 )
             )
             .toList();
-        return new AssignmentPlanner(nodes, modifiedModels).computePlan(tryAssigningPreviouslyAssignedModels);
+        return new AssignmentPlanner(nodes, modifiedDeployments).computePlan(tryAssigningPreviouslyAssignedModels);
     }
 
     private AssignmentPlan computePlanAcrossAllNodes(List<AssignmentPlan> plans) {
@@ -145,9 +143,9 @@ public class ZoneAwareAssignmentPlanner {
 
         Map<String, Map<String, Integer>> allocationsByNodeIdByModelId = mergeAllocationsByNodeIdByModelId(plans);
 
-        List<Model> modelsAccountingPlans = models.stream()
+        List<AssignmentPlan.Deployment> modelsAccountingPlans = deployments.stream()
             .map(
-                m -> new Model(
+                m -> new AssignmentPlan.Deployment(
                     m.id(),
                     m.memoryBytes(),
                     m.allocations(),
@@ -160,23 +158,28 @@ public class ZoneAwareAssignmentPlanner {
 
         PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(allNodes, modelsAccountingPlans);
         List<Node> planNodes = preserveAllAllocations.nodesPreservingAllocations();
-        List<Model> planModels = preserveAllAllocations.modelsPreservingAllocations();
-        AssignmentPlan plan = new LinearProgrammingPlanSolver(planNodes, planModels).solvePlan(false);
+        List<AssignmentPlan.Deployment> planDeployments = preserveAllAllocations.modelsPreservingAllocations();
+        AssignmentPlan plan = new LinearProgrammingPlanSolver(planNodes, planDeployments).solvePlan(false);
         plan = preserveAllAllocations.mergePreservedAllocations(plan);
         return swapOriginalModelsInPlan(plan, allNodes, modelsAccountingPlans);
     }
 
-    private AssignmentPlan swapOriginalModelsInPlan(AssignmentPlan plan, List<Node> allNodes, List<Model> planModels) {
-        final Map<String, Model> originalModelById = models.stream().collect(Collectors.toMap(Model::id, Function.identity()));
+    private AssignmentPlan swapOriginalModelsInPlan(
+        AssignmentPlan plan,
+        List<Node> allNodes,
+        List<AssignmentPlan.Deployment> planDeployments
+    ) {
+        final Map<String, AssignmentPlan.Deployment> originalModelById = deployments.stream()
+            .collect(Collectors.toMap(AssignmentPlan.Deployment::id, Function.identity()));
         final Map<String, Node> originalNodeById = allNodes.stream().collect(Collectors.toMap(Node::id, Function.identity()));
-        AssignmentPlan.Builder planBuilder = AssignmentPlan.builder(allNodes, models);
-        for (Model m : planModels) {
-            Model originalModel = originalModelById.get(m.id());
+        AssignmentPlan.Builder planBuilder = AssignmentPlan.builder(allNodes, deployments);
+        for (AssignmentPlan.Deployment m : planDeployments) {
+            AssignmentPlan.Deployment originalDeployment = originalModelById.get(m.id());
             Map<Node, Integer> nodeAssignments = plan.assignments(m).orElse(Map.of());
             for (Map.Entry<Node, Integer> assignment : nodeAssignments.entrySet()) {
                 Node originalNode = originalNodeById.get(assignment.getKey().id());
-                planBuilder.assignModelToNode(originalModel, originalNode, assignment.getValue());
-                if (originalModel.currentAllocationsByNodeId().containsKey(originalNode.id())) {
+                planBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
+                if (originalDeployment.currentAllocationsByNodeId().containsKey(originalNode.id())) {
                     // As the node has all its available memory we need to manually account memory of models with
                     // current allocations.
                     planBuilder.accountMemory(m, originalNode);
@@ -188,9 +191,9 @@ public class ZoneAwareAssignmentPlanner {
 
     private Map<String, Map<String, Integer>> mergeAllocationsByNodeIdByModelId(List<AssignmentPlan> plans) {
         Map<String, Map<String, Integer>> allocationsByNodeIdByModelId = new HashMap<>();
-        models.forEach(m -> allocationsByNodeIdByModelId.put(m.id(), new HashMap<>()));
+        deployments.forEach(m -> allocationsByNodeIdByModelId.put(m.id(), new HashMap<>()));
         for (AssignmentPlan plan : plans) {
-            for (Model m : plan.models()) {
+            for (AssignmentPlan.Deployment m : plan.models()) {
                 Map<String, Integer> nodeIdToAllocations = allocationsByNodeIdByModelId.get(m.id());
                 Optional<Map<Node, Integer>> assignments = plan.assignments(m);
                 if (assignments.isPresent()) {

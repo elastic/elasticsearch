@@ -12,11 +12,15 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -33,11 +37,18 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
 public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScoreDocQueryBuilder> {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(TestGeoShapeFieldMapperPlugin.class);
+        return List.of(TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
@@ -153,6 +164,48 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         // Test isn't relevant, since query is never parsed from xContent
     }
 
+    public void testScoreDocQueryWeightCount() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            for (int i = 0; i < 30; i++) {
+                Document doc = new Document();
+                doc.add(new StringField("field", "value" + i, Field.Store.NO));
+                iw.addDocument(doc);
+                if (i % 10 == 0) {
+                    iw.flush();
+                }
+            }
+            try (IndexReader reader = iw.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                SearchExecutionContext context = createSearchExecutionContext(searcher);
+
+                List<ScoreDoc> scoreDocsList = new ArrayList<>();
+                for (int doc = 0; doc < 10; doc++) {
+                    ScoreDoc scoreDoc = new ScoreDoc(doc, randomFloat());
+                    scoreDocsList.add(scoreDoc);
+                }
+                ScoreDoc[] scoreDocs = scoreDocsList.toArray(new ScoreDoc[0]);
+
+                KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(scoreDocs);
+                Query query = queryBuilder.doToQuery(context);
+                final Weight w = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0f);
+                for (LeafReaderContext leafReaderContext : searcher.getLeafContexts()) {
+                    int count = w.count(leafReaderContext);
+                    final Scorer scorer = w.scorer(leafReaderContext);
+                    if (count > 0) {
+                        assertThat(scorer, is(notNullValue()));
+                        int iteratorCount = 0;
+                        while (scorer.iterator().nextDoc() != NO_MORE_DOCS) {
+                            iteratorCount++;
+                        }
+                        assertThat(count, equalTo(iteratorCount));
+                    } else {
+                        assertThat(scorer, is(nullValue()));
+                    }
+                }
+            }
+        }
+    }
+
     public void testScoreDocQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             for (int i = 0; i < 50; i++) {
@@ -176,7 +229,8 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 ScoreDoc[] scoreDocs = scoreDocsList.toArray(new ScoreDoc[0]);
 
                 KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(scoreDocs);
-                Query query = queryBuilder.doToQuery(context);
+                final Query query = queryBuilder.doToQuery(context);
+                final Weight w = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0f);
 
                 TopDocs topDocs = searcher.search(query, 100);
                 assertEquals(scoreDocs.length, topDocs.totalHits.value);
@@ -188,6 +242,14 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                     assertEquals(scoreDocs[i].doc, topDocs.scoreDocs[i].doc);
                     assertEquals(scoreDocs[i].score, topDocs.scoreDocs[i].score, 0.0001f);
                     assertTrue(searcher.explain(query, scoreDocs[i].doc).isMatch());
+                }
+
+                for (LeafReaderContext leafReaderContext : searcher.getLeafContexts()) {
+                    Scorer scorer = w.scorer(leafReaderContext);
+                    // If we have matching docs, the score should always be greater than 0 for that segment
+                    if (scorer != null) {
+                        assertThat(leafReaderContext.toString(), scorer.getMaxScore(NO_MORE_DOCS), greaterThan(0.0f));
+                    }
                 }
             }
         }

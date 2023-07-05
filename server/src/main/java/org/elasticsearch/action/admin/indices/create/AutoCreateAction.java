@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -36,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -77,7 +77,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         private final AutoCreateIndex autoCreateIndex;
         private final SystemIndices systemIndices;
 
-        private final ClusterStateTaskExecutor<CreateIndexTask> executor;
+        private final MasterServiceTaskQueue<CreateIndexTask> taskQueue;
 
         @Inject
         public TransportAction(
@@ -107,7 +107,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
-            this.executor = batchExecutionContext -> {
+            this.taskQueue = clusterService.createTaskQueue("auto-create", Priority.URGENT, batchExecutionContext -> {
                 final var listener = new AllocationActionMultiListener<CreateIndexResponse>(threadPool.getThreadContext());
                 final var taskContexts = batchExecutionContext.taskContexts();
                 final var successfulRequests = Maps.<CreateIndexRequest, String>newMapWithExpectedSize(taskContexts.size());
@@ -129,7 +129,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     listener.noRerouteNeeded();
                 }
                 return state;
-            };
+            });
         }
 
         @Override
@@ -139,11 +139,10 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             ClusterState state,
             ActionListener<CreateIndexResponse> listener
         ) {
-            clusterService.submitStateUpdateTask(
+            taskQueue.submitTask(
                 "auto create [" + request.index() + "]",
                 new CreateIndexTask(request, listener),
-                ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
-                executor
+                request.masterNodeTimeout()
             );
         }
 

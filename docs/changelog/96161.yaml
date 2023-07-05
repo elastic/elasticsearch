@@ -1,0 +1,31 @@
+pr: 96161
+summary: Skip shards when querying constant keyword fields
+area: "Search"
+type: enhancement
+issues:
+ - 95541
+highlight:
+  title: Better indexing and search performance under concurrent indexing and search
+  body: "When a query like a match phrase query or a terms query targets a constant keyword field we can skip\
+  query execution on shards where the query is rewritten to match no documents. We take advantage of index mappings\
+  including constant keyword fields and rewrite queries in such a way that, if a constant keyword field does not\
+  match the value defined in the index mapping, we rewrite the query to match no document. This will result in the\
+  shard level request to return immediately, before the query is executed on the data node and, as a result, skipping\
+  the shard completely. Here we leverage the ability to skip shards whenever possible to avoid unnecessary shard\
+  refreshes and improve query latency (by not doing any search-related I/O). Avoiding such unnecessary shard refreshes\
+  improves query latency since the search thread does not need to wait anymore for unnecessary shard refreshes. Shards\
+  not matching the query criteria will remain in a search-idle state and indexing throughput will not be negatively\
+  affected by a refresh. Before introducing this change a query hitting multiple shards, including those with no\
+  documents matching the search criteria (think about using index patterns or data streams with many backing indices),\
+  would potentially result in a \"shard refresh storm\" increasing query latency as a result of the search thread\
+  waiting on all shard refreshes to complete before being able to initiate and carry out the search operation.\
+  After introducing this change the search thread will just need to wait for refreshes to be completed on shards\
+  including relevant data. Note that execution of the shard pre-filter and the corresponding \"can match\" phase where\
+  rewriting happens, depends on the overall number of shards involved and on whether there is at least one of them\
+  returning a non-empty result (see 'pre_filter_shard_size' setting to understand how to control this behaviour).\
+  Elasticsearch does the rewrite operation on the data node in the so called \"can match\" phase, taking advantage of\
+  the fact that, at that moment, we can access index mappings and extract information about constant keyword fields\
+  and their values. This means we still\"fan-out\" search queries from the coordinator node to involved data nodes.\
+  Rewriting queries based on index mappings is not possible on the coordinator node because the coordinator node is\
+  missing index mapping information."
+  notable: true

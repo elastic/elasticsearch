@@ -105,12 +105,15 @@ setup:
   - match: {index_templates.0.name: test}
 
 ---
-"Add data lifecycle":
+"Add data stream lifecycle":
   - skip:
-      version: " - 8.7.99"
-      reason: "Data lifecycle in index templates was added after 8.7"
+      version: " - 8.8.99"
+      reason: "Data stream lifecycle in index templates was added after 8.8"
+      features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "index template [test-lifecycle] has index patterns [data-stream-with-lifecycle-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-lifecycle] will take precedence during new index creation"
       indices.put_index_template:
         name: test-lifecycle
         body:
@@ -118,7 +121,6 @@ setup:
           template:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 field:
@@ -132,14 +134,43 @@ setup:
 
   - match: {index_templates.0.name: test-lifecycle}
   - match: {index_templates.0.index_template.index_patterns: ["data-stream-with-lifecycle-*"]}
-  - match: {index_templates.0.index_template.template.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}
+  - match: {index_templates.0.index_template.template.settings: {index: {number_of_shards: '1'}}}
   - match: {index_templates.0.index_template.template.mappings: {properties: {field: {type: keyword}}}}
+  - match: {index_templates.0.index_template.template.lifecycle.data_retention: "30d"}
 
 ---
-"Reject data lifecycle without data stream configuration":
+"Get data stream lifecycle with default rollover":
   - skip:
-      version: " - 8.7.99"
-      reason: "Data lifecycle in index templates was added after 8.7"
+      version: " - 8.8.99"
+      reason: "Data stream lifecycle in index templates was added after 8.8"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test-lifecycle] has index patterns [data-stream-with-lifecycle-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-lifecycle] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-lifecycle
+        body:
+          index_patterns: data-stream-with-lifecycle-*
+          template:
+            lifecycle:
+              data_retention: "30d"
+          data_stream: {}
+  - do:
+      indices.get_index_template:
+        name: test-lifecycle
+        include_defaults: true
+
+  - match: {index_templates.0.name: test-lifecycle}
+  - match: {index_templates.0.index_template.index_patterns: ["data-stream-with-lifecycle-*"]}
+  - match: {index_templates.0.index_template.template.lifecycle.data_retention: "30d"}
+  - is_true: index_templates.0.index_template.template.lifecycle.rollover
+
+---
+"Reject data stream lifecycle without data stream configuration":
+  - skip:
+      version: " - 8.8.99"
+      reason: "Data stream lifecycle in index templates was added after 8.8"
   - do:
       catch:  bad_request
       indices.put_index_template:
@@ -149,7 +180,6 @@ setup:
           template:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 field:

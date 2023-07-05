@@ -181,7 +181,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         assertAcked(prepareCreate("new_index").setMapping(newIndexMapping));
-        assertAcked(client().admin().indices().prepareAliases().addAlias("new_index", "current"));
+        assertAcked(indicesAdmin().prepareAliases().addAlias("new_index", "current"));
     }
 
     @Override
@@ -444,18 +444,12 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     private void populateTimeRangeIndices() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(
-            prepareCreate("log-index-1").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            ).setMapping("timestamp", "type=date", "field1", "type=keyword")
+            prepareCreate("log-index-1").setSettings(indexSettings(between(1, 5), 1))
+                .setMapping("timestamp", "type=date", "field1", "type=keyword")
         );
         assertAcked(
-            prepareCreate("log-index-2").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            ).setMapping("timestamp", "type=date", "field1", "type=long")
+            prepareCreate("log-index-2").setSettings(indexSettings(between(1, 5), 1))
+                .setMapping("timestamp", "type=date", "field1", "type=long")
         );
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2015-07-08"));
@@ -467,7 +461,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         reqs.add(client().prepareIndex("log-index-2").setSource("timestamp", "2020-10-10"));
         indexRandom(true, reqs);
         ensureGreen("log-index-1", "log-index-2");
-        client().admin().indices().prepareRefresh("log-index-1", "log-index-2").get();
+        indicesAdmin().prepareRefresh("log-index-1", "log-index-2").get();
     }
 
     public void testTargetNodeFails() throws Exception {
@@ -510,10 +504,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     public void testNoActiveCopy() throws Exception {
         assertAcked(
             prepareCreate("log-index-inactive").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put("index.routing.allocation.require._id", "unknown")
+                indexSettings(between(1, 5), 1).put("index.routing.allocation.require._id", "unknown")
             ).setWaitForActiveShards(ActiveShardCount.NONE).setMapping("timestamp", "type=date", "field1", "type=keyword")
         );
         {
@@ -566,9 +557,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     }
                     assertNotNull(fromNode);
                     assertNotNull(toNode);
-                    client().admin()
-                        .cluster()
-                        .prepareReroute()
+                    clusterAdmin().prepareReroute()
                         .add(new MoveAllocationCommand(shardId.getIndexName(), shardId.id(), fromNode.getId(), toNode.getId()))
                         .execute()
                         .actionGet();
@@ -625,7 +614,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             """;
         String[] indices = IntStream.range(0, between(1, 9)).mapToObj(n -> "test_many_index_" + n).toArray(String[]::new);
         for (String index : indices) {
-            assertAcked(client().admin().indices().prepareCreate(index).setMapping(mapping).get());
+            assertAcked(indicesAdmin().prepareCreate(index).setMapping(mapping).get());
         }
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices("test_many_index_*");
@@ -661,7 +650,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         // add an extra field for some indices
         String[] indicesWithExtraField = randomSubsetOf(between(1, indices.length), indices).stream().sorted().toArray(String[]::new);
         ensureGreen(indices);
-        assertAcked(client().admin().indices().preparePutMapping(indicesWithExtraField).setSource("extra_field", "type=integer").get());
+        assertAcked(indicesAdmin().preparePutMapping(indicesWithExtraField).setSource("extra_field", "type=integer").get());
         for (String index : indicesWithExtraField) {
             client().prepareIndex(index).setSource("extra_field", randomIntBetween(1, 1000)).get();
         }
@@ -701,9 +690,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
             logger.info("--> waiting for field-caps tasks to be started");
             assertBusy(() -> {
-                List<TaskInfo> tasks = client().admin()
-                    .cluster()
-                    .prepareListTasks()
+                List<TaskInfo> tasks = clusterAdmin().prepareListTasks()
                     .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
                     .get()
                     .getTasks();
@@ -717,9 +704,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertBusy(logAppender::assertAllExpectationsMatched);
             logger.info("--> waiting for field-caps tasks to be cancelled");
             assertBusy(() -> {
-                List<TaskInfo> tasks = client().admin()
-                    .cluster()
-                    .prepareListTasks()
+                List<TaskInfo> tasks = clusterAdmin().prepareListTasks()
                     .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
                     .get()
                     .getTasks();

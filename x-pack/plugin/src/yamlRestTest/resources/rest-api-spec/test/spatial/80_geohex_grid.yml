@@ -13,36 +13,26 @@ setup:
   - do:
       bulk:
         refresh: true
-        body:
-          - index:
-              _index: locations
-              _id: 1
-          - '{"location": "POINT(4.912350 52.374081)", "city": "Amsterdam", "name": "NEMO Science Museum"}'
-          - index:
-              _index: locations
-              _id: 2
-          - '{"location": "POINT(4.901618 52.369219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}'
-          - index:
-              _index: locations
-              _id: 3
-          - '{"location": "POINT(4.914722 52.371667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}'
-          - index:
-              _index: locations
-              _id: 4
-          - '{"location": "POINT(4.405200 51.222900)", "city": "Antwerp", "name": "Letterenhuis"}'
-          - index:
-              _index: locations
-              _id: 5
-          - '{"location": "POINT(2.336389 48.861111)", "city": "Paris", "name": "Musée du Louvre"}'
-          - index:
-              _index: locations
-              _id: 6
-          - '{"location": "POINT(2.327000 48.860000)", "city": "Paris", "name": "Musée dOrsay"}'
+        index: locations
+        body: |
+          {"index":{}}
+          {"location": "POINT(4.912350 52.374081)", "city": "Amsterdam", "name": "NEMO Science Museum"}
+          {"index":{}}
+          {"location": "POINT(4.901618 52.369219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}
+          {"index":{}}
+          {"location": "POINT(4.914722 52.371667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}
+          {"index":{}}
+          {"location": "POINT(4.405200 51.222900)", "city": "Antwerp", "name": "Letterenhuis"}
+          {"index":{}}
+          {"location": "POINT(2.336389 48.861111)", "city": "Paris", "name": "Musée du Louvre"}
+          {"index":{}}
+          {"location": "POINT(2.327000 48.860000)", "city": "Paris", "name": "Musée dOrsay"}
+
   - do:
-      indices.refresh: {}
+      indices.refresh: { }
 
 ---
-"Test geohex_grid with defaults":
+"Test geohex_grid on geo_point field with defaults":
 
   - do:
       search:
@@ -53,7 +43,7 @@ setup:
             grid:
               geohex_grid:
                 field: location
-  - match: {hits.total.value:      6    }
+  - match: { hits.total.value: 6 }
   - length: { aggregations.grid.buckets: 3 }
   - match: { aggregations.grid.buckets.0.key: "85196953fffffff" }
   - match: { aggregations.grid.buckets.0.doc_count: 3 }
@@ -63,7 +53,7 @@ setup:
   - match: { aggregations.grid.buckets.2.doc_count: 1 }
 
 ---
-"Test geohex_grid with precision":
+"Test geohex_grid on geo_point field with precision":
 
   - do:
       search:
@@ -75,7 +65,7 @@ setup:
               geohex_grid:
                 field: location
                 precision: 0
-  - match: { hits.total.value:      6    }
+  - match: { hits.total.value: 6 }
   - length: { aggregations.grid.buckets: 2 }
   - match: { aggregations.grid.buckets.0.key: "801ffffffffffff" }
   - match: { aggregations.grid.buckets.0.doc_count: 4 }
@@ -83,7 +73,7 @@ setup:
   - match: { aggregations.grid.buckets.1.doc_count: 2 }
 
 ---
-"Test geohex_grid with size":
+"Test geohex_grid on geo_point field with size":
 
   - do:
       search:
@@ -95,13 +85,13 @@ setup:
               geohex_grid:
                 field: location
                 size: 1
-  - match: {hits.total.value:      6    }
+  - match: { hits.total.value: 6 }
   - length: { aggregations.grid.buckets: 1 }
   - match: { aggregations.grid.buckets.0.key: "85196953fffffff" }
   - match: { aggregations.grid.buckets.0.doc_count: 3 }
 
 ---
-"Test geohex_grid with shard size":
+"Test geohex_grid on geo_point field with shard size":
 
   - do:
       search:
@@ -113,7 +103,7 @@ setup:
               geohex_grid:
                 field: location
                 shard_size: 10
-  - match: {hits.total.value:      6    }
+  - match: { hits.total.value: 6 }
   - length: { aggregations.grid.buckets: 3 }
   - match: { aggregations.grid.buckets.0.key: "85196953fffffff" }
   - match: { aggregations.grid.buckets.0.doc_count: 3 }
@@ -123,7 +113,7 @@ setup:
   - match: { aggregations.grid.buckets.2.doc_count: 1 }
 
 ---
-"Test geohex_grid with bounds":
+"Test geohex_grid on geo_point field with bounds":
 
   - do:
       search:
@@ -137,7 +127,7 @@ setup:
                 bounds:
                   top_left: "POINT (4.9 52.4)"
                   bottom_right: "POINT (5.0 52.3)"
-  - match: {hits.total.value:      6    }
+  - match: { hits.total.value: 6 }
   - length: { aggregations.grid.buckets: 1 }
   - match: { aggregations.grid.buckets.0.key: "85196953fffffff" }
   - match: { aggregations.grid.buckets.0.doc_count: 3 }

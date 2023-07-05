@@ -1,0 +1,6 @@
+pr: 96083
+summary: Automatically parse log events in logs data streams, if their `message` field contains JSON content
+area: Data streams
+type: enhancement
+issues:
+ - 95522

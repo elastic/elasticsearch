@@ -180,7 +180,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             )
             .get();
         assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
-        assertNoFailures(client().admin().indices().prepareRefresh(INDEX).get());
+        assertNoFailures(indicesAdmin().prepareRefresh(INDEX).get());
         CompletionSuggestionBuilder contextSuggestQuery = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
             .contexts(
@@ -728,12 +728,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         mapping.endObject().endObject().endObject();
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(INDEX)
-                .setSettings(Settings.builder().put(indexSettings()).put(settings))
-                .setMapping(mapping)
-                .get()
+            indicesAdmin().prepareCreate(INDEX).setSettings(Settings.builder().put(indexSettings()).put(settings)).setMapping(mapping).get()
         );
     }
 }

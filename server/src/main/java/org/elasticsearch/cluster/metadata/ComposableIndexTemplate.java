@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -29,8 +30,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.cluster.metadata.DataStream.TimestampField.FIXED_TIMESTAMP_FIELD;
 
 /**
  * An index template consists of a set of index patterns, an optional template, and a list of
@@ -197,6 +196,23 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return componentTemplates;
     }
 
+    /**
+     * Returns the <b>required</b> component templates, i.e. such that are not allowed to be missing, as in
+     * {@link #ignoreMissingComponentTemplates}.
+     * @return a list of required component templates
+     */
+    public List<String> getRequiredComponentTemplates() {
+        if (componentTemplates == null) {
+            return List.of();
+        }
+        if (ignoreMissingComponentTemplates == null) {
+            return componentTemplates;
+        }
+        return componentTemplates.stream()
+            .filter(componentTemplate -> ignoreMissingComponentTemplates.contains(componentTemplate) == false)
+            .toList();
+    }
+
     @Nullable
     public Long priority() {
         return priority;
@@ -256,10 +272,19 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, null);
+    }
+
+    /**
+     * Converts the composable index template to XContent and passes the RolloverConditions, when provided, to the template.
+     */
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
+        throws IOException {
         builder.startObject();
         builder.stringListField(INDEX_PATTERNS.getPreferredName(), this.indexPatterns);
         if (this.template != null) {
-            builder.field(TEMPLATE.getPreferredName(), this.template, params);
+            builder.field(TEMPLATE.getPreferredName());
+            this.template.toXContent(builder, params, rolloverConfiguration);
         }
         if (this.componentTemplates != null) {
             builder.stringListField(COMPOSED_OF.getPreferredName(), this.componentTemplates);
@@ -374,7 +399,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             } else {
                 allowCustomRouting = false;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) && in.getTransportVersion().before(TransportVersion.V_8_3_0)) {
+            if (in.getTransportVersion().between(TransportVersion.V_8_1_0, TransportVersion.V_8_3_0)) {
                 // Accidentally included index_mode to binary node to node protocol in previous releases.
                 // (index_mode is removed and was part of code based when tsdb was behind a feature flag)
                 // (index_mode was behind a feature in the xcontent parser, so it could never actually used)
@@ -382,10 +407,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 boolean value = in.readBoolean();
                 assert value == false : "expected false, because this used to be an optional enum that never got set";
             }
-        }
-
-        public static String getTimestampField() {
-            return FIXED_TIMESTAMP_FIELD;
         }
 
         /**
@@ -420,8 +441,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
                 out.writeBoolean(allowCustomRouting);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)
-                && out.getTransportVersion().before(TransportVersion.V_8_3_0)) {
+            if (out.getTransportVersion().between(TransportVersion.V_8_1_0, TransportVersion.V_8_3_0)) {
                 // See comment in constructor.
                 out.writeBoolean(false);
             }

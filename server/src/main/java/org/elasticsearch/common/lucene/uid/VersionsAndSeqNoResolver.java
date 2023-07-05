@@ -13,9 +13,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Assertions;
 
 import java.io.IOException;
 import java.util.Base64;

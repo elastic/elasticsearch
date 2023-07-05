@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -19,11 +20,13 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 
 import java.io.IOException;
-import java.util.AbstractCollection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -39,10 +42,11 @@ import java.util.stream.Stream;
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
  */
-public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements SimpleDiffable<DiscoveryNodes> {
+public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<DiscoveryNodes> {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
+    private final long nodeLeftGeneration;
     private final Map<String, DiscoveryNode> nodes;
     private final Map<String, DiscoveryNode> dataNodes;
     private final Map<String, DiscoveryNode> masterNodes;
@@ -59,10 +63,13 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     private final Version minNonClientNodeVersion;
     private final Version maxNodeVersion;
     private final Version minNodeVersion;
+    private final IndexVersion maxDataNodeCompatibleIndexVersion;
+    private final IndexVersion minSupportedIndexVersion;
 
     private final Set<String> availableRoles;
 
     private DiscoveryNodes(
+        long nodeLeftGeneration,
         Map<String, DiscoveryNode> nodes,
         Map<String, DiscoveryNode> dataNodes,
         Map<String, DiscoveryNode> masterNodes,
@@ -71,8 +78,12 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         @Nullable String localNodeId,
         Version minNonClientNodeVersion,
         Version maxNodeVersion,
-        Version minNodeVersion
+        Version minNodeVersion,
+        IndexVersion maxDataNodeCompatibleIndexVersion,
+        IndexVersion minSupportedIndexVersion,
+        Set<String> availableRoles
     ) {
+        this.nodeLeftGeneration = nodeLeftGeneration;
         this.nodes = nodes;
         this.dataNodes = dataNodes;
         this.masterNodes = masterNodes;
@@ -85,12 +96,29 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         this.minNonClientNodeVersion = minNonClientNodeVersion;
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
+        this.maxDataNodeCompatibleIndexVersion = maxDataNodeCompatibleIndexVersion;
+        this.minSupportedIndexVersion = minSupportedIndexVersion;
         assert (localNodeId == null) == (localNode == null);
-        this.availableRoles = dataNodes.values()
-            .stream()
-            .flatMap(n -> n.getRoles().stream())
-            .map(DiscoveryNodeRole::roleName)
-            .collect(Collectors.toUnmodifiableSet());
+        this.availableRoles = availableRoles;
+    }
+
+    public DiscoveryNodes withMasterNodeId(@Nullable String masterNodeId) {
+        assert masterNodeId == null || nodes.containsKey(masterNodeId) : "unknown node [" + masterNodeId + "]";
+        return new DiscoveryNodes(
+            nodeLeftGeneration,
+            nodes,
+            dataNodes,
+            masterNodes,
+            ingestNodes,
+            masterNodeId,
+            localNodeId,
+            minNonClientNodeVersion,
+            maxNodeVersion,
+            minNodeVersion,
+            maxDataNodeCompatibleIndexVersion,
+            minSupportedIndexVersion,
+            availableRoles
+        );
     }
 
     @Override
@@ -98,7 +126,14 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         return nodes.values().iterator();
     }
 
-    @Override
+    public Stream<DiscoveryNode> stream() {
+        return nodes.values().stream();
+    }
+
+    public Collection<DiscoveryNode> getAllNodes() {
+        return nodes.values();
+    }
+
     public int size() {
         return nodes.size();
     }
@@ -185,11 +220,15 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         return filteredNodes(nodes, n -> n.canContainData() == false && n.isMasterNode() == false && n.isIngestNode() == false);
     }
 
+    private static final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR
+    // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, remove the sorting by ephemeral ID here
+        = Comparator.<DiscoveryNode>comparingInt(n -> n.isMasterNode() ? 0 : 1).thenComparing(DiscoveryNode::getEphemeralId);
+
     /**
      * Returns a stream of all nodes, with master nodes at the front
      */
     public Stream<DiscoveryNode> mastersFirstStream() {
-        return Stream.concat(masterNodes.values().stream(), stream().filter(n -> n.isMasterNode() == false));
+        return nodes.values().stream().sorted(MASTERS_FIRST_COMPARATOR);
     }
 
     /**
@@ -283,6 +322,20 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     }
 
     /**
+     * Check if a node with provided name exists
+     *
+     * @return {@code true} node identified with provided name exists or {@code false} otherwise
+     */
+    public boolean hasByName(String name) {
+        for (DiscoveryNode node : nodes.values()) {
+            if (node.getName().equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns the version of the node with the oldest version in the cluster that is not a client node
      *
      * If there are no non-client nodes, Version.CURRENT will be returned.
@@ -291,6 +344,13 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      */
     public Version getSmallestNonClientNodeVersion() {
         return minNonClientNodeVersion;
+    }
+
+    /**
+     * Returns the highest index version supported by all data nodes in the cluster
+     */
+    public IndexVersion getMaxDataNodeCompatibleIndexVersion() {
+        return maxDataNodeCompatibleIndexVersion;
     }
 
     /**
@@ -309,6 +369,26 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      */
     public Version getMaxNodeVersion() {
         return maxNodeVersion;
+    }
+
+    /**
+     * Returns the minimum index version supported by all nodes in the cluster
+     */
+    public IndexVersion getMinSupportedIndexVersion() {
+        return minSupportedIndexVersion;
+    }
+
+    /**
+     * Return the node-left generation, which is the number of times the cluster membership has been updated by removing one or more nodes.
+     * <p>
+     * Since node-left events are rare, nodes can use the fact that this value has not changed to very efficiently verify that they have not
+     * been removed from the cluster. If the node-left generation changes then that indicates <i>some</i> node has left the cluster, which
+     * triggers some more expensive checks to determine the new cluster membership.
+     * <p>
+     * Not tracked if the cluster has any nodes older than v8.9.0, in which case this method returns zero.
+     */
+    public long getNodeLeftGeneration() {
+        return nodeLeftGeneration;
     }
 
     /**
@@ -469,7 +549,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("nodes: \n");
+        sb.append("nodes (node-left generation: ").append(nodeLeftGeneration).append("):\n");
         for (DiscoveryNode node : this) {
             sb.append("   ").append(node);
             if (node == getLocalNode()) {
@@ -584,6 +664,9 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(masterNodeId);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+            out.writeVLong(nodeLeftGeneration);
+        } // else nodeLeftGeneration is zero, or we're sending this to a remote cluster which does not care about the nodeLeftGeneration
         out.writeCollection(nodes.values());
     }
 
@@ -595,6 +678,11 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         if (localNode != null) {
             builder.localNodeId(localNode.getId());
         }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+            builder.nodeLeftGeneration(in.readVLong());
+        } // else nodeLeftGeneration is zero, or we're receiving this from a remote cluster so the nodeLeftGeneration does not matter to us
+
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             DiscoveryNode node = new DiscoveryNode(in);
@@ -627,15 +715,22 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         private final Map<String, DiscoveryNode> nodes;
         private String masterNodeId;
         private String localNodeId;
+        private boolean removedNode;
+
+        private final long oldNodeLeftGeneration;
+        @Nullable // if not specified
+        private Long nodeLeftGeneration;
 
         public Builder() {
             nodes = new HashMap<>();
+            oldNodeLeftGeneration = 0L;
         }
 
         public Builder(DiscoveryNodes nodes) {
             this.masterNodeId = nodes.getMasterNodeId();
             this.localNodeId = nodes.getLocalNodeId();
             this.nodes = new HashMap<>(nodes.getNodes());
+            this.oldNodeLeftGeneration = nodes.nodeLeftGeneration;
         }
 
         /**
@@ -667,13 +762,16 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         }
 
         public Builder remove(String nodeId) {
-            nodes.remove(nodeId);
+            if (nodes.remove(nodeId) != null) {
+                removedNode = true;
+            }
             return this;
         }
 
         public Builder remove(DiscoveryNode node) {
             if (node.equals(nodes.get(node.getId()))) {
                 nodes.remove(node.getId());
+                removedNode = true;
             }
             return this;
         }
@@ -712,42 +810,88 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
             return null;
         }
 
+        private static <T extends Comparable<T>> T min(T t1, T t2) {
+            assert t2 != null;
+            return t1 == null || t1.compareTo(t2) > 0 ? t2 : t1;
+        }
+
+        private static <T extends Comparable<T>> T max(T t1, T t2) {
+            assert t2 != null;
+            return t1 == null || t1.compareTo(t2) < 0 ? t2 : t1;
+        }
+
         public DiscoveryNodes build() {
+            /*
+             * Calculate all the version info we need. This is:
+             * - The highest and lowest node versions in the cluster
+             * - The lowest node version amongst data or master nodes
+             * - The highest index version that is supported by all data/master nodes in the cluster
+             * - The lowest index version that is supported by all nodes in the cluster
+             *
+             * Any of these values may be null (for example, if there are no data or master nodes),
+             * in which case they are replaced with the defaults for this node
+             */
             Version minNodeVersion = null;
             Version maxNodeVersion = null;
             Version minNonClientNodeVersion = null;
-            Version maxNonClientNodeVersion = null;
+            IndexVersion maxDataNodeCompatibleIndexVersion = null;
+            IndexVersion minSupportedIndexVersion = null;
             for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
                 DiscoveryNode discoNode = nodeEntry.getValue();
-                final Version version = discoNode.getVersion();
+                Version version = discoNode.getVersion();
                 if (discoNode.canContainData() || discoNode.isMasterNode()) {
-                    if (minNonClientNodeVersion == null) {
-                        minNonClientNodeVersion = version;
-                        maxNonClientNodeVersion = version;
-                    } else {
-                        minNonClientNodeVersion = Version.min(minNonClientNodeVersion, version);
-                        maxNonClientNodeVersion = Version.max(maxNonClientNodeVersion, version);
-                    }
+                    minNonClientNodeVersion = min(minNonClientNodeVersion, version);
+                    maxDataNodeCompatibleIndexVersion = min(maxDataNodeCompatibleIndexVersion, discoNode.getMaxIndexVersion());
                 }
-                minNodeVersion = minNodeVersion == null ? version : Version.min(minNodeVersion, version);
-                maxNodeVersion = maxNodeVersion == null ? version : Version.max(maxNodeVersion, version);
+                minNodeVersion = min(minNodeVersion, version);
+                maxNodeVersion = max(maxNodeVersion, version);
+                minSupportedIndexVersion = max(minSupportedIndexVersion, discoNode.getMinIndexVersion());
             }
 
+            final long newNodeLeftGeneration;
+            if (minNodeVersion == null || minNodeVersion.before(Version.V_8_9_0)) {
+                assert this.nodeLeftGeneration == null || this.nodeLeftGeneration == 0L;
+                newNodeLeftGeneration = 0L;
+            } else if (this.nodeLeftGeneration != null) {
+                // only happens during deserialization
+                assert removedNode == false;
+                newNodeLeftGeneration = nodeLeftGeneration;
+            } else if (removedNode) {
+                newNodeLeftGeneration = oldNodeLeftGeneration + 1L;
+            } else {
+                newNodeLeftGeneration = oldNodeLeftGeneration;
+            }
+
+            var dataNodes = filteredNodes(nodes, DiscoveryNode::canContainData);
             return new DiscoveryNodes(
+                newNodeLeftGeneration,
                 Map.copyOf(nodes),
-                filteredNodes(nodes, DiscoveryNode::canContainData),
+                dataNodes,
                 filteredNodes(nodes, DiscoveryNode::isMasterNode),
                 filteredNodes(nodes, DiscoveryNode::isIngestNode),
                 masterNodeId,
                 localNodeId,
-                minNonClientNodeVersion == null ? Version.CURRENT : minNonClientNodeVersion,
-                maxNodeVersion == null ? Version.CURRENT : maxNodeVersion,
-                minNodeVersion == null ? Version.CURRENT.minimumCompatibilityVersion() : minNodeVersion
+                Objects.requireNonNullElse(minNonClientNodeVersion, Version.CURRENT),
+                Objects.requireNonNullElse(maxNodeVersion, Version.CURRENT),
+                Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
+                Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.current()),
+                Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersion.MINIMUM_COMPATIBLE),
+                dataNodes.values()
+                    .stream()
+                    .flatMap(n -> n.getRoles().stream())
+                    .map(DiscoveryNodeRole::roleName)
+                    .collect(Collectors.toUnmodifiableSet())
             );
         }
 
         public boolean isLocalNodeElectedMaster() {
             return masterNodeId != null && masterNodeId.equals(localNodeId);
+        }
+
+        void nodeLeftGeneration(long nodeLeftGeneration) {
+            // only for deserialization
+            assert this.nodeLeftGeneration == null : nodeLeftGeneration + " vs " + this.nodeLeftGeneration;
+            this.nodeLeftGeneration = nodeLeftGeneration;
         }
     }
 

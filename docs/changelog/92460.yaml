@@ -1,5 +1,0 @@
-pr: 92460
-summary: Check `GeohexGrid` bounds on geopoint using spherical coordinates
-area: Geo
-type: bug
-issues: []

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
@@ -189,11 +191,24 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().trigger("_test_id");
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-            .setQuery(QueryBuilders.termQuery("watch_id", "_test_id"))
-            .execute()
-            .actionGet();
-        assertHitCount(searchResponse, 1);
+        assertBusy(() -> {
+            SearchResponse searchResponse;
+            try {
+                searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
+                    .setQuery(QueryBuilders.termQuery("watch_id", "_test_id"))
+                    .execute()
+                    .actionGet();
+            } catch (SearchPhaseExecutionException e) {
+                if (e.getCause() instanceof NoShardAvailableActionException) {
+                    // Nothing has created the index yet
+                    searchResponse = null;
+                } else {
+                    throw e;
+                }
+            }
+            assertNotNull(searchResponse);
+            assertHitCount(searchResponse, 1);
+        });
 
         if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waited too long for email to be received");

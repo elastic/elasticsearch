@@ -37,7 +37,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -47,9 +47,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
@@ -277,12 +274,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
                 .state(IndexMetadata.State.CLOSE)
                 .creationDate(randomNonNegativeLong())
-                .settings(
-                    Settings.builder()
-                        .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                        .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3))
-                )
+                .settings(indexSettings(Version.CURRENT, randomIntBetween(1, 3), randomIntBetween(0, 3)))
                 .build();
             assertFalse(MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata));
         }
@@ -384,7 +376,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             shardsBuilder,
             null,
             SnapshotInfoTestUtils.randomUserMetadata(),
-            VersionUtils.randomVersion(random())
+            IndexVersionUtils.randomVersion(random())
         );
         return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(entry)).build();
     }
@@ -398,10 +390,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         @Nullable final ClusterBlock block
     ) {
 
-        final Settings.Builder settings = Settings.builder()
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(SETTING_NUMBER_OF_REPLICAS, numReplicas);
+        final Settings.Builder settings = indexSettings(Version.CURRENT, numShards, numReplicas);
         if (state == IndexMetadata.State.CLOSE) {
             settings.put(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true);
         }

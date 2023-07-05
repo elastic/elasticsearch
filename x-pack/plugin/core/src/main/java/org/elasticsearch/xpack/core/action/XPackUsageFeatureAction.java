@@ -7,9 +7,13 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * A base action for usage of a feature plugin.
@@ -42,16 +46,20 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction ENRICH = new XPackUsageFeatureAction(XPackField.ENRICH);
     public static final XPackUsageFeatureAction SEARCHABLE_SNAPSHOTS = new XPackUsageFeatureAction(XPackField.SEARCHABLE_SNAPSHOTS);
     public static final XPackUsageFeatureAction DATA_STREAMS = new XPackUsageFeatureAction(XPackField.DATA_STREAMS);
+    public static final XPackUsageFeatureAction DATA_LIFECYCLE = new XPackUsageFeatureAction(XPackField.DATA_LIFECYCLE);
     public static final XPackUsageFeatureAction DATA_TIERS = new XPackUsageFeatureAction(XPackField.DATA_TIERS);
     public static final XPackUsageFeatureAction AGGREGATE_METRIC = new XPackUsageFeatureAction(XPackField.AGGREGATE_METRIC);
     public static final XPackUsageFeatureAction ARCHIVE = new XPackUsageFeatureAction(XPackField.ARCHIVE);
     public static final XPackUsageFeatureAction HEALTH = new XPackUsageFeatureAction(XPackField.HEALTH_API);
+    public static final XPackUsageFeatureAction REMOTE_CLUSTERS = new XPackUsageFeatureAction(XPackField.REMOTE_CLUSTERS);
+    public static final XPackUsageFeatureAction ENTERPRISE_SEARCH = new XPackUsageFeatureAction(XPackField.ENTERPRISE_SEARCH);
 
-    static final List<XPackUsageFeatureAction> ALL = List.of(
+    static final List<XPackUsageFeatureAction> ALL = Stream.of(
         AGGREGATE_METRIC,
         ANALYTICS,
         CCR,
         DATA_STREAMS,
+        DataStreamLifecycle.isEnabled() ? DATA_LIFECYCLE : null,
         DATA_TIERS,
         EQL,
         FROZEN_INDICES,
@@ -70,8 +78,10 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         VOTING_ONLY,
         WATCHER,
         ARCHIVE,
-        HEALTH
-    );
+        HEALTH,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? REMOTE_CLUSTERS : null,
+        ENTERPRISE_SEARCH
+    ).filter(Objects::nonNull).toList();
 
     // public for testing
     public XPackUsageFeatureAction(String name) {

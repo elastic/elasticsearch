@@ -93,6 +93,16 @@ regardless of health status.
 Defaults to `yellow,red`.
 --
 
+`max_concurrent_shard_requests`::
++
+--
+(Optional, integer)
+Maximum number of concurrent shard-level requests sent by the coordinating
+node. Defaults to `100`. Larger values may yield a quicker response to requests
+that target many shards, but may also cause a larger impact on other cluster
+operations.
+--
+
 [[index-shard-stores-api-example]]
 ==== {api-examples-title}
 
@@ -161,7 +171,9 @@ The API returns the following response:
                             "external_id": "node_t0",
                             "attributes": {},
                             "roles": [...],
-                            "version": "8.7.0"
+                            "version": "8.10.0",
+                            "min_index_version": 7000099,
+                            "max_index_version": 8100099
                         },
                         "allocation_id": "2iNySv_OQVePRX-yaRH_lQ", <4>
                         "allocation" : "primary|replica|unused" <5>
@@ -179,7 +191,9 @@ The API returns the following response:
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 // TESTRESPONSE[s/"attributes": \{[^}]*\}/"attributes": $body.$_path/]
 // TESTRESPONSE[s/"roles": \[[^]]*\]/"roles": $body.$_path/]
-// TESTRESPONSE[s/"8.7.0"/\$node_version/]
+// TESTRESPONSE[s/"8.10.0"/\$node_version/]
+// TESTRESPONSE[s/"7000099"/"\d+"/]
+// TESTRESPONSE[s/"8100099"/"\d+"/]
 
 
 

@@ -1,6 +1,0 @@
-pr: 92920
-summary: Annotated highlighter does not match when search contains both annotation and annotated term
-area: Search
-type: bug
-issues:
-  - 91944

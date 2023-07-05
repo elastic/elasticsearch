@@ -69,10 +69,9 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
 
     @Override
     protected void doExecute(Task task, UpdateFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
-        ActionListener<FilterWithSeqNo> filterListener = ActionListener.wrap(
-            filterWithVersion -> { updateFilter(filterWithVersion, request, listener); },
-            listener::onFailure
-        );
+        ActionListener<FilterWithSeqNo> filterListener = ActionListener.wrap(filterWithVersion -> {
+            updateFilter(filterWithVersion, request, listener);
+        }, listener::onFailure);
 
         getFilterWithVersion(request.getFilterId(), filterListener);
     }

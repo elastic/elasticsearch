@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
@@ -42,7 +43,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     );
 
     static {
-        PARSER.declareString(constructorArg(), InferModelAction.Request.MODEL_ID);
+        PARSER.declareString(constructorArg(), TrainedModelConfig.MODEL_ID);
         PARSER.declareString(constructorArg(), MODEL_TEXT);
     }
 
@@ -82,7 +83,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(InferModelAction.Request.MODEL_ID.getPreferredName(), modelId);
+        builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
         builder.field(MODEL_TEXT.getPreferredName(), modelText);
         builder.endObject();
         return builder;
@@ -103,9 +104,9 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
                 return;
             }
 
-            if (response.getInferenceResults().get(0)instanceof TextEmbeddingResults textEmbeddingResults) {
+            if (response.getInferenceResults().get(0) instanceof TextEmbeddingResults textEmbeddingResults) {
                 listener.onResponse(textEmbeddingResults.getInferenceAsFloat());
-            } else if (response.getInferenceResults().get(0)instanceof WarningInferenceResults warning) {
+            } else if (response.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
                 listener.onFailure(new IllegalStateException(warning.getWarning()));
             } else {
                 throw new IllegalStateException(

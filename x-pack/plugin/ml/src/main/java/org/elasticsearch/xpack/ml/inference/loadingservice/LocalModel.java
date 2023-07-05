@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 
 import java.io.Closeable;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -58,6 +60,7 @@ public class LocalModel implements Closeable {
     private final CircuitBreaker trainedModelCircuitBreaker;
     private final AtomicLong referenceCount;
     private final long cachedRamBytesUsed;
+    private final TrainedModelType trainedModelType;
 
     LocalModel(
         String modelId,
@@ -67,6 +70,7 @@ public class LocalModel implements Closeable {
         Map<String, String> defaultFieldMap,
         InferenceConfig modelInferenceConfig,
         License.OperationMode licenseLevel,
+        TrainedModelType trainedModelType,
         TrainedModelStatsService trainedModelStatsService,
         CircuitBreaker trainedModelCircuitBreaker
     ) {
@@ -84,6 +88,7 @@ public class LocalModel implements Closeable {
         this.licenseLevel = licenseLevel;
         this.trainedModelCircuitBreaker = trainedModelCircuitBreaker;
         this.referenceCount = new AtomicLong(1);
+        this.trainedModelType = trainedModelType;
     }
 
     long ramBytesUsed() {
@@ -91,6 +96,14 @@ public class LocalModel implements Closeable {
         // This is because the caching system calls this method on every promotion call that changes the LRU head
         // Consequently, recalculating can cause serious throughput issues due to LRU changes in the cache
         return cachedRamBytesUsed;
+    }
+
+    public InferenceConfig getInferenceConfig() {
+        return inferenceConfig;
+    }
+
+    TrainedModelType getTrainedModelType() {
+        return trainedModelType;
     }
 
     public String getModelId() {
@@ -127,6 +140,10 @@ public class LocalModel implements Closeable {
             new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId));
         }
         return trainedModelDefinition.infer(flattenedFields, inferenceConfig);
+    }
+
+    public Collection<String> inputFields() {
+        return fieldNames;
     }
 
     public void infer(Map<String, Object> fields, InferenceConfigUpdate update, ActionListener<InferenceResults> listener) {

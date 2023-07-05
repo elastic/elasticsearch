@@ -74,7 +74,7 @@ Defaults to `open`.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `include_unmapped`::
-  (Optional, Boolean) If `true`, unmapped fields are included in the response.
+  (Optional, Boolean) If `true`, unmapped fields that are mapped in one index but not in another are included in the response. Fields that don't have any mapping are never included.
   Defaults to `false`.
 
 `filters`::
@@ -136,12 +136,10 @@ field types are all described as the `keyword` type family.
   Whether this field can be aggregated on all indices.
 
 `time_series_dimension`::
-  preview:[]
   Whether this field is used as a time series dimension on all indices.
   For non-time-series indices this field is not present.
 
 `time_series_metric`::
-  preview:[]
   Contains the metric type if the field is used as a time series metric on all indices, absent if the field is
   not used as a metric. For non-time-series indices this field is not included.
 

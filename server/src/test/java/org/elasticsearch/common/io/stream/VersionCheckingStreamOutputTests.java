@@ -29,12 +29,16 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
     }
 
     public void testCheckVersionCompatibility() throws IOException {
-        TransportVersion streamVersion = TransportVersionUtils.randomPreviousCompatibleVersion(random(), TransportVersion.CURRENT);
+        TransportVersion streamVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
+        );
         try (VersionCheckingStreamOutput out = new VersionCheckingStreamOutput(streamVersion)) {
             out.writeNamedWriteable(QueryBuilders.matchAllQuery());
 
@@ -44,7 +48,7 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
             );
             assertEquals(
                 "[test_writable] was released first in version "
-                    + TransportVersion.CURRENT
+                    + TransportVersion.current()
                     + ", failed compatibility check trying to send it to node with version "
                     + streamVersion,
                 e.getMessage()

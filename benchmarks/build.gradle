@@ -10,10 +10,15 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.java'
 apply plugin: 'application'
-mainClassName = 'org.openjdk.jmh.Main'
+
+application {
+  mainClass = 'org.openjdk.jmh.Main'
+}
 
 tasks.named("assemble").configure { enabled = false }
-archivesBaseName = 'elasticsearch-benchmarks'
+base {
+  archivesName = 'elasticsearch-benchmarks'
+}
 
 tasks.named("test").configure { enabled = false }
 
@@ -58,7 +63,7 @@ tasks.register("copyPainless", Copy) {
 
 tasks.named("run").configure {
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  jvmArgs << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
+  args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
   dependsOn "copyExpression", "copyPainless"
 }
 

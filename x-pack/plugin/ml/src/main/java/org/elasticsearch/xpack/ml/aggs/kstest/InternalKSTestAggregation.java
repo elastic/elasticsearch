@@ -30,7 +30,7 @@ public class InternalKSTestAggregation extends InternalAggregation {
 
     public InternalKSTestAggregation(StreamInput in) throws IOException {
         super(in);
-        this.modeValues = in.readMap(StreamInput::readString, StreamInput::readDouble);
+        this.modeValues = in.readMap(StreamInput::readDouble);
     }
 
     @Override

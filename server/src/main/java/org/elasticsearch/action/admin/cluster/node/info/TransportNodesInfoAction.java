@@ -50,8 +50,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
             actionFilters,
             NodesInfoRequest::new,
             NodeInfoRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            NodeInfo.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.nodeService = nodeService;
     }
@@ -87,6 +86,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
             metrics.contains(NodesInfoRequest.Metric.THREAD_POOL.metricName()),
             metrics.contains(NodesInfoRequest.Metric.TRANSPORT.metricName()),
             metrics.contains(NodesInfoRequest.Metric.HTTP.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.REMOTE_CLUSTER_SERVER.metricName()),
             metrics.contains(NodesInfoRequest.Metric.PLUGINS.metricName()),
             metrics.contains(NodesInfoRequest.Metric.INGEST.metricName()),
             metrics.contains(NodesInfoRequest.Metric.AGGREGATIONS.metricName()),

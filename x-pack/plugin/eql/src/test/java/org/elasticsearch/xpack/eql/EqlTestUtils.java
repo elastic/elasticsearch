@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -37,8 +36,6 @@ import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public final class EqlTestUtils {
-
-    public static final TransportVersion EQL_GA_VERSION = TransportVersion.V_7_10_0;
 
     private EqlTestUtils() {}
 
@@ -144,5 +141,13 @@ public final class EqlTestUtils {
             ),
             settings
         );
+    }
+
+    public static boolean[] booleanArrayOf(int size, boolean value) {
+        boolean[] missing = new boolean[size];
+        for (int i = 0; i < size; i++) {
+            missing[i] = value;
+        }
+        return missing;
     }
 }

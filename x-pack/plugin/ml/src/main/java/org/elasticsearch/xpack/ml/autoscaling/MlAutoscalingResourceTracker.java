@@ -120,7 +120,8 @@ public final class MlAutoscalingResourceTracker {
             }
 
             if (AWAITING_LAZY_ASSIGNMENT.equals(task.getAssignment())) {
-                // implementation decision: don't count processors for AD
+                // implementation decision: don't count processors for AD, if this gets a revisit, ensure to change it for the
+                // old autoscaling, too
                 extraSingleNodeModelMemoryInBytes = Math.max(extraSingleNodeModelMemoryInBytes, jobMemory);
             } else {
                 modelMemoryBytesSum += jobMemory;
@@ -140,7 +141,8 @@ public final class MlAutoscalingResourceTracker {
             }
 
             if (AWAITING_LAZY_ASSIGNMENT.equals(task.getAssignment())) {
-                // implementation decision: don't count processors for DFA
+                // implementation decision: don't count processors for DFA, if this gets a revisit, ensure to change it for the
+                // old autoscaling, too
                 extraSingleNodeModelMemoryInBytes = Math.max(extraSingleNodeModelMemoryInBytes, jobMemory);
             } else {
                 modelMemoryBytesSum += jobMemory;

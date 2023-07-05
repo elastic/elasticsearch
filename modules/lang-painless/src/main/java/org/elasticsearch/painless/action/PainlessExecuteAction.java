@@ -182,7 +182,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             }
 
             @Nullable // null means local cluster
-            private final String clusterAlias;  // this field is not Writeable, as it is needed only on the initial receiving node
+            private final transient String clusterAlias;  // this field is not Writeable, as it is needed only on the initial receiving node
             private final String index;
             private final BytesReference document;
             private final QueryBuilder query;
@@ -204,9 +204,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             }
 
             ContextSetup(StreamInput in) throws IOException {
-                Tuple<String, String> clusterAliasAndIndex = parseClusterAliasAndIndex(in.readOptionalString());
-                this.clusterAlias = clusterAliasAndIndex.v1();
-                this.index = clusterAliasAndIndex.v2();
+                this.clusterAlias = null;
+                this.index = in.readOptionalString();
                 document = in.readOptionalBytesReference();
                 String optionalXContentType = in.readOptionalString();
                 if (optionalXContentType != null) {

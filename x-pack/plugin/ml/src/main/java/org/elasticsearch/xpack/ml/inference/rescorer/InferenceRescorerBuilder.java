@@ -301,7 +301,9 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         if (rewrittenConfig == inferenceConfig) {
             return this;
         }
-        InferenceRescorerBuilder builder = new InferenceRescorerBuilder(modelId, rewrittenConfig, modelLoadingServiceSupplier);
+        InferenceRescorerBuilder builder = inferenceDefinition == null
+            ? new InferenceRescorerBuilder(modelId, rewrittenConfig, modelLoadingServiceSupplier)
+            : new InferenceRescorerBuilder(modelId, rewrittenConfig, inferenceDefinition);
         if (windowSize != null) {
             builder.windowSize(windowSize);
         }
@@ -386,6 +388,16 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     LearnToRankConfigUpdate getInferenceConfigUpdate() {
         return inferenceConfigUpdate;
+    }
+
+    // Used in tests
+    Supplier<ModelLoadingService> modelLoadingServiceSupplier() {
+        return modelLoadingServiceSupplier;
+    }
+
+    // Used in tests
+    LocalModel getInferenceDefinition() {
+        return inferenceDefinition;
     }
 
     static class Builder {

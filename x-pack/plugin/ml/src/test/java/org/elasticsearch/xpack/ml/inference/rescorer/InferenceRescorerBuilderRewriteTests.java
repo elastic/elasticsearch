@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -79,7 +80,7 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
         .setInferenceConfig(new LearnToRankConfig(null, null))
         .build();
     private static final TrainedModelConfig BAD_MODEL_CONFIG = TrainedModelConfig.builder()
-        .setModelId(GOOD_MODEL)
+        .setModelId(BAD_MODEL)
         .setInput(new TrainedModelInput(List.of("field1", "field2")))
         .setEstimatedOperations(1)
         .setModelSize(2)
@@ -172,6 +173,24 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
             randomIntBetween(1_500_000, Integer.MAX_VALUE)
         );
         expectThrows(ResourceNotFoundException.class, () -> rewriteAndFetch(inferenceRescorerBuilder, context));
+    }
+
+    public void testSearchRewrite() throws IOException {
+        TestModelLoader testModelLoader = new TestModelLoader();
+        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(
+            GOOD_MODEL,
+            LearnToRankConfigTests.randomLearnToRankConfig(),
+            () -> testModelLoader
+        );
+        QueryRewriteContext context = createSearchExecutionContext();
+        InferenceRescorerBuilder rewritten = (InferenceRescorerBuilder) Rewriteable.rewrite(inferenceRescorerBuilder, context, true);
+        assertThat(rewritten.modelLoadingServiceSupplier(), is(notNullValue()));
+
+        inferenceRescorerBuilder = new InferenceRescorerBuilder(GOOD_MODEL, LearnToRankConfigTests.randomLearnToRankConfig(), localModel());
+
+        rewritten = (InferenceRescorerBuilder) Rewriteable.rewrite(inferenceRescorerBuilder, context, true);
+        assertThat(rewritten.modelLoadingServiceSupplier(), is(nullValue()));
+        assertThat(rewritten.getInferenceDefinition(), is(notNullValue()));
     }
 
     protected InferenceRescorerBuilder rewriteAndFetch(RescorerBuilder<InferenceRescorerBuilder> builder, QueryRewriteContext context) {

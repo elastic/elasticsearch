@@ -18,6 +18,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
 import java.io.IOException;
@@ -102,8 +104,14 @@ public class InferenceRescorer implements Rescorer {
         for (int i = 0; i < hitsToRescore.length; i++) {
             Map<String, Object> features = docFeatures.get(i);
             try {
-                hitsToRescore[i].score = ((Number) definition.inferLtr(features, ltrRescoreContext.inferenceConfig).predictedValue())
-                    .floatValue();
+                InferenceResults results = definition.inferLtr(features, ltrRescoreContext.inferenceConfig);
+                if (results instanceof WarningInferenceResults warningInferenceResults) {
+                    logger.warn("Failure rescoring doc, warning returned [" + warningInferenceResults.getWarning() + "]");
+                } else if (results.predictedValue() instanceof Number prediction) {
+                    hitsToRescore[i].score = prediction.floatValue();
+                } else {
+                    logger.warn("Failure rescoring doc, unexpected inference result of kind [" + results.getWriteableName() + "]");
+                }
             } catch (Exception ex) {
                 logger.warn("Failure rescoring doc...", ex);
             }

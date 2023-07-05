@@ -23,6 +23,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
@@ -287,7 +289,8 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
                 request.getIndexEndTimeMillis(),
                 request.downsampleRequest.getDownsampleConfig(),
                 headers,
-                shardId()
+                shardId(),
+                new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
             );
         }
     }

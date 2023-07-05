@@ -149,10 +149,11 @@ public class DownsampleAction implements LifecycleAction {
         );
 
         // Generate a unique downsample index name and store it in the ILM execution state
-        GenerateUniqueIndexNameStep generateDownsampleIndexNameStep = new GenerateUniqueIndexNameStep(
+        GenerateUniqueIndexNameStep generateDownsampleIndexNameStep = new GenerateDownsampleIndexNameStep(
             generateDownsampleIndexNameKey,
             downsampleKey,
             DOWNSAMPLED_INDEX_PREFIX,
+            fixedInterval,
             (downsampleIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setDownsampleIndexName(downsampleIndexName)
         );
 

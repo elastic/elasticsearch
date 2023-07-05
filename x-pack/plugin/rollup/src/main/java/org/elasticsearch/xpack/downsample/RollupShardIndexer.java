@@ -10,9 +10,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -34,7 +37,9 @@ import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
@@ -51,6 +56,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupAfterBulkInfo;
 import org.elasticsearch.xpack.core.rollup.action.RollupBeforeBulkInfo;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.Closeable;
@@ -75,11 +81,12 @@ import static org.elasticsearch.core.Strings.format;
  */
 class RollupShardIndexer {
 
+    public static final String NAME = "rollup-shard-indexer";
     private static final Logger logger = LogManager.getLogger(RollupShardIndexer.class);
     public static final int ROLLUP_BULK_ACTIONS = 10000;
     public static final ByteSizeValue ROLLUP_BULK_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
     public static final ByteSizeValue ROLLUP_MAX_BYTES_IN_FLIGHT = new ByteSizeValue(50, ByteSizeUnit.MB);
-
+    private final IndexService indexService;
     private final IndexShard indexShard;
     private final Client client;
     private final String rollupIndex;
@@ -90,25 +97,29 @@ class RollupShardIndexer {
     private final Rounding.Prepared rounding;
     private final List<FieldValueFetcher> fieldValueFetchers;
     private final RollupShardTask task;
+    private final RollupShardPersistentTaskState state;
     private volatile boolean abort = false;
     ByteSizeValue rollupBulkSize = ROLLUP_BULK_SIZE;
     ByteSizeValue rollupMaxBytesInFlight = ROLLUP_MAX_BYTES_IN_FLIGHT;
 
     RollupShardIndexer(
-        RollupShardTask task,
-        Client client,
-        IndexService indexService,
-        ShardId shardId,
-        String rollupIndex,
-        DownsampleConfig config,
-        String[] metricFields,
-        String[] labelFields
+        final RollupShardTask task,
+        final Client client,
+        final IndexService indexService,
+        final ShardId shardId,
+        final String rollupIndex,
+        final DownsampleConfig config,
+        final String[] metrics,
+        final String[] labels,
+        final RollupShardPersistentTaskState state
     ) {
         this.task = task;
         this.client = client;
+        this.indexService = indexService;
         this.indexShard = indexService.getShard(shardId.id());
         this.rollupIndex = rollupIndex;
         this.searcher = indexShard.acquireSearcher("downsampling");
+        this.state = state;
         Closeable toClose = searcher;
         try {
             this.searchExecutionContext = indexService.newSearchExecutionContext(
@@ -123,9 +134,9 @@ class RollupShardIndexer {
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
 
-            List<FieldValueFetcher> fetchers = new ArrayList<>(metricFields.length + labelFields.length);
-            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metricFields));
-            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, labelFields));
+            List<FieldValueFetcher> fetchers = new ArrayList<>(metrics.length + labels.length);
+            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metrics));
+            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, labels));
             this.fieldValueFetchers = Collections.unmodifiableList(fetchers);
             toClose = null;
         } finally {
@@ -136,13 +147,19 @@ class RollupShardIndexer {
     public DownsampleIndexerAction.ShardDownsampleResponse execute() throws IOException {
         long startTime = client.threadPool().relativeTimeInMillis();
         task.setTotalShardDocCount(searcher.getDirectoryReader().numDocs());
-        task.setRollupShardIndexerStatus(RollupShardIndexerStatus.STARTED);
+        task.updatePersistentTaskState(
+            new RollupShardPersistentTaskState(RollupShardIndexerStatus.STARTED, null),
+            ActionListener.wrap(response -> task.setRollupShardIndexerStatus(RollupShardIndexerStatus.STARTED), e -> {
+                logger.error("error while updating downsampling persistent task state", e);
+                throw new ElasticsearchException("error while updating downsampling persistent task state", e);
+            })
+        );
         BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(this::checkCancelled));
             TimeSeriesBucketCollector bucketCollector = new TimeSeriesBucketCollector(bulkProcessor);
             bucketCollector.preCollection();
-            timeSeriesSearcher.search(new MatchAllDocsQuery(), bucketCollector);
+            timeSeriesSearcher.search(createQuery(), bucketCollector);
             bucketCollector.postCollection();
         }
 
@@ -157,7 +174,13 @@ class RollupShardIndexer {
         );
 
         if (task.getNumIndexed() != task.getNumSent()) {
-            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED);
+            task.updatePersistentTaskState(
+                new RollupShardPersistentTaskState(RollupShardIndexerStatus.FAILED, null),
+                ActionListener.wrap(response -> task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED), e -> {
+                    logger.error("error while updating downsampling persistent task state", e);
+                    throw new ElasticsearchException("error while updating downsampling persistent task state", e);
+                })
+            );
             throw new ElasticsearchException(
                 "Shard ["
                     + indexShard.shardId()
@@ -170,7 +193,13 @@ class RollupShardIndexer {
         }
 
         if (task.getNumFailed() > 0) {
-            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED);
+            task.updatePersistentTaskState(
+                new RollupShardPersistentTaskState(RollupShardIndexerStatus.FAILED, null),
+                ActionListener.wrap(response -> task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED), e -> {
+                    logger.error("error while updating downsampling persistent task state", e);
+                    throw new ElasticsearchException("error while updating downsampling persistent task state", e);
+                })
+            );
             throw new ElasticsearchException(
                 "Shard ["
                     + indexShard.shardId()
@@ -182,9 +211,42 @@ class RollupShardIndexer {
             );
         }
 
-        task.setRollupShardIndexerStatus(RollupShardIndexerStatus.COMPLETED);
+        task.updatePersistentTaskState(
+            new RollupShardPersistentTaskState(RollupShardIndexerStatus.COMPLETED, null),
+            ActionListener.wrap(response -> task.setRollupShardIndexerStatus(RollupShardIndexerStatus.COMPLETED), e -> {
+                logger.error("error while updating downsampling persistent task state", e);
+                throw new ElasticsearchException("error while updating downsampling persistent task state", e);
+            })
+        );
 
         return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
+    }
+
+    private Query createQuery() throws IOException {
+        if (this.state.started() && this.state.tsid() != null) {
+            final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
+                indexShard.shardId().id(),
+                0,
+                searcher,
+                System::currentTimeMillis,
+                null,
+                Collections.emptyMap()
+            );
+            return new BoolQueryBuilder().filter(new TermQueryBuilder(TimeSeriesIdFieldMapper.NAME, this.state.tsid()))
+                .toQuery(searchExecutionContext);
+        } else if (this.state.done()) {
+            // NOTE: resuming a task expected to be completed (successfully or unsuccessfully) should not really happen.
+            // We make sure we do nothing if it ever happens.
+            logger.warn(
+                "Resuming a downsampling task expected to be completed. Last processed entry ["
+                    + this.state.tsid()
+                    + "]. Status ["
+                    + this.state.rollupShardIndexerStatus()
+                    + "]"
+            );
+            return new MatchNoDocsQuery();
+        }
+        return new MatchAllDocsQuery();
     }
 
     private void checkCancelled() {
@@ -196,7 +258,13 @@ class RollupShardIndexer {
                 task.getNumIndexed(),
                 task.getNumFailed()
             );
-            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.CANCELLED);
+            task.updatePersistentTaskState(
+                new RollupShardPersistentTaskState(RollupShardIndexerStatus.CANCELLED, null),
+                ActionListener.wrap(response -> task.setRollupShardIndexerStatus(RollupShardIndexerStatus.CANCELLED), e -> {
+                    logger.error("error while updating downsampling persistent task state", e);
+                    throw new ElasticsearchException("error while updating downsampling persistent task state", e);
+                })
+            );
             throw new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId()));
         }
     }
@@ -219,6 +287,7 @@ class RollupShardIndexer {
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                // TODO: update persistent task state (consider multiple bulk requests in flight). Need to access the tsid 'per-bulk'
                 long bulkIngestTookMillis = response.getIngestTookInMillis() >= 0 ? response.getIngestTookInMillis() : 0;
                 long bulkTookMillis = response.getTook().getMillis();
                 task.addNumIndexed(request.numberOfActions());

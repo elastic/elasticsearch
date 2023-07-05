@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.rollup.Rollup;
@@ -597,7 +598,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             indexService.getIndexSettings().getTimestampBounds().endTime(),
             config,
             emptyMap(),
-            shard.shardId()
+            shard.shardId(),
+            new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
         );
         TaskCancelHelper.cancel(task, "test cancel");
 
@@ -610,7 +612,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             rollupIndex,
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
-            new String[] {}
+            new String[] {},
+            new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
         );
 
         TaskCancelledException exception = expectThrows(TaskCancelledException.class, () -> indexer.execute());
@@ -668,7 +671,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             indexService.getIndexSettings().getTimestampBounds().endTime(),
             config,
             emptyMap(),
-            shard.shardId()
+            shard.shardId(),
+            new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
         );
 
         // re-use source index as temp index for test
@@ -680,7 +684,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             rollupIndex,
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
-            new String[] {}
+            new String[] {},
+            new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
         );
         /*
          * Here we set the batch size and the total bytes in flight size to tiny numbers so that we are guaranteed to trigger the bulk
@@ -717,7 +722,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 indexService.getIndexSettings().getTimestampBounds().endTime(),
                 config,
                 emptyMap(),
-                shard.shardId()
+                shard.shardId(),
+                new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
             );
 
             final RollupShardIndexer indexer = new RollupShardIndexer(
@@ -728,7 +734,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 rollupIndex,
                 config,
                 new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
-                new String[] {}
+                new String[] {},
+                new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
             );
 
             assertEquals(0.0F, task.getDocsProcessedPercentage(), 0.001);

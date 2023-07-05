@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.rollup.action;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -17,7 +17,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RollupShardTask extends CancellableTask {
+public class RollupShardTask extends AllocatedPersistentTask {
+    public static final String TASK_NAME = "rollup-shard";
     private final String rollupIndex;
     private volatile long totalShardDocCount;
     private volatile long docsProcessed;
@@ -26,6 +27,8 @@ public class RollupShardTask extends CancellableTask {
     private final DownsampleConfig config;
     private final ShardId shardId;
     private final long rollupStartTime;
+
+    private final RollupShardPersistentTaskState state;
     private final AtomicLong numReceived = new AtomicLong(0);
     private final AtomicLong numSent = new AtomicLong(0);
     private final AtomicLong numIndexed = new AtomicLong(0);
@@ -42,15 +45,16 @@ public class RollupShardTask extends CancellableTask {
 
     public RollupShardTask(
         long id,
-        String type,
-        String action,
-        TaskId parentTask,
-        String rollupIndex,
+        final String type,
+        final String action,
+        final TaskId parentTask,
+        final String rollupIndex,
         long indexStartTimeMillis,
         long indexEndTimeMillis,
-        DownsampleConfig config,
-        Map<String, String> headers,
-        ShardId shardId
+        final DownsampleConfig config,
+        final Map<String, String> headers,
+        final ShardId shardId,
+        final RollupShardPersistentTaskState state
     ) {
         super(id, type, action, RollupField.NAME + "_" + rollupIndex + "[" + shardId.id() + "]", parentTask, headers);
         this.rollupIndex = rollupIndex;
@@ -60,6 +64,7 @@ public class RollupShardTask extends CancellableTask {
         this.shardId = shardId;
         this.rollupStartTime = System.currentTimeMillis();
         this.rollupBulkStats = new RollupBulkStats();
+        this.state = state;
     }
 
     public String getRollupIndex() {

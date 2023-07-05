@@ -47,8 +47,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.metadata.Metadata;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
@@ -269,7 +271,9 @@ public final class PlanNamedTypes {
             of(ESQL_UNARY_SCLR_CLS, IsFinite.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, IsInfinite.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, IsNaN.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
+            of(ScalarFunction.class, Pi.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
             of(ESQL_UNARY_SCLR_CLS, Metadata.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
+            of(ScalarFunction.class, Tau.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
             of(ESQL_UNARY_SCLR_CLS, ToBoolean.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToDatetime.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToDouble.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
@@ -945,7 +949,11 @@ public final class PlanNamedTypes {
         out.writeExpression(function.field());
     }
 
-    static final Map<String, Function<Source, ScalarFunction>> NO_ARG_SCALAR_CTRS = Map.ofEntries(entry(name(E.class), E::new));
+    static final Map<String, Function<Source, ScalarFunction>> NO_ARG_SCALAR_CTRS = Map.ofEntries(
+        entry(name(E.class), E::new),
+        entry(name(Pi.class), Pi::new),
+        entry(name(Tau.class), Tau::new)
+    );
 
     static ScalarFunction readNoArgScalar(PlanStreamInput in, String name) throws IOException {
         var ctr = NO_ARG_SCALAR_CTRS.get(name);

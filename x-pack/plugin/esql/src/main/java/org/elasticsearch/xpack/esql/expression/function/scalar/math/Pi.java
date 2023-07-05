@@ -13,20 +13,20 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 
 /**
- * Function that emits Euler's number.
+ * Function that emits pi.
  */
-public class E extends DoubleConstantFunction {
-    public E(Source source) {
+public class Pi extends DoubleConstantFunction {
+    public Pi(Source source) {
         super(source);
     }
 
     @Override
     public Object fold() {
-        return Math.E;
+        return Math.PI;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new E(source());
+        return new Pi(source());
     }
 }

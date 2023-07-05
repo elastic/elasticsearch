@@ -566,3 +566,27 @@ row ul = [18446744073709551615, 0, 1, 9223372036854775807, 9223372036854775808, 
 mv_median(ul):ul
 4611686018427387904
 ;
+
+pi
+// tag::pi[]
+ROW PI()
+// end::pi[]
+;
+
+// tag::pi-result[]
+PI():double
+3.141592653589793
+// end::pi-result[]
+;
+
+tau
+// tag::tau[]
+ROW TAU()
+// end::tau[]
+;
+
+// tag::tau-result[]
+TAU():double
+6.283185307179586
+// end::tau-result[]
+;

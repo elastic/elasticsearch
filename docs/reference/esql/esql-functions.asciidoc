@@ -32,11 +32,13 @@ these functions:
 * <<esql-mv_min>>
 * <<esql-mv_sum>>
 * <<esql-now>>
+* <<esql-pi>>
 * <<esql-pow>>
 * <<esql-round>>
 * <<esql-split>>
 * <<esql-starts_with>>
 * <<esql-substring>>
+* <<esql-tau>>
 * <<esql-to_boolean>>
 * <<esql-to_datetime>>
 * <<esql-to_double>>
@@ -69,11 +71,13 @@ include::functions/mv_median.asciidoc[]
 include::functions/mv_min.asciidoc[]
 include::functions/mv_sum.asciidoc[]
 include::functions/now.asciidoc[]
+include::functions/pi.asciidoc[]
 include::functions/pow.asciidoc[]
 include::functions/round.asciidoc[]
 include::functions/split.asciidoc[]
 include::functions/starts_with.asciidoc[]
 include::functions/substring.asciidoc[]
+include::functions/tau.asciidoc[]
 include::functions/to_boolean.asciidoc[]
 include::functions/to_datetime.asciidoc[]
 include::functions/to_double.asciidoc[]

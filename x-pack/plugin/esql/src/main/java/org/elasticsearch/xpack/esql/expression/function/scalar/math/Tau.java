@@ -13,20 +13,22 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 
 /**
- * Function that emits Euler's number.
+ * Function that emits tau, also known as 2 * pi.
  */
-public class E extends DoubleConstantFunction {
-    public E(Source source) {
+public class Tau extends DoubleConstantFunction {
+    public static final double TAU = Math.PI * 2;
+
+    public Tau(Source source) {
         super(source);
     }
 
     @Override
     public Object fold() {
-        return Math.E;
+        return TAU;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new E(source());
+        return new Tau(source());
     }
 }

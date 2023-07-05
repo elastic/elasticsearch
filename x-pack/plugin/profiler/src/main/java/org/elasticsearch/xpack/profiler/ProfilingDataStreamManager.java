@@ -41,10 +41,13 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
 
     static {
         List<ProfilingDataStream> dataStreams = new ArrayList<>(
-            EventsIndex.indexNames().stream().map(n -> ProfilingDataStream.of(n, 1)).toList()
+            EventsIndex.indexNames()
+                .stream()
+                .map(n -> ProfilingDataStream.of(n, ProfilingIndexTemplateRegistry.PROFILING_EVENTS_VERSION))
+                .toList()
         );
-        dataStreams.add(ProfilingDataStream.of("profiling-metrics", 1));
-        dataStreams.add(ProfilingDataStream.of("profiling-hosts", 1));
+        dataStreams.add(ProfilingDataStream.of("profiling-metrics", ProfilingIndexTemplateRegistry.PROFILING_METRICS_VERSION));
+        dataStreams.add(ProfilingDataStream.of("profiling-hosts", ProfilingIndexTemplateRegistry.PROFILING_HOSTS_VERSION));
         PROFILING_DATASTREAMS = Collections.unmodifiableList(dataStreams);
     }
 

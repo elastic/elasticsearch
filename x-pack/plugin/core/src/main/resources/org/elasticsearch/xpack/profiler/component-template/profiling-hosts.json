@@ -21,7 +21,7 @@
       },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
-        "index-version": 1
+        "index-version": ${xpack.profiling.index.hosts.version}
       },
       "dynamic": false,
       "properties": {

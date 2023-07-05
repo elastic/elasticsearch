@@ -41,14 +41,30 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<ProfilingIndexManager.ProfilingIndex> {
     // For testing
     public static final List<ProfilingIndex> PROFILING_INDICES = List.of(
-        ProfilingIndex.regular("profiling-returnpads-private", 1, OnVersionBump.KEEP_OLD),
-        ProfilingIndex.regular("profiling-sq-executables", 1, OnVersionBump.DELETE_OLD),
-        ProfilingIndex.regular("profiling-sq-leafframes", 1, OnVersionBump.DELETE_OLD),
-        ProfilingIndex.regular("profiling-symbols-private", 1, OnVersionBump.KEEP_OLD),
-        ProfilingIndex.kv("profiling-executables", 1),
-        ProfilingIndex.kv("profiling-stackframes", 1),
-        ProfilingIndex.kv("profiling-stacktraces", 1),
-        ProfilingIndex.kv("profiling-symbols-global", 1)
+        ProfilingIndex.regular(
+            "profiling-returnpads-private",
+            ProfilingIndexTemplateRegistry.PROFILING_RETURNPADS_PRIVATE_VERSION,
+            OnVersionBump.KEEP_OLD
+        ),
+        ProfilingIndex.regular(
+            "profiling-sq-executables",
+            ProfilingIndexTemplateRegistry.PROFILING_SQ_EXECUTABLES_VERSION,
+            OnVersionBump.DELETE_OLD
+        ),
+        ProfilingIndex.regular(
+            "profiling-sq-leafframes",
+            ProfilingIndexTemplateRegistry.PROFILING_SQ_LEAFFRAMES_VERSION,
+            OnVersionBump.DELETE_OLD
+        ),
+        ProfilingIndex.regular(
+            "profiling-symbols-private",
+            ProfilingIndexTemplateRegistry.PROFILING_SYMBOLS_VERSION,
+            OnVersionBump.KEEP_OLD
+        ),
+        ProfilingIndex.kv("profiling-executables", ProfilingIndexTemplateRegistry.PROFILING_EXECUTABLES_VERSION),
+        ProfilingIndex.kv("profiling-stackframes", ProfilingIndexTemplateRegistry.PROFILING_STACKFRAMES_VERSION),
+        ProfilingIndex.kv("profiling-stacktraces", ProfilingIndexTemplateRegistry.PROFILING_STACKTRACES_VERSION),
+        ProfilingIndex.kv("profiling-symbols-global", ProfilingIndexTemplateRegistry.PROFILING_SYMBOLS_VERSION)
     );
 
     private final ThreadPool threadPool;

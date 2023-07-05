@@ -21,7 +21,7 @@
       },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
-        "index-version": 1
+        "index-version": ${xpack.profiling.index.metrics.version}
       },
       /*
        We intentionally allow dynamic mappings for metrics. Which metrics are added is guarded by

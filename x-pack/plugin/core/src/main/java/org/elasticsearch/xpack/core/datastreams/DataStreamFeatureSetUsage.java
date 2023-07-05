@@ -66,7 +66,7 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
         builder.field("indices_count", streamStats.indicesBehindDataStream);
         if (DataStreamLifecycle.isEnabled() && lifecycleStats != null) {
             builder.startObject("lifecycle");
-            builder.field("managed_data_steams", lifecycleStats.dataStreamsWithLifecyclesCount);
+            builder.field("managed_data_streams", lifecycleStats.dataStreamsWithLifecyclesCount);
             builder.field("managed_backing_indices", lifecycleStats.indicesWithLifecyclesCount);
             builder.field("default_rollover_used", lifecycleStats.defaultRolloverUsed);
             {

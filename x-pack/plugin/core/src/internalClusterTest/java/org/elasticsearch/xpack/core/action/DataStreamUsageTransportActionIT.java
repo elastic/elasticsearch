@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -23,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -42,16 +45,17 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.core.action.XPackUsageFeatureAction.DATA_LIFECYCLE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.elasticsearch.xpack.core.action.XPackUsageFeatureAction.DATA_STREAMS;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
+public class DataStreamUsageTransportActionIT extends ESIntegTestCase {
     /*
-     * The DataLifecycleUsageTransportAction is not exposed in the xpack core plugin, so we have a special test plugin to do this
+     * The DataStreamUsageTransportAction is not exposed in the xpack core plugin, so we have a special test plugin to do this
      */
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDateLifecycleUsagePlugin.class);
+        return List.of(TestDataStreamUsageTransportActionPlugin.class);
     }
 
     @After
@@ -70,8 +74,11 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testAction() throws Exception {
-        assertUsageResults(0, 0, 0, 0.0, true);
-        AtomicLong count = new AtomicLong(0);
+        assertUsageResults(0, 0, 0, 0, 0, 0, 0.0, true);
+        int totalDataStreamCount = randomInt(200);
+        AtomicLong totalBackingIndicesCount = new AtomicLong(0);
+        AtomicLong managedDataStreamCount = new AtomicLong(0);
+        AtomicLong managedBackingIndicesCount = new AtomicLong();
         AtomicLong totalRetentionTimes = new AtomicLong(0);
         AtomicLong minRetention = new AtomicLong(Long.MAX_VALUE);
         AtomicLong maxRetention = new AtomicLong(Long.MIN_VALUE);
@@ -88,12 +95,12 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         updateClusterState(clusterState -> {
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
             Map<String, DataStream> dataStreamMap = new HashMap<>();
-            for (int dataStreamCount = 0; dataStreamCount < randomInt(200); dataStreamCount++) {
+            for (int dataStreamCount = 0; dataStreamCount < totalDataStreamCount; dataStreamCount++) {
                 boolean hasLifecycle = randomBoolean();
                 long retentionMillis;
                 if (hasLifecycle) {
                     retentionMillis = randomLongBetween(1000, 100000);
-                    count.incrementAndGet();
+                    managedDataStreamCount.incrementAndGet();
                     totalRetentionTimes.addAndGet(retentionMillis);
                     if (retentionMillis < minRetention.get()) {
                         minRetention.set(retentionMillis);
@@ -108,7 +115,34 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                 for (int indicesCount = 0; indicesCount < randomIntBetween(1, 10); indicesCount++) {
                     Index index = new Index(randomAlphaOfLength(60), randomAlphaOfLength(60));
                     indices.add(index);
+                    Settings.Builder settingsBuilder = settings(Version.CURRENT).put(
+                        SETTING_INDEX_UUID,
+                        randomAlphaOfLengthBetween(10, 40)
+                    );
+
+                    var withIlm = randomBoolean();
+                    if (withIlm) {
+                        settingsBuilder.put(IndexMetadata.LIFECYCLE_NAME, randomAlphaOfLength(60));
+                    }
+                    var preferIlm = true;
+                    if (rarely()) {
+                        preferIlm = randomBoolean();
+                        settingsBuilder.put(IndexSettings.PREFER_ILM, preferIlm);
+                    }
+
+                    if (hasLifecycle && (withIlm == false || preferIlm == false)) {
+                        managedBackingIndicesCount.incrementAndGet();
+                    }
+                    IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+                        .settings(settingsBuilder)
+                        .numberOfShards(1)
+                        .numberOfReplicas(1)
+                        .creationDate(System.currentTimeMillis() - 3000L)
+                        .build();
+                    metadataBuilder.put(indexMetadata, false);
                 }
+
+                totalBackingIndicesCount.updateAndGet(count -> count + indices.size());
                 boolean systemDataStream = randomBoolean();
                 DataStream dataStream = new DataStream(
                     randomAlphaOfLength(50),
@@ -132,9 +166,14 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         });
         int expectedMinimumRetention = minRetention.get() == Long.MAX_VALUE ? 0 : minRetention.intValue();
         int expectedMaximumRetention = maxRetention.get() == Long.MIN_VALUE ? 0 : maxRetention.intValue();
-        double expectedAverageRetention = count.get() == 0 ? 0.0 : totalRetentionTimes.doubleValue() / count.get();
+        double expectedAverageRetention = managedDataStreamCount.get() == 0
+            ? 0.0
+            : totalRetentionTimes.doubleValue() / managedDataStreamCount.get();
         assertUsageResults(
-            count.intValue(),
+            totalDataStreamCount,
+            totalBackingIndicesCount.intValue(),
+            managedDataStreamCount.intValue(),
+            managedBackingIndicesCount.intValue(),
             expectedMinimumRetention,
             expectedMaximumRetention,
             expectedAverageRetention,
@@ -144,13 +183,16 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertUsageResults(
-        int count,
+        int totalDataStreamCount,
+        int totalBackingIndicesCount,
+        int managedDataStreamCount,
+        int managedBackingIndicesCount,
         int minimumRetention,
         int maximumRetention,
         double averageRetention,
         boolean defaultRolloverUsed
     ) throws Exception {
-        XPackUsageFeatureResponse response = client().execute(DATA_LIFECYCLE, new XPackUsageRequest()).get();
+        XPackUsageFeatureResponse response = client().execute(DATA_STREAMS, new XPackUsageRequest()).get();
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder = response.getUsage().toXContent(builder, ToXContent.EMPTY_PARAMS);
         Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
@@ -162,9 +204,13 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         Map<String, Object> map = tuple.v2();
         assertThat(map.get("available"), equalTo(true));
         assertThat(map.get("enabled"), equalTo(true));
-        assertThat(map.get("count"), equalTo(count));
-        assertThat(map.get("default_rollover_used"), equalTo(defaultRolloverUsed));
-        Map<String, Object> retentionMap = (Map<String, Object>) map.get("retention");
+        assertThat(map.get("data_streams"), equalTo(totalDataStreamCount));
+        assertThat(map.get("indices_count"), equalTo(totalBackingIndicesCount));
+        Map<String, Object> lifecycleMap = (Map<String, Object>) map.get("lifecycle");
+        assertThat(lifecycleMap.get("managed_data_streams"), equalTo(managedDataStreamCount));
+        assertThat(lifecycleMap.get("managed_backing_indices"), equalTo(managedBackingIndicesCount));
+        assertThat(lifecycleMap.get("default_rollover_used"), equalTo(defaultRolloverUsed));
+        Map<String, Object> retentionMap = (Map<String, Object>) lifecycleMap.get("retention");
         assertThat(retentionMap.size(), equalTo(3));
         assertThat(retentionMap.get("minimum_millis"), equalTo(minimumRetention));
         assertThat(retentionMap.get("maximum_millis"), equalTo(maximumRetention));
@@ -197,13 +243,13 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
     }
 
     /*
-     * This plugin exposes the DataLifecycleUsageTransportAction.
+     * This plugin exposes the DataStreamUsageTransportAction.
      */
-    public static final class TestDateLifecycleUsagePlugin extends XPackClientPlugin {
+    public static final class TestDataStreamUsageTransportActionPlugin extends XPackClientPlugin {
         @Override
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
             List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-            actions.add(new ActionPlugin.ActionHandler<>(DATA_LIFECYCLE, DataLifecycleUsageTransportAction.class));
+            actions.add(new ActionPlugin.ActionHandler<>(DATA_STREAMS, DataStreamUsageTransportAction.class));
             return actions;
         }
     }

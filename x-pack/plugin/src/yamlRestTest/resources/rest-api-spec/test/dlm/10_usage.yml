@@ -1,20 +1,23 @@
 ---
 "Test data stream lifecycle usage stats":
   - skip:
-      version: "- 8.8.99"
-      reason: "the data stream lifecycle stats were only added to the usage api in 8.9"
+      version: "- 8.9.99"
+      reason: "the data stream lifecycle stats were only added to the usage api in 8.10"
       features: allowed_warnings
 
   - do:
       xpack.usage: {}
 
-  - match: { data_lifecycle.available: true }
-  - match: { data_lifecycle.enabled: true }
-  - match: { data_lifecycle.count: 0 }
-  - match: { data_lifecycle.default_rollover_used: true }
-  - match: { data_lifecycle.retention.minimum_millis: 0 }
-  - match: { data_lifecycle.retention.maximum_millis: 0 }
-  - match: { data_lifecycle.retention.average_millis: 0 }
+  - match: { data_streams.available: true }
+  - match: { data_streams.enabled: true }
+  - match: { data_streams.data_streams: 0 }
+  - match: { data_streams.indices_count: 0 }
+  - match: { data_streams.lifecycle.managed_data_streams: 0 }
+  - match: { data_streams.lifecycle.managed_backing_indices: 0 }
+  - match: { data_streams.lifecycle.default_rollover_used: true }
+  - match: { data_streams.lifecycle.retention.minimum_millis: 0 }
+  - match: { data_streams.lifecycle.retention.maximum_millis: 0 }
+  - match: { data_streams.lifecycle.retention.average_millis: 0 }
 
   - do:
       allowed_warnings:
@@ -61,13 +64,35 @@
   - do:
       xpack.usage: {}
 
-  - match: { data_lifecycle.available: true }
-  - match: { data_lifecycle.enabled: true }
-  - match: { data_lifecycle.count: 2 }
-  - match: { data_lifecycle.default_rollover_used: true }
-  - match: { data_lifecycle.retention.minimum_millis: 432000000 }
-  - match: { data_lifecycle.retention.maximum_millis: 864000000 }
-  - match: { data_lifecycle.retention.average_millis: 648000000 }
+  - match: { data_streams.available: true }
+  - match: { data_streams.enabled: true }
+  - match: { data_streams.data_streams: 2 }
+  - match: { data_streams.indices_count: 2 }
+  - match: { data_streams.lifecycle.managed_data_streams: 2 }
+  - match: { data_streams.lifecycle.managed_backing_indices: 2 }
+  - match: { data_streams.lifecycle.default_rollover_used: true }
+  - match: { data_streams.lifecycle.retention.minimum_millis: 432000000 }
+  - match: { data_streams.lifecycle.retention.maximum_millis: 864000000 }
+  - match: { data_streams.lifecycle.retention.average_millis: 648000000 }
+
+  - do:
+      indices.delete_data_lifecycle:
+        name: foo-foobar
+  - is_true: acknowledged
+
+  - do:
+      xpack.usage: {}
+
+  - match: { data_streams.available: true }
+  - match: { data_streams.enabled: true }
+  - match: { data_streams.data_streams: 2 }
+  - match: { data_streams.indices_count: 2 }
+  - match: { data_streams.lifecycle.managed_data_streams: 1 }
+  - match: { data_streams.lifecycle.managed_backing_indices: 1 }
+  - match: { data_streams.lifecycle.default_rollover_used: true }
+  - match: { data_streams.lifecycle.retention.minimum_millis: 432000000 }
+  - match: { data_streams.lifecycle.retention.maximum_millis: 432000000 }
+  - match: { data_streams.lifecycle.retention.average_millis: 432000000 }
 
   - do:
       indices.delete_data_stream:
@@ -75,12 +100,15 @@
   - is_true: acknowledged
 
   - do:
-      xpack.usage: {}
+      xpack.usage: { }
 
-  - match: { data_lifecycle.available: true }
-  - match: { data_lifecycle.enabled: true }
-  - match: { data_lifecycle.count: 1 }
-  - match: { data_lifecycle.default_rollover_used: true }
-  - match: { data_lifecycle.retention.minimum_millis: 432000000 }
-  - match: { data_lifecycle.retention.maximum_millis: 432000000 }
-  - match: { data_lifecycle.retention.average_millis: 432000000 }
+  - match: { data_streams.available: true }
+  - match: { data_streams.enabled: true }
+  - match: { data_streams.data_streams: 1 }
+  - match: { data_streams.indices_count: 1 }
+  - match: { data_streams.lifecycle.managed_data_streams: 1 }
+  - match: { data_streams.lifecycle.managed_backing_indices: 1 }
+  - match: { data_streams.lifecycle.default_rollover_used: true }
+  - match: { data_streams.lifecycle.retention.minimum_millis: 432000000 }
+  - match: { data_streams.lifecycle.retention.maximum_millis: 432000000 }
+  - match: { data_streams.lifecycle.retention.average_millis: 432000000 }

@@ -139,4 +139,76 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
             3 Baz
           """.stripIndent().stripTrailing()
     }
+
+    def "output file already present and up to date"() {
+        given:
+        internalBuild()
+        file('src/main/UpToDate.txt.st') << """
+          Hello World!
+        """.stripIndent().stripTrailing()
+        // the output file is already created and up to date (content wise)
+        file('src/main/generated-src/UpToDate.txt') << """
+          Hello World!
+        """.stripIndent().stripTrailing()
+
+        buildFile << """
+          apply plugin: 'elasticsearch.build'
+          apply plugin: 'elasticsearch.string-templates'
+
+          tasks.named("stringTemplates").configure {
+            template {
+              it.properties = [:] // no properties
+              it.inputFile = new File("${projectDir}/src/main/UpToDate.txt.st")
+              it.outputFile = "UpToDate.txt"
+            }
+          }
+        """
+
+        when:
+        def result = gradleRunner("stringTemplates", '-g', gradleUserHome).build()
+
+        then:
+        result.task(":stringTemplates").outcome == TaskOutcome.SUCCESS
+        file("src/main/generated-src/UpToDate.txt").exists()
+        //assert output - expect the original output
+        normalized(file("src/main/generated-src/UpToDate.txt").text) == """
+            Hello World!
+          """.stripIndent().stripTrailing()
+    }
+
+    def "output file already present but not up to date"() {
+        given:
+        internalBuild()
+        file('src/main/Message.txt.st') << """
+          Hello World!
+        """.stripIndent().stripTrailing()
+        // the output file is already created, but not up to date (content wise)
+        file('src/main/generated-src/Message.txt') << """
+          Hello Chris xx
+        """.stripIndent().stripTrailing()
+
+        buildFile << """
+          apply plugin: 'elasticsearch.build'
+          apply plugin: 'elasticsearch.string-templates'
+
+          tasks.named("stringTemplates").configure {
+            template {
+              it.properties = [:] // no properties
+              it.inputFile = new File("${projectDir}/src/main/Message.txt.st")
+              it.outputFile = "Message.txt"
+            }
+          }
+        """
+
+        when:
+        def result = gradleRunner("stringTemplates", '-g', gradleUserHome).build()
+
+        then:
+        result.task(":stringTemplates").outcome == TaskOutcome.SUCCESS
+        file("src/main/generated-src/Message.txt").exists()
+        //assert output - expect the updated message output
+        normalized(file("src/main/generated-src/Message.txt").text) == """
+            Hello World!
+          """.stripIndent().stripTrailing()
+    }
 }

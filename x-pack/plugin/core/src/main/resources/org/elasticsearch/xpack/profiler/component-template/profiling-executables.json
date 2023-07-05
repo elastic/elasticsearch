@@ -13,6 +13,10 @@
       "_source": {
         "mode": "synthetic"
       },
+      "_meta": {
+        "index-template-version": ${xpack.profiling.template.version},
+        "index-version": 1
+      },
       "dynamic": false,
       "properties": {
         "ecs.version": {

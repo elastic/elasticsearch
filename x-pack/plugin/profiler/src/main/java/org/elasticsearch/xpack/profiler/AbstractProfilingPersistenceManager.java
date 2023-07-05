@@ -81,7 +81,7 @@ public abstract class AbstractProfilingPersistenceManager<T extends AbstractProf
             return;
         }
 
-        if (inProgress.compareAndSet(false, true)) {
+        if (inProgress.compareAndSet(false, true) == false) {
             logger.trace("Skipping index creation as changes are already in progress");
             return;
         }
@@ -141,10 +141,7 @@ public abstract class AbstractProfilingPersistenceManager<T extends AbstractProf
         final IndexRoutingTable routingTable = state.getRoutingTable().index(metadata.getIndex());
         ClusterHealthStatus indexHealth = new ClusterIndexHealth(metadata, routingTable).getStatus();
         if (indexHealth == ClusterHealthStatus.RED) {
-            logger.debug(
-                "Index [{}] health status is RED, any pending mapping upgrades will wait until this changes",
-                metadata.getIndex()
-            );
+            logger.debug("Index [{}] health status is RED, any pending mapping upgrades will wait until this changes", metadata.getIndex());
             return Status.UNHEALTHY;
         }
         MappingMetadata mapping = metadata.mapping();

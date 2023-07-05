@@ -18,5 +18,8 @@ highlight:
     behaviour of truncating very large tracks with the far more preferable approach of simplifying those tracks.
 
     [role="screenshot"]
-    image::images/spatial/geo_line.png[Kibana map with museum tour of Amsterdam]
+    image:images/spatial/kodiak_geo_line_simplified.png[North short of Kodiak Island simplified to 100 points]
+
+    In this diagram, the grey line is the original geometry, the blue line is the truncated geometry as would be
+    produced by the original `geo_line` aggregation, and the magenta line is the new simplified geometry.
   notable: false

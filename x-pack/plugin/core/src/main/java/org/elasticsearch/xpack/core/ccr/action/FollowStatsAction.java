@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,12 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
     public static class StatsResponses extends BaseTasksResponse implements ChunkedToXContentObject {
 
         private final List<StatsResponse> statsResponse;
+
+        private final Map<String, Long> indexDocCountLag = new HashMap<>();
+
+        public void setFollowerIndexDocumentCountLag(final String followerIndex, final long followerVsLeaderDocCountLag) {
+            indexDocCountLag.put(followerIndex, followerVsLeaderDocCountLag);
+        }
 
         public List<StatsResponse> getStatsResponses() {
             return statsResponse;
@@ -85,7 +92,7 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
             return innerToXContentChunked(taskResponsesByIndex);
         }
 
-        private static Iterator<ToXContent> innerToXContentChunked(Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex) {
+        private Iterator<ToXContent> innerToXContentChunked(Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex) {
             return Iterators.concat(
                 Iterators.single((builder, params) -> builder.startObject().startArray("indices")),
                 Iterators.flatMap(
@@ -95,7 +102,15 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
                             (builder, params) -> builder
                                 .startObject()
                                 .field("index", indexEntry.getKey())
-                                .field("leader_follower_doc_count_diff", 0)
+                                .field(
+                                    "follower_vs_leader_index_document_count_diff",
+                                    indexDocCountLag.computeIfAbsent(
+                                        indexEntry.getKey(),
+                                        followerIndex -> {
+                                            throw new IllegalStateException("Document count lag must be already calculated");
+                                        }
+                                    )
+                                )
                                 .startArray("shards")
                         ),
                         indexEntry.getValue().values().iterator(),

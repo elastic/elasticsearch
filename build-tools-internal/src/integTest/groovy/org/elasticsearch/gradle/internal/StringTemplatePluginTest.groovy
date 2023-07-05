@@ -19,7 +19,7 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
         file('src/main/p/X-Box.java.st') << """
           public class \$Type\$Box {
             final \$type\$ value;
-            public Code(\$type\$ value) {
+            public \$Type\$Box(\$type\$ value) {
               this.value = value;
             }
           }
@@ -55,7 +55,7 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
         normalized(file("src/main/generated-src/p/IntBox.java").text) == """
             public class IntBox {
               final int value;
-              public Code(int value) {
+              public IntBox(int value) {
                 this.value = value;
               }
             }
@@ -63,7 +63,7 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
         normalized(file("src/main/generated-src/p/LongBox.java").text) == """
             public class LongBox {
               final long value;
-              public Code(long value) {
+              public LongBox(long value) {
                 this.value = value;
               }
             }

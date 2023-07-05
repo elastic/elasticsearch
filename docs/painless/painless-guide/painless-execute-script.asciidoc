@@ -118,11 +118,11 @@ Document that's temporarily indexed in-memory and accessible from the script.
 
 `index`:: (Required, string)
 Index containing a mapping that's compatible with the indexed document.
-You may specific a remote index by prefixing the index with the remote cluster
+You may specify a remote index by prefixing the index with the remote cluster
 alias. For example, `remote1:my_index` indicates that you want to execute
 the painless script against the "my_index" index on the "remote1" cluster. This
 request will be forwarded to the "remote1" cluster if you have
-<<remote-clusters-connect,configured a connection>> to that remote cluster.
+{ref}/remote-clusters-connect.html[configured a connection] to that remote cluster.
 ====
 
 `params`:: (`Map`, read-only)

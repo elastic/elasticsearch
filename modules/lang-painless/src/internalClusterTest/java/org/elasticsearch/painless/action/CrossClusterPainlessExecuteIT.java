@@ -86,7 +86,6 @@ public class CrossClusterPainlessExecuteIT extends AbstractMultiClustersTestCase
             .cluster()
             .execute(PainlessExecuteAction.INSTANCE, request);
 
-        assertBusy(() -> assertTrue(actionFuture.isDone()));
         PainlessExecuteAction.Response response = actionFuture.actionGet();
         Object result = response.getResult();
         assertThat(result, Matchers.instanceOf(Boolean.class));
@@ -115,7 +114,6 @@ public class CrossClusterPainlessExecuteIT extends AbstractMultiClustersTestCase
             .cluster()
             .execute(PainlessExecuteAction.INSTANCE, request);
 
-        assertBusy(() -> assertTrue(actionFuture.isDone()));
         PainlessExecuteAction.Response response = actionFuture.actionGet();
         Object result = response.getResult();
         assertThat(result, Matchers.instanceOf(Boolean.class));

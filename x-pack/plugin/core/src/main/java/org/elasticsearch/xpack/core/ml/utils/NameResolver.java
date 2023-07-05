@@ -18,7 +18,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Expands an expression into the set of matching names.
@@ -92,7 +91,7 @@ public abstract class NameResolver {
                         .filter(key -> Regex.simpleMatch(token, key))
                         .map(this::lookup)
                         .flatMap(List::stream)
-                        .collect(Collectors.toList());
+                        .toList();
                     if (expanded.isEmpty() && allowNoMatch == false) {
                         throw notFoundExceptionSupplier.apply(token);
                     }

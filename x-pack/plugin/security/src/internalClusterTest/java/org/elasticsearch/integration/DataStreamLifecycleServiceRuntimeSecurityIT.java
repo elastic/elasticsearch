@@ -25,9 +25,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.dlm.DataLifecycleErrorStore;
-import org.elasticsearch.dlm.DataLifecyclePlugin;
-import org.elasticsearch.dlm.DataLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.DataLifecycleErrorStore;
+import org.elasticsearch.datastreams.lifecycle.DataLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.indices.ExecutorNames;
@@ -71,7 +70,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataLifecyclePlugin.class, LocalStateSecurity.class, DataStreamsPlugin.class, SystemDataStreamTestPlugin.class);
+        return List.of(LocalStateSecurity.class, DataStreamsPlugin.class, SystemDataStreamTestPlugin.class);
     }
 
     @Override

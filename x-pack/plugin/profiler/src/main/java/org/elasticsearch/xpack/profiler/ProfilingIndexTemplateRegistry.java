@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
@@ -261,7 +262,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    public static boolean areAllTemplatesCreated(ClusterState state) {
+    public static boolean isAllResourcesCreated(ClusterState state) {
         for (String componentTemplate : COMPONENT_TEMPLATE_CONFIGS.keySet()) {
             if (state.metadata().componentTemplates().containsKey(componentTemplate) == false) {
                 return false;
@@ -269,6 +270,12 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         }
         for (String composableTemplate : COMPOSABLE_INDEX_TEMPLATE_CONFIGS.keySet()) {
             if (state.metadata().templatesV2().containsKey(composableTemplate) == false) {
+                return false;
+            }
+        }
+        for (LifecyclePolicy lifecyclePolicy : LIFECYCLE_POLICIES) {
+            IndexLifecycleMetadata ilmMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+            if (ilmMetadata == null || ilmMetadata.getPolicies().containsKey(lifecyclePolicy.getName()) == false) {
                 return false;
             }
         }

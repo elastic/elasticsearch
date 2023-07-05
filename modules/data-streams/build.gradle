@@ -4,7 +4,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 esplugin {
@@ -19,6 +19,10 @@ restResources {
   }
 }
 
+dependencies {
+  testImplementation project(path: ':test:test-clusters')
+}
+
 testClusters.configureEach {
   module ':modules:reindex'
   testDistribution = 'DEFAULT'
@@ -28,6 +32,10 @@ testClusters.configureEach {
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.8.0")
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
 }
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {

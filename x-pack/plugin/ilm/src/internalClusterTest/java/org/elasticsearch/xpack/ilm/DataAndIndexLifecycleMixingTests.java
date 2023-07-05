@@ -26,10 +26,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.dlm.DataLifecyclePlugin;
-import org.elasticsearch.dlm.DataLifecycleService;
-import org.elasticsearch.dlm.action.ExplainDataLifecycleAction;
-import org.elasticsearch.dlm.action.PutDataLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.DataLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.action.ExplainDataLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.PutDataLifecycleAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -75,7 +74,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, DataLifecyclePlugin.class, DataStreamsPlugin.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, DataStreamsPlugin.class);
     }
 
     protected boolean ignoreExternalCluster() {

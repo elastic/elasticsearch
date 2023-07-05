@@ -148,7 +148,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             numberOfShards,
             searchRequest.searchType(),
             searchRequest.source(),
-            searchRequest.source().query(),
+            (searchRequest.source() != null) ? searchRequest.source().query() : null,
             searchRequest.requestCache(),
             aliasFilter,
             indexBoost,

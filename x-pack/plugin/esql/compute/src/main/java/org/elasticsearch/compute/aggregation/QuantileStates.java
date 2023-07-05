@@ -49,7 +49,7 @@ public final class QuantileStates {
 
     static TDigestState deserializeDigest(byte[] ba, int offset) {
         final double compression = (double) doubleHandle.get(ba, offset);
-        final TDigestState digest = TDigestState.createOptimizedForAccuracy(compression);
+        final TDigestState digest = TDigestState.create(compression);
         final int positions = (int) intHandle.get(ba, offset + 8);
         offset += 12;
         for (int i = 0; i < positions; i++) {
@@ -72,7 +72,7 @@ public final class QuantileStates {
         private final Double percentile;
 
         SingleState(double percentile) {
-            this.digest = TDigestState.createOptimizedForAccuracy(DEFAULT_COMPRESSION);
+            this.digest = TDigestState.create(DEFAULT_COMPRESSION);
             this.percentile = percentileParam(percentile);
         }
 
@@ -160,7 +160,7 @@ public final class QuantileStates {
             }
             TDigestState qs = digests.get(groupId);
             if (qs == null) {
-                qs = TDigestState.createOptimizedForAccuracy(DEFAULT_COMPRESSION);
+                qs = TDigestState.create(DEFAULT_COMPRESSION);
                 digests.set(groupId, qs);
             }
             return qs;

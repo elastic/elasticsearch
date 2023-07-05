@@ -51,7 +51,7 @@ public class PercentileLongGroupingAggregatorFunctionTests extends GroupingAggre
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        TDigestState td = TDigestState.createOptimizedForAccuracy(QuantileStates.DEFAULT_COMPRESSION);
+        TDigestState td = TDigestState.create(QuantileStates.DEFAULT_COMPRESSION);
         input.stream().flatMapToLong(p -> allLongs(p, group)).forEach(td::add);
         if (td.size() > 0) {
             double expected = td.quantile(percentile / 100);

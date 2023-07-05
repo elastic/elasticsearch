@@ -47,7 +47,7 @@ public class PercentileDoubleAggregatorFunctionTests extends AggregatorFunctionT
 
     @Override
     protected void assertSimpleOutput(List<Block> input, Block result) {
-        TDigestState td = TDigestState.createOptimizedForAccuracy(QuantileStates.DEFAULT_COMPRESSION);
+        TDigestState td = TDigestState.create(QuantileStates.DEFAULT_COMPRESSION);
         input.stream().flatMapToDouble(b -> allDoubles(b)).forEach(td::add);
         double expected = td.quantile(percentile / 100);
         double value = ((DoubleBlock) result).getDouble(0);

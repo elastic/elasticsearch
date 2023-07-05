@@ -17,7 +17,7 @@ FROM employees
 
 // tag::percentile-result[]
 p0:double   | p50:double  | p99:double
-25324       | 47003       | 74984.5
+25324       | 47003       | 74970.29
 // end::percentile-result[]
 ;
 
@@ -26,7 +26,7 @@ percentileOfDouble
 from employees | stats p0 = percentile(salary_change, 0), p50 = percentile(salary_change, 50), p99 = percentile(salary_change, 99);
 
 p0:double   | p50:double  | p99:double
--9.81       | 0.75        | 14.663499999999999
+-9.81       | 0.75        | 14.639000000000001
 ;
 
 
@@ -35,19 +35,19 @@ from employees | stats p90 = percentile(salary_change.long, 90) by job_positions
 
 p90:double         | job_positions:keyword
  7                 | "Python Developer"
-10.399999999999999 | "Business Analyst"
-11                 | "Accountant"
-11                 | "Tech Lead"
+9.600000000000001  | "Business Analyst"
+10.200000000000006 | "Data Scientist"
+10.399999999999999 | "Senior Python Developer"
 ;
 
 percentileOfIntegerByKeyword
 from employees | stats p90 = percentile(salary, 90) by job_positions | sort p90 | limit 4;
 
-p90:double      | job_positions:keyword
-53397.8         | "Business Analyst"
-56840.4         | "Support Engineer"
-57565           | "Head Human Resources"
-61358           | "Reporting Analyst"
+p90:double           | job_positions:keyword
+50249.0              | "Business Analyst"
+54462.0              | "Support Engineer"
+56308.799999999996   | "Reporting Analyst"
+56645.0              | "Head Human Resources"
 ;
 
 
@@ -55,10 +55,10 @@ percentileOfDoubleByKeyword
 from employees | stats p90 = percentile(salary_change, 90) by job_positions | sort p90 | limit 4;
 
 p90:double            | job_positions:keyword
-7.652                 | "Python Developer"
-10.994999999999997    | "Business Analyst"
-11.301000000000002    | "Senior Team Lead"
-11.514000000000001    | "Data Scientist"
+7.5760000000000005    | "Python Developer"
+10.095000000000002    | "Business Analyst"
+10.362000000000007    | "Data Scientist"
+10.964999999999998    | "Senior Python Developer"
 ;
 
 

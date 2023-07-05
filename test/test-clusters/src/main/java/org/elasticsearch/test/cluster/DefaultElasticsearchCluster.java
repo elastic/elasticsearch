@@ -17,7 +17,7 @@ import java.util.function.Supplier;
 public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends ClusterHandle> implements ElasticsearchCluster {
     private final Supplier<S> specProvider;
     private final ClusterFactory<S, H> clusterFactory;
-    protected H handle;
+    private H handle;
 
     public DefaultElasticsearchCluster(Supplier<S> specProvider, ClusterFactory<S, H> clusterFactory) {
         this.specProvider = specProvider;

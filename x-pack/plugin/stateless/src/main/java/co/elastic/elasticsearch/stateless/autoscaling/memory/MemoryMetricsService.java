@@ -21,6 +21,6 @@ import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 public class MemoryMetricsService {
     public MemoryMetrics getMemoryMetrics() {
-        return new MemoryMetrics(4096, 8192, MetricQuality.EXACT);
+        return new MemoryMetrics(HeapToSystemMemory.dataNode(4096), HeapToSystemMemory.dataNode(8192), MetricQuality.EXACT);
     }
 }

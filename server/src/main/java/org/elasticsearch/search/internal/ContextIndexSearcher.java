@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -68,6 +69,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
      */
     private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
+
+    private static final int MINIMUM_DOCS_PER_SLICE = 50_000;
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
@@ -190,6 +193,73 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else {
             return super.createWeight(query, scoreMode, boost);
         }
+    }
+
+    @Override
+    protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+        return computeSlices(leaves, queueSizeBasedExecutor.threadPoolExecutor.getPoolSize(), MINIMUM_DOCS_PER_SLICE);
+    }
+
+    /**
+     * Each computed slice contains at least 10% of the total data in the leaves with a
+     * minimum given by the <code>minDocsPerSlice</code> parameter and the final number
+     * of {@link LeafSlice} will be equal or lower than the number of available threads.
+     */
+    /* pkg private for testing */
+    static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int numThreads, int minDocsPerSlice) {
+        // total number of documents to be searched
+        final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
+        // percentage of documents per slice, minumum 10%
+        final double percentageDocsPerThread = Math.max(0.1, 1.0 / numThreads);
+        // compute slices
+        return computeSlices(leaves, Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs)));
+    }
+
+    private static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int minDocsPerSlice) {
+        // Make a copy so we can sort:
+        List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
+
+        // Sort by maxDoc, descending:
+        Collections.sort(sortedLeaves, Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().maxDoc())));
+
+        final List<List<LeafReaderContext>> groupedLeaves = new ArrayList<>();
+        long docSum = 0;
+        List<LeafReaderContext> group = null;
+        for (LeafReaderContext ctx : sortedLeaves) {
+            if (group == null) {
+                group = new ArrayList<>();
+            }
+            group.add(ctx);
+            docSum += ctx.reader().maxDoc();
+            if (docSum > minDocsPerSlice) {
+                groupedLeaves.add(group);
+                group = null;
+                docSum = 0;
+            }
+        }
+
+        if (group != null) {
+            if (groupedLeaves.size() == 0) {
+                groupedLeaves.add(group);
+            } else {
+                // We need to distribute the last group between existing groups. We expect the first groups
+                // to contain more document that the last ones. Reverse the last group and distribute
+                // the leaf readers in a round robin fashion.
+                Collections.reverse(group);
+                for (int i = 0; i < group.size(); i++) {
+                    groupedLeaves.get(i % groupedLeaves.size()).add(group.get(i));
+                }
+            }
+        }
+
+        LeafSlice[] slices = new LeafSlice[groupedLeaves.size()];
+        int upto = 0;
+        for (List<LeafReaderContext> currentLeaf : groupedLeaves) {
+            slices[upto] = new LeafSlice(currentLeaf);
+            ++upto;
+        }
+
+        return slices;
     }
 
     @Override

@@ -66,6 +66,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -80,7 +81,9 @@ import static org.elasticsearch.search.internal.ExitableDirectoryReader.Exitable
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ContextIndexSearcherTests extends ESTestCase {
     public void testIntersectScorerAndRoleBits() throws Exception {
@@ -374,6 +377,54 @@ public class ContextIndexSearcherTests extends ESTestCase {
         assertEquals(3f, topDocs.scoreDocs[0].score, 0);
 
         IOUtils.close(reader, w, dir);
+    }
+
+    public void testComputeSlices() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(null));
+        int numDocs = randomIntBetween(1000, 25000);
+        Document doc = new Document();
+        for (int i = 0; i < numDocs; i++) {
+            w.addDocument(doc);
+            if (frequently()) {
+                // lets create many segments
+                w.commit();
+            }
+        }
+        {
+            DirectoryReader reader = DirectoryReader.open(w);
+            List<LeafReaderContext> contexts = reader.leaves();
+            for (int numThreads = 1; numThreads < 16; numThreads++) {
+                IndexSearcher.LeafSlice[] slices = ContextIndexSearcher.computeSlices(contexts, numThreads, 1);
+                assertSlices(slices, numDocs, numThreads);
+            }
+            IOUtils.close(reader);
+        }
+        w.forceMerge(randomIntBetween(1, 4));
+        {
+            DirectoryReader reader = DirectoryReader.open(w);
+            List<LeafReaderContext> contexts = reader.leaves();
+            for (int numThreads = 1; numThreads < 16; numThreads++) {
+                IndexSearcher.LeafSlice[] slices = ContextIndexSearcher.computeSlices(contexts, numThreads, 1);
+                assertSlices(slices, numDocs, numThreads);
+            }
+            IOUtils.close(reader);
+        }
+        IOUtils.close(w, dir);
+
+    }
+
+    private void assertSlices(IndexSearcher.LeafSlice[] slices, int numDocs, int numThreads) {
+        // checks that the number of slices is not bigger than the number of available threads
+        // and each slice contains at least 10% of the data (which means the max number of slices is 10)
+        int sumDocs = 0;
+        assertThat(slices.length, lessThanOrEqualTo(numThreads));
+        for (int i = 0; i < slices.length; i++) {
+            int sliceDocs = Arrays.stream(slices[i].leaves).mapToInt(l -> l.reader().maxDoc()).sum();
+            assertThat(sliceDocs, greaterThanOrEqualTo((int) (0.1 * numDocs)));
+            sumDocs += sliceDocs;
+        }
+        assertThat(sumDocs, equalTo(numDocs));
     }
 
     public void testExitableTermsMinAndMax() throws IOException {

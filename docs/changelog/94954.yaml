@@ -18,5 +18,5 @@ highlight:
     behaviour of truncating very large tracks with the far more preferable approach of simplifying those tracks.
 
     [role="screenshot"]
-    image::images/spatial/geogrid_h3_children.png[Kibana map with three H3 layers: cell, children and intersecting non-children]
+    image::images/spatial/geo_line.png[Kibana map with museum tour of Amsterdam]
   notable: false

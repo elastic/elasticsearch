@@ -23,12 +23,16 @@ PUT test
 }
 
 POST /test/_bulk?refresh
-{"index": {}}
-{"my_location": {"lat":37.3450570,  "lon":-122.0499820}, "@timestamp": "2013-09-06T16:00:36Z"}
-{"index": {}}
-{"my_location": {"lat": 37.3451320, "lon":-122.0499820}, "@timestamp": "2013-09-06T16:00:37Z"}
-{"index": {}}
-{"my_location": {"lat": 37.349283,  "lon":-122.0505010}, "@timestamp": "2013-09-06T16:00:37Z"}
+{"index":{}}
+{"my_location": {"lat":52.373184, "lon":4.889187}, "@timestamp": "2023-01-02T09:00:00Z"}
+{"index":{}}
+{"my_location": {"lat":52.370159, "lon":4.885057}, "@timestamp": "2023-01-02T10:00:00Z"}
+{"index":{}}
+{"my_location": {"lat":52.369219, "lon":4.901618}, "@timestamp": "2023-01-02T13:00:00Z"}
+{"index":{}}
+{"my_location": {"lat":52.374081, "lon":4.912350}, "@timestamp": "2023-01-02T16:00:00Z"}
+{"index":{}}
+{"my_location": {"lat":52.371667, "lon":4.914722}, "@timestamp": "2023-01-03T12:00:00Z"}
 
 POST /test/_search?filter_path=aggregations
 {
@@ -54,18 +58,11 @@ Which returns:
       "geometry": {
         "type": "LineString",
         "coordinates": [
-          [
-            -122.049982,
-            37.345057
-          ],
-          [
-            -122.050501,
-            37.349283
-          ],
-          [
-            -122.049982,
-            37.345132
-          ]
+            [ 4.889187, 52.373184 ],
+            [ 4.885057, 52.370159 ],
+            [ 4.901618, 52.369219 ],
+            [ 4.912350, 52.374081 ],
+            [ 4.914722, 52.371667 ]
         ]
       },
       "properties": {
@@ -85,6 +82,10 @@ leading to results  with `complete: false`.
 Exactly which documents are dropped from results depends on whether the aggregation is based
 on `time_series` or not, and this is discussed in
 <<search-aggregations-metrics-geo-line-grouping-time-series-advantages,more detail below>>.
+
+The above result could be displayed in a map user interface:
+
+image:images/spatial/geo_line.png[Kibana map with museum tour of Amsterdam]
 
 [[search-aggregations-metrics-geo-line-options]]
 ==== Options
@@ -438,3 +439,28 @@ This allows the `geo_line` aggregation to be considerably optimized:
   memory. For example, if the `geo_line` is to be drawn on a display map with a specific resolution, it might look
   just as good to simplify to as few as 100 or 200 points. This will save memory on the server, on the network and
   in the client.
+
+Note: There are other significant advantages to working with time-series data and using `time_series` index mode.
+These are discussed in the documentation on <<tsds,time series data streams>>.
+
+[[search-aggregations-metrics-geo-line-simplification]]
+==== Streaming line simplification
+
+Line simplification is a great way to reduce the size of the final results sent to the client, and displayed in a map
+user interface. However, normally these algorithms use a lot of memory to perform the simplification, requiring the
+entire geometry to be maintained in memory together with supporting data for the simplification itself.
+The use of a streaming line simplification algorithm allows for minimal memory usage during the simplification
+process by constraining memory to the bounds defined for the simplified geometry. This is only possible if no sorting
+is required, which is the case when grouping is done by the
+<<search-aggregations-bucket-time-series-aggregation,`time_series` aggregation>>,
+running on an index with the `time_series` index mode.
+
+Under these conditions the `geo_line` aggregation allocates memory to the `size` specified, and then fills that
+memory with the incoming documents.
+Once the memory is completely filled, documents from within the line are removed as new documents are added.
+The choice of document to remove is made to minimize the visual impact on the geometry.
+This process makes use of the
+https://en.wikipedia.org/wiki/Visvalingam%E2%80%93Whyatt_algorithm[Visvalingam–Whyatt algorithm].
+Essentially this means points are removed if they have the minimum triangle area, with the triangle defined
+by the point under consideration and the two points before and after it in the line.
+In addition, we calculate the area using spherical coordinates so that no planar distortions affect the choice.

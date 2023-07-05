@@ -11,126 +11,126 @@ import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
 
-buildScan {
-  URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
-  String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? System.getenv('BUILDKITE_BUILD_URL') : null
+// buildScan {
+//   URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+//   String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? System.getenv('BUILDKITE_BUILD_URL') : null
 
-  // Automatically publish scans from Elasticsearch CI
-  if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev') || System.getenv('BUILDKITE') == 'true') {
-    publishAlways()
-    buildScan.server = 'https://gradle-enterprise.elastic.co'
-  }
+//   // Automatically publish scans from Elasticsearch CI
+//   if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev') || System.getenv('BUILDKITE') == 'true') {
+//     publishAlways()
+//     buildScan.server = 'https://gradle-enterprise.elastic.co'
+//   }
 
-  background {
-    tag OS.current().name()
-    tag Architecture.current().name()
+//   background { // maybe take this stuff out?? or just remove --scan for now?
+//     tag OS.current().name()
+//     tag Architecture.current().name()
 
-    // Tag if this build is run in FIPS mode
-    if (BuildParams.inFipsJvm) {
-      tag 'FIPS'
-    }
+//     // Tag if this build is run in FIPS mode
+//     if (BuildParams.inFipsJvm) {
+//       tag 'FIPS'
+//     }
 
-    // Jenkins-specific build scan metadata
-    if (jenkinsUrl) {
-      // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
-      uploadInBackground = false
+//     // Jenkins-specific build scan metadata
+//     if (jenkinsUrl) {
+//       // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
+//       uploadInBackground = false
 
-      String buildNumber = System.getenv('BUILD_NUMBER')
-      String buildUrl = System.getenv('BUILD_URL')
-      String jobName = System.getenv('JOB_NAME')
-      String nodeName = System.getenv('NODE_NAME')
-      String jobBranch = System.getenv('ghprbTargetBranch') ?: System.getenv('JOB_BRANCH')
+//       String buildNumber = System.getenv('BUILD_NUMBER')
+//       String buildUrl = System.getenv('BUILD_URL')
+//       String jobName = System.getenv('JOB_NAME')
+//       String nodeName = System.getenv('NODE_NAME')
+//       String jobBranch = System.getenv('ghprbTargetBranch') ?: System.getenv('JOB_BRANCH')
 
-      // Link to Jenkins worker logs and system metrics
-      if (nodeName) {
-        link 'System logs', "https://ci-stats.elastic.co/app/infra#/logs?&logFilter=(expression:'host.name:${nodeName}',kind:kuery)"
-        buildFinished {
-          link 'System metrics', "https://ci-stats.elastic.co/app/metrics/detail/host/${nodeName}"
-        }
-      }
+//       // Link to Jenkins worker logs and system metrics
+//       if (nodeName) {
+//         link 'System logs', "https://ci-stats.elastic.co/app/infra#/logs?&logFilter=(expression:'host.name:${nodeName}',kind:kuery)"
+//         buildFinished {
+//           link 'System metrics', "https://ci-stats.elastic.co/app/metrics/detail/host/${nodeName}"
+//         }
+//       }
 
-      // Parse job name in the case of matrix builds
-      // Matrix job names come in the form of "base-job-name/matrix_param1=value1,matrix_param2=value2"
-      def splitJobName = jobName.split('/')
-      if (splitJobName.length > 1 && splitJobName.last() ==~ /^([a-zA-Z0-9_\-]+=[a-zA-Z0-9_\-&\.]+,?)+$/) {
-        def baseJobName = splitJobName.dropRight(1).join('/')
-        tag baseJobName
-        tag splitJobName.last()
-        value 'Job Name', baseJobName
-        def matrixParams = splitJobName.last().split(',')
-        matrixParams.collect { it.split('=') }.each { param ->
-          value "MATRIX_${param[0].toUpperCase()}", param[1]
-        }
-      } else {
-        tag jobName
-        value 'Job Name', jobName
-      }
+//       // Parse job name in the case of matrix builds
+//       // Matrix job names come in the form of "base-job-name/matrix_param1=value1,matrix_param2=value2"
+//       def splitJobName = jobName.split('/')
+//       if (splitJobName.length > 1 && splitJobName.last() ==~ /^([a-zA-Z0-9_\-]+=[a-zA-Z0-9_\-&\.]+,?)+$/) {
+//         def baseJobName = splitJobName.dropRight(1).join('/')
+//         tag baseJobName
+//         tag splitJobName.last()
+//         value 'Job Name', baseJobName
+//         def matrixParams = splitJobName.last().split(',')
+//         matrixParams.collect { it.split('=') }.each { param ->
+//           value "MATRIX_${param[0].toUpperCase()}", param[1]
+//         }
+//       } else {
+//         tag jobName
+//         value 'Job Name', jobName
+//       }
 
-      tag 'CI'
-      link 'CI Build', buildUrl
-      link 'GCP Upload', "https://console.cloud.google.com/storage/browser/_details/elasticsearch-ci-artifacts/jobs/${URLEncoder.encode(jobName, "UTF-8")}/build/${buildNumber}.tar.bz2"
-      value 'Job Number', buildNumber
-      if (jobBranch) {
-        tag jobBranch
-        value 'Git Branch', jobBranch
-      }
+//       tag 'CI'
+//       link 'CI Build', buildUrl
+//       link 'GCP Upload', "https://console.cloud.google.com/storage/browser/_details/elasticsearch-ci-artifacts/jobs/${URLEncoder.encode(jobName, "UTF-8")}/build/${buildNumber}.tar.bz2"
+//       value 'Job Number', buildNumber
+//       if (jobBranch) {
+//         tag jobBranch
+//         value 'Git Branch', jobBranch
+//       }
 
-      System.getenv().getOrDefault('NODE_LABELS', '').split(' ').each {
-        value 'Jenkins Worker Label', it
-      }
+//       System.getenv().getOrDefault('NODE_LABELS', '').split(' ').each {
+//         value 'Jenkins Worker Label', it
+//       }
 
-      // Add SCM information
-      def isPrBuild = System.getenv('ROOT_BUILD_CAUSE_GHPRBCAUSE') != null
-      if (isPrBuild) {
-        value 'Git Commit ID', System.getenv('ghprbActualCommit')
-        tag "pr/${System.getenv('ghprbPullId')}"
-        tag 'pull-request'
-        link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('ghprbActualCommit')}"
-        link 'Pull Request', System.getenv('ghprbPullLink')
-      } else {
-        value 'Git Commit ID', BuildParams.gitRevision
-        link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
-      }
-    } else if (buildKiteUrl) { //Buildkite-specific build scan metadata
-      // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
-      uploadInBackground = false
+//       // Add SCM information
+//       def isPrBuild = System.getenv('ROOT_BUILD_CAUSE_GHPRBCAUSE') != null
+//       if (isPrBuild) {
+//         value 'Git Commit ID', System.getenv('ghprbActualCommit')
+//         tag "pr/${System.getenv('ghprbPullId')}"
+//         tag 'pull-request'
+//         link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('ghprbActualCommit')}"
+//         link 'Pull Request', System.getenv('ghprbPullLink')
+//       } else {
+//         value 'Git Commit ID', BuildParams.gitRevision
+//         link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
+//       }
+//     } else if (buildKiteUrl) { //Buildkite-specific build scan metadata
+//       // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
+//       uploadInBackground = false
 
-      def branch = System.getenv('BUILDKITE_BRANCH')
-      def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
-      def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
-      tag 'CI'
-      link 'CI Build', buildKiteUrl
-      value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
+//       def branch = System.getenv('BUILDKITE_BRANCH')
+//       def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
+//       def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
+//       tag 'CI'
+//       link 'CI Build', buildKiteUrl
+//       value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
 
 
-      // Add SCM information
-      def prId = System.getenv('BUILDKITE_PULL_REQUEST')
-      if (prId != 'false') {
-        def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git")
-        value 'Git Commit ID', System.getenv('BUILDKITE_COMMIT')
-        tag "pr/${prId}"
-        tag 'pull-request'
-        link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
-        link 'Pull Request', "https://github.com/${repository}/pull/${prId}"
-      } else {
-        value 'Git Commit ID', BuildParams.gitRevision
-        link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"
-        tag branch
-      }
+//       // Add SCM information
+//       def prId = System.getenv('BUILDKITE_PULL_REQUEST')
+//       if (prId != 'false') {
+//         def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git")
+//         value 'Git Commit ID', System.getenv('BUILDKITE_COMMIT')
+//         tag "pr/${prId}"
+//         tag 'pull-request'
+//         link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
+//         link 'Pull Request', "https://github.com/${repository}/pull/${prId}"
+//       } else {
+//         value 'Git Commit ID', BuildParams.gitRevision
+//         link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"
+//         tag branch
+//       }
 
-      // buildScanPublished { scan ->
-        // Attach build scan link as build metadata
-        // See: https://buildkite.com/docs/pipelines/build-meta-data
-        // ['buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}"].execute()
+//       // buildScanPublished { scan ->
+//         // Attach build scan link as build metadata
+//         // See: https://buildkite.com/docs/pipelines/build-meta-data
+//         // ['buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}"].execute()
 
-        // Add a build annotation
-        // See: https://buildkite.com/docs/agent/v3/cli-annotate
-        // TODO fix and add back
-        // def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: build ran: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
-        // ['buildkite-agent', 'annotate', '--context', 'gradle-build-scans', '--append', '--style', 'info', body].execute()
-      // }
-    } else {
-      tag 'LOCAL'
-    }
-  }
-}
+//         // Add a build annotation
+//         // See: https://buildkite.com/docs/agent/v3/cli-annotate
+//         // TODO fix and add back
+//         // def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: build ran: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
+//         // ['buildkite-agent', 'annotate', '--context', 'gradle-build-scans', '--append', '--style', 'info', body].execute()
+//       // }
+//     } else {
+//       tag 'LOCAL'
+//     }
+//   }
+// }

@@ -11,6 +11,8 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,6 +41,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 /**
  * A query that will determine based on query context and configured query rules,
@@ -51,6 +54,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     public static final String NAME = "rule_query";
 
+    // TODO make this a String not an array
     private static final ParseField RULESET_IDS_FIELD = new ParseField("ruleset_ids");
     private static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
@@ -226,7 +230,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         List<Item> matchingPinnedDocs = new ArrayList<>();
 
         queryRewriteContext.registerAsyncAction((client, listener) -> {
-            client.get(getRequest, listener.delegateFailureAndWrap((l, getResponse) -> {
+            Client clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
+            clientWithOrigin.get(getRequest, listener.delegateFailureAndWrap((l, getResponse) -> {
                 if (getResponse.isExists() == false) {
                     throw new ResourceNotFoundException("query ruleset " + rulesetId + " not found");
                 }

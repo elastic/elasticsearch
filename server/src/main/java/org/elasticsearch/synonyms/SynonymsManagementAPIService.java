@@ -291,7 +291,7 @@ public class SynonymsManagementAPIService {
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .execute(l1.delegateFailure((l2, deleteResponse) -> {
                         if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                            l2.onFailure(new ResourceNotFoundException("synonym rule [" + synonymRuleId + "] not found"));
+                            l2.onFailure(new ResourceNotFoundException("synonym rule [" + synonymRuleId + "] not found on synonym set [" + synonymSetId + "]"));
                             return;
                         }
 

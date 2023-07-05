@@ -15,40 +15,43 @@ import java.io.IOException;
 
 public record MlAutoscalingStats(
     int nodes,
-    long memoryBytesSum,
-    long modelMemoryBytesSum,
+    long memoryInBytesSum,
+    long modelMemoryInBytesSum,
     int minNodes,
     long extraSingleNodeModelMemoryInBytes,
     int extraSingleNodeProcessors,
     long extraModelMemoryInBytes,
     int extraProcessors,
-    long removeNodeMemoryInBytes
+    long removeNodeMemoryInBytes,
+    long perNodeMemoryOverheadInBytes
 ) implements Writeable {
 
     public MlAutoscalingStats(StreamInput in) throws IOException {
         this(
             in.readVInt(), // nodes
-            in.readVLong(),  // memoryBytesSum
+            in.readVLong(),  // memoryInBytesSum
             in.readVLong(), // modelMemoryInBytes
             in.readVInt(), // minNodes
             in.readVLong(), // extraSingleNodeModelMemoryInBytes
             in.readVInt(), // extraSingleNodeProcessors
             in.readVLong(), // extraModelMemoryInBytes
             in.readVInt(), // extraProcessors
-            in.readVLong() // removeNodeMemoryInBytes
+            in.readVLong(), // removeNodeMemoryInBytes
+            in.readVLong() // perNodeMemoryOverheadInBytes
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(nodes);
-        out.writeVLong(memoryBytesSum);
-        out.writeVLong(modelMemoryBytesSum);
+        out.writeVLong(memoryInBytesSum);
+        out.writeVLong(modelMemoryInBytesSum);
         out.writeVInt(minNodes);
         out.writeVLong(extraSingleNodeModelMemoryInBytes);
         out.writeVInt(extraSingleNodeProcessors);
         out.writeVLong(extraModelMemoryInBytes);
         out.writeVInt(extraProcessors);
         out.writeVLong(removeNodeMemoryInBytes);
+        out.writeVLong(perNodeMemoryOverheadInBytes);
     }
 }

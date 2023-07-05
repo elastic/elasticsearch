@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.HashSet;
@@ -91,7 +92,9 @@ public final class MlAutoscalingResourceTracker {
         Set<String> nodesWithRunningJobs = new HashSet<>();
         long memoryBytesSum = osStatsPerNode.values()
             .stream()
-            .map(s -> s.getMem().getAdjustedTotal().getBytes()).mapToLong(Long::longValue).sum();
+            .map(s -> s.getMem().getAdjustedTotal().getBytes())
+            .mapToLong(Long::longValue)
+            .sum();
 
         long modelMemoryBytesSum = 0;
         long extraSingleNodeModelMemoryInBytes = 0;
@@ -179,7 +182,8 @@ public final class MlAutoscalingResourceTracker {
                 extraSingleNodeProcessors,
                 extraSingleNodeModelMemoryInBytes,
                 extraProcessors,
-                0
+                0,
+                MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()
             )
         );
     }

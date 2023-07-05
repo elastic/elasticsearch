@@ -82,18 +82,19 @@ public abstract class AbstractProfilingPersistenceManager<T extends AbstractProf
         }
 
         if (inProgress.compareAndSet(false, true)) {
-            // Only release the lock once all upgrade attempts have succeeded or failed.
-            try (var refs = new RefCountingRunnable(() -> inProgress.set(false))) {
-                ClusterState clusterState = event.state();
-                for (T index : getManagedIndices()) {
-                    Status status = getStatus(clusterState, index);
-                    if (status.actionable) {
-                        onStatus(clusterState, status, index, ActionListener.releasing(refs.acquire()));
-                    }
+            logger.trace("Skipping index creation as changes are already in progress");
+            return;
+        }
+
+        // Only release the lock once all upgrade attempts have succeeded or failed.
+        try (var refs = new RefCountingRunnable(() -> inProgress.set(false))) {
+            ClusterState clusterState = event.state();
+            for (T index : getManagedIndices()) {
+                Status status = getStatus(clusterState, index);
+                if (status.actionable) {
+                    onStatus(clusterState, status, index, ActionListener.releasing(refs.acquire()));
                 }
             }
-        } else {
-            logger.trace("Skipping index creation as changes are already in progress");
         }
     }
 
@@ -127,55 +128,54 @@ public abstract class AbstractProfilingPersistenceManager<T extends AbstractProf
 
     private Status getStatus(ClusterState state, T index) {
         IndexMetadata metadata = indexMetadata(state, index);
-        if (metadata != null) {
-            if (metadata.getState() == IndexMetadata.State.CLOSE) {
-                logger.warn(
-                    "Index [{}] is closed. This is likely to prevent Universal Profiling from functioning correctly",
-                    metadata.getIndex()
-                );
-                return Status.CLOSED;
-            }
-            final IndexRoutingTable routingTable = state.getRoutingTable().index(metadata.getIndex());
-            ClusterHealthStatus indexHealth = new ClusterIndexHealth(metadata, routingTable).getStatus();
-            if (indexHealth == ClusterHealthStatus.RED) {
-                logger.debug(
-                    "Index [{}] health status is RED, any pending mapping upgrades will wait until this changes",
-                    metadata.getIndex()
-                );
-                return Status.UNHEALTHY;
-            }
-            MappingMetadata mapping = metadata.mapping();
-            if (mapping != null) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> meta = (Map<String, Object>) mapping.sourceAsMap().get("_meta");
-                int currentIndexVersion;
-                int currentTemplateVersion;
-                if (meta == null) {
-                    logger.debug("Missing _meta field in mapping of index [{}], assuming initial version.", metadata.getIndex());
-                    currentIndexVersion = 1;
-                    currentTemplateVersion = 1;
-                } else {
-                    // we are extra defensive and treat any unexpected values as an unhealthy index which we won't touch.
-                    currentIndexVersion = getVersionField(metadata.getIndex(), meta, "index-version");
-                    currentTemplateVersion = getVersionField(metadata.getIndex(), meta, "index-template-version");
-                    if (currentIndexVersion == -1 || currentTemplateVersion == -1) {
-                        return Status.UNHEALTHY;
-                    }
-                }
-                if (index.getVersion() > currentIndexVersion) {
-                    return Status.NEEDS_VERSION_BUMP;
-                } else if (ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION > currentTemplateVersion) {
-                    // TODO 8.10+: Check if there are any pending migrations. If none are pending we can consider the index up to date.
-                    return Status.NEEDS_MAPPINGS_UPDATE;
-                } else {
-                    return Status.UP_TO_DATE;
-                }
+        if (metadata == null) {
+            return Status.NEEDS_CREATION;
+        }
+        if (metadata.getState() == IndexMetadata.State.CLOSE) {
+            logger.warn(
+                "Index [{}] is closed. This is likely to prevent Universal Profiling from functioning correctly",
+                metadata.getIndex()
+            );
+            return Status.CLOSED;
+        }
+        final IndexRoutingTable routingTable = state.getRoutingTable().index(metadata.getIndex());
+        ClusterHealthStatus indexHealth = new ClusterIndexHealth(metadata, routingTable).getStatus();
+        if (indexHealth == ClusterHealthStatus.RED) {
+            logger.debug(
+                "Index [{}] health status is RED, any pending mapping upgrades will wait until this changes",
+                metadata.getIndex()
+            );
+            return Status.UNHEALTHY;
+        }
+        MappingMetadata mapping = metadata.mapping();
+        if (mapping != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> meta = (Map<String, Object>) mapping.sourceAsMap().get("_meta");
+            int currentIndexVersion;
+            int currentTemplateVersion;
+            if (meta == null) {
+                logger.debug("Missing _meta field in mapping of index [{}], assuming initial version.", metadata.getIndex());
+                currentIndexVersion = 1;
+                currentTemplateVersion = 1;
             } else {
-                logger.warn("No mapping found for existing index [{}]. Index cannot be migrated.", metadata.getIndex());
-                return Status.UNHEALTHY;
+                // we are extra defensive and treat any unexpected values as an unhealthy index which we won't touch.
+                currentIndexVersion = getVersionField(metadata.getIndex(), meta, "index-version");
+                currentTemplateVersion = getVersionField(metadata.getIndex(), meta, "index-template-version");
+                if (currentIndexVersion == -1 || currentTemplateVersion == -1) {
+                    return Status.UNHEALTHY;
+                }
+            }
+            if (index.getVersion() > currentIndexVersion) {
+                return Status.NEEDS_VERSION_BUMP;
+            } else if (ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION > currentTemplateVersion) {
+                // TODO 8.10+: Check if there are any pending migrations. If none are pending we can consider the index up to date.
+                return Status.NEEDS_MAPPINGS_UPDATE;
+            } else {
+                return Status.UP_TO_DATE;
             }
         } else {
-            return Status.NEEDS_CREATION;
+            logger.warn("No mapping found for existing index [{}]. Index cannot be migrated.", metadata.getIndex());
+            return Status.UNHEALTHY;
         }
     }
 

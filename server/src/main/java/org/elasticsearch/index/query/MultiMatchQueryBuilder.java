@@ -8,8 +8,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
@@ -828,5 +830,15 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
+    }
+
+    @Override
+    public Query toHighlightQuery(String fieldName) {
+        return fields().keySet()
+            .stream()
+            .filter(fn -> fn.equals(fieldName))
+            .map(fn -> new TermQuery(new Term(fieldName, maybeConvertToString(value).toString())))
+            .findFirst()
+            .orElse(null);
     }
 }

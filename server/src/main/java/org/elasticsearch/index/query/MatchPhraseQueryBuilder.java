@@ -9,7 +9,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -287,5 +289,13 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
+    }
+
+    @Override
+    public Query toHighlightQuery(String fieldName) {
+        if (this.fieldName.equals(fieldName)) {
+            return new TermQuery(new Term(fieldName, maybeConvertToString(value).toString()));
+        }
+        return super.toHighlightQuery(fieldName);
     }
 }

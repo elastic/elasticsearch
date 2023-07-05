@@ -8,8 +8,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -406,5 +408,13 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.V_7_2_0;
+    }
+
+    @Override
+    public Query toHighlightQuery(String fieldName) {
+        if (this.fieldName.equals(fieldName)) {
+            return new TermQuery(new Term(fieldName, maybeConvertToString(value).toString()));
+        }
+        return super.toHighlightQuery(fieldName);
     }
 }

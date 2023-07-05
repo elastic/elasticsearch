@@ -16,7 +16,13 @@ import org.elasticsearch.internal.VersionExtension;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Represents the version of the wire protocol used to communicate between a pair of ES nodes.

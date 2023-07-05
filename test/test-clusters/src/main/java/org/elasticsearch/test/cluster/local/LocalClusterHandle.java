@@ -156,12 +156,12 @@ public class LocalClusterHandle implements ClusterHandle {
         waitUntilReady();
     }
 
-    public List<String> roleToName(String role) {
-       return nodes.stream().filter(n -> n.getSpec().hasRole(role)).map(LocalClusterFactory.Node::getName).collect(Collectors.toList());
+    public String getName(int index) {
+        return nodes.get(index).getName();
     }
 
-    public void stopNode(String name) {
-        nodes.stream().filter(node -> name.equals(node.getName())).forEach(node -> node.stop(false));
+    public void stopNode(int index) {
+        nodes.get(index).stop(false);
     }
 
     protected void waitUntilReady() {

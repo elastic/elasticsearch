@@ -110,13 +110,14 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             return;
         }
 
-        if (TransportVersionUtils.areAllTransformVersionsTheSame(state) == false) {
+        if (TransportVersionUtils.isMinTransformVersionSameAsCurrent(state) == false) {
             listener.onFailure(
                 ExceptionsHelper.conflictStatusException(
-                    "Cannot upgrade job [{}] snapshot [{}] as not all transport versions are {}. All transport versions must be the same",
+                    "Cannot upgrade job [{}] snapshot [{}] as not all transport versions are {}."
+                        + " All transport versions must be the same version",
                     request.getJobId(),
                     request.getSnapshotId(),
-                    TransportVersionUtils.getMaxTransportVersion(state).toString()
+                    TransportVersionUtils.getCurrentTransportVersion().toString()
                 )
             );
             return;

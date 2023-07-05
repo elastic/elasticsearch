@@ -111,7 +111,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             .orElseThrow(() -> new ElasticsearchException("Not found snapshot other than " + currentSnapshot));
 
         Exception ex = expectThrows(Exception.class, () -> upgradeJobSnapshot(JOB_ID, (String) snapshot.get("snapshot_id"), true));
-        assertThat(ex.getMessage(), containsString("All nodes must be the same version"));
+        assertThat(ex.getMessage(), containsString("must be the same version"));
     }
 
     @SuppressWarnings("unchecked")

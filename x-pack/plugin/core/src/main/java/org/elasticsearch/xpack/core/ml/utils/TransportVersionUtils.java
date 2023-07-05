@@ -10,22 +10,20 @@ package org.elasticsearch.xpack.core.ml.utils;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 
-import java.util.Comparator;
-
 public class TransportVersionUtils {
     private TransportVersionUtils() {}
-
-    public static TransportVersion getMaxTransportVersion(ClusterState state) {
-        return state.transportVersions().values().stream().max(Comparator.naturalOrder()).orElse(TransportVersion.current());
-    }
 
     public static TransportVersion getMinTransportVersion(ClusterState state) {
         return state.getMinTransportVersion();
     }
 
-    public static boolean areAllTransformVersionsTheSame(ClusterState state) {
+    public static TransportVersion getCurrentTransportVersion() {
+        return TransportVersion.current();
+    }
+
+    public static boolean isMinTransformVersionSameAsCurrent(ClusterState state) {
         TransportVersion minTransportVersion = getMinTransportVersion(state);
-        TransportVersion maxTransportVersion = getMaxTransportVersion(state);
-        return minTransportVersion.compareTo(maxTransportVersion) == 0;
+        TransportVersion currentTransformVersion = TransportVersion.current();
+        return minTransportVersion.compareTo(currentTransformVersion) == 0;
     }
 }

@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
@@ -81,7 +81,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
 
     // Resuming a job with a running datafeed from its current snapshot was added in 7.11 and
     // can only be done if the master node is on or after that version.
-    private static final TransportVersion MIN_MASTER_NODE_TRANSPORT_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT = TransportVersion.V_7_11_0;
+    private static final Version MIN_MASTER_NODE_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT = Version.V_7_11_0;
 
     public static String[] indicesOfInterest(String resultsIndex) {
         if (resultsIndex == null) {
@@ -304,8 +304,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         }
 
         ActionListener<String> getRunningDatafeedListener = ActionListener.wrap(runningDatafeedId -> {
-            if (runningDatafeedId != null
-                && isMasterNodeVersionOnOrAfter(MIN_MASTER_NODE_TRANSPORT_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT)) {
+            if (runningDatafeedId != null && isMasterNodeVersionOnOrAfter(MIN_MASTER_NODE_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT)) {
 
                 // This job has a running datafeed attached to it.
                 // In order to prevent gaps in the model we revert to the current snapshot deleting intervening results.
@@ -387,8 +386,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         getRunningDatafeed(jobId, getRunningDatafeedListener);
     }
 
-    private boolean isMasterNodeVersionOnOrAfter(TransportVersion version) {
-        return clusterState.transportVersions().get(clusterState.nodes().getMasterNodeId()).onOrAfter(version);
+    private boolean isMasterNodeVersionOnOrAfter(Version version) {
+        return clusterState.nodes().getMasterNode().getVersion().onOrAfter(version);
     }
 
     private void getRunningDatafeed(String jobId, ActionListener<String> listener) {
@@ -494,7 +493,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 assert jobPage.size() == 1;
 
                 String jobSnapshotId = jobPage.get(0).getModelSnapshotId();
-                if (jobSnapshotId == null && isMasterNodeVersionOnOrAfter(ResetJobAction.TRANSPORT_VERSION_INTRODUCED)) {
+                if (jobSnapshotId == null && isMasterNodeVersionOnOrAfter(ResetJobAction.VERSION_INTRODUCED)) {
                     logger.info("[{}] job has running datafeed task; resetting as no snapshot exists", jobTask.getJobId());
                     ResetJobAction.Request request = new ResetJobAction.Request(jobTask.getJobId());
                     request.setSkipJobStateValidation(true);

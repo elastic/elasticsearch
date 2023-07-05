@@ -96,12 +96,12 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         TransformNodes.warnIfNoTransformNodes(state);
 
         // do not allow in mixed clusters
-        if (TransportVersionUtils.areAllTransformVersionsTheSame(state) == false) {
+        if (TransportVersionUtils.isMinTransformVersionSameAsCurrent(state) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot upgrade transforms. All transport versions must be the same [{}]",
                     RestStatus.CONFLICT,
-                    TransportVersionUtils.getMaxTransportVersion(state).toString()
+                    TransportVersionUtils.getCurrentTransportVersion().toString()
                 )
             );
             return;

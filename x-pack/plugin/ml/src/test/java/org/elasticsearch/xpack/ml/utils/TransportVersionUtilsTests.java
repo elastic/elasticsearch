@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 
-import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -48,40 +47,12 @@ public class TransportVersionUtilsTests extends ESTestCase {
         assertThat(TransportVersionUtils.getMinTransportVersion(state), equalTo(TransportVersion.V_7_0_0));
     }
 
-    public void testGetMaxTransportVersion() {
-        assertThat(TransportVersionUtils.getMaxTransportVersion(state), equalTo(TransportVersion.V_8_500_003));
-
-        Map<String, TransportVersion> transportVersions1 = Collections.emptyMap();
-
-        ClusterState state1 = new ClusterState(
-            new ClusterName("george"),
-            0L,
-            "E3D1B079-9EA2-47B1-84F9-730038B25043",
-            null,
-            null,
-            null,
-            transportVersions1,
-            null,
-            null,
-            false,
-            null
-        );
-
-        assertThat(TransportVersionUtils.getMaxTransportVersion(state1), equalTo(TransportVersion.current()));
-    }
-
-    public void testAreAllTransformVersionsTheSame() {
-        assertThat(TransportVersionUtils.areAllTransformVersionsTheSame(state), equalTo(false));
+    public void testIsMinTransformVersionSameAsCurrent() {
+        assertThat(TransportVersionUtils.isMinTransformVersionSameAsCurrent(state), equalTo(false));
 
         Map<String, TransportVersion> transportVersions1 = Map.of(
-            "Alfredo",
-            TransportVersion.V_7_0_0,
-            "Bertram",
-            TransportVersion.V_7_0_0,
-            "Charles",
-            TransportVersion.V_7_0_0,
-            "Dominic",
-            TransportVersion.V_7_0_0
+            "Eugene",
+            TransportVersion.current()
         );
 
         ClusterState state1 = new ClusterState(
@@ -98,6 +69,6 @@ public class TransportVersionUtilsTests extends ESTestCase {
             null
         );
 
-        assertThat(TransportVersionUtils.areAllTransformVersionsTheSame(state1), equalTo(true));
+        assertThat(TransportVersionUtils.isMinTransformVersionSameAsCurrent(state1), equalTo(true));
     }
 }

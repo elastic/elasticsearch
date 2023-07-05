@@ -77,6 +77,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.query.PartialHitCountCollectorTests.NonCountingTermQuery;
 import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -434,8 +435,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
      */
     public void testTerminateAfterSize0NoHitCountShortcut() throws Exception {
         indexDocs();
-        BooleanQuery bq = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
-            .add(new TermQuery(new Term("foo", "baz")), Occur.SHOULD)
+        BooleanQuery bq = new BooleanQuery.Builder().add(new NonCountingTermQuery(new Term("foo", "bar")), Occur.SHOULD)
+            .add(new NonCountingTermQuery(new Term("foo", "baz")), Occur.SHOULD)
             .build();
         {
             TestSearchContext context = createContext(newContextSearcher(reader), bq);

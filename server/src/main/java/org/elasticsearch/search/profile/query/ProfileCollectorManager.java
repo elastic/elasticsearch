@@ -32,7 +32,8 @@ public final class ProfileCollectorManager<T> implements CollectorManager<Intern
     private final ProfileCollectorManager<?> topDocsSubCollectorManager;
     private final ProfileCollectorManager<?> aggsSubCollectorManager;
     // this is a bit of a hack: it allows us to retrieve the last collector that newCollector has returned for sub-collector managers,
-    // so that we can provide them to InternalProfileCollector's constructor as children.
+    // so that we can provide them to InternalProfileCollector's constructor as children. This is fine as newCollector does not get called
+    // concurrently, but rather in advance before parallelizing the collection
     private InternalProfileCollector profileCollector;
 
     private CollectorResult collectorTree;
@@ -49,6 +50,7 @@ public final class ProfileCollectorManager<T> implements CollectorManager<Intern
     ) {
         this.collectorManager = collectorManager;
         this.reason = reason;
+        assert aggsSubCollectorManager != null && topDocsSubCollectorManager == null : "top docs manager is null while aggs manager isn't";
         this.topDocsSubCollectorManager = topDocsSubCollectorManager;
         this.aggsSubCollectorManager = aggsSubCollectorManager;
     }

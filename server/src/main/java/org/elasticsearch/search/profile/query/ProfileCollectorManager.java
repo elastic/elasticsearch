@@ -27,13 +27,12 @@ import java.util.List;
  */
 public final class ProfileCollectorManager<T> implements CollectorManager<InternalProfileCollector, T> {
 
-    private final CollectorManager<Collector, T> collectorManager;
+    private final CollectorManager<? extends Collector, T> collectorManager;
     private final String reason;
     private final ProfileCollectorManager<?> topDocsSubCollectorManager;
     private final ProfileCollectorManager<?> aggsSubCollectorManager;
-    // this is a bit of a hack: it allows us to retrieve the last collector that newCollector has returned for sub collector managers,
+    // this is a bit of a hack: it allows us to retrieve the last collector that newCollector has returned for sub-collector managers,
     // so that we can provide them to InternalProfileCollector's constructor as children.
-    // We rely on the fact that newCollector is called by the coordinating thread before parallelizing execution across slices.
     private InternalProfileCollector profileCollector;
 
     private CollectorResult collectorTree;
@@ -42,14 +41,13 @@ public final class ProfileCollectorManager<T> implements CollectorManager<Intern
         this(collectorManager, reason, null, null);
     }
 
-    @SuppressWarnings("unchecked")
     public ProfileCollectorManager(
         CollectorManager<? extends Collector, T> collectorManager,
         String reason,
         ProfileCollectorManager<?> topDocsSubCollectorManager,
         ProfileCollectorManager<?> aggsSubCollectorManager
     ) {
-        this.collectorManager = (CollectorManager<Collector, T>) collectorManager;
+        this.collectorManager = collectorManager;
         this.reason = reason;
         this.topDocsSubCollectorManager = topDocsSubCollectorManager;
         this.aggsSubCollectorManager = aggsSubCollectorManager;
@@ -79,7 +77,9 @@ public final class ProfileCollectorManager<T> implements CollectorManager<Intern
     public T reduce(Collection<InternalProfileCollector> profileCollectors) throws IOException {
         assert profileCollectors.size() > 0 : "at least one collector expected";
         List<Collector> unwrapped = profileCollectors.stream().map(InternalProfileCollector::getWrappedCollector).toList();
-        T returnValue = collectorManager.reduce(unwrapped);
+        @SuppressWarnings("unchecked")
+        CollectorManager<Collector, T> cm = (CollectorManager<Collector, T>) collectorManager;
+        T returnValue = cm.reduce(unwrapped);
 
         List<CollectorResult> resultsPerProfiler = profileCollectors.stream().map(InternalProfileCollector::getCollectorTree).toList();
         long totalTime = resultsPerProfiler.stream().map(CollectorResult::getTime).reduce(0L, Long::sum);

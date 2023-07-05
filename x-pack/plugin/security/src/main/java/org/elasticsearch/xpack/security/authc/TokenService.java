@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -284,9 +283,25 @@ public final class TokenService {
         // tokens moved to a separate index in newer versions
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
         // the id of the created tokens ought be unguessable
-        final String accessToken = UUIDs.randomBase64UUID();
-        final String refreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
-        createOAuth2Tokens(accessToken, refreshToken, tokenVersion, tokensIndex, authentication, originatingClientAuth, metadata, listener);
+        final byte[] accessTokenBytes = new byte[16];
+        secureRandom.nextBytes(accessTokenBytes);
+        final byte[] refreshTokenBytes;
+        if (includeRefreshToken) {
+            refreshTokenBytes = new byte[16];
+            secureRandom.nextBytes(refreshTokenBytes);
+        } else {
+            refreshTokenBytes = null;
+        }
+        createOAuth2Tokens(
+            accessTokenBytes,
+            refreshTokenBytes,
+            tokenVersion,
+            tokensIndex,
+            authentication,
+            originatingClientAuth,
+            metadata,
+            listener
+        );
     }
 
     /**
@@ -296,8 +311,8 @@ public final class TokenService {
      */
     // public for testing
     public void createOAuth2Tokens(
-        String accessToken,
-        String refreshToken,
+        byte[] accessTokenBytes,
+        byte[] refreshTokenBytes,
         Authentication authentication,
         Authentication originatingClientAuth,
         Map<String, Object> metadata,
@@ -307,41 +322,50 @@ public final class TokenService {
         final TransportVersion tokenVersion = getTokenVersionCompatibility();
         // tokens moved to a separate index in newer versions
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
-        createOAuth2Tokens(accessToken, refreshToken, tokenVersion, tokensIndex, authentication, originatingClientAuth, metadata, listener);
+        createOAuth2Tokens(
+            accessTokenBytes,
+            refreshTokenBytes,
+            tokenVersion,
+            tokensIndex,
+            authentication,
+            originatingClientAuth,
+            metadata,
+            listener
+        );
     }
 
     /**
      * Create an access token and optionally a refresh token as well from predefined values, based on the provided authentication and
      * metadata.
      *
-     * @param accessToken The predefined seed value for the access token. This will then be
-     *                    <ul>
-     *                      <li> Encrypted before stored for versions before {@link #VERSION_TOKENS_INDEX_INTRODUCED} </li>
-     *                      <li> Hashed before stored for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED} </li>
-     *                      <li> Stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
-     *                      <li> Stored in a specific security tokens index for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
-     *                      <li> Prepended with a version ID and encoded with Base64 before returned to the caller of the APIs</li>
-     *                    </ul>
-     * @param refreshToken The predefined seed value for the access token. This will then be
-     *                    <ul>
-     *                      <li> Hashed before stored for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED} </li>
-     *                      <li> Stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
-     *                      <li> Stored in a specific security tokens index for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
-     *                      <li> Prepended with a version ID and encoded with Base64 before returned to the caller of the APIs for
-     *                      versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
-     *                    </ul>
-     * @param tokenVersion The version of the nodes with which these tokens will be compatible.
-     * @param tokensIndex The security tokens index
-     * @param authentication The authentication object representing the user for which the tokens are created
+     * @param accessTokenBytes      The predefined seed value for the access token. This will then be
+     *                              <ul>
+     *                                <li> Encrypted before stored for versions before {@link #VERSION_TOKENS_INDEX_INTRODUCED} </li>
+     *                                <li> Hashed before stored for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED} </li>
+     *                                <li> Stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                                <li> Stored in a specific security tokens index for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                                <li> Prepended with a version ID and encoded with Base64 before returned to the caller of the APIs</li>
+     *                              </ul>
+     * @param refreshTokenBytes     The predefined seed value for the access token. This will then be
+     *                              <ul>
+     *                                <li> Hashed before stored for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED} </li>
+     *                                <li> Stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                                <li> Stored in a specific security tokens index for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                                <li> Prepended with a version ID and encoded with Base64 before returned to the caller of the APIs for
+     *                                versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                              </ul>
+     * @param tokenVersion          The version of the nodes with which these tokens will be compatible.
+     * @param tokensIndex           The security tokens index
+     * @param authentication        The authentication object representing the user for which the tokens are created
      * @param originatingClientAuth The authentication object representing the client that called the related API
-     * @param metadata A map with metadata to be stored in the token document
-     * @param listener The listener to call upon completion with a {@link CreateTokenResult} containing the
-     *                 serialized access token, serialized refresh token and authentication for which the token is created
-     *                 as these will be returned to the client
+     * @param metadata              A map with metadata to be stored in the token document
+     * @param listener              The listener to call upon completion with a {@link CreateTokenResult} containing the
+     *                              serialized access token, serialized refresh token and authentication for which the token is created
+     *                              as these will be returned to the client
      */
     private void createOAuth2Tokens(
-        String accessToken,
-        String refreshToken,
+        byte[] accessTokenBytes,
+        byte[] refreshTokenBytes,
         TransportVersion tokenVersion,
         SecurityIndexManager tokensIndex,
         Authentication authentication,
@@ -349,9 +373,13 @@ public final class TokenService {
         Map<String, Object> metadata,
         ActionListener<CreateTokenResult> listener
     ) {
+        final String accessToken = Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes);
         assert accessToken.length() == TOKEN_LENGTH
             : "We assume token ids have a fixed length for nodes of a certain version."
                 + " When changing the token length, be careful that the inferences about its length still hold.";
+        final String refreshToken = refreshTokenBytes != null
+            ? Base64.getUrlEncoder().withoutPadding().encodeToString(refreshTokenBytes)
+            : null;
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(traceLog("create token", new IllegalArgumentException("authentication must be provided")));
@@ -1139,8 +1167,10 @@ public final class TokenService {
             Authentication authentication = parsedTokens.v1().getAuthentication();
             decryptAndReturnSupersedingTokens(refreshToken, refreshTokenStatus, refreshedTokenIndex, authentication, listener);
         } else {
-            final String newAccessTokenString = UUIDs.randomBase64UUID();
-            final String newRefreshTokenString = UUIDs.randomBase64UUID();
+            final byte[] newAccessTokenBytes = new byte[16];
+            secureRandom.nextBytes(newAccessTokenBytes);
+            final byte[] newRefreshTokenBytes = new byte[16];
+            secureRandom.nextBytes(newRefreshTokenBytes);
             final TransportVersion newTokenVersion = getTokenVersionCompatibility();
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);
@@ -1150,8 +1180,8 @@ public final class TokenService {
                     final byte[] iv = getRandomBytes(IV_BYTES);
                     final byte[] salt = getRandomBytes(SALT_BYTES);
                     String encryptedAccessAndRefreshToken = encryptSupersedingTokens(
-                        newAccessTokenString,
-                        newRefreshTokenString,
+                        newAccessTokenBytes,
+                        newRefreshTokenBytes,
                         refreshToken,
                         iv,
                         salt
@@ -1186,8 +1216,8 @@ public final class TokenService {
                             final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(source, null);
                             final UserToken toRefreshUserToken = parsedTokens.v1();
                             createOAuth2Tokens(
-                                newAccessTokenString,
-                                newRefreshTokenString,
+                                newAccessTokenBytes,
+                                newRefreshTokenBytes,
                                 newTokenVersion,
                                 getTokensIndexForVersion(newTokenVersion),
                                 toRefreshUserToken.getAuthentication(),
@@ -1403,13 +1433,15 @@ public final class TokenService {
      * and that we only need to store one field
      */
     String encryptSupersedingTokens(
-        String supersedingAccessToken,
-        String supersedingRefreshToken,
+        byte[] supersedingAccessTokenBytes,
+        byte[] supersedingRefreshTokenBytes,
         String refreshToken,
         byte[] iv,
         byte[] salt
     ) throws GeneralSecurityException {
         Cipher cipher = getEncryptionCipher(iv, refreshToken, salt);
+        final String supersedingAccessToken = Base64.getUrlEncoder().withoutPadding().encodeToString(supersedingAccessTokenBytes);
+        final String supersedingRefreshToken = Base64.getUrlEncoder().withoutPadding().encodeToString(supersedingRefreshTokenBytes);
         final String supersedingTokens = supersedingAccessToken + "|" + supersedingRefreshToken;
         return Base64.getEncoder().encodeToString(cipher.doFinal(supersedingTokens.getBytes(StandardCharsets.UTF_8)));
     }

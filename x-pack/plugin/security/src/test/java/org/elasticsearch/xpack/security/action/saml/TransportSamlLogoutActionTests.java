@@ -31,7 +31,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
@@ -79,6 +78,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
+import static org.elasticsearch.xpack.security.authc.TokenServiceTests.getNewTokenBytes;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -264,11 +264,11 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final Authentication authentication = Authentication.newRealmAuthentication(user, realmRef);
 
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
-        final String userTokenId = UUIDs.randomBase64UUID();
-        final String refreshToken = UUIDs.randomBase64UUID();
-        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetadata, future);
+        final byte[] userTokenBytes = getNewTokenBytes();
+        final byte[] refreshTokenBytes = getNewTokenBytes();
+        tokenService.createOAuth2Tokens(userTokenBytes, refreshTokenBytes, authentication, authentication, tokenMetadata, future);
         final String accessToken = future.actionGet().getAccessToken();
-        mockGetTokenFromId(tokenService, userTokenId, authentication, tokenMetadata, false, client);
+        mockGetTokenFromId(tokenService, userTokenBytes, authentication, tokenMetadata, false, client);
 
         final SamlLogoutRequest request = new SamlLogoutRequest();
         request.setToken(accessToken);

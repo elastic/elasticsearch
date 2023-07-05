@@ -33,7 +33,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -87,6 +86,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -97,6 +97,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
+import static org.elasticsearch.xpack.security.authc.TokenServiceTests.getNewTokenBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -314,18 +315,18 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     }
 
     public void testInvalidateCorrectTokensFromLogoutRequest() throws Exception {
-        final String userTokenId1 = UUIDs.randomBase64UUID();
-        final String refreshToken1 = UUIDs.randomBase64UUID();
-        final String userTokenId2 = UUIDs.randomBase64UUID();
-        final String refreshToken2 = UUIDs.randomBase64UUID();
+        final byte[] userTokenBytes1 = getNewTokenBytes();
+        final byte[] refreshTokenBytes1 = getNewTokenBytes();
+        final byte[] userTokenBytes2 = getNewTokenBytes();
+        final byte[] refreshTokenBytes2 = getNewTokenBytes();
         storeToken(logoutRequest.getNameId(), randomAlphaOfLength(10));
         final TokenService.CreateTokenResult tokenToInvalidate1 = storeToken(
-            userTokenId1,
-            refreshToken1,
+            userTokenBytes1,
+            refreshTokenBytes1,
             logoutRequest.getNameId(),
             logoutRequest.getSession()
         );
-        storeToken(userTokenId2, refreshToken2, logoutRequest.getNameId(), logoutRequest.getSession());
+        storeToken(userTokenBytes2, refreshTokenBytes2, logoutRequest.getNameId(), logoutRequest.getSession());
         storeToken(new SamlNameId(NameID.PERSISTENT, randomAlphaOfLength(16), null, null, null), logoutRequest.getSession());
 
         assertThat(indexRequests, hasSize(4));
@@ -405,22 +406,34 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(bulkRequests, hasSize(4)); // 4 updates (refresh-token + access-token)
         // Invalidate refresh token 1
         assertThat(bulkRequests.get(0).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(0).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId1)));
+        assertThat(
+            bulkRequests.get(0).requests().get(0).id(),
+            equalTo("token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes1)))
+        );
         UpdateRequest updateRequest1 = (UpdateRequest) bulkRequests.get(0).requests().get(0);
         assertThat(updateRequest1.toString().contains("refresh_token"), equalTo(true));
         // Invalidate access token 1
         assertThat(bulkRequests.get(1).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(1).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId1)));
+        assertThat(
+            bulkRequests.get(1).requests().get(0).id(),
+            equalTo("token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes1)))
+        );
         UpdateRequest updateRequest2 = (UpdateRequest) bulkRequests.get(1).requests().get(0);
         assertThat(updateRequest2.toString().contains("access_token"), equalTo(true));
         // Invalidate refresh token 2
         assertThat(bulkRequests.get(2).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(2).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId2)));
+        assertThat(
+            bulkRequests.get(2).requests().get(0).id(),
+            equalTo("token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes2)))
+        );
         UpdateRequest updateRequest3 = (UpdateRequest) bulkRequests.get(2).requests().get(0);
         assertThat(updateRequest3.toString().contains("refresh_token"), equalTo(true));
         // Invalidate access token 2
         assertThat(bulkRequests.get(3).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(3).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId2)));
+        assertThat(
+            bulkRequests.get(3).requests().get(0).id(),
+            equalTo("token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes2)))
+        );
         UpdateRequest updateRequest4 = (UpdateRequest) bulkRequests.get(3).requests().get(0);
         assertThat(updateRequest4.toString().contains("access_token"), equalTo(true));
     }
@@ -444,7 +457,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         };
     }
 
-    private TokenService.CreateTokenResult storeToken(String userTokenId, String refreshToken, SamlNameId nameId, String session) {
+    private TokenService.CreateTokenResult storeToken(byte[] userTokenBytes, byte[] refreshTokenBytes, SamlNameId nameId, String session) {
         Authentication authentication = AuthenticationTestHelper.builder()
             .realm()
             .user(new User("bob"))
@@ -452,14 +465,14 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             .build(false);
         final Map<String, Object> metadata = samlRealm.createTokenMetadata(nameId, session);
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
-        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, metadata, future);
+        tokenService.createOAuth2Tokens(userTokenBytes, refreshTokenBytes, authentication, authentication, metadata, future);
         return future.actionGet();
     }
 
     private TokenService.CreateTokenResult storeToken(SamlNameId nameId, String session) {
-        final String userTokenId = UUIDs.randomBase64UUID();
-        final String refreshToken = UUIDs.randomBase64UUID();
-        return storeToken(userTokenId, refreshToken, nameId, session);
+        final byte[] userTokenBytes = getNewTokenBytes();
+        final byte[] refreshTokenBytes = getNewTokenBytes();
+        return storeToken(userTokenBytes, refreshTokenBytes, nameId, session);
     }
 
     @SuppressWarnings("unchecked")

@@ -37,7 +37,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -195,23 +194,19 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public static Settings.Builder randomCompatibleVersionSettings() {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
-            Version createdVersion = getRandomCompatibleVersion();
-            builder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
+            IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion(random());
+            builder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion.id());
             if (randomBoolean()) {
                 builder.put(
                     IndexMetadata.SETTING_VERSION_COMPATIBILITY,
-                    VersionUtils.randomVersionBetween(random(), createdVersion, Version.CURRENT)
+                    IndexVersionUtils.randomVersionBetween(random(), createdVersion, IndexVersion.current()).id()
                 );
             }
         } else {
             builder.put(IndexMetadata.SETTING_VERSION_CREATED, randomFrom(Version.fromString("5.0.0"), Version.fromString("6.0.0")));
-            builder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, getRandomCompatibleVersion());
+            builder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersionUtils.randomCompatibleVersion(random()).id());
         }
         return builder;
-    }
-
-    private static Version getRandomCompatibleVersion() {
-        return VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
     }
 
     private static final JoinReason TEST_REASON = new JoinReason("test", null);

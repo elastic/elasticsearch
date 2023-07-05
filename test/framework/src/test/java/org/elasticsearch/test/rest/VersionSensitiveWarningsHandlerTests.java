@@ -14,38 +14,33 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase.VersionSensitiveWarningsHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
 public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
 
     public void testSameVersionCluster() throws IOException {
-        Set<Version> nodeVersions = new HashSet<>();
-        nodeVersions.add(Version.CURRENT);
-        WarningsHandler handler = expectVersionSpecificWarnings(nodeVersions, (v) -> { v.current("expectedCurrent1"); });
-        assertFalse(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1")));
-        assertTrue(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1", "unexpected")));
-        assertTrue(handler.warningsShouldFailRequest(Collections.emptyList()));
+        WarningsHandler handler = expectVersionSpecificWarnings(Set.of(Version.CURRENT), v -> v.current("expectedCurrent1"));
+        assertFalse(handler.warningsShouldFailRequest(List.of("expectedCurrent1")));
+        assertTrue(handler.warningsShouldFailRequest(List.of("expectedCurrent1", "unexpected")));
+        assertTrue(handler.warningsShouldFailRequest(List.of()));
 
     }
 
     public void testMixedVersionCluster() throws IOException {
-        Set<Version> nodeVersions = new HashSet<>();
-        nodeVersions.add(Version.CURRENT);
-        nodeVersions.add(Version.CURRENT.minimumIndexCompatibilityVersion());
-        WarningsHandler handler = expectVersionSpecificWarnings(nodeVersions, (v) -> {
+        WarningsHandler handler = expectVersionSpecificWarnings(Set.of(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+            v -> {
             v.current("expectedCurrent1");
             v.compatible("Expected legacy warning");
         });
-        assertFalse(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1")));
-        assertFalse(handler.warningsShouldFailRequest(Arrays.asList("Expected legacy warning")));
-        assertFalse(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1", "Expected legacy warning")));
-        assertTrue(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1", "Unexpected legacy warning")));
-        assertTrue(handler.warningsShouldFailRequest(Arrays.asList("Unexpected legacy warning")));
-        assertFalse(handler.warningsShouldFailRequest(Collections.emptyList()));
+        assertFalse(handler.warningsShouldFailRequest(List.of("expectedCurrent1")));
+        assertFalse(handler.warningsShouldFailRequest(List.of("Expected legacy warning")));
+        assertFalse(handler.warningsShouldFailRequest(List.of("expectedCurrent1", "Expected legacy warning")));
+        assertTrue(handler.warningsShouldFailRequest(List.of("expectedCurrent1", "Unexpected legacy warning")));
+        assertTrue(handler.warningsShouldFailRequest(List.of("Unexpected legacy warning")));
+        assertFalse(handler.warningsShouldFailRequest(List.of()));
     }
 
     private static WarningsHandler expectVersionSpecificWarnings(

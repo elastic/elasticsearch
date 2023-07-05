@@ -141,14 +141,18 @@ public class RemovePluginActionTests extends ESTestCase {
         assertRemoveCleaned(env);
     }
 
+    private static Version minimumCompatibleVersion(Version v) {
+        return Version.fromString((v.major - 1) + ".0.0");
+    }
+
     public void testRemoveOldVersion() throws Exception {
         Version previous = VersionUtils.getPreviousVersion();
-        if (previous.before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+        if (previous.before(minimumCompatibleVersion(Version.CURRENT))) {
             // Can happen when bumping majors: 8.0 is only compat back to 7.0, but that's not released yet
             // In this case, ignore what's released and just find that latest version before current
             previous = VersionUtils.allVersions().stream().filter(v -> v.before(Version.CURRENT)).max(Version::compareTo).get();
         }
-        createPlugin("fake", VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), previous));
+        createPlugin("fake", VersionUtils.randomVersionBetween(random(), minimumCompatibleVersion(Version.CURRENT), previous));
         removePlugin("fake", home, randomBoolean());
         assertThat(Files.exists(env.pluginsFile().resolve("fake")), equalTo(false));
         assertRemoveCleaned(env);

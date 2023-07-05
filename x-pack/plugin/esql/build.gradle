@@ -9,7 +9,9 @@ esplugin {
   extendedPlugins = ['x-pack-ql', 'lang-painless']
 }
 
-archivesBaseName = 'x-pack-esql'
+base {
+  archivesName = 'x-pack-esql'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

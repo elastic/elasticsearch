@@ -13,8 +13,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -44,14 +44,14 @@ import static org.junit.Assert.assertTrue;
  * - putting a composable template
  * - creating a data stream model
  */
-public class DLMFixtures {
+public class DataStreamLifecycleFixtures {
 
     static DataStream createDataStream(
         Metadata.Builder builder,
         String dataStreamName,
         int backingIndicesCount,
         Settings.Builder backingIndicesSettings,
-        @Nullable DataLifecycle lifecycle,
+        @Nullable DataStreamLifecycle lifecycle,
         Long now
     ) {
         final List<Index> backingIndices = new ArrayList<>();
@@ -79,7 +79,7 @@ public class DLMFixtures {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
@@ -97,47 +97,47 @@ public class DLMFixtures {
         assertTrue(client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 
-    static DataLifecycle randomLifecycle() {
-        return rarely() ? Template.NO_LIFECYCLE : new DataLifecycle(randomRetention(), randomDownsampling());
+    static DataStreamLifecycle randomLifecycle() {
+        return rarely() ? Template.NO_LIFECYCLE : new DataStreamLifecycle(randomRetention(), randomDownsampling());
     }
 
     @Nullable
-    private static DataLifecycle.Retention randomRetention() {
+    private static DataStreamLifecycle.Retention randomRetention() {
         return switch (randomInt(2)) {
             case 0 -> null;
-            case 1 -> DataLifecycle.Retention.NULL;
-            default -> new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+            case 1 -> DataStreamLifecycle.Retention.NULL;
+            default -> new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
         };
     }
 
     @Nullable
-    private static DataLifecycle.Downsampling randomDownsampling() {
+    private static DataStreamLifecycle.Downsampling randomDownsampling() {
         return switch (randomInt(2)) {
             case 0 -> null;
-            case 1 -> DataLifecycle.Downsampling.NULL;
+            case 1 -> DataStreamLifecycle.Downsampling.NULL;
             default -> {
                 var count = randomIntBetween(0, 10);
-                List<DataLifecycle.Downsampling.Round> rounds = new ArrayList<>();
-                var previous = new DataLifecycle.Downsampling.Round(
+                List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
+                var previous = new DataStreamLifecycle.Downsampling.Round(
                     TimeValue.timeValueDays(randomIntBetween(1, 365)),
                     new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
                 );
                 rounds.add(previous);
                 for (int i = 0; i < count; i++) {
-                    DataLifecycle.Downsampling.Round round = nextRound(previous);
+                    DataStreamLifecycle.Downsampling.Round round = nextRound(previous);
                     rounds.add(round);
                     previous = round;
                 }
-                yield new DataLifecycle.Downsampling(rounds);
+                yield new DataStreamLifecycle.Downsampling(rounds);
             }
         };
     }
 
-    private static DataLifecycle.Downsampling.Round nextRound(DataLifecycle.Downsampling.Round previous) {
+    private static DataStreamLifecycle.Downsampling.Round nextRound(DataStreamLifecycle.Downsampling.Round previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
         var fixedInterval = new DownsampleConfig(
             new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
         );
-        return new DataLifecycle.Downsampling.Round(after, fixedInterval);
+        return new DataStreamLifecycle.Downsampling.Round(after, fixedInterval);
     }
 }

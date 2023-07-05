@@ -19,13 +19,13 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DataLifecycleErrorStoreTests extends ESTestCase {
+public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
 
-    private DataLifecycleErrorStore errorStore;
+    private DataStreamLifecycleErrorStore errorStore;
 
     @Before
     public void setupServices() {
-        errorStore = new DataLifecycleErrorStore();
+        errorStore = new DataStreamLifecycleErrorStore();
     }
 
     public void testRecordAndRetrieveError() {

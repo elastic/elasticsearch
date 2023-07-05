@@ -13,8 +13,8 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -30,16 +30,16 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Collects the data streams from the cluster state, filters the ones that do not have a lifecycle configured and then returns
+ * Collects the data streams from the cluster state, filters the ones that do not have a data stream lifecycle configured and then returns
  * a list of the data stream name and respective lifecycle configuration.
  */
-public class TransportGetDataLifecycleAction extends TransportMasterNodeReadAction<
-    GetDataLifecycleAction.Request,
-    GetDataLifecycleAction.Response> {
+public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeReadAction<
+    GetDataStreamLifecycleAction.Request,
+    GetDataStreamLifecycleAction.Response> {
     private final ClusterSettings clusterSettings;
 
     @Inject
-    public TransportGetDataLifecycleAction(
+    public TransportGetDataStreamLifecycleAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -47,14 +47,14 @@ public class TransportGetDataLifecycleAction extends TransportMasterNodeReadActi
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            GetDataLifecycleAction.NAME,
+            GetDataStreamLifecycleAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            GetDataLifecycleAction.Request::new,
+            GetDataStreamLifecycleAction.Request::new,
             indexNameExpressionResolver,
-            GetDataLifecycleAction.Response::new,
+            GetDataStreamLifecycleAction.Response::new,
             ThreadPool.Names.SAME
         );
         clusterSettings = clusterService.getClusterSettings();
@@ -63,9 +63,9 @@ public class TransportGetDataLifecycleAction extends TransportMasterNodeReadActi
     @Override
     protected void masterOperation(
         Task task,
-        GetDataLifecycleAction.Request request,
+        GetDataStreamLifecycleAction.Request request,
         ClusterState state,
-        ActionListener<GetDataLifecycleAction.Response> listener
+        ActionListener<GetDataStreamLifecycleAction.Response> listener
     ) {
         List<String> results = DataStreamsActionUtil.getDataStreamNames(
             indexNameExpressionResolver,
@@ -76,27 +76,27 @@ public class TransportGetDataLifecycleAction extends TransportMasterNodeReadActi
         Map<String, DataStream> dataStreams = state.metadata().dataStreams();
 
         listener.onResponse(
-            new GetDataLifecycleAction.Response(
+            new GetDataStreamLifecycleAction.Response(
                 results.stream()
                     .map(dataStreams::get)
                     .filter(Objects::nonNull)
                     .map(
-                        dataStream -> new GetDataLifecycleAction.Response.DataStreamLifecycle(
+                        dataStream -> new GetDataStreamLifecycleAction.Response.DataStreamLifecycle(
                             dataStream.getName(),
                             dataStream.getLifecycle()
                         )
                     )
-                    .sorted(Comparator.comparing(GetDataLifecycleAction.Response.DataStreamLifecycle::dataStreamName))
+                    .sorted(Comparator.comparing(GetDataStreamLifecycleAction.Response.DataStreamLifecycle::dataStreamName))
                     .toList(),
-                request.includeDefaults() && DataLifecycle.isEnabled()
-                    ? clusterSettings.get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
+                request.includeDefaults() && DataStreamLifecycle.isEnabled()
+                    ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
                     : null
             )
         );
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetDataLifecycleAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetDataStreamLifecycleAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

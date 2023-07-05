@@ -18,11 +18,11 @@ import java.util.concurrent.ConcurrentMap;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 /**
- * Provides a store for the errors DLM encounters.
+ * Provides a store for the errors the data stream lifecycle encounters.
  * It offers the functionality to record, retrieve, and clear errors for a specified target.
  * This class is thread safe.
  */
-public class DataLifecycleErrorStore {
+public class DataStreamLifecycleErrorStore {
 
     private final ConcurrentMap<String, String> indexNameToError = new ConcurrentHashMap<>();
 
@@ -52,7 +52,7 @@ public class DataLifecycleErrorStore {
     }
 
     /**
-     * Retrieves the recorderd error for the provided index.
+     * Retrieves the recorded error for the provided index.
      */
     @Nullable
     public String getError(String indexName) {

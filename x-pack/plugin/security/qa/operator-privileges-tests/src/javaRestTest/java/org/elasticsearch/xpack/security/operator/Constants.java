@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.util.Objects;
@@ -377,7 +377,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/analytics",
         "cluster:monitor/xpack/usage/archive",
         "cluster:monitor/xpack/usage/ccr",
-        DataLifecycle.isEnabled() ? "cluster:monitor/xpack/usage/data_lifecycle" : null,
+        DataStreamLifecycle.isEnabled() ? "cluster:monitor/xpack/usage/data_lifecycle" : null,
         "cluster:monitor/xpack/usage/data_streams",
         "cluster:monitor/xpack/usage/data_tiers",
         "cluster:monitor/xpack/usage/enrich",
@@ -422,10 +422,10 @@ public class Constants {
         "indices:admin/data_stream/migrate",
         "indices:admin/data_stream/modify",
         "indices:admin/data_stream/promote",
-        DataLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/delete" : null,
-        DataLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/get" : null,
-        DataLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/put" : null,
-        DataLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/explain" : null,
+        DataStreamLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/delete" : null,
+        DataStreamLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/get" : null,
+        DataStreamLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/put" : null,
+        DataStreamLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/explain" : null,
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",

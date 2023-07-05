@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -45,7 +45,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.core.action.XPackUsageFeatureAction.DATA_LIFECYCLE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
+public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
     /*
      * The DataLifecycleUsageTransportAction is not exposed in the xpack core plugin, so we have a special test plugin to do this
      */
@@ -63,7 +63,9 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
             clusterStateBuilder.metadata(metadataBuilder);
             return clusterStateBuilder.build();
         });
-        updateClusterSettings(Settings.builder().put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), (String) null));
+        updateClusterSettings(
+            Settings.builder().put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), (String) null)
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -75,7 +77,9 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
         AtomicLong maxRetention = new AtomicLong(Long.MIN_VALUE);
         boolean useDefaultRolloverConfig = randomBoolean();
         if (useDefaultRolloverConfig == false) {
-            updateClusterSettings(Settings.builder().put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=33"));
+            updateClusterSettings(
+                Settings.builder().put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=33")
+            );
         }
         /*
          * We now add a number of simulated data streams to the cluster state. Some have lifecycles, some don't. The ones with lifecycles
@@ -116,7 +120,7 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     systemDataStream,
                     randomBoolean(),
                     IndexMode.STANDARD,
-                    hasLifecycle ? new DataLifecycle(retentionMillis) : null
+                    hasLifecycle ? new DataStreamLifecycle(retentionMillis) : null
                 );
                 dataStreamMap.put(dataStream.getName(), dataStream);
             }

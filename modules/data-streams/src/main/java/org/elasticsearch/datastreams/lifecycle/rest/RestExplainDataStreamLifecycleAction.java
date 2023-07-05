@@ -11,7 +11,7 @@ package org.elasticsearch.datastreams.lifecycle.rest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.datastreams.lifecycle.action.ExplainDataLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -23,11 +23,11 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestExplainDataLifecycleAction extends BaseRestHandler {
+public class RestExplainDataStreamLifecycleAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "dlm_explain_action";
+        return "data_stream_lifecycle_explain_action";
     }
 
     @Override
@@ -38,14 +38,18 @@ public class RestExplainDataLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(restRequest.param("index"));
-        ExplainDataLifecycleAction.Request explainRequest = new ExplainDataLifecycleAction.Request(indices);
+        ExplainDataStreamLifecycleAction.Request explainRequest = new ExplainDataStreamLifecycleAction.Request(indices);
         explainRequest.includeDefaults(restRequest.paramAsBoolean("include_defaults", false));
         explainRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
         String masterNodeTimeout = restRequest.param("master_timeout");
         if (masterNodeTimeout != null) {
             explainRequest.masterNodeTimeout(masterNodeTimeout);
         }
-        return channel -> client.execute(ExplainDataLifecycleAction.INSTANCE, explainRequest, new RestChunkedToXContentListener<>(channel));
+        return channel -> client.execute(
+            ExplainDataStreamLifecycleAction.INSTANCE,
+            explainRequest,
+            new RestChunkedToXContentListener<>(channel)
+        );
     }
 
     @Override

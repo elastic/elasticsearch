@@ -24,7 +24,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class CrudDataLifecycleSystemDataStreamIT extends ESIntegTestCase {
+public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -88,7 +88,7 @@ public class CrudDataLifecycleSystemDataStreamIT extends ESIntegTestCase {
                 assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
             }
 
-            // Data lifecycle of hidden data streams is not retrieved by default
+            // data stream lifecycle of hidden data streams is not retrieved by default
             {
                 Request listAllVisibleRequest = new Request("GET", "/_data_stream/*/_lifecycle");
                 Response listAllVisibleResponse = restClient.performRequest(listAllVisibleRequest);
@@ -102,7 +102,7 @@ public class CrudDataLifecycleSystemDataStreamIT extends ESIntegTestCase {
                 assertThat(visibleDataStreams.size(), is(0));
             }
 
-            // Data lifecycle of hidden data streams is retrieved when enabled - no header needed
+            // data stream lifecycle of hidden data streams is retrieved when enabled - no header needed
             {
                 Request listAllRequest = new Request("GET", "/_data_stream/*/_lifecycle");
                 listAllRequest.addParameter("expand_wildcards", "open,hidden");
@@ -201,7 +201,7 @@ public class CrudDataLifecycleSystemDataStreamIT extends ESIntegTestCase {
                         Type.EXTERNAL,
                         new ComposableIndexTemplate(
                             List.of(".test-data-stream"),
-                            new Template(Settings.EMPTY, mappings, null, new DataLifecycle(randomMillisUpToYear9999())),
+                            new Template(Settings.EMPTY, mappings, null, new DataStreamLifecycle(randomMillisUpToYear9999())),
                             null,
                             null,
                             null,
@@ -220,12 +220,12 @@ public class CrudDataLifecycleSystemDataStreamIT extends ESIntegTestCase {
 
         @Override
         public String getFeatureName() {
-            return CrudDataLifecycleSystemDataStreamIT.class.getSimpleName();
+            return CrudSystemDataStreamLifecycleIT.class.getSimpleName();
         }
 
         @Override
         public String getFeatureDescription() {
-            return "Integration testing of modifying the data lifecycle of system data streams";
+            return "Integration testing of modifying the data stream lifecycle of system data streams";
         }
 
         @Override

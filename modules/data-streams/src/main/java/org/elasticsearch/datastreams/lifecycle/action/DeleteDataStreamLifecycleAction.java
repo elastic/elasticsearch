@@ -22,14 +22,14 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Removes the data lifecycle configuration from the requested data streams.
+ * Removes the data stream lifecycle configuration from the requested data streams.
  */
-public class DeleteDataLifecycleAction extends ActionType<AcknowledgedResponse> {
+public class DeleteDataStreamLifecycleAction extends ActionType<AcknowledgedResponse> {
 
-    public static final DeleteDataLifecycleAction INSTANCE = new DeleteDataLifecycleAction();
+    public static final DeleteDataStreamLifecycleAction INSTANCE = new DeleteDataStreamLifecycleAction();
     public static final String NAME = "indices:admin/data_stream/lifecycle/delete";
 
-    private DeleteDataLifecycleAction() {
+    private DeleteDataStreamLifecycleAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 

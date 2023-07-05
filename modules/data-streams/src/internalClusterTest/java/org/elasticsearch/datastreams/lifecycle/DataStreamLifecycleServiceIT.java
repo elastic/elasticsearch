@@ -29,9 +29,9 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,7 +42,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -66,10 +66,10 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ_ONLY;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
-import static org.elasticsearch.datastreams.lifecycle.DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING;
-import static org.elasticsearch.datastreams.lifecycle.DataLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING;
-import static org.elasticsearch.datastreams.lifecycle.DataLifecycleService.ONE_HUNDRED_MB;
-import static org.elasticsearch.datastreams.lifecycle.DataLifecycleService.TARGET_MERGE_FACTOR_VALUE;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.ONE_HUNDRED_MB;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
@@ -79,8 +79,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class DataLifecycleServiceIT extends ESIntegTestCase {
-    private static final Logger logger = LogManager.getLogger(DataLifecycleServiceIT.class);
+public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
+    private static final Logger logger = LogManager.getLogger(DataStreamLifecycleServiceIT.class);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -94,8 +94,8 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        settings.put(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
-        settings.put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
+        settings.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
+        settings.put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         return settings.build();
     }
 
@@ -107,7 +107,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
 
     public void testRolloverLifecycle() throws Exception {
         // empty lifecycle contains the default rollover
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
         String dataStreamName = "metrics-foo";
@@ -132,7 +132,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testRolloverAndRetention() throws Exception {
-        DataLifecycle lifecycle = new DataLifecycle(TimeValue.timeValueMillis(0));
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle(TimeValue.timeValueMillis(0));
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
 
@@ -151,7 +151,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
             assertThat(backingIndices.size(), equalTo(1));
             // we expect the data stream to have only one backing index, the write one, with generation 2
-            // as generation 1 would've been deleted by DLM given the lifecycle configuration
+            // as generation 1 would've been deleted by the data stream lifecycle given the configuration
             String writeIndex = backingIndices.get(0).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
         });
@@ -160,10 +160,10 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     public void testOriginationDate() throws Exception {
         /*
          * In this test, we set up a datastream with 7 day retention. Then we add two indices to it -- one with an origination date 365
-         * days ago, and one with an origination date 1 day ago. After DLM runs, we expect the one with the old origination date to have
-         * been deleted, and the one with the newer origination date to remain.
+         * days ago, and one with an origination date 1 day ago. After data stream lifecycle runs, we expect the one with the old
+         * origination date to have been deleted, and the one with the newer origination date to remain.
          */
-        DataLifecycle lifecycle = new DataLifecycle(TimeValue.timeValueDays(7).millis());
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle(TimeValue.timeValueDays(7).millis());
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
 
@@ -226,7 +226,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testUpdatingLifecycleAppliesToAllBackingIndices() throws Exception {
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
 
@@ -270,15 +270,15 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
 
     public void testAutomaticForceMerge() throws Exception {
         /*
-         * This test makes sure that (1) DLM does _not_ call forcemerge on an index in the same DLM pass when it rolls over the index and
-         * that (2) it _does_ call forcemerge on an index that was rolled over in a previous DLM pass.
-         * It's harder than you would think to detect through the REST API that forcemerge has been called. The reason is that segment
-         * merging happens automatically during indexing, and when forcemerge is called it likely does nothing because all nececssary
-         * merging has already happened automatically. So in order to detect whether forcemerge has been called, we use a
-         * SendRequestBehavior in the MockTransportService to detect it.
+         * This test makes sure that (1) data stream lifecycle does _not_ call forcemerge on an index in the same data stream lifecycle
+         * pass when it rolls over the index and that (2) it _does_ call forcemerge on an index that was rolled over in a previous data
+         * stream lifecycle pass. It's harder than you would think to detect through the REST API that forcemerge has been called. The
+         * reason is that segment merging happens automatically during indexing, and when forcemerge is called it likely does nothing
+         * because all necessary merging has already happened automatically. So in order to detect whether forcemerge has been called, we
+         * use a SendRequestBehavior in the MockTransportService to detect it.
          */
-        DataLifecycle lifecycle = new DataLifecycle();
-        disableDLM();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        disableDataStreamLifecycle();
         String dataStreamName = "metrics-foo";
         putComposableIndexTemplate(
             "id1",
@@ -315,7 +315,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         int finalGeneration = randomIntBetween(2, 10);
         for (int currentGeneration = 1; currentGeneration < finalGeneration; currentGeneration++) {
-            // This is currently the write index, but it will be rolled over as soon as DLM runs:
+            // This is currently the write index, but it will be rolled over as soon as data stream lifecycle runs:
             final String toBeRolledOverIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration);
             for (int i = 0; i < randomIntBetween(10, 50); i++) {
                 indexDocs(dataStreamName, randomIntBetween(1, 300));
@@ -331,13 +331,13 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                 toBeForceMergedIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration - 1);
             }
             int currentBackingIndexCount = currentGeneration;
-            DataLifecycleService dataLifecycleService = internalCluster().getInstance(
-                DataLifecycleService.class,
+            DataStreamLifecycleService dataStreamLifecycleService = internalCluster().getInstance(
+                DataStreamLifecycleService.class,
                 internalCluster().getMasterName()
             );
             ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
-            // run DLM once
-            dataLifecycleService.run(clusterService.state());
+            // run data stream lifecycle once
+            dataStreamLifecycleService.run(clusterService.state());
             assertBusy(() -> {
                 GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
                 GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -350,8 +350,8 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                 String writeIndex = dataStream.getWriteIndex().getName();
                 assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
                 /*
-                 * We only expect forcemerge to happen on the 2nd DLM run and later, since on the first there's only the single write
-                 * index to be rolled over.
+                 * We only expect forcemerge to happen on the 2nd data stream lifecycle run and later, since on the first there's only the
+                 *  single write index to be rolled over.
                  */
                 if (currentBackingIndexCount > 1) {
                     assertThat(
@@ -360,7 +360,8 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                         equalTo(true)
                     );
                 }
-                // We want to assert that when DLM rolls over the write index it, it doesn't forcemerge it on that iteration:
+                // We want to assert that when data stream lifecycle rolls over the write index it, it doesn't forcemerge it on that
+                // iteration:
                 assertThat(
                     "The segments for " + toBeRolledOverIndex + " were unexpectedly merged",
                     forceMergedIndices.contains(toBeRolledOverIndex),
@@ -370,16 +371,17 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         }
     }
 
-    private static void disableDLM() {
-        updateClusterSettings(Settings.builder().put(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, TimeValue.MAX_VALUE));
+    private static void disableDataStreamLifecycle() {
+        updateClusterSettings(Settings.builder().put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, TimeValue.MAX_VALUE));
     }
 
     public void testErrorRecordingOnRollover() throws Exception {
         // empty lifecycle contains the default rollover
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         /*
          * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
-         * could result in DLM's automatic forcemerge failing, which would result in an unexpected error in the error store.
+         * could result in data stream lifecycle's automatic forcemerge failing, which would result in an unexpected error in the error
+         * store.
          */
         putComposableIndexTemplate(
             "id1",
@@ -389,7 +391,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             null,
             lifecycle
         );
-        Iterable<DataLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
+        Iterable<DataStreamLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
@@ -420,9 +422,9 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         assertBusy(() -> {
             String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
             String writeIndexRolloverError = null;
-            Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
+            Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
-            for (DataLifecycleService lifecycleService : lifecycleServices) {
+            for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
                 writeIndexRolloverError = lifecycleService.getErrorStore().getError(writeIndexName);
                 if (writeIndexRolloverError != null) {
                     break;
@@ -451,9 +453,9 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             // we recorded the error against the previous write index (generation 2)
             // let's check there's no error recorded against it anymore
             String previousWriteInddex = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
-            Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
+            Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
-            for (DataLifecycleService lifecycleService : lifecycleServices) {
+            for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
                 assertThat(lifecycleService.getErrorStore().getError(previousWriteInddex), nullValue());
             }
         });
@@ -462,11 +464,12 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     public void testErrorRecordingOnRetention() throws Exception {
         // starting with a lifecycle without retention so we can rollover the data stream and manipulate the second generation index such
         // that its retention execution fails
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
         /*
          * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
-         * could result in DLM's automatic forcemerge failing, which would result in an unexpected error in the error store.
+         * could result in data stream lifecycle's automatic forcemerge failing, which would result in an unexpected error in the error
+         * store.
          */
         putComposableIndexTemplate(
             "id1",
@@ -476,7 +479,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             null,
             lifecycle
         );
-        Iterable<DataLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
+        Iterable<DataStreamLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
@@ -517,9 +520,9 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                 assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
 
                 String recordedRetentionExecutionError = null;
-                Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
+                Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
-                for (DataLifecycleService lifecycleService : lifecycleServices) {
+                for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
                     recordedRetentionExecutionError = lifecycleService.getErrorStore().getError(firstGenerationIndex);
                     if (recordedRetentionExecutionError != null) {
                         break;
@@ -544,8 +547,8 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                 assertThat(backingIndices.size(), equalTo(1));
 
                 // error stores don't contain anything for the first generation index anymore
-                Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
-                for (DataLifecycleService lifecycleService : lifecycleServices) {
+                Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
+                for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
                     assertThat(lifecycleService.getErrorStore().getError(firstGenerationIndex), nullValue());
                 }
             });
@@ -561,7 +564,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testDataLifecycleServiceConfiguresTheMergePolicy() throws Exception {
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
         putComposableIndexTemplate(
             "id1",
@@ -615,7 +618,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             );
         });
 
-        // let's configure the data lifecycle service to configure a different merge policy for indices
+        // let's configure the data stream lifecycle service to configure a different merge policy for indices
         updateClusterSettings(
             Settings.builder()
                 .put(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.getKey(), 5)
@@ -662,7 +665,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
@@ -681,11 +684,11 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     }
 
     static void updateLifecycle(String dataStreamName, TimeValue dataRetention) {
-        PutDataLifecycleAction.Request putDataLifecycleRequest = new PutDataLifecycleAction.Request(
+        PutDataStreamLifecycleAction.Request putDataLifecycleRequest = new PutDataStreamLifecycleAction.Request(
             new String[] { dataStreamName },
             dataRetention
         );
-        AcknowledgedResponse putDataLifecycleResponse = client().execute(PutDataLifecycleAction.INSTANCE, putDataLifecycleRequest)
+        AcknowledgedResponse putDataLifecycleResponse = client().execute(PutDataStreamLifecycleAction.INSTANCE, putDataLifecycleRequest)
             .actionGet();
         assertThat(putDataLifecycleResponse.isAcknowledged(), equalTo(true));
     }

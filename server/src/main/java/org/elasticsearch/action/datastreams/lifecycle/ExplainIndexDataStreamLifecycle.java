@@ -6,10 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.dlm;
+package org.elasticsearch.action.datastreams.lifecycle;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,9 +24,9 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * Encapsulates the information that describes an index from its DLM lifecycle perspective.
+ * Encapsulates the information that describes an index from its data stream lifecycle perspective.
  */
-public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
+public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObject {
     private static final ParseField INDEX_FIELD = new ParseField("index");
     private static final ParseField MANAGED_BY_LIFECYCLE_FIELD = new ParseField("managed_by_lifecycle");
     private static final ParseField INDEX_CREATION_DATE_MILLIS_FIELD = new ParseField("index_creation_date_millis");
@@ -40,7 +40,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
     private static final ParseField ERROR_FIELD = new ParseField("error");
 
     private final String index;
-    private final boolean managedByDLM;
+    private final boolean managedByLifecycle;
     @Nullable
     private final Long indexCreationDate;
     @Nullable
@@ -48,22 +48,22 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
     @Nullable
     private final Long generationDateMillis;
     @Nullable
-    private final DataLifecycle lifecycle;
+    private final DataStreamLifecycle lifecycle;
     @Nullable
     private final String error;
     private Supplier<Long> nowSupplier = System::currentTimeMillis;
 
-    public ExplainIndexDataLifecycle(
+    public ExplainIndexDataStreamLifecycle(
         String index,
-        boolean managedByDLM,
+        boolean managedByLifecycle,
         @Nullable Long indexCreationDate,
         @Nullable Long rolloverDate,
         @Nullable TimeValue generationDate,
-        @Nullable DataLifecycle lifecycle,
+        @Nullable DataStreamLifecycle lifecycle,
         @Nullable String error
     ) {
         this.index = index;
-        this.managedByDLM = managedByDLM;
+        this.managedByLifecycle = managedByLifecycle;
         this.indexCreationDate = indexCreationDate;
         this.rolloverDate = rolloverDate;
         this.generationDateMillis = generationDate == null ? null : generationDate.millis();
@@ -71,14 +71,14 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         this.error = error;
     }
 
-    public ExplainIndexDataLifecycle(StreamInput in) throws IOException {
+    public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
         this.index = in.readString();
-        this.managedByDLM = in.readBoolean();
-        if (managedByDLM) {
+        this.managedByLifecycle = in.readBoolean();
+        if (managedByLifecycle) {
             this.indexCreationDate = in.readOptionalLong();
             this.rolloverDate = in.readOptionalLong();
             this.generationDateMillis = in.readOptionalLong();
-            this.lifecycle = in.readOptionalWriteable(DataLifecycle::new);
+            this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
             this.error = in.readOptionalString();
         } else {
             this.indexCreationDate = null;
@@ -98,8 +98,8 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         throws IOException {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), index);
-        builder.field(MANAGED_BY_LIFECYCLE_FIELD.getPreferredName(), managedByDLM);
-        if (managedByDLM) {
+        builder.field(MANAGED_BY_LIFECYCLE_FIELD.getPreferredName(), managedByLifecycle);
+        if (managedByLifecycle) {
             if (indexCreationDate != null) {
                 builder.timeField(
                     INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(),
@@ -133,8 +133,8 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        out.writeBoolean(managedByDLM);
-        if (managedByDLM) {
+        out.writeBoolean(managedByLifecycle);
+        if (managedByLifecycle) {
             out.writeOptionalLong(indexCreationDate);
             out.writeOptionalLong(rolloverDate);
             out.writeOptionalLong(generationDateMillis);
@@ -186,8 +186,8 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         return index;
     }
 
-    public boolean isManagedByDLM() {
-        return managedByDLM;
+    public boolean isManagedByLifecycle() {
+        return managedByLifecycle;
     }
 
     public Long getIndexCreationDate() {
@@ -198,7 +198,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         return rolloverDate;
     }
 
-    public DataLifecycle getLifecycle() {
+    public DataStreamLifecycle getLifecycle() {
         return lifecycle;
     }
 
@@ -219,8 +219,8 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        ExplainIndexDataLifecycle that = (ExplainIndexDataLifecycle) o;
-        return managedByDLM == that.managedByDLM
+        ExplainIndexDataStreamLifecycle that = (ExplainIndexDataStreamLifecycle) o;
+        return managedByLifecycle == that.managedByLifecycle
             && Objects.equals(index, that.index)
             && Objects.equals(indexCreationDate, that.indexCreationDate)
             && Objects.equals(rolloverDate, that.rolloverDate)
@@ -230,6 +230,6 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, managedByDLM, indexCreationDate, rolloverDate, lifecycle, error);
+        return Objects.hash(index, managedByLifecycle, indexCreationDate, rolloverDate, lifecycle, error);
     }
 }

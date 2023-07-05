@@ -27,15 +27,15 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 
 /**
- * Transport action that resolves the data stream names from the request and sets the data lifecycle provided in the request.
+ * Transport action that resolves the data stream names from the request and sets the data stream lifecycle provided in the request.
  */
-public class TransportPutDataLifecycleAction extends AcknowledgedTransportMasterNodeAction<PutDataLifecycleAction.Request> {
+public class TransportPutDataStreamLifecycleAction extends AcknowledgedTransportMasterNodeAction<PutDataStreamLifecycleAction.Request> {
 
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final SystemIndices systemIndices;
 
     @Inject
-    public TransportPutDataLifecycleAction(
+    public TransportPutDataStreamLifecycleAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -45,12 +45,12 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
         SystemIndices systemIndices
     ) {
         super(
-            PutDataLifecycleAction.NAME,
+            PutDataStreamLifecycleAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            PutDataLifecycleAction.Request::new,
+            PutDataStreamLifecycleAction.Request::new,
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
@@ -61,7 +61,7 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
     @Override
     protected void masterOperation(
         Task task,
-        PutDataLifecycleAction.Request request,
+        PutDataStreamLifecycleAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -84,7 +84,7 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutDataLifecycleAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutDataStreamLifecycleAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

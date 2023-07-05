@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -68,11 +68,11 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
- * This service will implement the needed actions (e.g. rollover, retention) to manage the data streams with a DLM lifecycle configured.
- * It runs on the master node and it schedules a job according to the configured
- * {@link DataLifecycleService#DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING}.
+ * This service will implement the needed actions (e.g. rollover, retention) to manage the data streams with a data stream lifecycle
+ * configured. It runs on the master node and it schedules a job according to the configured
+ * {@link DataStreamLifecycleService#DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING}.
  */
-public class DataLifecycleService implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
+public class DataStreamLifecycleService implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
 
     public static final String DATA_STREAM_LIFECYCLE_POLL_INTERVAL = "data_streams.lifecycle.poll_interval";
     public static final Setting<TimeValue> DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING = Setting.timeSetting(
@@ -101,13 +101,13 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         Setting.Property.NodeScope
     );
 
-    private static final Logger logger = LogManager.getLogger(DataLifecycleService.class);
+    private static final Logger logger = LogManager.getLogger(DataStreamLifecycleService.class);
     /**
-     * Name constant for the job DLM schedules
+     * Name constant for the job that schedules the data stream lifecycle
      */
     private static final String LIFECYCLE_JOB_NAME = "data_stream_lifecycle";
     /*
-     * This is the key for DLM-related custom index metadata.
+     * This is the key for data stream lifecycle related custom index metadata.
      */
     static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
     static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
@@ -118,7 +118,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
     private final LongSupplier nowSupplier;
     private final Clock clock;
-    private final DataLifecycleErrorStore errorStore;
+    private final DataStreamLifecycleErrorStore errorStore;
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
     private volatile RolloverConfiguration rolloverConfiguration;
@@ -142,14 +142,14 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             }
         };
 
-    public DataLifecycleService(
+    public DataStreamLifecycleService(
         Settings settings,
         Client client,
         ClusterService clusterService,
         Clock clock,
         ThreadPool threadPool,
         LongSupplier nowSupplier,
-        DataLifecycleErrorStore errorStore
+        DataStreamLifecycleErrorStore errorStore
     ) {
         this.settings = settings;
         this.client = client;
@@ -163,9 +163,10 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         this.targetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
         this.targetMergePolicyFactor = DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.get(settings);
-        this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
+        this.rolloverConfiguration = clusterService.getClusterSettings()
+            .get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         this.forceMergeClusterStateUpdateTaskQueue = clusterService.createTaskQueue(
-            "dlm-forcemerge-state-update",
+            "data-stream-lifecycle-forcemerge-state-update",
             Priority.LOW,
             FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR
         );
@@ -179,7 +180,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING, this::updatePollInterval);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
+            .addSettingsUpdateConsumer(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING, this::updateMergePolicyFactor);
         clusterService.getClusterSettings()
@@ -222,15 +223,20 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     public void triggered(SchedulerEngine.Event event) {
         if (event.getJobName().equals(LIFECYCLE_JOB_NAME)) {
             if (this.isMaster) {
-                logger.trace("DLM job triggered: {}, {}, {}", event.getJobName(), event.getScheduledTime(), event.getTriggeredTime());
+                logger.trace(
+                    "Data stream lifecycle job triggered: {}, {}, {}",
+                    event.getJobName(),
+                    event.getScheduledTime(),
+                    event.getTriggeredTime()
+                );
                 run(clusterService.state());
             }
         }
     }
 
     /**
-     * Iterates over the DLM managed data streams and executes the needed operations
-     * to satisfy the configured {@link DataLifecycle}.
+     * Iterates over the data stream lifecycle managed data streams and executes the needed operations
+     * to satisfy the configured {@link DataStreamLifecycle}.
      */
     // default visibility for testing purposes
     void run(ClusterState state) {
@@ -243,13 +249,16 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             /*
              * This is the pre-rollover write index. It may or may not be the write index after maybeExecuteRollover has executed, depending
              * on rollover criteria. We're keeping a reference to it because regardless of whether it's rolled over or not we want to
-             * exclude it from force merging later in this DLM run.
+             * exclude it from force merging later in this data stream lifecycle run.
              */
             Index currentRunWriteIndex = dataStream.getWriteIndex();
             try {
                 maybeExecuteRollover(state, dataStream);
             } catch (Exception e) {
-                logger.error(() -> String.format(Locale.ROOT, "DLM failed to rollver data stream [%s]", dataStream.getName()), e);
+                logger.error(
+                    () -> String.format(Locale.ROOT, "Data stream lifecycle failed to rollver data stream [%s]", dataStream.getName()),
+                    e
+                );
                 DataStream latestDataStream = clusterService.state().metadata().dataStreams().get(dataStream.getName());
                 if (latestDataStream != null) {
                     if (latestDataStream.getWriteIndex().getName().equals(currentRunWriteIndex.getName())) {
@@ -267,7 +276,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 // individual index errors would be reported via the API action listener for every delete call
                 // we could potentially record errors at a data stream level and expose it via the _data_stream API?
                 logger.error(
-                    () -> String.format(Locale.ROOT, "DLM failed to execute retention for data stream [%s]", dataStream.getName()),
+                    () -> String.format(
+                        Locale.ROOT,
+                        "Data stream lifecycle failed to execute retention for data stream [%s]",
+                        dataStream.getName()
+                    ),
                     e
                 );
             }
@@ -289,7 +302,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 maybeExecuteForceMerge(state, dataStream, potentialForceMergeIndices);
             } catch (Exception e) {
                 logger.error(
-                    () -> String.format(Locale.ROOT, "DLM failed to execute force merge for data stream [%s]", dataStream.getName()),
+                    () -> String.format(
+                        Locale.ROOT,
+                        "Data stream lifecycle failed to execute force merge for data stream [%s]",
+                        dataStream.getName()
+                    ),
                     e
                 );
             }
@@ -297,8 +314,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     /**
-     * This clears the error store for the case where a data stream or some backing indices were managed by DLM, failed in their
-     * lifecycle execution, and then they were not managed by DLM (maybe they were switched to ILM).
+     * This clears the error store for the case where a data stream or some backing indices were managed by data stream lifecycle, failed in
+     * their lifecycle execution, and then they were not managed by the data stream lifecycle (maybe they were switched to ILM).
      */
     private void clearErrorStoreForUnmanagedIndices(DataStream dataStream) {
         Metadata metadata = clusterService.state().metadata();
@@ -306,7 +323,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             IndexMetadata indexMeta = metadata.index(indexName);
             if (indexMeta == null) {
                 errorStore.clearRecordedError(indexName);
-            } else if (dataStream.isIndexManagedByDLM(indexMeta.getIndex(), metadata::index) == false) {
+            } else if (dataStream.isIndexManagedByDataStreamLifecycle(indexMeta.getIndex(), metadata::index) == false) {
                 errorStore.clearRecordedError(indexName);
             }
         }
@@ -314,7 +331,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
     private void maybeExecuteRollover(ClusterState state, DataStream dataStream) {
         Index writeIndex = dataStream.getWriteIndex();
-        if (dataStream.isIndexManagedByDLM(writeIndex, state.metadata()::index)) {
+        if (dataStream.isIndexManagedByDataStreamLifecycle(writeIndex, state.metadata()::index)) {
             RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                 rolloverConfiguration,
                 dataStream.getName(),
@@ -370,7 +387,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private void maybeExecuteForceMerge(ClusterState state, DataStream dataStream, List<Index> indices) {
         Metadata metadata = state.metadata();
         for (Index index : indices) {
-            if (dataStream.isIndexManagedByDLM(index, state.metadata()::index)) {
+            if (dataStream.isIndexManagedByDataStreamLifecycle(index, state.metadata()::index)) {
                 IndexMetadata backingIndex = metadata.index(index);
                 assert backingIndex != null : "the data stream backing indices must exist";
                 String indexName = index.getName();
@@ -415,7 +432,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private void rolloverDataStream(String writeIndexName, RolloverRequest rolloverRequest, ActionListener<Void> listener) {
         // "saving" the rollover target name here so we don't capture the entire request
         String rolloverTarget = rolloverRequest.getRolloverTarget();
-        logger.trace("DLM issues rollover request for data stream [{}]", rolloverTarget);
+        logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", rolloverTarget);
         client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
             @Override
             public void onResponse(RolloverResponse rolloverResponse) {
@@ -428,8 +445,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                         .map(Map.Entry::getKey)
                         .toList();
                     logger.info(
-                        "DLM successfully rolled over datastream [{}] due to the following met rollover conditions {}. The new index is "
-                            + "[{}]",
+                        "Data stream lifecycle successfully rolled over datastream [{}] due to the following met rollover "
+                            + "conditions {}. The new index is [{}]",
                         rolloverTarget,
                         metConditions,
                         rolloverResponse.getNewIndex()
@@ -440,13 +457,16 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(() -> Strings.format("DLM encountered an error trying to rollover data steam [%s]", rolloverTarget), e);
+                logger.error(
+                    () -> Strings.format("Data stream lifecycle encountered an error trying to rollover data steam [%s]", rolloverTarget),
+                    e
+                );
                 DataStream dataStream = clusterService.state().metadata().dataStreams().get(rolloverTarget);
                 if (dataStream == null || dataStream.getWriteIndex().getName().equals(writeIndexName) == false) {
                     // the data stream has another write index so no point in recording an error for the previous write index we were
                     // attempting to rollover
-                    // if there are persistent issues with rolling over this data stream, the next DLM run will attempt to rollover the
-                    // _current_ write index and the error problem should surface then
+                    // if there are persistent issues with rolling over this data stream, the next data stream lifecycle run will attempt to
+                    // rollover the _current_ write index and the error problem should surface then
                     listener.onResponse(null);
                 } else {
                     // the data stream has NOT been rolled over since we issued our rollover request, so let's record the
@@ -493,14 +513,19 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     private void deleteIndex(DeleteIndexRequest deleteIndexRequest, TimeValue retention, ActionListener<Void> listener) {
-        assert deleteIndexRequest.indices() != null && deleteIndexRequest.indices().length == 1 : "DLM deletes one index at a time";
+        assert deleteIndexRequest.indices() != null && deleteIndexRequest.indices().length == 1
+            : "Data stream lifecycle deletes one index at a time";
         // "saving" the index name here so we don't capture the entire request
         String targetIndex = deleteIndexRequest.indices()[0];
-        logger.trace("DLM issues request to delete index [{}]", targetIndex);
+        logger.trace("Data stream lifecycle issues request to delete index [{}]", targetIndex);
         client.admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                logger.info("DLM successfully deleted index [{}] due to the lapsed [{}] retention period", targetIndex, retention);
+                logger.info(
+                    "Data stream lifecycle successfully deleted index [{}] due to the lapsed [{}] retention period",
+                    targetIndex,
+                    retention
+                );
                 listener.onResponse(null);
             }
 
@@ -515,11 +540,15 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
                 if (e instanceof SnapshotInProgressException) {
                     logger.info(
-                        "DLM was unable to delete index [{}] because it's currently being snapshotted. Retrying on the next DLM run",
+                        "Data stream lifecycle was unable to delete index [{}] because it's currently being snapshot. Retrying on "
+                            + "the next data stream lifecycle run",
                         targetIndex
                     );
                 } else {
-                    logger.error(() -> Strings.format("DLM encountered an error trying to delete index [%s]", targetIndex), e);
+                    logger.error(
+                        () -> Strings.format("Data stream lifecycle encountered an error trying to delete index [%s]", targetIndex),
+                        e
+                    );
                 }
                 listener.onFailure(e);
             }
@@ -532,16 +561,17 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      * update has been made, or when the forcemerge fails or the write of the to the cluster state fails.
      */
     private void forceMergeIndex(ForceMergeRequest forceMergeRequest, ActionListener<Void> listener) {
-        assert forceMergeRequest.indices() != null && forceMergeRequest.indices().length == 1 : "DLM force merges one index at a time";
+        assert forceMergeRequest.indices() != null && forceMergeRequest.indices().length == 1
+            : "Data stream lifecycle force merges one index at a time";
         final String targetIndex = forceMergeRequest.indices()[0];
-        logger.info("DLM is issuing a request to force merge index [{}]", targetIndex);
+        logger.info("Data stream lifecycle is issuing a request to force merge index [{}]", targetIndex);
         client.admin().indices().forceMerge(forceMergeRequest, new ActionListener<>() {
             @Override
             public void onResponse(ForceMergeResponse forceMergeResponse) {
                 if (forceMergeResponse.getFailedShards() > 0) {
                     DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures();
                     String message = Strings.format(
-                        "DLM failed to forcemerge %d shards for index [%s] due to failures [%s]",
+                        "Data stream lifecycle failed to forcemerge %d shards for index [%s] due to failures [%s]",
                         forceMergeResponse.getFailedShards(),
                         targetIndex,
                         failures == null
@@ -557,7 +587,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                     );
                     onFailure(new ElasticsearchException(message));
                 } else {
-                    logger.info("DLM successfully force merged index [{}]", targetIndex);
+                    logger.info("Data stream lifecycle successfully force merged index [{}]", targetIndex);
                     setForceMergeCompletedTimestamp(targetIndex, listener);
                 }
             }
@@ -574,8 +604,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 if (previousError == null || previousError.equals(errorStore.getError(targetIndex)) == false) {
                     logger.warn(
                         () -> Strings.format(
-                            "DLM encountered an error trying to force merge index [%s]. DLM will attempt to force merge the index on its "
-                                + "next run.",
+                            "Data stream lifecycle encountered an error trying to force merge index [%s]. Data stream lifecycle will "
+                                + "attempt to force merge the index on its next run.",
                             targetIndex
                         ),
                         e
@@ -622,9 +652,9 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      */
     static class ErrorRecordingActionListener implements ActionListener<Void> {
         private final String targetIndex;
-        private final DataLifecycleErrorStore errorStore;
+        private final DataStreamLifecycleErrorStore errorStore;
 
-        ErrorRecordingActionListener(String targetIndex, DataLifecycleErrorStore errorStore) {
+        ErrorRecordingActionListener(String targetIndex, DataStreamLifecycleErrorStore errorStore) {
             this.targetIndex = targetIndex;
             this.errorStore = errorStore;
         }
@@ -686,7 +716,10 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
         // don't schedule the job if the node is shutting down
         if (isClusterServiceStoppedOrClosed()) {
-            logger.trace("Skipping scheduling a DLM job due to the cluster lifecycle state being: [{}] ", clusterService.lifecycleState());
+            logger.trace(
+                "Skipping scheduling a data stream lifecycle job due to the cluster lifecycle state being: [{}] ",
+                clusterService.lifecycleState()
+            );
             return;
         }
 
@@ -701,7 +734,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     // public visibility for testing
-    public DataLifecycleErrorStore getErrorStore() {
+    public DataStreamLifecycleErrorStore getErrorStore() {
         return errorStore;
     }
 
@@ -746,8 +779,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     /**
      * This wrapper exists only to provide equals and hashCode implementations of a ForceMergeRequest for transportActionsDeduplicator.
      * It intentionally ignores forceMergeUUID (which ForceMergeRequest's equals/hashCode would have to if they existed) because we don't
-     * care about it for DLM deduplication. This class is non-private for the sake of unit testing, but should not be used outside of
-     * DataLifecycleService.
+     * care about it for data stream lifecycle deduplication. This class is non-private for the sake of unit testing, but should not be used
+     * outside of Data Stream Lifecycle Service.
      */
     static final class ForceMergeRequestWrapper extends ForceMergeRequest {
         ForceMergeRequestWrapper(ForceMergeRequest original) {

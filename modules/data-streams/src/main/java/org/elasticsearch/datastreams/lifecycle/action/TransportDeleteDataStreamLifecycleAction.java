@@ -27,15 +27,16 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 
 /**
- * Transport action that resolves the data stream names from the request and removes any configured lifecycle from them.
+ * Transport action that resolves the data stream names from the request and removes any configured data stream lifecycle from them.
  */
-public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMasterNodeAction<DeleteDataLifecycleAction.Request> {
+public class TransportDeleteDataStreamLifecycleAction extends AcknowledgedTransportMasterNodeAction<
+    DeleteDataStreamLifecycleAction.Request> {
 
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final SystemIndices systemIndices;
 
     @Inject
-    public TransportDeleteDataLifecycleAction(
+    public TransportDeleteDataStreamLifecycleAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -45,12 +46,12 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
         SystemIndices systemIndices
     ) {
         super(
-            DeleteDataLifecycleAction.NAME,
+            DeleteDataStreamLifecycleAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            DeleteDataLifecycleAction.Request::new,
+            DeleteDataStreamLifecycleAction.Request::new,
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
@@ -61,7 +62,7 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
     @Override
     protected void masterOperation(
         Task task,
-        DeleteDataLifecycleAction.Request request,
+        DeleteDataStreamLifecycleAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -78,7 +79,7 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeleteDataLifecycleAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(DeleteDataStreamLifecycleAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

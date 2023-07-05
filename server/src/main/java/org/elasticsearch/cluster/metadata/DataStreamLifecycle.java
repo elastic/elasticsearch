@@ -38,12 +38,12 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Holds the Data Lifecycle Management metadata that are configuring how a data stream is managed. Currently, it supports the following
+ * Holds the data stream lifecycle metadata that are configuring how a data stream is managed. Currently, it supports the following
  * configurations:
  * - data retention
  * - downsampling
  */
-public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentObject {
+public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>, ToXContentObject {
 
     public static final Setting<RolloverConfiguration> CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING = new Setting<>(
         "cluster.lifecycle.default.rollover",
@@ -53,7 +53,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         Setting.Property.NodeScope
     );
 
-    private static final FeatureFlag DLM_FEATURE_FLAG = new FeatureFlag("dlm");
+    private static final FeatureFlag DATA_STREAM_LIFECYCLE_FEATURE_FLAG = new FeatureFlag("dlm");
 
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
@@ -61,10 +61,10 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     public static final ParseField DOWNSAMPLING_FIELD = new ParseField("downsampling");
     private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
 
-    public static final ConstructingObjectParser<DataLifecycle, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataStreamLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
-        (args, unused) -> new DataLifecycle((Retention) args[0], (Downsampling) args[1])
+        (args, unused) -> new DataStreamLifecycle((Retention) args[0], (Downsampling) args[1])
     );
 
     static {
@@ -86,7 +86,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     public static boolean isEnabled() {
-        return DLM_FEATURE_FLAG.isEnabled();
+        return DATA_STREAM_LIFECYCLE_FEATURE_FLAG.isEnabled();
     }
 
     @Nullable
@@ -94,20 +94,20 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     @Nullable
     private final Downsampling downsampling;
 
-    public DataLifecycle() {
+    public DataStreamLifecycle() {
         this((TimeValue) null);
     }
 
-    public DataLifecycle(@Nullable TimeValue dataRetention) {
+    public DataStreamLifecycle(@Nullable TimeValue dataRetention) {
         this(dataRetention == null ? null : new Retention(dataRetention), null);
     }
 
-    public DataLifecycle(@Nullable Retention dataRetention, @Nullable Downsampling downsampling) {
+    public DataStreamLifecycle(@Nullable Retention dataRetention, @Nullable Downsampling downsampling) {
         this.dataRetention = dataRetention;
         this.downsampling = downsampling;
     }
 
-    public DataLifecycle(long timeInMills) {
+    public DataStreamLifecycle(long timeInMills) {
         this(TimeValue.timeValueMillis(timeInMills));
     }
 
@@ -157,7 +157,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        final DataLifecycle that = (DataLifecycle) o;
+        final DataStreamLifecycle that = (DataStreamLifecycle) o;
         return Objects.equals(dataRetention, that.dataRetention) && Objects.equals(downsampling, that.downsampling);
     }
 
@@ -176,7 +176,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         }
     }
 
-    public DataLifecycle(StreamInput in) throws IOException {
+    public DataStreamLifecycle(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
             dataRetention = in.readOptionalWriteable(Retention::read);
         } else {
@@ -189,8 +189,8 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         }
     }
 
-    public static Diff<DataLifecycle> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(DataLifecycle::new, in);
+    public static Diff<DataStreamLifecycle> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(DataStreamLifecycle::new, in);
     }
 
     @Override
@@ -204,7 +204,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     /**
-     * Converts the data lifecycle to XContent and injects the RolloverConditions if they exist.
+     * Converts the data stream lifecycle to XContent and injects the RolloverConditions if they exist.
      */
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
@@ -228,12 +228,12 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         return builder;
     }
 
-    public static DataLifecycle fromXContent(XContentParser parser) throws IOException {
+    public static DataStreamLifecycle fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     /**
-     * This builder helps during the composition of the data lifecycle templates.
+     * This builder helps during the composition of the data stream lifecycle templates.
      */
     static class Builder {
         @Nullable
@@ -251,12 +251,12 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
             return this;
         }
 
-        DataLifecycle build() {
-            return new DataLifecycle(dataRetention, downsampling);
+        DataStreamLifecycle build() {
+            return new DataStreamLifecycle(dataRetention, downsampling);
         }
 
-        static Builder newBuilder(DataLifecycle dataLifecycle) {
-            return new Builder().dataRetention(dataLifecycle.getDataRetention()).downsampling(dataLifecycle.getDownsampling());
+        static Builder newBuilder(DataStreamLifecycle lifecycle) {
+            return new Builder().dataRetention(lifecycle.getDataRetention()).downsampling(lifecycle.getDownsampling());
         }
     }
 

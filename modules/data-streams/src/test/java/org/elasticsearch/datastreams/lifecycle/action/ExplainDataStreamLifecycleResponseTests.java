@@ -12,8 +12,8 @@ import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondit
 import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.action.dlm.ExplainIndexDataLifecycle;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,12 +33,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.datastreams.lifecycle.action.ExplainDataLifecycleAction.Response;
+import static org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction.Response;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTestCase<Response> {
+public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry xContentRegistry;
@@ -62,8 +62,8 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
         long now = System.currentTimeMillis();
-        DataLifecycle lifecycle = new DataLifecycle();
-        ExplainIndexDataLifecycle explainIndex = createRandomIndexDLMExplanation(now, lifecycle);
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        ExplainIndexDataStreamLifecycle explainIndex = createRandomIndexDataStreamLifecycleExplanation(now, lifecycle);
         explainIndex.setNowSupplier(() -> now);
         {
             Response response = new Response(List.of(explainIndex), null);
@@ -81,8 +81,8 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
             Map<String, Object> indices = (Map<String, Object>) xContentMap.get("indices");
             assertThat(indices.size(), is(1));
             Map<String, Object> explainIndexMap = (Map<String, Object>) indices.get(explainIndex.getIndex());
-            assertThat(explainIndexMap.get("managed_by_lifecycle"), is(explainIndex.isManagedByDLM()));
-            if (explainIndex.isManagedByDLM()) {
+            assertThat(explainIndexMap.get("managed_by_lifecycle"), is(explainIndex.isManagedByLifecycle()));
+            if (explainIndex.isManagedByLifecycle()) {
                 assertThat(explainIndexMap.get("index_creation_date_millis"), is(explainIndex.getIndexCreationDate()));
                 assertThat(
                     explainIndexMap.get("time_since_index_creation"),
@@ -134,8 +134,8 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
             assertThat(indices.size(), is(1));
             Map<String, Object> explainIndexMap = (Map<String, Object>) indices.get(explainIndex.getIndex());
             assertThat(explainIndexMap.get("index"), is(explainIndex.getIndex()));
-            assertThat(explainIndexMap.get("managed_by_lifecycle"), is(explainIndex.isManagedByDLM()));
-            if (explainIndex.isManagedByDLM()) {
+            assertThat(explainIndexMap.get("managed_by_lifecycle"), is(explainIndex.isManagedByLifecycle()));
+            if (explainIndex.isManagedByLifecycle()) {
                 assertThat(explainIndexMap.get("index_creation_date_millis"), is(explainIndex.getIndexCreationDate()));
                 assertThat(
                     explainIndexMap.get("time_since_index_creation"),
@@ -167,7 +167,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
         }
         {
             // Make sure generation_date is not present if it is null (which it is for a write index):
-            ExplainIndexDataLifecycle explainIndexWithNullGenerationDate = new ExplainIndexDataLifecycle(
+            ExplainIndexDataStreamLifecycle explainIndexWithNullGenerationDate = new ExplainIndexDataStreamLifecycle(
                 randomAlphaOfLengthBetween(10, 30),
                 true,
                 now,
@@ -198,12 +198,12 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
 
     public void testChunkCount() {
         long now = System.currentTimeMillis();
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         Response response = new Response(
             List.of(
-                createRandomIndexDLMExplanation(now, lifecycle),
-                createRandomIndexDLMExplanation(now, lifecycle),
-                createRandomIndexDLMExplanation(now, lifecycle)
+                createRandomIndexDataStreamLifecycleExplanation(now, lifecycle),
+                createRandomIndexDataStreamLifecycleExplanation(now, lifecycle),
+                createRandomIndexDataStreamLifecycleExplanation(now, lifecycle)
             ),
             null
         );
@@ -213,8 +213,11 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
         AbstractChunkedSerializingTestCase.assertChunkCount(response, ignored -> 5);
     }
 
-    private static ExplainIndexDataLifecycle createRandomIndexDLMExplanation(long now, @Nullable DataLifecycle lifecycle) {
-        return new ExplainIndexDataLifecycle(
+    private static ExplainIndexDataStreamLifecycle createRandomIndexDataStreamLifecycleExplanation(
+        long now,
+        @Nullable DataStreamLifecycle lifecycle
+    ) {
+        return new ExplainIndexDataStreamLifecycle(
             randomAlphaOfLengthBetween(10, 30),
             true,
             now,
@@ -242,7 +245,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
 
     private Response randomResponse() {
         return new Response(
-            List.of(createRandomIndexDLMExplanation(System.nanoTime(), randomBoolean() ? new DataLifecycle() : null)),
+            List.of(createRandomIndexDataStreamLifecycleExplanation(System.nanoTime(), randomBoolean() ? new DataStreamLifecycle() : null)),
             randomBoolean()
                 ? new RolloverConfiguration(
                     new RolloverConditions(

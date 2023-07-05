@@ -14,7 +14,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -29,17 +29,17 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.metadata.DataLifecycle.DATA_RETENTION_FIELD;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_RETENTION_FIELD;
 
 /**
- * Sets the data lifecycle that was provided in the request to the requested data streams.
+ * Sets the data stream lifecycle that was provided in the request to the requested data streams.
  */
-public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
+public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedResponse> {
 
-    public static final PutDataLifecycleAction INSTANCE = new PutDataLifecycleAction();
+    public static final PutDataStreamLifecycleAction INSTANCE = new PutDataStreamLifecycleAction();
     public static final String NAME = "indices:admin/data_stream/lifecycle/put";
 
-    private PutDataLifecycleAction() {
+    private PutDataStreamLifecycleAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
@@ -65,13 +65,13 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
 
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
-        private final DataLifecycle lifecycle;
+        private final DataStreamLifecycle lifecycle;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            lifecycle = new DataLifecycle(in);
+            lifecycle = new DataStreamLifecycle(in);
         }
 
         @Override
@@ -84,14 +84,14 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
 
         public Request(String[] names, @Nullable TimeValue dataRetention) {
             this.names = names;
-            this.lifecycle = new DataLifecycle(dataRetention);
+            this.lifecycle = new DataStreamLifecycle(dataRetention);
         }
 
         public String[] getNames() {
             return names;
         }
 
-        public DataLifecycle getLifecycle() {
+        public DataStreamLifecycle getLifecycle() {
             return lifecycle;
         }
 

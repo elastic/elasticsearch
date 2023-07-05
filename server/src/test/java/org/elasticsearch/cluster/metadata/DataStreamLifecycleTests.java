@@ -36,73 +36,73 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DataLifecycleTests extends AbstractXContentSerializingTestCase<DataLifecycle> {
+public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCase<DataStreamLifecycle> {
 
     @Override
-    protected Writeable.Reader<DataLifecycle> instanceReader() {
-        return DataLifecycle::new;
+    protected Writeable.Reader<DataStreamLifecycle> instanceReader() {
+        return DataStreamLifecycle::new;
     }
 
     @Override
-    protected DataLifecycle createTestInstance() {
+    protected DataStreamLifecycle createTestInstance() {
         return randomLifecycle();
     }
 
     @Override
-    protected DataLifecycle mutateInstance(DataLifecycle instance) throws IOException {
+    protected DataStreamLifecycle mutateInstance(DataStreamLifecycle instance) throws IOException {
         var retention = instance.getDataRetention();
         var downsampling = instance.getDownsampling();
         if (randomBoolean()) {
-            if (retention == null || retention == DataLifecycle.Retention.NULL) {
-                retention = randomValueOtherThan(retention, DataLifecycleTests::randomRetention);
+            if (retention == null || retention == DataStreamLifecycle.Retention.NULL) {
+                retention = randomValueOtherThan(retention, DataStreamLifecycleTests::randomRetention);
             } else {
                 retention = switch (randomInt(2)) {
                     case 0 -> null;
-                    case 1 -> DataLifecycle.Retention.NULL;
-                    default -> new DataLifecycle.Retention(
+                    case 1 -> DataStreamLifecycle.Retention.NULL;
+                    default -> new DataStreamLifecycle.Retention(
                         TimeValue.timeValueMillis(randomValueOtherThan(retention.value().millis(), ESTestCase::randomMillisUpToYear9999))
                     );
                 };
             }
         } else {
-            if (downsampling == null || downsampling == DataLifecycle.Downsampling.NULL) {
-                downsampling = randomValueOtherThan(downsampling, DataLifecycleTests::randomDownsampling);
+            if (downsampling == null || downsampling == DataStreamLifecycle.Downsampling.NULL) {
+                downsampling = randomValueOtherThan(downsampling, DataStreamLifecycleTests::randomDownsampling);
             } else {
                 downsampling = switch (randomInt(2)) {
                     case 0 -> null;
-                    case 1 -> DataLifecycle.Downsampling.NULL;
+                    case 1 -> DataStreamLifecycle.Downsampling.NULL;
                     default -> {
                         if (downsampling.rounds().size() == 1) {
-                            yield new DataLifecycle.Downsampling(
+                            yield new DataStreamLifecycle.Downsampling(
                                 List.of(downsampling.rounds().get(0), nextRound(downsampling.rounds().get(0)))
                             );
 
                         } else {
                             var updatedRounds = new ArrayList<>(downsampling.rounds());
                             updatedRounds.remove(randomInt(downsampling.rounds().size() - 1));
-                            yield new DataLifecycle.Downsampling(updatedRounds);
+                            yield new DataStreamLifecycle.Downsampling(updatedRounds);
                         }
                     }
                 };
             }
         }
-        return new DataLifecycle(retention, downsampling);
+        return new DataStreamLifecycle(retention, downsampling);
     }
 
     @Override
-    protected DataLifecycle doParseInstance(XContentParser parser) throws IOException {
-        return DataLifecycle.fromXContent(parser);
+    protected DataStreamLifecycle doParseInstance(XContentParser parser) throws IOException {
+        return DataStreamLifecycle.fromXContent(parser);
     }
 
     public void testXContentSerializationWithRollover() throws IOException {
-        DataLifecycle dataLifecycle = createTestInstance();
+        DataStreamLifecycle lifecycle = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
             RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
-            dataLifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
+            lifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(dataLifecycle.getEffectiveDataRetention())
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention())
                 .getConditions()
                 .keySet()) {
                 assertThat(serialized, containsString(label));
@@ -116,7 +116,7 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     public void testDefaultClusterSetting() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        RolloverConfiguration rolloverConfiguration = clusterSettings.get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
+        RolloverConfiguration rolloverConfiguration = clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         assertThat(rolloverConfiguration.getAutomaticConditions(), equalTo(Set.of("max_age")));
         RolloverConditions concreteConditions = rolloverConfiguration.getConcreteConditions();
         assertThat(concreteConditions.getMaxPrimaryShardSize(), equalTo(ByteSizeValue.ofGb(50)));
@@ -135,8 +135,8 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.get(
-                    Settings.builder().put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "").build()
+                () -> DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.get(
+                    Settings.builder().put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "").build()
                 )
             );
             assertThat(exception.getMessage(), equalTo("The rollover conditions cannot be null or blank"));
@@ -147,13 +147,13 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataLifecycle.Downsampling(
+                () -> new DataStreamLifecycle.Downsampling(
                     List.of(
-                        new DataLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(10),
                             new DownsampleConfig(new DateHistogramInterval("2h"))
                         ),
-                        new DataLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(3),
                             new DownsampleConfig(new DateHistogramInterval("2h"))
                         )
@@ -168,13 +168,13 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataLifecycle.Downsampling(
+                () -> new DataStreamLifecycle.Downsampling(
                     List.of(
-                        new DataLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(10),
                             new DownsampleConfig(new DateHistogramInterval("2h"))
                         ),
-                        new DataLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(30),
                             new DownsampleConfig(new DateHistogramInterval("2h"))
                         )
@@ -186,13 +186,13 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataLifecycle.Downsampling(
+                () -> new DataStreamLifecycle.Downsampling(
                     List.of(
-                        new DataLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(10),
                             new DownsampleConfig(new DateHistogramInterval("2h"))
                         ),
-                        new DataLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(30),
                             new DownsampleConfig(new DateHistogramInterval("3h"))
                         )
@@ -204,54 +204,54 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataLifecycle.Downsampling(List.of())
+                () -> new DataStreamLifecycle.Downsampling(List.of())
             );
             assertThat(exception.getMessage(), equalTo("Downsampling configuration should have at least one round configured."));
         }
     }
 
     @Nullable
-    public static DataLifecycle randomLifecycle() {
-        return new DataLifecycle(randomRetention(), randomDownsampling());
+    public static DataStreamLifecycle randomLifecycle() {
+        return new DataStreamLifecycle(randomRetention(), randomDownsampling());
     }
 
     @Nullable
-    private static DataLifecycle.Retention randomRetention() {
+    private static DataStreamLifecycle.Retention randomRetention() {
         return switch (randomInt(2)) {
             case 0 -> null;
-            case 1 -> DataLifecycle.Retention.NULL;
-            default -> new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+            case 1 -> DataStreamLifecycle.Retention.NULL;
+            default -> new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
         };
     }
 
     @Nullable
-    private static DataLifecycle.Downsampling randomDownsampling() {
+    private static DataStreamLifecycle.Downsampling randomDownsampling() {
         return switch (randomInt(2)) {
             case 0 -> null;
-            case 1 -> DataLifecycle.Downsampling.NULL;
+            case 1 -> DataStreamLifecycle.Downsampling.NULL;
             default -> {
                 var count = randomIntBetween(0, 10);
-                List<DataLifecycle.Downsampling.Round> rounds = new ArrayList<>();
-                var previous = new DataLifecycle.Downsampling.Round(
+                List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
+                var previous = new DataStreamLifecycle.Downsampling.Round(
                     TimeValue.timeValueDays(randomIntBetween(1, 365)),
                     new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
                 );
                 rounds.add(previous);
                 for (int i = 0; i < count; i++) {
-                    DataLifecycle.Downsampling.Round round = nextRound(previous);
+                    DataStreamLifecycle.Downsampling.Round round = nextRound(previous);
                     rounds.add(round);
                     previous = round;
                 }
-                yield new DataLifecycle.Downsampling(rounds);
+                yield new DataStreamLifecycle.Downsampling(rounds);
             }
         };
     }
 
-    private static DataLifecycle.Downsampling.Round nextRound(DataLifecycle.Downsampling.Round previous) {
+    private static DataStreamLifecycle.Downsampling.Round nextRound(DataStreamLifecycle.Downsampling.Round previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
         var fixedInterval = new DownsampleConfig(
             new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
         );
-        return new DataLifecycle.Downsampling.Round(after, fixedInterval);
+        return new DataStreamLifecycle.Downsampling.Round(after, fixedInterval);
     }
 }

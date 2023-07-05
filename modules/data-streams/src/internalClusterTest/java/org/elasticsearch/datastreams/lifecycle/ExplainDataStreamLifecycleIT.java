@@ -18,17 +18,17 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
-import org.elasticsearch.action.dlm.ExplainIndexDataLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.action.ExplainDataLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class ExplainDataLifecycleIT extends ESIntegTestCase {
+public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -68,8 +68,8 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        settings.put(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
-        settings.put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
+        settings.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
+        settings.put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         return settings.build();
     }
 
@@ -81,7 +81,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
 
     public void testExplainLifecycle() throws Exception {
         // empty lifecycle contains the default rollover
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
         String dataStreamName = "metrics-foo";
@@ -105,18 +105,20 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
         });
 
         {
-            ExplainDataLifecycleAction.Request explainIndicesRequest = new ExplainDataLifecycleAction.Request(
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
                 new String[] {
                     DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                     DataStream.getDefaultBackingIndexName(dataStreamName, 2) }
             );
-            ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
-                .actionGet();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
             assertThat(response.getIndices().size(), is(2));
             // we requested the explain for indices with the default include_details=false
             assertThat(response.getRolloverConfiguration(), nullValue());
-            for (ExplainIndexDataLifecycle explainIndex : response.getIndices()) {
-                assertThat(explainIndex.isManagedByDLM(), is(true));
+            for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
+                assertThat(explainIndex.isManagedByLifecycle(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().getEffectiveDataRetention(), nullValue());
@@ -143,14 +145,16 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
 
         {
             // let's also explain with include_defaults=true
-            ExplainDataLifecycleAction.Request explainIndicesRequest = new ExplainDataLifecycleAction.Request(
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
                 new String[] {
                     DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                     DataStream.getDefaultBackingIndexName(dataStreamName, 2) },
                 true
             );
-            ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
-                .actionGet();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
             assertThat(response.getIndices().size(), is(2));
             RolloverConfiguration rolloverConfiguration = response.getRolloverConfiguration();
             assertThat(rolloverConfiguration, notNullValue());
@@ -163,7 +167,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
 
     public void testExplainLifecycleForIndicesWithErrors() throws Exception {
         // empty lifecycle contains the default rollover
-        DataLifecycle lifecycle = new DataLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
 
@@ -195,17 +199,19 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         assertBusy(() -> {
-            ExplainDataLifecycleAction.Request explainIndicesRequest = new ExplainDataLifecycleAction.Request(
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
                 new String[] { writeIndexName }
             );
-            ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
-                .actionGet();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
             assertThat(response.getIndices().size(), is(1));
             // we requested the explain for indices with the default include_details=false
             assertThat(response.getRolloverConfiguration(), nullValue());
-            for (ExplainIndexDataLifecycle explainIndex : response.getIndices()) {
+            for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
                 assertThat(explainIndex.getIndex(), is(writeIndexName));
-                assertThat(explainIndex.isManagedByDLM(), is(true));
+                assertThat(explainIndex.isManagedByLifecycle(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().getEffectiveDataRetention(), nullValue());
@@ -222,11 +228,13 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().putNull("*"));
 
         assertBusy(() -> {
-            ExplainDataLifecycleAction.Request explainIndicesRequest = new ExplainDataLifecycleAction.Request(
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
                 new String[] { writeIndexName }
             );
-            ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
-                .actionGet();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
             assertThat(response.getIndices().size(), is(1));
             if (internalCluster().numDataNodes() > 1) {
                 assertThat(response.getIndices().get(0).getError(), is(nullValue()));
@@ -240,7 +248,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
         });
     }
 
-    public void testExplainDLMForUnmanagedIndices() throws Exception {
+    public void testExplainDataStreamLifecycleForUnmanagedIndices() throws Exception {
         String dataStreamName = "metrics-foo";
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, null);
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
@@ -250,15 +258,17 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         assertBusy(() -> {
-            ExplainDataLifecycleAction.Request explainIndicesRequest = new ExplainDataLifecycleAction.Request(
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
                 new String[] { writeIndexName }
             );
-            ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
-                .actionGet();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
             assertThat(response.getIndices().size(), is(1));
             assertThat(response.getRolloverConfiguration(), nullValue());
-            for (ExplainIndexDataLifecycle explainIndex : response.getIndices()) {
-                assertThat(explainIndex.isManagedByDLM(), is(false));
+            for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
+                assertThat(explainIndex.isManagedByLifecycle(), is(false));
                 assertThat(explainIndex.getIndex(), is(writeIndexName));
                 assertThat(explainIndex.getIndexCreationDate(), nullValue());
                 assertThat(explainIndex.getLifecycle(), nullValue());
@@ -299,7 +309,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(

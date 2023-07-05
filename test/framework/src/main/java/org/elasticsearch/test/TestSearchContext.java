@@ -88,7 +88,7 @@ public class TestSearchContext extends SearchContext {
         this.indexShard = indexService.getShardOrNull(0);
         searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap());
         this.request = new ShardSearchRequest(indexShard.shardId(), 0L, AliasFilter.EMPTY);
-        this.originalQueryBuilder = request.originalSource().query();
+        this.originalQueryBuilder = request.originalQuery();
     }
 
     public TestSearchContext(SearchExecutionContext searchExecutionContext) {

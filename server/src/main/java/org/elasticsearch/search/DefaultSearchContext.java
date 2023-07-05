@@ -146,7 +146,7 @@ final class DefaultSearchContext extends SearchContext {
         this.shardTarget = shardTarget;
         this.indexService = readerContext.indexService();
         this.indexShard = readerContext.indexShard();
-        this.originalQueryBuilder = request.originalSource().query();
+        this.originalQueryBuilder = request.originalQuery();
 
         Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
         this.searcher = new ContextIndexSearcher(

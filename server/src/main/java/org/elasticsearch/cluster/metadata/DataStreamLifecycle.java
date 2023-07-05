@@ -204,7 +204,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * Converts the data lifecycle to XContent and injects the RolloverConditions if they exist.
+     * Converts the data stream lifecycle to XContent and injects the RolloverConditions if they exist.
      */
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
@@ -233,7 +233,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * This builder helps during the composition of the data lifecycle templates.
+     * This builder helps during the composition of the data stream lifecycle templates.
      */
     static class Builder {
         @Nullable

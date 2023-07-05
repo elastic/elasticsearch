@@ -447,8 +447,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                         .map(Map.Entry::getKey)
                         .toList();
                     logger.info(
-                        "Data stream lifecycle successfully rolled over datastream [{}] due to the following met rollover conditions {}. The new index is "
-                            + "[{}]",
+                        "Data stream lifecycle successfully rolled over datastream [{}] due to the following met rollover "
+                            + "conditions {}. The new index is [{}]",
                         rolloverTarget,
                         metConditions,
                         rolloverResponse.getNewIndex()
@@ -606,7 +606,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (previousError == null || previousError.equals(errorStore.getError(targetIndex)) == false) {
                     logger.warn(
                         () -> Strings.format(
-                            "Data stream lifecycle encountered an error trying to force merge index [%s]. Data stream lifecycle will attempt to force merge the index on its next run.",
+                            "Data stream lifecycle encountered an error trying to force merge index [%s]. Data stream lifecycle will "
+                                + "attempt to force merge the index on its next run.",
                             targetIndex
                         ),
                         e

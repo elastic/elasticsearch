@@ -114,7 +114,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
             List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
             assertThat(backingIndices.size(), equalTo(1));
             // we expect the data stream to have only one backing index, the write one, with generation 2
-            // as generation 1 would've been deleted by DLM given the lifecycle configuration
+            // as generation 1 would've been deleted by the data stream lifecycle given the lifecycle configuration
             String writeIndex = backingIndices.get(0).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
         });
@@ -144,7 +144,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
             List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
             assertThat(backingIndices.size(), equalTo(1));
             // we expect the data stream to have only one backing index, the write one, with generation 2
-            // as generation 1 would've been deleted by DLM given the lifecycle configuration
+            // as generation 1 would've been deleted by the data stream lifecycle given the lifecycle configuration
             String writeIndex = backingIndices.get(0).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
         });
@@ -272,7 +272,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
 
         @Override
         public String getFeatureDescription() {
-            return "A plugin for testing DLM runtime actions on system data streams";
+            return "A plugin for testing the data stream lifecycle runtime actions on system data streams";
         }
     }
 }

@@ -151,7 +151,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
             assertThat(backingIndices.size(), equalTo(1));
             // we expect the data stream to have only one backing index, the write one, with generation 2
-            // as generation 1 would've been deleted by DLM given the lifecycle configuration
+            // as generation 1 would've been deleted by the data stream lifecycle given the configuration
             String writeIndex = backingIndices.get(0).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
         });
@@ -160,8 +160,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     public void testOriginationDate() throws Exception {
         /*
          * In this test, we set up a datastream with 7 day retention. Then we add two indices to it -- one with an origination date 365
-         * days ago, and one with an origination date 1 day ago. After DLM runs, we expect the one with the old origination date to have
-         * been deleted, and the one with the newer origination date to remain.
+         * days ago, and one with an origination date 1 day ago. After data stream lifecycle runs, we expect the one with the old
+         * origination date to have been deleted, and the one with the newer origination date to remain.
          */
         DataStreamLifecycle lifecycle = new DataStreamLifecycle(TimeValue.timeValueDays(7).millis());
 
@@ -270,15 +270,15 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testAutomaticForceMerge() throws Exception {
         /*
-         * This test makes sure that (1) DLM does _not_ call forcemerge on an index in the same DLM pass when it rolls over the index and
-         * that (2) it _does_ call forcemerge on an index that was rolled over in a previous DLM pass.
-         * It's harder than you would think to detect through the REST API that forcemerge has been called. The reason is that segment
-         * merging happens automatically during indexing, and when forcemerge is called it likely does nothing because all nececssary
-         * merging has already happened automatically. So in order to detect whether forcemerge has been called, we use a
-         * SendRequestBehavior in the MockTransportService to detect it.
+         * This test makes sure that (1) data stream lifecycle does _not_ call forcemerge on an index in the same data stream lifecycle
+         * pass when it rolls over the index and that (2) it _does_ call forcemerge on an index that was rolled over in a previous data
+         * stream lifecycle pass. It's harder than you would think to detect through the REST API that forcemerge has been called. The
+         * reason is that segment merging happens automatically during indexing, and when forcemerge is called it likely does nothing
+         * because all necessary merging has already happened automatically. So in order to detect whether forcemerge has been called, we
+         * use a SendRequestBehavior in the MockTransportService to detect it.
          */
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
-        disableDLM();
+        disableDataStreamLifecycle();
         String dataStreamName = "metrics-foo";
         putComposableIndexTemplate(
             "id1",
@@ -315,7 +315,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         int finalGeneration = randomIntBetween(2, 10);
         for (int currentGeneration = 1; currentGeneration < finalGeneration; currentGeneration++) {
-            // This is currently the write index, but it will be rolled over as soon as DLM runs:
+            // This is currently the write index, but it will be rolled over as soon as data stream lifecycle runs:
             final String toBeRolledOverIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration);
             for (int i = 0; i < randomIntBetween(10, 50); i++) {
                 indexDocs(dataStreamName, randomIntBetween(1, 300));
@@ -336,7 +336,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 internalCluster().getMasterName()
             );
             ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
-            // run DLM once
+            // run data stream lifecycle once
             dataStreamLifecycleService.run(clusterService.state());
             assertBusy(() -> {
                 GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
@@ -350,8 +350,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 String writeIndex = dataStream.getWriteIndex().getName();
                 assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
                 /*
-                 * We only expect forcemerge to happen on the 2nd DLM run and later, since on the first there's only the single write
-                 * index to be rolled over.
+                 * We only expect forcemerge to happen on the 2nd data stream lifecycle run and later, since on the first there's only the
+                 *  single write index to be rolled over.
                  */
                 if (currentBackingIndexCount > 1) {
                     assertThat(
@@ -360,7 +360,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                         equalTo(true)
                     );
                 }
-                // We want to assert that when DLM rolls over the write index it, it doesn't forcemerge it on that iteration:
+                // We want to assert that when data stream lifecycle rolls over the write index it, it doesn't forcemerge it on that
+                // iteration:
                 assertThat(
                     "The segments for " + toBeRolledOverIndex + " were unexpectedly merged",
                     forceMergedIndices.contains(toBeRolledOverIndex),
@@ -370,7 +371,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         }
     }
 
-    private static void disableDLM() {
+    private static void disableDataStreamLifecycle() {
         updateClusterSettings(Settings.builder().put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, TimeValue.MAX_VALUE));
     }
 
@@ -379,7 +380,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         /*
          * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
-         * could result in DLM's automatic forcemerge failing, which would result in an unexpected error in the error store.
+         * could result in data stream lifecycle's automatic forcemerge failing, which would result in an unexpected error in the error
+         * store.
          */
         putComposableIndexTemplate(
             "id1",
@@ -466,7 +468,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         /*
          * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
-         * could result in DLM's automatic forcemerge failing, which would result in an unexpected error in the error store.
+         * could result in data stream lifecycle's automatic forcemerge failing, which would result in an unexpected error in the error
+         * store.
          */
         putComposableIndexTemplate(
             "id1",
@@ -615,7 +618,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             );
         });
 
-        // let's configure the data lifecycle service to configure a different merge policy for indices
+        // let's configure the data stream lifecycle service to configure a different merge policy for indices
         updateClusterSettings(
             Settings.builder()
                 .put(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.getKey(), 5)

@@ -23,8 +23,8 @@ import org.elasticsearch.test.transport.MockTransportService;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.datastreams.lifecycle.DLMFixtures.putComposableIndexTemplate;
-import static org.elasticsearch.datastreams.lifecycle.DLMFixtures.randomLifecycle;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.putComposableIndexTemplate;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomLifecycle;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;

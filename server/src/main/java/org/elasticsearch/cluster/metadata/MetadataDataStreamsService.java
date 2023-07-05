@@ -143,7 +143,7 @@ public class MetadataDataStreamsService {
     }
 
     /**
-     * Creates an updated cluster state in which the requested data streams have the data lifecycle provided.
+     * Creates an updated cluster state in which the requested data streams have the data stream lifecycle provided.
      * Visible for testing.
      */
     static ClusterState updateDataLifecycle(

@@ -70,7 +70,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.datastreams.lifecycle.DLMFixtures.createDataStream;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStream;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
@@ -446,9 +446,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testForceMergeRetries() throws Exception {
         /*
-         * This test makes sure that DLM correctly retries (or doesn't) forcemerge requests on failure.
-         * First, we set up a datastream with 3 backing indices. On the first run of DLM we'll expect one to get rolled over and two to
-         * be forcemerged.
+         * This test makes sure that data stream lifecycle correctly retries (or doesn't) forcemerge requests on failure.
+         * First, we set up a datastream with 3 backing indices. On the first run of the data stream lifecycle we'll expect
+         * one to get rolled over and two to be forcemerged.
          */
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
@@ -473,7 +473,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         {
             /*
-             * For the first DLM run we're intentionally making forcemerge fail:
+             * For the first data stream lifecycle run we're intentionally making forcemerge fail:
              */
             AtomicInteger forceMergeFailedCount = new AtomicInteger(0);
             clientDelegate = (action, request, listener) -> {
@@ -484,7 +484,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             };
             dataStreamLifecycleService.run(clusterService.state());
             /*
-             * We expect that DLM will try to pick it up next time.
+             * We expect that data stream lifecycle will try to pick it up next time.
              */
             assertBusy(() -> {
                 assertThat(forceMergeFailedCount.get(), equalTo(2));
@@ -500,7 +500,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         {
             /*
-             * For the next DLM run we're intentionally making forcemerge fail by reporting failed shards:
+             * For the next data stream lifecycle run we're intentionally making forcemerge fail by reporting failed shards:
              */
             AtomicInteger forceMergeFailedCount = new AtomicInteger(0);
             clientDelegate = (action, request, listener) -> {
@@ -531,8 +531,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         {
             /*
-             * For the next DLM run we're intentionally making forcemerge fail on the same indices by having the successful shards not equal
-             *  to the total:
+             * For the next data stream lifecycle run we're intentionally making forcemerge fail on the same indices by having the
+             * successful shards not equal to the total.
              */
             AtomicInteger forceMergeFailedCount = new AtomicInteger(0);
             clientDelegate = (action, request, listener) -> {
@@ -555,7 +555,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         }
 
         {
-            // For the final DLM run, we let forcemerge run normally
+            // For the final data stream lifecycle run, we let forcemerge run normally
             clientDelegate = (action, request, listener) -> {
                 if (action.name().equals("indices:admin/forcemerge")) {
                     listener.onResponse(new ForceMergeResponse(5, 5, 0, List.of()));
@@ -619,9 +619,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testForceMergeDedup() throws Exception {
         /*
-         * This test creates a datastream with one index, and then runs DLM repeatedly many times. We assert that the size of the
-         * transportActionsDeduplicator never goes over 1, and is 0 by the end. This is to make sure that the equals/hashcode methods
-         * of ForceMergeRequests are interacting with the deduplicator as expected.
+         * This test creates a datastream with one index, and then runs data stream lifecycle repeatedly many times. We assert that the size
+         *  of the transportActionsDeduplicator never goes over 1, and is 0 by the end. This is to make sure that the equals/hashcode
+         * methods of ForceMergeRequests are interacting with the deduplicator as expected.
          */
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
@@ -700,10 +700,10 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             ClusterState newClusterState = task.execute(clusterState);
             IndexMetadata indexMetadata = newClusterState.metadata().index(targetIndex);
             assertThat(indexMetadata, notNullValue());
-            Map<String, String> dlmMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-            assertThat(dlmMetadata, notNullValue());
-            assertThat(dlmMetadata.size(), equalTo(1));
-            String forceMergeCompleteTimestampString = dlmMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
+            Map<String, String> dataStreamLifecycleMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+            assertThat(dataStreamLifecycleMetadata, notNullValue());
+            assertThat(dataStreamLifecycleMetadata.size(), equalTo(1));
+            String forceMergeCompleteTimestampString = dataStreamLifecycleMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
             assertThat(forceMergeCompleteTimestampString, notNullValue());
             long forceMergeCompleteTimestamp = Long.parseLong(forceMergeCompleteTimestampString);
             assertThat(forceMergeCompleteTimestamp, lessThanOrEqualTo(threadPool.absoluteTimeInMillis()));
@@ -712,20 +712,26 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         }
         {
             /*
-             * This is the same as the previous block, except that this time we'll have previously-existing DLM custom metadata in the
-             * index's metadata, and make sure that it doesn't get blown away when we set the timestamp.
+             * This is the same as the previous block, except that this time we'll have previously-existing data stream lifecycle custom
+             * metadata in the index's metadata, and make sure that it doesn't get blown away when we set the timestamp.
              */
-            String preExistingDlmCustomMetadataKey = randomAlphaOfLength(10);
-            String preExistingDlmCustomMetadataValue = randomAlphaOfLength(20);
-            Map<String, String> preExistingDlmCustomMetadata = Map.of(preExistingDlmCustomMetadataKey, preExistingDlmCustomMetadataValue);
-            ClusterState clusterState = createClusterState(targetIndex, preExistingDlmCustomMetadata);
+            String preExistingDataStreamLifecycleCustomMetadataKey = randomAlphaOfLength(10);
+            String preExistingDataStreamLifecycleCustomMetadataValue = randomAlphaOfLength(20);
+            Map<String, String> preExistingDataStreamLifecycleCustomMetadata = Map.of(
+                preExistingDataStreamLifecycleCustomMetadataKey,
+                preExistingDataStreamLifecycleCustomMetadataValue
+            );
+            ClusterState clusterState = createClusterState(targetIndex, preExistingDataStreamLifecycleCustomMetadata);
             ClusterState newClusterState = task.execute(clusterState);
             IndexMetadata indexMetadata = newClusterState.metadata().index(targetIndex);
-            Map<String, String> dlmMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-            assertThat(dlmMetadata, notNullValue());
-            assertThat(dlmMetadata.size(), equalTo(2));
-            assertThat(dlmMetadata.get(preExistingDlmCustomMetadataKey), equalTo(preExistingDlmCustomMetadataValue));
-            String forceMergeCompleteTimestampString = dlmMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
+            Map<String, String> dataStreamLifecycleMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+            assertThat(dataStreamLifecycleMetadata, notNullValue());
+            assertThat(dataStreamLifecycleMetadata.size(), equalTo(2));
+            assertThat(
+                dataStreamLifecycleMetadata.get(preExistingDataStreamLifecycleCustomMetadataKey),
+                equalTo(preExistingDataStreamLifecycleCustomMetadataValue)
+            );
+            String forceMergeCompleteTimestampString = dataStreamLifecycleMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
             assertThat(forceMergeCompleteTimestampString, notNullValue());
             long forceMergeCompleteTimestamp = Long.parseLong(forceMergeCompleteTimestampString);
             assertThat(forceMergeCompleteTimestamp, lessThanOrEqualTo(threadPool.absoluteTimeInMillis()));
@@ -881,10 +887,10 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     }
 
     /*
-     * Creates a test cluster state with the given indexName. If customDlmMetadata is not null, it is added as the value of the index's
-     * custom metadata named "dlm".
+     * Creates a test cluster state with the given indexName. If customDataStreamLifecycleMetadata is not null, it is added as the value
+     * of the index's custom metadata named "data_stream_lifecycle".
      */
-    private ClusterState createClusterState(String indexName, Map<String, String> customDlmMetadata) {
+    private ClusterState createClusterState(String indexName, Map<String, String> customDataStreamLifecycleMetadata) {
         var routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();
         Map<String, IndexMetadata> indices = new HashMap<>();
@@ -894,8 +900,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
             .build();
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName).version(randomLong()).settings(indexSettings);
-        if (customDlmMetadata != null) {
-            indexMetadataBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customDlmMetadata);
+        if (customDataStreamLifecycleMetadata != null) {
+            indexMetadataBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customDataStreamLifecycleMetadata);
         }
         indices.put(indexName, indexMetadataBuilder.build());
         return ClusterState.builder(new ClusterName("test-cluster"))

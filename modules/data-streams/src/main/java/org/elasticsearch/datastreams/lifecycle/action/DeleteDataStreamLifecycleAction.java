@@ -22,7 +22,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Removes the data lifecycle configuration from the requested data streams.
+ * Removes the data stream lifecycle configuration from the requested data streams.
  */
 public class DeleteDataStreamLifecycleAction extends ActionType<AcknowledgedResponse> {
 

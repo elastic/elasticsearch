@@ -88,7 +88,7 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
             }
 
-            // Data lifecycle of hidden data streams is not retrieved by default
+            // data stream lifecycle of hidden data streams is not retrieved by default
             {
                 Request listAllVisibleRequest = new Request("GET", "/_data_stream/*/_lifecycle");
                 Response listAllVisibleResponse = restClient.performRequest(listAllVisibleRequest);
@@ -102,7 +102,7 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(visibleDataStreams.size(), is(0));
             }
 
-            // Data lifecycle of hidden data streams is retrieved when enabled - no header needed
+            // data stream lifecycle of hidden data streams is retrieved when enabled - no header needed
             {
                 Request listAllRequest = new Request("GET", "/_data_stream/*/_lifecycle");
                 listAllRequest.addParameter("expand_wildcards", "open,hidden");
@@ -225,7 +225,7 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
 
         @Override
         public String getFeatureDescription() {
-            return "Integration testing of modifying the data lifecycle of system data streams";
+            return "Integration testing of modifying the data stream lifecycle of system data streams";
         }
 
         @Override

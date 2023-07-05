@@ -50,7 +50,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
         }
 
         {
-            // index has ILM policy configured and does belong to a data stream with a DLM lifecycle
+            // index has ILM policy configured and does belong to a data stream with a data stream lifecycle
             // by default ILM takes precedence
             String dataStreamName = "metrics-prod";
 
@@ -73,7 +73,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
         }
 
         {
-            // index has ILM policy configured and does belong to a data stream with a DLM lifecycle, but
+            // index has ILM policy configured and does belong to a data stream with a data stream lifecycle, but
             // the PREFER_ILM_SETTING is configured to false
             String dataStreamName = "metrics-prod";
 

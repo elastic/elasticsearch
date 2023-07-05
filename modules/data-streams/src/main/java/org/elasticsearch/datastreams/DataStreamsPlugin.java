@@ -254,7 +254,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         try {
             IOUtils.close(dataLifecycleInitialisationService.get());
         } catch (IOException e) {
-            throw new ElasticsearchException("unable to close the data lifecycle service", e);
+            throw new ElasticsearchException("unable to close the data stream lifecycle service", e);
         }
     }
 }

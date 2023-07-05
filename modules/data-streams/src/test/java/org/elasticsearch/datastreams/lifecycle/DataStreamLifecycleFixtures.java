@@ -44,7 +44,7 @@ import static org.junit.Assert.assertTrue;
  * - putting a composable template
  * - creating a data stream model
  */
-public class DLMFixtures {
+public class DataStreamLifecycleFixtures {
 
     static DataStream createDataStream(
         Metadata.Builder builder,

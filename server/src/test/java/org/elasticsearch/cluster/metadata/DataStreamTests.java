@@ -1176,7 +1176,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
 
         {
-            // no indices are returned as even though all pass retention age none are managed by DLM
+            // no indices are returned as even though all pass retention age none are managed by data stream lifecycle
             Metadata.Builder builder = Metadata.builder();
             DataStream dataStream = createDataStream(
                 builder,
@@ -1259,7 +1259,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
     }
 
-    public void testIsIndexManagedByDLM() {
+    public void testIsIndexManagedByDataStreamLifecycle() {
         String dataStreamName = "metrics-foo";
         long now = System.currentTimeMillis();
 

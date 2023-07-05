@@ -598,7 +598,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Iterate over the backing indices and return the ones that are managed by DLM and past the configured
+     * Iterate over the backing indices and return the ones that are managed by the data stream lifecycle and past the configured
      * retention in their lifecycle.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
@@ -611,7 +611,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
             lifecycle.getEffectiveDataRetention(),
             indexMetadataSupplier,
-            this::isIndexManagedByDLM,
+            this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
         );
         return indicesPastRetention;
@@ -622,7 +622,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * The index age is calculated from the rollover or index creation date (or the origination date if present).
      * If an indices predicate is provided the returned list of indices will be filtered
      * according to the predicate definition. This is useful for things like "return only
-     * the backing indices that are managed by DLM".
+     * the backing indices that are managed by the data stream lifecycle".
      */
     public List<Index> getNonWriteIndicesOlderThan(
         TimeValue age,
@@ -665,20 +665,20 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // the index was deleted
             return false;
         }
-        return isIndexManagedByDLM(indexMetadata);
+        return isIndexManagedByDataStreamLifecycle(indexMetadata);
     }
 
     /**
-     * This is the raw defintion of an index being managed by DLM. An index is managed by DLM if it's part of a data stream
-     * that has a DLM lifecycle configured and depending on the value of {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
-     * having an ILM policy configured will play into the decision.
+     * This is the raw defintion of an index being managed by the data stream lifecycle. An index is managed by the data stream lifecycle
+     * if it's part of a data stream that has a data stream lifecycle configured and depending on the value of
+     * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING} having an ILM policy configured will play into the decision.
      * This method also skips any validation to make sure the index is part of this data stream, hence the private
      * access method.
      */
-    private boolean isIndexManagedByDLM(IndexMetadata indexMetadata) {
+    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
         boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
         if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null) {
-            // when both ILM and DLM are configured, choose depending on the configured preference for this backing index
+            // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
             return preferIlm == false;
         }
         return lifecycle != null;

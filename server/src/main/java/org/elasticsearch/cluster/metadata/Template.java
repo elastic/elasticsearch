@@ -42,7 +42,7 @@ import java.util.Objects;
  */
 public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
-    // This represents when the data lifecycle was explicitly set to be null, meaning the user wants to remove the
+    // This represents when the data stream lifecycle was explicitly set to be null, meaning the user wants to remove the
     // lifecycle.
     public static final DataStreamLifecycle NO_LIFECYCLE = new DataStreamLifecycle() {
 

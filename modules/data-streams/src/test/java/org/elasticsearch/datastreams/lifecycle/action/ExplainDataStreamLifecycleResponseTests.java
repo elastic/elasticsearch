@@ -63,7 +63,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
     public void testToXContent() throws IOException {
         long now = System.currentTimeMillis();
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
-        ExplainIndexDataStreamLifecycle explainIndex = createRandomIndexDLMExplanation(now, lifecycle);
+        ExplainIndexDataStreamLifecycle explainIndex = createRandomIndexDataStreamLifecycleExplanation(now, lifecycle);
         explainIndex.setNowSupplier(() -> now);
         {
             Response response = new Response(List.of(explainIndex), null);
@@ -81,8 +81,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
             Map<String, Object> indices = (Map<String, Object>) xContentMap.get("indices");
             assertThat(indices.size(), is(1));
             Map<String, Object> explainIndexMap = (Map<String, Object>) indices.get(explainIndex.getIndex());
-            assertThat(explainIndexMap.get("managed_by_lifecycle"), is(explainIndex.isManagedByDLM()));
-            if (explainIndex.isManagedByDLM()) {
+            assertThat(explainIndexMap.get("managed_by_lifecycle"), is(explainIndex.isManagedByLifecycle()));
+            if (explainIndex.isManagedByLifecycle()) {
                 assertThat(explainIndexMap.get("index_creation_date_millis"), is(explainIndex.getIndexCreationDate()));
                 assertThat(
                     explainIndexMap.get("time_since_index_creation"),
@@ -134,8 +134,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
             assertThat(indices.size(), is(1));
             Map<String, Object> explainIndexMap = (Map<String, Object>) indices.get(explainIndex.getIndex());
             assertThat(explainIndexMap.get("index"), is(explainIndex.getIndex()));
-            assertThat(explainIndexMap.get("managed_by_lifecycle"), is(explainIndex.isManagedByDLM()));
-            if (explainIndex.isManagedByDLM()) {
+            assertThat(explainIndexMap.get("managed_by_lifecycle"), is(explainIndex.isManagedByLifecycle()));
+            if (explainIndex.isManagedByLifecycle()) {
                 assertThat(explainIndexMap.get("index_creation_date_millis"), is(explainIndex.getIndexCreationDate()));
                 assertThat(
                     explainIndexMap.get("time_since_index_creation"),
@@ -201,9 +201,9 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         Response response = new Response(
             List.of(
-                createRandomIndexDLMExplanation(now, lifecycle),
-                createRandomIndexDLMExplanation(now, lifecycle),
-                createRandomIndexDLMExplanation(now, lifecycle)
+                createRandomIndexDataStreamLifecycleExplanation(now, lifecycle),
+                createRandomIndexDataStreamLifecycleExplanation(now, lifecycle),
+                createRandomIndexDataStreamLifecycleExplanation(now, lifecycle)
             ),
             null
         );
@@ -213,7 +213,10 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         AbstractChunkedSerializingTestCase.assertChunkCount(response, ignored -> 5);
     }
 
-    private static ExplainIndexDataStreamLifecycle createRandomIndexDLMExplanation(long now, @Nullable DataStreamLifecycle lifecycle) {
+    private static ExplainIndexDataStreamLifecycle createRandomIndexDataStreamLifecycleExplanation(
+        long now,
+        @Nullable DataStreamLifecycle lifecycle
+    ) {
         return new ExplainIndexDataStreamLifecycle(
             randomAlphaOfLengthBetween(10, 30),
             true,
@@ -242,7 +245,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
 
     private Response randomResponse() {
         return new Response(
-            List.of(createRandomIndexDLMExplanation(System.nanoTime(), randomBoolean() ? new DataStreamLifecycle() : null)),
+            List.of(createRandomIndexDataStreamLifecycleExplanation(System.nanoTime(), randomBoolean() ? new DataStreamLifecycle() : null)),
             randomBoolean()
                 ? new RolloverConfiguration(
                     new RolloverConditions(

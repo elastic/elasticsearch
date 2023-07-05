@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * This action retrieves the data lifecycle from every data stream that has a data lifecycle configured.
+ * This action retrieves the data stream lifecycle from every data stream that has a data stream lifecycle configured.
  */
 public class GetDataStreamLifecycleAction extends ActionType<GetDataStreamLifecycleAction.Response> {
 
@@ -162,7 +162,7 @@ public class GetDataStreamLifecycleAction extends ActionType<GetDataStreamLifecy
             }
 
             /**
-             * Converts the response to XContent and passes the RolloverConditions, when provided, to the data lifecycle.
+             * Converts the response to XContent and passes the RolloverConditions, when provided, to the data stream lifecycle.
              */
             public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
                 throws IOException {

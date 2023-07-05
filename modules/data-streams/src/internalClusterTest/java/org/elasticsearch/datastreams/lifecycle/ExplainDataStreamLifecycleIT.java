@@ -118,7 +118,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             // we requested the explain for indices with the default include_details=false
             assertThat(response.getRolloverConfiguration(), nullValue());
             for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
-                assertThat(explainIndex.isManagedByDLM(), is(true));
+                assertThat(explainIndex.isManagedByLifecycle(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().getEffectiveDataRetention(), nullValue());
@@ -211,7 +211,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             assertThat(response.getRolloverConfiguration(), nullValue());
             for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
                 assertThat(explainIndex.getIndex(), is(writeIndexName));
-                assertThat(explainIndex.isManagedByDLM(), is(true));
+                assertThat(explainIndex.isManagedByLifecycle(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().getEffectiveDataRetention(), nullValue());
@@ -248,7 +248,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         });
     }
 
-    public void testExplainDLMForUnmanagedIndices() throws Exception {
+    public void testExplainDataStreamLifecycleForUnmanagedIndices() throws Exception {
         String dataStreamName = "metrics-foo";
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, null);
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
@@ -268,7 +268,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             assertThat(response.getIndices().size(), is(1));
             assertThat(response.getRolloverConfiguration(), nullValue());
             for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
-                assertThat(explainIndex.isManagedByDLM(), is(false));
+                assertThat(explainIndex.isManagedByLifecycle(), is(false));
                 assertThat(explainIndex.getIndex(), is(writeIndexName));
                 assertThat(explainIndex.getIndexCreationDate(), nullValue());
                 assertThat(explainIndex.getLifecycle(), nullValue());

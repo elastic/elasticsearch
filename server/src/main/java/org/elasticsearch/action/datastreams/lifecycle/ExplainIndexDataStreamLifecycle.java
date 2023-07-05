@@ -40,7 +40,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     private static final ParseField ERROR_FIELD = new ParseField("error");
 
     private final String index;
-    private final boolean managedByDLM;
+    private final boolean managedByLifecycle;
     @Nullable
     private final Long indexCreationDate;
     @Nullable
@@ -55,7 +55,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
 
     public ExplainIndexDataStreamLifecycle(
         String index,
-        boolean managedByDLM,
+        boolean managedByLifecycle,
         @Nullable Long indexCreationDate,
         @Nullable Long rolloverDate,
         @Nullable TimeValue generationDate,
@@ -63,7 +63,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         @Nullable String error
     ) {
         this.index = index;
-        this.managedByDLM = managedByDLM;
+        this.managedByLifecycle = managedByLifecycle;
         this.indexCreationDate = indexCreationDate;
         this.rolloverDate = rolloverDate;
         this.generationDateMillis = generationDate == null ? null : generationDate.millis();
@@ -73,8 +73,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
 
     public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
         this.index = in.readString();
-        this.managedByDLM = in.readBoolean();
-        if (managedByDLM) {
+        this.managedByLifecycle = in.readBoolean();
+        if (managedByLifecycle) {
             this.indexCreationDate = in.readOptionalLong();
             this.rolloverDate = in.readOptionalLong();
             this.generationDateMillis = in.readOptionalLong();
@@ -98,8 +98,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         throws IOException {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), index);
-        builder.field(MANAGED_BY_LIFECYCLE_FIELD.getPreferredName(), managedByDLM);
-        if (managedByDLM) {
+        builder.field(MANAGED_BY_LIFECYCLE_FIELD.getPreferredName(), managedByLifecycle);
+        if (managedByLifecycle) {
             if (indexCreationDate != null) {
                 builder.timeField(
                     INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(),
@@ -133,8 +133,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        out.writeBoolean(managedByDLM);
-        if (managedByDLM) {
+        out.writeBoolean(managedByLifecycle);
+        if (managedByLifecycle) {
             out.writeOptionalLong(indexCreationDate);
             out.writeOptionalLong(rolloverDate);
             out.writeOptionalLong(generationDateMillis);
@@ -186,8 +186,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         return index;
     }
 
-    public boolean isManagedByDLM() {
-        return managedByDLM;
+    public boolean isManagedByLifecycle() {
+        return managedByLifecycle;
     }
 
     public Long getIndexCreationDate() {
@@ -220,7 +220,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             return false;
         }
         ExplainIndexDataStreamLifecycle that = (ExplainIndexDataStreamLifecycle) o;
-        return managedByDLM == that.managedByDLM
+        return managedByLifecycle == that.managedByLifecycle
             && Objects.equals(index, that.index)
             && Objects.equals(indexCreationDate, that.indexCreationDate)
             && Objects.equals(rolloverDate, that.rolloverDate)
@@ -230,6 +230,6 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, managedByDLM, indexCreationDate, rolloverDate, lifecycle, error);
+        return Objects.hash(index, managedByLifecycle, indexCreationDate, rolloverDate, lifecycle, error);
     }
 }

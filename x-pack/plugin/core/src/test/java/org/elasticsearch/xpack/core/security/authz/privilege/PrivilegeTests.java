@@ -466,7 +466,7 @@ public class PrivilegeTests extends ESTestCase {
         }
     }
 
-    public void testDlmPrivileges() {
+    public void testDataStreamLifecyclePrivileges() {
         assumeTrue("feature flag required", DataStreamLifecycle.isEnabled());
         {
             Predicate<String> predicate = IndexPrivilege.MANAGE_DATA_STREAM_LIFECYCLE.predicate();
@@ -477,7 +477,7 @@ public class PrivilegeTests extends ESTestCase {
             assertThat(predicate.test("indices:admin/data_stream/lifecycle/put"), is(true));
             assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(true));
             assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(true));
-            // check non-dlm action
+            // check non data stream lifecycle action
             assertThat(predicate.test("indices:admin/whatever"), is(false));
         }
 
@@ -490,7 +490,7 @@ public class PrivilegeTests extends ESTestCase {
             assertThat(predicate.test("indices:admin/data_stream/lifecycle/put"), is(false));
             assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(false));
             assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(false));
-            // check non-dlm action
+            // check non data stream lifecycle action
             assertThat(predicate.test("indices:admin/whatever"), is(false));
         }
     }

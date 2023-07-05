@@ -24,6 +24,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Internal (no-REST) action to retrieve metrics for serverless autoscaling.
+ */
 public class GetMlAutoscalingStats extends ActionType<Response> {
 
     public static final GetMlAutoscalingStats INSTANCE = new GetMlAutoscalingStats();

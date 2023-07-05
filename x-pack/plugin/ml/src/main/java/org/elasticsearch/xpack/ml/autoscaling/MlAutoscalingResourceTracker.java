@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.os.OsStats;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
@@ -90,16 +91,19 @@ public final class MlAutoscalingResourceTracker {
         Set<String> nodesWithRunningJobs = new HashSet<>();
         long memoryBytesSum = osStatsPerNode.values()
             .stream()
-            .map(s -> s.getMem().getAdjustedTotal().getBytes())
-            .collect(Collectors.summingLong(Long::longValue));
+            .map(s -> s.getMem().getAdjustedTotal().getBytes()).mapToLong(Long::longValue).sum();
 
         long modelMemoryBytesSum = 0;
         long extraSingleNodeModelMemoryInBytes = 0;
         int extraSingleNodeProcessors = 0;
-        int minNodes = 0;
         int extraProcessors = 0;
 
         final MlAutoscalingContext autoscalingContext = new MlAutoscalingContext(clusterState);
+
+        // start with `minNodes = 1` if any ML job is started, further adjustments are made for trained models below
+        int minNodes = autoscalingContext.anomalyDetectionTasks.isEmpty()
+            && autoscalingContext.dataframeAnalyticsTasks.isEmpty()
+            && autoscalingContext.modelAssignments.isEmpty() ? 0 : 1;
 
         // anomaly detection
         for (var task : autoscalingContext.anomalyDetectionTasks) {
@@ -107,22 +111,37 @@ public final class MlAutoscalingResourceTracker {
             Long jobMemory = mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId);
 
             if (jobMemory == null) {
-                // TODO: this indicates a bug and probably we should indicate that the result is incomplete
+                // TODO: this indicates a bug, should we indicate that the result is incomplete?
                 logger.debug("could not find memory requirement for job [{}], skipping", jobId);
                 continue;
             }
 
             if (AWAITING_LAZY_ASSIGNMENT.equals(task.getAssignment())) {
-                extraSingleNodeModelMemoryInBytes = Math.max(
-                    extraSingleNodeModelMemoryInBytes,
-                    jobMemory
-                );
-                extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, 1);
-                ++extraProcessors;
+                // implementation decision: don't count processors for AD
+                extraSingleNodeModelMemoryInBytes = Math.max(extraSingleNodeModelMemoryInBytes, jobMemory);
             } else {
                 modelMemoryBytesSum += jobMemory;
                 nodesWithRunningJobs.add(task.getExecutorNode());
-                minNodes = 1;
+            }
+        }
+
+        // data frame analytics
+        for (var task : autoscalingContext.dataframeAnalyticsTasks) {
+            String jobId = MlTasks.dataFrameAnalyticsId(task.getId());
+            Long jobMemory = mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(jobId);
+
+            if (jobMemory == null) {
+                // TODO: this indicates a bug, should we indicate that the result is incomplete?
+                logger.debug("could not find memory requirement for job [{}], skipping", jobId);
+                continue;
+            }
+
+            if (AWAITING_LAZY_ASSIGNMENT.equals(task.getAssignment())) {
+                // implementation decision: don't count processors for DFA
+                extraSingleNodeModelMemoryInBytes = Math.max(extraSingleNodeModelMemoryInBytes, jobMemory);
+            } else {
+                modelMemoryBytesSum += jobMemory;
+                nodesWithRunningJobs.add(task.getExecutorNode());
             }
         }
 
@@ -135,20 +154,16 @@ public final class MlAutoscalingResourceTracker {
             if (AssignmentState.STARTING.equals(modelAssignment.getValue().getAssignmentState())
                 && modelAssignment.getValue().getNodeRoutingTable().isEmpty()) {
 
-                extraSingleNodeModelMemoryInBytes = Math.max(
-                    extraSingleNodeModelMemoryInBytes,
-                    estimatedMemoryUsage
-                );
+                extraSingleNodeModelMemoryInBytes = Math.max(extraSingleNodeModelMemoryInBytes, estimatedMemoryUsage);
 
+                // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
                 extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
                 extraProcessors += numberOfAllocations * numberOfThreadsPerAllocation;
             } else {
                 modelMemoryBytesSum += estimatedMemoryUsage;
 
-                final int assignedProcessors = numberOfAllocations * numberOfThreadsPerAllocation;
-
-                // min(3, max(number of allocations over all deployed models), as this is always 3
-                minNodes = Math.min(3, Math.max(minNodes, assignedProcessors));
+                // min(3, max(number of allocations over all deployed models)
+                minNodes = Math.min(3, Math.max(minNodes, numberOfAllocations));
 
                 nodesWithRunningJobs.addAll(modelAssignment.getValue().getNodeRoutingTable().keySet());
             }

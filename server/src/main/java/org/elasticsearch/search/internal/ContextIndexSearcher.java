@@ -72,6 +72,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private static final int MINIMUM_DOCS_PER_SLICE = 50_000;
 
+    private static final double MINIMUM_DOCS_PRECENT_PER_SLICE = 0.1;
+
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private final MutableQueryTimeout cancellable;
@@ -210,7 +212,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // total number of documents to be searched
         final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
         // percentage of documents per slice, minumum 10%
-        final double percentageDocsPerThread = Math.max(0.1, 1.0 / numThreads);
+        final double percentageDocsPerThread = Math.max(MINIMUM_DOCS_PRECENT_PER_SLICE, 1.0 / numThreads);
         // compute slices
         return computeSlices(leaves, Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs)));
     }

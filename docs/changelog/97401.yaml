@@ -1,5 +1,5 @@
 pr: 97401
-summary: Fix timestamp as object as root level in APM Server
+summary: Accept timestamp as object at root level
 area: Data streams
 type: bug
 issues: []

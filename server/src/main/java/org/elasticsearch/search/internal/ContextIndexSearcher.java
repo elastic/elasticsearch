@@ -226,21 +226,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
         final List<List<LeafReaderContext>> groupedLeaves = new ArrayList<>();
         long docSum = 0;
-        List<LeafReaderContext> group = null;
+        List<LeafReaderContext> group = new ArrayList<>();
         for (LeafReaderContext ctx : sortedLeaves) {
-            if (group == null) {
-                group = new ArrayList<>();
-            }
             group.add(ctx);
             docSum += ctx.reader().maxDoc();
             if (docSum > minDocsPerSlice) {
                 groupedLeaves.add(group);
-                group = null;
+                group = new ArrayList<>();
                 docSum = 0;
             }
         }
 
-        if (group != null) {
+        if (group.size() > 0) {
             if (groupedLeaves.size() == 0) {
                 groupedLeaves.add(group);
             } else {
@@ -257,8 +254,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         LeafSlice[] slices = new LeafSlice[groupedLeaves.size()];
         int upto = 0;
         for (List<LeafReaderContext> currentLeaf : groupedLeaves) {
-            slices[upto] = new LeafSlice(currentLeaf);
-            ++upto;
+            slices[upto++] = new LeafSlice(currentLeaf);
         }
 
         return slices;

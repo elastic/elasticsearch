@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -113,8 +112,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
                 metadata.put(
-                    IndexMetadata.builder(index)
-                        .settings(indexSettings(IndexVersion.MINIMUM_COMPATIBLE, between(1, 10), between(0, 2)))
+                    IndexMetadata.builder(index).settings(indexSettings(IndexVersion.MINIMUM_COMPATIBLE, between(1, 10), between(0, 2)))
                 );
             }
             clusterState = newClusterState(metadata.build(), discoNodes.build());
@@ -183,8 +181,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
                 metadata.put(
-                    IndexMetadata.builder(index)
-                        .settings(indexSettings(IndexVersion.MINIMUM_COMPATIBLE, between(1, 10), between(1, 3)))
+                    IndexMetadata.builder(index).settings(indexSettings(IndexVersion.MINIMUM_COMPATIBLE, between(1, 10), between(1, 3)))
                 );
             }
             clusterState = newClusterState(metadata.build(), discoNodes.build());
@@ -304,8 +301,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
                 metadata.put(
-                    IndexMetadata.builder(index)
-                        .settings(indexSettings(IndexVersion.MINIMUM_COMPATIBLE, between(1, 10), between(0, 3)))
+                    IndexMetadata.builder(index).settings(indexSettings(IndexVersion.MINIMUM_COMPATIBLE, between(1, 10), between(0, 3)))
                 );
             }
             clusterState = newClusterState(metadata.build(), discoNodes.build());
@@ -427,8 +423,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
                 metadata.put(
-                    IndexMetadata.builder(index)
-                        .settings(indexSettings(IndexVersion.MINIMUM_COMPATIBLE, between(2, 10), between(0, 2)))
+                    IndexMetadata.builder(index).settings(indexSettings(IndexVersion.MINIMUM_COMPATIBLE, between(2, 10), between(0, 2)))
                 );
             }
             clusterState = newClusterState(metadata.build(), discoNodes.build());
@@ -524,8 +519,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
                 metadata.put(
-                    IndexMetadata.builder(index)
-                        .settings(indexSettings(IndexVersion.MINIMUM_COMPATIBLE, between(1, 10), between(0, 2)))
+                    IndexMetadata.builder(index).settings(indexSettings(IndexVersion.MINIMUM_COMPATIBLE, between(1, 10), between(0, 2)))
                 );
             }
             clusterState = newClusterState(metadata.build(), discoNodes.build());

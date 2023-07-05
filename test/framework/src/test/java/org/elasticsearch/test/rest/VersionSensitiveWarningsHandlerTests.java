@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase.VersionSensitiveWarningsHandler;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -30,11 +29,13 @@ public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
     }
 
     public void testMixedVersionCluster() throws IOException {
-        WarningsHandler handler = expectVersionSpecificWarnings(Set.of(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+        WarningsHandler handler = expectVersionSpecificWarnings(
+            Set.of(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
             v -> {
-            v.current("expectedCurrent1");
-            v.compatible("Expected legacy warning");
-        });
+                v.current("expectedCurrent1");
+                v.compatible("Expected legacy warning");
+            }
+        );
         assertFalse(handler.warningsShouldFailRequest(List.of("expectedCurrent1")));
         assertFalse(handler.warningsShouldFailRequest(List.of("Expected legacy warning")));
         assertFalse(handler.warningsShouldFailRequest(List.of("expectedCurrent1", "Expected legacy warning")));

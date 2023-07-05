@@ -16,15 +16,11 @@ public class TransportVersionUtils {
     private TransportVersionUtils() {}
 
     public static TransportVersion getMaxTransportVersion(ClusterState state) {
-        return state.transportVersions()
-            .values()
-            .stream()
-            .max(Comparator.naturalOrder())
-            .orElse(TransportVersion.current());
+        return state.transportVersions().values().stream().max(Comparator.naturalOrder()).orElse(TransportVersion.current());
     }
 
     public static TransportVersion getMinTransportVersion(ClusterState state) {
-       return state.getMinTransportVersion();
+        return state.getMinTransportVersion();
     }
 
     public static boolean areAllTransformVersionsTheSame(ClusterState state) {

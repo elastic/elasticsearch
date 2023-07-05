@@ -435,11 +435,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
      */
     public void testTerminateAfterSize0NoHitCountShortcut() throws Exception {
         indexDocs();
-        BooleanQuery bq = new BooleanQuery.Builder().add(new NonCountingTermQuery(new Term("foo", "bar")), Occur.SHOULD)
-            .add(new NonCountingTermQuery(new Term("foo", "baz")), Occur.SHOULD)
-            .build();
+        Query query = new NonCountingTermQuery(new Term("foo", "bar"));
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), bq);
+            TestSearchContext context = createContext(newContextSearcher(reader), query);
             context.terminateAfter(1);
             context.setSize(0);
             QueryPhase.executeQuery(context);
@@ -450,7 +448,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         // test interaction between trackTotalHits and terminateAfter
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), bq);
+            TestSearchContext context = createContext(newContextSearcher(reader), query);
             context.terminateAfter(10);
             context.setSize(0);
             context.trackTotalHitsUpTo(-1);
@@ -461,7 +459,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), bq);
+            TestSearchContext context = createContext(newContextSearcher(reader), query);
             context.terminateAfter(10);
             context.setSize(0);
             // track total hits is lower than terminate_after
@@ -474,7 +472,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), bq);
+            TestSearchContext context = createContext(newContextSearcher(reader), query);
             context.terminateAfter(10);
             context.setSize(0);
             // track total hits is higher than terminate_after

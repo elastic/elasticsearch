@@ -118,11 +118,13 @@ public class PartialHitCountCollectorTests extends ESTestCase {
     }
 
     /**
-     * A {@link TermQuery} which cannot terminate collection early
+     * A {@link TermQuery} which does not retrieve hit count from Weight#count for reproducible tests.
+     * Using this query we will never early-terminate the collection phase because we can already
+     * get the document count from the term statistics of each segment.
      */
-    public static class NonCountingTermQuery extends TermQuery {
+    static class NonCountingTermQuery extends TermQuery {
 
-        public NonCountingTermQuery(Term term) {
+        NonCountingTermQuery(Term term) {
             super(term);
         }
 

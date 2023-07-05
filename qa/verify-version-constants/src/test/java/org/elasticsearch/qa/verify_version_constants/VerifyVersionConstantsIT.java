@@ -8,6 +8,7 @@
 
 package org.elasticsearch.qa.verify_version_constants;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.text.ParseException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class VerifyVersionConstantsIT extends ESRestTestCase {
 
@@ -29,11 +31,20 @@ public class VerifyVersionConstantsIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
 
-        String indexVersionString = objectPath.evaluate("version.index_version").toString();
         String luceneVersionString = objectPath.evaluate("version.lucene_version").toString();
-
-        IndexVersion indexVersion = IndexVersion.fromId(Integer.parseInt(indexVersionString));
         org.apache.lucene.util.Version luceneVersion = org.apache.lucene.util.Version.parse(luceneVersionString);
+
+        IndexVersion indexVersion;
+        Object indexVersionString = objectPath.evaluate("version.index_version");
+        if (indexVersionString != null) {
+            indexVersion = IndexVersion.fromId(Integer.parseInt(indexVersionString.toString()));
+        } else {
+            String elasticsearchVersionString = objectPath.evaluate("version.number").toString();
+            Version elasticsearchVersion = Version.fromString(elasticsearchVersionString.replace("-SNAPSHOT", ""));
+            assertThat(elasticsearchVersion, lessThan(Version.V_8_10_0));
+            indexVersion = IndexVersion.fromId(elasticsearchVersion.id);
+        }
+
         assertThat(indexVersion.luceneVersion(), equalTo(luceneVersion));
     }
 

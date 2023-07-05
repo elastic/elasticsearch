@@ -111,7 +111,7 @@ public final class DataStreamTestHelper {
         long generation,
         Map<String, Object> metadata,
         boolean replicated,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) {
         return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, lifecycle);
     }
@@ -256,7 +256,7 @@ public final class DataStreamTestHelper {
             timeProvider,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
-            randomBoolean() ? new DataLifecycle(randomMillisUpToYear9999()) : null
+            randomBoolean() ? new DataStreamLifecycle(randomMillisUpToYear9999()) : null
         );
     }
 
@@ -490,7 +490,7 @@ public final class DataStreamTestHelper {
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
             root.add(
                 new DateFieldMapper.Builder(
-                    dataStream.getTimeStampField().getName(),
+                    DataStream.TIMESTAMP_FIELD_NAME,
                     DateFieldMapper.Resolution.MILLISECONDS,
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     ScriptCompiler.NONE,

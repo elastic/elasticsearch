@@ -441,7 +441,7 @@ public class EqlSearchIT extends ESRestTestCase {
         }
 
         List<Object> actualList = new ArrayList<>();
-        events.stream().forEach(m -> actualList.add(m.get("_id")));
+        events.forEach(m -> actualList.add(m.get("_id")));
 
         if (false == expected.equals(actualList)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();

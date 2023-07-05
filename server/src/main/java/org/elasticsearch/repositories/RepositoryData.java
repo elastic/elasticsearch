@@ -647,7 +647,7 @@ public final class RepositoryData {
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
      */
-    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version repoMetaVersion) throws IOException {
+    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final IndexVersion repoMetaVersion) throws IOException {
         return snapshotsToXContent(builder, repoMetaVersion, false);
     }
 
@@ -656,7 +656,7 @@ public final class RepositoryData {
      * @param permitMissingUuid indicates whether we permit the repository- and cluster UUIDs to be missing,
      *                          e.g. we are serializing for the in-memory cache or running tests
      */
-    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version repoMetaVersion, boolean permitMissingUuid)
+    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final IndexVersion repoMetaVersion, boolean permitMissingUuid)
         throws IOException {
 
         final boolean shouldWriteUUIDS = SnapshotsService.includesUUIDs(repoMetaVersion);
@@ -670,7 +670,7 @@ public final class RepositoryData {
 
         if (shouldWriteShardGens) {
             // Add min version field to make it impossible for older ES versions to deserialize this object
-            final Version minVersion;
+            final IndexVersion minVersion;
             if (shouldWriteUUIDS) {
                 minVersion = SnapshotsService.UUIDS_IN_REPO_DATA_VERSION;
             } else if (shouldWriteIndexGens) {
@@ -678,7 +678,13 @@ public final class RepositoryData {
             } else {
                 minVersion = SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION;
             }
-            builder.field(MIN_VERSION, minVersion.toString());
+            if (minVersion.before(IndexVersion.V_8_10_0)) {
+                // write as a string
+                builder.field(MIN_VERSION, Version.fromId(minVersion.id()).toString());
+            } else {
+                // write an int
+                builder.field(MIN_VERSION, minVersion.id());
+            }
         }
 
         if (shouldWriteUUIDS) {
@@ -816,10 +822,10 @@ public final class RepositoryData {
                     indexMetaIdentifiers = parser.mapStrings();
                 }
                 case MIN_VERSION -> {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
-                    final Version version = Version.fromString(parser.text());
+                    IndexVersion version = parseIndexVersion(parser.nextToken(), parser);
+
                     assert SnapshotsService.useShardGenerations(version);
-                    if (version.after(Version.CURRENT)) {
+                    if (version.after(IndexVersion.current())) {
                         throw new IllegalStateException(
                             "this snapshot repository format requires Elasticsearch version [" + version + "] or later"
                         );
@@ -923,13 +929,7 @@ public final class RepositoryData {
                         HashMap::new,
                         p -> stringDeduplicator.computeIfAbsent(p.text(), Function.identity())
                     );
-                    case VERSION -> {
-                        switch (token) {
-                            case VALUE_STRING -> version = IndexVersion.fromId(Version.fromString(parser.text()).id);   // 8.9.0 or before
-                            case VALUE_NUMBER -> version = IndexVersion.fromId(parser.intValue());  // separated index version
-                            default -> throw new IllegalStateException("Unexpected token type " + token);
-                        }
-                    }
+                    case VERSION -> version = parseIndexVersion(token, parser);
                     case START_TIME_MILLIS -> {
                         assert startTimeMillis == -1;
                         startTimeMillis = parser.longValue();
@@ -950,6 +950,17 @@ public final class RepositoryData {
             if (metaGenerations != null && metaGenerations.isEmpty() == false) {
                 indexMetaLookup.put(snapshotId, metaGenerations);
             }
+        }
+    }
+
+    private static IndexVersion parseIndexVersion(XContentParser.Token token, XContentParser parser) throws IOException {
+        if (token == XContentParser.Token.VALUE_NUMBER) {
+            return IndexVersion.fromId(parser.intValue());
+        } else {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
+            Version v = Version.fromString(parser.text());
+            assert v.before(Version.V_8_10_0);
+            return IndexVersion.fromId(v.id);
         }
     }
 

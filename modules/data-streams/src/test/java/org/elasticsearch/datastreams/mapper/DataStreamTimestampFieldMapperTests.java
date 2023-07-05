@@ -68,7 +68,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new DataStreamsPlugin());
+        return List.of(new DataStreamsPlugin(Settings.EMPTY));
     }
 
     public void testPostParse() throws IOException {

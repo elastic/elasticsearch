@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories.blobstore;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -339,7 +338,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
         PlainActionFuture.<RepositoryData, Exception>get(
-            f -> repository.writeIndexGen(repositoryData, generation, Version.CURRENT, Function.identity(), f)
+            f -> repository.writeIndexGen(repositoryData, generation, IndexVersion.current(), Function.identity(), f)
         );
     }
 

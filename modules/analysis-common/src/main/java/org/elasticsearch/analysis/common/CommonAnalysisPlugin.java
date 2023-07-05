@@ -99,7 +99,6 @@ import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -437,7 +436,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         analyzers.add(
             new PreBuiltAnalyzerProviderFactory(
                 "pattern",
-                CachingStrategy.ELASTICSEARCH,
+                CachingStrategy.INDEX,
                 () -> new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET)
             )
         );
@@ -600,8 +599,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 )
             )
         );
-        filters.add(PreConfiguredTokenFilter.elasticsearchVersion("word_delimiter_graph", false, false, (input, version) -> {
-            boolean adjustOffsets = version.onOrAfter(Version.V_7_3_0);
+        filters.add(PreConfiguredTokenFilter.indexVersion("word_delimiter_graph", false, false, (input, version) -> {
+            boolean adjustOffsets = version.onOrAfter(IndexVersion.V_7_3_0);
             return new WordDelimiterGraphFilter(
                 input,
                 adjustOffsets,
@@ -625,8 +624,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(PreConfiguredTokenizer.singleton("letter", LetterTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("whitespace", WhitespaceTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("ngram", NGramTokenizer::new));
-        tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("edge_ngram", (version) -> {
-            if (version.onOrAfter(Version.V_7_3_0)) {
+        tokenizers.add(PreConfiguredTokenizer.indexVersion("edge_ngram", (version) -> {
+            if (version.onOrAfter(IndexVersion.V_7_3_0)) {
                 return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
             }
             return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
@@ -638,13 +637,13 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", XLowerCaseTokenizer::new));
 
         // Temporary shim for aliases. TODO deprecate after they are moved
-        tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("nGram", (version) -> {
-            if (version.onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
+        tokenizers.add(PreConfiguredTokenizer.indexVersion("nGram", (version) -> {
+            if (version.onOrAfter(IndexVersion.V_8_0_0)) {
                 throw new IllegalArgumentException(
                     "The [nGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead."
                 );
-            } else if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
+            } else if (version.onOrAfter(IndexVersion.V_7_6_0)) {
                 deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "nGram_tokenizer_deprecation",
@@ -654,13 +653,13 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             }
             return new NGramTokenizer();
         }));
-        tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("edgeNGram", (version) -> {
-            if (version.onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
+        tokenizers.add(PreConfiguredTokenizer.indexVersion("edgeNGram", (version) -> {
+            if (version.onOrAfter(IndexVersion.V_8_0_0)) {
                 throw new IllegalArgumentException(
                     "The [edgeNGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [edge_ngram] for indices created in versions 8 or higher instead."
                 );
-            } else if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
+            } else if (version.onOrAfter(IndexVersion.V_7_6_0)) {
                 deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "edgeNGram_tokenizer_deprecation",
@@ -668,7 +667,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                         + "Please change the tokenizer name to [edge_ngram] instead."
                 );
             }
-            if (version.onOrAfter(Version.V_7_3_0)) {
+            if (version.onOrAfter(IndexVersion.V_7_3_0)) {
                 return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
             }
             return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);

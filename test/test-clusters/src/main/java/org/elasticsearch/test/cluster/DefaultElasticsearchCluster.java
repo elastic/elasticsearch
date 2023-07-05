@@ -54,6 +54,12 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     }
 
     @Override
+    public void stopNode(int index) {
+        checkHandle();
+        handle.stopNode(index);
+    }
+
+    @Override
     public void restart(boolean forcibly) {
         checkHandle();
         handle.restart(forcibly);
@@ -81,6 +87,12 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     public String getHttpAddress(int index) {
         checkHandle();
         return handle.getHttpAddress(index);
+    }
+
+    @Override
+    public String getName(int index) {
+        checkHandle();
+        return handle.getName(index);
     }
 
     @Override

@@ -34,7 +34,6 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -58,17 +57,9 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         return Map.of(key, randomAlphaOfLengthBetween(1, 10));
     }
 
-    private List<String> generateRandomRulesetIds() {
-        List<String> rulesetIds = new ArrayList<>();
-        for (int i = 0; i < randomIntBetween(1, 2); i++) {
-            rulesetIds.add(randomAlphaOfLengthBetween(5, 10));
-        }
-        return rulesetIds;
-    }
-
     @Override
     protected RuleQueryBuilder doCreateTestQueryBuilder() {
-        return new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), generateRandomRulesetIds());
+        return new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), randomAlphaOfLength(10));
     }
 
     @Override
@@ -84,7 +75,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     public void testIllegalArguments() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, Collections.singletonList("rulesetId"))
+            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, "rulesetId")
         );
         expectThrows(
             IllegalArgumentException.class,
@@ -92,22 +83,22 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), Collections.emptyList())
+            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), "")
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(null, generateRandomMatchCriteria(), Collections.singletonList("rulesetId"))
+            () -> new RuleQueryBuilder(null, generateRandomMatchCriteria(), "rulesetId")
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(null, Collections.emptyMap(), Collections.singletonList("rulesetId"))
+            () -> new RuleQueryBuilder(null, Collections.emptyMap(), "rulesetId")
         );
         expectThrows(
             IllegalArgumentException.class,
             () -> new RuleQueryBuilder(
                 new MatchAllQueryBuilder(),
                 generateRandomMatchCriteria("invalid_value"),
-                Collections.singletonList("rulesetId")
+                "rulesetId"
             )
         );
     }
@@ -126,14 +117,14 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
                 "match_criteria": {
                   "query_string": "elastic"
                 },
-                "ruleset_ids": [ "ruleset1", "ruleset2" ]
+                "ruleset_id": "ruleset1"
               }
             }""";
 
         RuleQueryBuilder queryBuilder = (RuleQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
 
-        assertEquals(query, 2, queryBuilder.rulesetId().size());
+        assertEquals("ruleset1", queryBuilder.rulesetId());
         assertEquals(query, "elastic", queryBuilder.matchCriteria().get("query_string"));
         assertThat(queryBuilder.organicQuery(), instanceOf(TermQueryBuilder.class));
     }
@@ -152,7 +143,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(
             new TermQueryBuilder("foo", 1),
             Map.of("query_string", "bar"),
-            Collections.singletonList("baz")
+            "baz"
         );
         QueryBuilder rewritten = ruleQueryBuilder.rewrite(createSearchExecutionContext());
         assertThat(rewritten, instanceOf(RuleQueryBuilder.class));

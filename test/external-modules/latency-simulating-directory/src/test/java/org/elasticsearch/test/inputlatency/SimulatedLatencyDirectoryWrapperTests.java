@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.LongAdder;
 
 import static org.hamcrest.Matchers.greaterThan;
 
-public class TestSimulatedLatencyDirectoryWrapper extends ESTestCase {
+public class SimulatedLatencyDirectoryWrapperTests extends ESTestCase {
 
     public void testBufferRunnableIsCalled() throws IOException {
         Settings build = Settings.builder()

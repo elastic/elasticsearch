@@ -17,6 +17,10 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.util.List;
 
+/**
+ * Supplies a directory wrapper that simulates networks latencies when loading lucene
+ * directory files from disk
+ */
 public class InputLatencyPlugin extends Plugin {
 
     private static final Logger log = LogManager.getLogger(InputLatencyPlugin.class);

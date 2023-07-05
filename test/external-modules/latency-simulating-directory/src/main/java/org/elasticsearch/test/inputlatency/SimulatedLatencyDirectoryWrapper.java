@@ -14,8 +14,9 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexModule;
 
 import java.io.EOFException;
@@ -26,6 +27,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.function.Consumer;
 
+/**
+ * A DirectoryWrapper that sleeps for 50ms whenever an indexinput fills its internal
+ * data buffer
+ */
 public class SimulatedLatencyDirectoryWrapper implements IndexModule.DirectoryWrapper {
 
     private final Consumer<String> delayer;
@@ -63,6 +68,7 @@ public class SimulatedLatencyDirectoryWrapper implements IndexModule.DirectoryWr
         }
     }
 
+    @SuppressForbidden(reason = "Copied from lucene")
     final class DelayingNIOFSIndexInput extends BufferedIndexInput {
         /** The maximum chunk size for reads of 16384 bytes. */
         private static final int CHUNK_SIZE = 16384;
@@ -76,14 +82,14 @@ public class SimulatedLatencyDirectoryWrapper implements IndexModule.DirectoryWr
         /** end offset (start+length) */
         protected final long end;
 
-        public DelayingNIOFSIndexInput(String resourceDesc, FileChannel fc, IOContext context) throws IOException {
+        DelayingNIOFSIndexInput(String resourceDesc, FileChannel fc, IOContext context) throws IOException {
             super(resourceDesc, context);
             this.channel = fc;
             this.off = 0L;
             this.end = fc.size();
         }
 
-        public DelayingNIOFSIndexInput(String resourceDesc, FileChannel fc, long off, long length, int bufferSize) {
+        DelayingNIOFSIndexInput(String resourceDesc, FileChannel fc, long off, long length, int bufferSize) {
             super(resourceDesc, bufferSize);
             this.channel = fc;
             this.off = off;
@@ -93,7 +99,7 @@ public class SimulatedLatencyDirectoryWrapper implements IndexModule.DirectoryWr
 
         @Override
         public void close() throws IOException {
-            if (!isClone) {
+            if (isClone == false) {
                 channel.close();
             }
         }
@@ -125,7 +131,7 @@ public class SimulatedLatencyDirectoryWrapper implements IndexModule.DirectoryWr
         }
 
         @Override
-        public final long length() {
+        public long length() {
             return end - off;
         }
 

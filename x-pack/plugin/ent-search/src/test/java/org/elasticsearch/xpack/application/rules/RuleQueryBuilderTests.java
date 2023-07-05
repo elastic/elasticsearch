@@ -133,7 +133,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         RuleQueryBuilder queryBuilder = (RuleQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
 
-        assertEquals(query, 2, queryBuilder.rulesetIds().size());
+        assertEquals(query, 2, queryBuilder.rulesetId().size());
         assertEquals(query, "elastic", queryBuilder.matchCriteria().get("query_string"));
         assertThat(queryBuilder.organicQuery(), instanceOf(TermQueryBuilder.class));
     }
@@ -161,18 +161,20 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     @Override
     protected GetResponse executeGet(GetRequest getRequest) {
         String rulesetId = getRequest.id();
-//        List<QueryRule> rules = new ArrayList<>();
-//        for (int i = 0; i < randomIntBetween(1, 5); i++) {
-//            rules.add(SearchApplicationTestUtils.randomQueryRule());
-//        }
+        // List<QueryRule> rules = new ArrayList<>();
+        // for (int i = 0; i < randomIntBetween(1, 5); i++) {
+        // rules.add(SearchApplicationTestUtils.randomQueryRule());
+        // }
         // Removing randomization here, so that copies are all equal.
         // This is part of trying to get tests to work, will re-introduce randomization if it makes sense.
-        List<QueryRule> rules = List.of(new QueryRule(
-            "my_rule1",
-            QueryRule.QueryRuleType.PINNED,
-            List.of(new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.EXACT, "query_string", "elastic")),
-            Map.of("ids", List.of("id1", "id2"))
-        ));
+        List<QueryRule> rules = List.of(
+            new QueryRule(
+                "my_rule1",
+                QueryRule.QueryRuleType.PINNED,
+                List.of(new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.EXACT, "query_string", "elastic")),
+                Map.of("ids", List.of("id1", "id2"))
+            )
+        );
         QueryRuleset queryRuleset = new QueryRuleset(rulesetId, rules);
 
         assertThat(getRequest.index(), Matchers.equalTo(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME));
@@ -205,7 +207,8 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     protected Object simulateMethod(Method method, Object[] args) {
         // Get request, to pull the query ruleset from the system index
         if (method.getDeclaringClass().equals(ElasticsearchClient.class)
-            && method.getName().equals("execute") && args[0] instanceof GetAction) {
+            && method.getName().equals("execute")
+            && args[0] instanceof GetAction) {
             return executeGet((GetRequest) args[1]);
         }
 
@@ -222,11 +225,11 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         // TODO - Implement. This is copied from the percolate builder, and I _think_ this should
         // not be cacheable for query rules, in case they changes? Confirm and implement.
         // For now, do nothing until testToQuery passes.
-//        RuleQueryBuilder queryBuilder = createTestQueryBuilder();
-//        SearchExecutionContext context = createSearchExecutionContext();
-//        assert context.isCacheable();
-//        QueryBuilder rewritten = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
-//        assertNotNull(rewritten.toQuery(context));
-//        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+        // RuleQueryBuilder queryBuilder = createTestQueryBuilder();
+        // SearchExecutionContext context = createSearchExecutionContext();
+        // assert context.isCacheable();
+        // QueryBuilder rewritten = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+        // assertNotNull(rewritten.toQuery(context));
+        // assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 }

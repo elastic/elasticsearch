@@ -55,7 +55,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     public static final String NAME = "rule_query";
 
     // TODO make this a String not an array
-    private static final ParseField RULESET_IDS_FIELD = new ParseField("ruleset_ids");
+    private static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
     private static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
@@ -64,7 +64,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
      */
     static final Set<String> ALLOWED_MATCH_CRITERIA = Set.of("query_string");
 
-    private final List<String> rulesetIds;
+    private final String rulesetId;
     private final Map<String, Object> matchCriteria;
     private final QueryBuilder organicQuery;
 
@@ -80,15 +80,15 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return TransportVersion.V_8_500_024;
     }
 
-    public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, List<String> rulesetIds) {
-        this(organicQuery, matchCriteria, rulesetIds, null, null, null, null);
+    public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, String rulesetId) {
+        this(organicQuery, matchCriteria, rulesetId, null, null, null, null);
     }
 
     public RuleQueryBuilder(StreamInput in) throws IOException {
         super(in);
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
         matchCriteria = in.readMap();
-        rulesetIds = in.readList(StreamInput::readString);
+        rulesetId = in.readString();
         pinnedIds = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
         pinnedIdsSupplier = null;
         pinnedDocs = in.readBoolean() ? in.readList(Item::new) : null;
@@ -98,7 +98,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     private RuleQueryBuilder(
         QueryBuilder organicQuery,
         Map<String, Object> matchCriteria,
-        List<String> rulesetIds,
+        String rulesetId,
         List<String> pinnedIds,
         List<Item> pinnedDocs,
         Supplier<List<String>> pinnedIdsSupplier,
@@ -116,18 +116,13 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                 throw new IllegalArgumentException("matchCriteria key [" + matchCriteriaKey + "] is not allowed");
             }
         }
-        if (rulesetIds == null || rulesetIds.isEmpty()) {
-            throw new IllegalArgumentException("rulesetIds must not be null or empty");
-        }
-        for (String rulesetId : rulesetIds) {
-            if (Strings.isNullOrEmpty(rulesetId)) {
-                throw new IllegalArgumentException("rulesetId must not be null or empty");
-            }
+        if (Strings.isNullOrEmpty(rulesetId)) {
+            throw new IllegalArgumentException("rulesetId must not be null or empty");
         }
 
         this.organicQuery = organicQuery;
         this.matchCriteria = matchCriteria;
-        this.rulesetIds = rulesetIds;
+        this.rulesetId = rulesetId;
         this.pinnedIds = pinnedIds;
         this.pinnedIdsSupplier = pinnedIdsSupplier;
         this.pinnedDocs = pinnedDocs;
@@ -145,7 +140,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
         out.writeNamedWriteable(organicQuery);
         out.writeGenericMap(matchCriteria);
-        out.writeStringCollection(rulesetIds);
+        out.writeString(rulesetId);
         if (pinnedIds != null) {
             out.writeBoolean(true);
             out.writeStringCollection(pinnedIds);
@@ -160,8 +155,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         }
     }
 
-    public List<String> rulesetIds() {
-        return rulesetIds;
+    public String rulesetId() {
+        return rulesetId;
     }
 
     public Map<String, Object> matchCriteria() {
@@ -179,11 +174,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         builder.startObject(MATCH_CRITERIA_FIELD.getPreferredName());
         builder.mapContents(matchCriteria);
         builder.endObject();
-        builder.startArray(RULESET_IDS_FIELD.getPreferredName());
-        for (String rulesetId : rulesetIds) {
-            builder.value(rulesetId);
-        }
-        builder.endArray();
+        builder.field(RULESET_ID_FIELD.getPreferredName(), rulesetId);
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -217,12 +208,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             if (identifiedPinnedIds == null && identifiedPinnedDocs == null) {
                 return this; // not executed yet
             } else {
-                return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds, identifiedPinnedIds, identifiedPinnedDocs, null, null);
+                return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetId, identifiedPinnedIds, identifiedPinnedDocs, null, null);
             }
         }
 
         // Identify matching rules and apply them as applicable
-        String rulesetId = rulesetIds.get(0);
         GetRequest getRequest = new GetRequest(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME, rulesetId);
         SetOnce<List<String>> pinnedIdsSetOnce = new SetOnce<>();
         SetOnce<List<Item>> pinnedDocsSetOnce = new SetOnce<>();
@@ -280,7 +270,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         RuleQueryBuilder rewritten = new RuleQueryBuilder(
             newOrganicQuery,
             matchCriteria,
-            rulesetIds,
+            this.rulesetId,
             null,
             null,
             pinnedIdsSetOnce::get,
@@ -294,7 +284,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     protected boolean doEquals(RuleQueryBuilder other) {
         if (this == other) return true;
         if (other == null || getClass() != other.getClass()) return false;
-        return Objects.equals(rulesetIds, other.rulesetIds)
+        return Objects.equals(rulesetId, other.rulesetId)
             && Objects.equals(matchCriteria, other.matchCriteria)
             && Objects.equals(organicQuery, other.organicQuery)
             && Objects.equals(pinnedIds, other.pinnedIds)
@@ -305,21 +295,20 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(rulesetIds, matchCriteria, organicQuery, pinnedIds, pinnedDocs, pinnedIdsSupplier, pinnedDocsSupplier);
+        return Objects.hash(rulesetId, matchCriteria, organicQuery, pinnedIds, pinnedDocs, pinnedIdsSupplier, pinnedDocsSupplier);
     }
 
     private static final ConstructingObjectParser<RuleQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {
         QueryBuilder organicQuery = (QueryBuilder) a[0];
         @SuppressWarnings("unchecked")
         Map<String, Object> matchCriteria = (Map<String, Object>) a[1];
-        @SuppressWarnings("unchecked")
-        List<String> rulesetIds = (List<String>) a[2];
-        return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds);
+        String rulesetId = (String) a[2];
+        return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetId);
     });
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), MATCH_CRITERIA_FIELD);
-        PARSER.declareStringArray(constructorArg(), RULESET_IDS_FIELD);
+        PARSER.declareString(constructorArg(), RULESET_ID_FIELD);
         declareStandardFields(PARSER);
     }
 

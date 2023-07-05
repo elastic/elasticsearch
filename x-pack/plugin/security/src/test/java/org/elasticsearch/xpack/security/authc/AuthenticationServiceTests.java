@@ -2017,7 +2017,8 @@ public class AuthenticationServiceTests extends ESTestCase {
                 .user(new User("creator"))
                 .realmRef(new RealmRef("test", "test", "test"))
                 .build(false);
-            tokenService.createOAuth2Tokens(userTokenBytes, refreshTokenBytes, expected, originatingAuth, Collections.emptyMap(), tokenFuture);
+            tokenService.createOAuth2Tokens(userTokenBytes, refreshTokenBytes, expected, originatingAuth, Collections.emptyMap(),
+                    tokenFuture);
         }
         String token = tokenFuture.get().getAccessToken();
         mockGetTokenFromId(tokenService, userTokenBytes, expected, Map.of(), true, client);

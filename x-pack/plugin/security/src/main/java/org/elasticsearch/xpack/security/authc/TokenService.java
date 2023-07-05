@@ -343,16 +343,18 @@ public final class TokenService {
      *                                <li> Encrypted before stored for versions before {@link #VERSION_TOKENS_INDEX_INTRODUCED} </li>
      *                                <li> Hashed before stored for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED} </li>
      *                                <li> Stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
-     *                                <li> Stored in a specific security tokens index for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
-     *                                <li> Prepended with a version ID and encoded with Base64 before returned to the caller of the APIs</li>
+     *                                <li> Stored in a specific security tokens index for versions after
+     *                                {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                                <li> Prepended with a version ID and Base64 encoded before returned to the caller of the APIs</li>
      *                              </ul>
      * @param refreshTokenBytes     The predefined seed value for the access token. This will then be
      *                              <ul>
      *                                <li> Hashed before stored for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED} </li>
      *                                <li> Stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
-     *                                <li> Stored in a specific security tokens index for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
-     *                                <li> Prepended with a version ID and encoded with Base64 before returned to the caller of the APIs for
-     *                                versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                                <li> Stored in a specific security tokens index for versions after
+     *                                {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                                <li> Prepended with a version ID and encoded with Base64 before returned to the caller of the APIs
+     *                                for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
      *                              </ul>
      * @param tokenVersion          The version of the nodes with which these tokens will be compatible.
      * @param tokensIndex           The security tokens index

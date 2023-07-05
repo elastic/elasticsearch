@@ -420,7 +420,8 @@ public class TokenServiceTests extends ESTestCase {
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final byte[] userTokenBytes = getNewTokenBytes();
         final byte[] refreshTokenBytes = getNewTokenBytes();
-        tokenService.createOAuth2Tokens(userTokenBytes, refreshTokenBytes, authentication, authentication, Collections.emptyMap(), tokenFuture);
+        tokenService.createOAuth2Tokens(userTokenBytes, refreshTokenBytes, authentication, authentication, Collections.emptyMap(),
+                tokenFuture);
         final String accessToken = tokenFuture.get().getAccessToken();
         assertNotNull(accessToken);
         mockGetTokenFromId(tokenService, userTokenBytes, authentication, true);
@@ -449,7 +450,8 @@ public class TokenServiceTests extends ESTestCase {
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final byte[] userTokenBytes = getNewTokenBytes();
         final byte[] rawRefreshTokenBytes = getNewTokenBytes();
-        tokenService.createOAuth2Tokens(userTokenBytes, rawRefreshTokenBytes, authentication, authentication, Collections.emptyMap(), tokenFuture);
+        tokenService.createOAuth2Tokens(userTokenBytes, rawRefreshTokenBytes, authentication, authentication, Collections.emptyMap(),
+                tokenFuture);
         final String accessToken = tokenFuture.get().getAccessToken();
         final String clientRefreshToken = tokenFuture.get().getRefreshToken();
         assertNotNull(accessToken);
@@ -475,7 +477,8 @@ public class TokenServiceTests extends ESTestCase {
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final byte[] userTokenBytes = getNewTokenBytes();
         final byte[] rawRefreshTokenBytes = getNewTokenBytes();
-        tokenService.createOAuth2Tokens(userTokenBytes, rawRefreshTokenBytes, authentication, authentication, Collections.emptyMap(), tokenFuture);
+        tokenService.createOAuth2Tokens(userTokenBytes, rawRefreshTokenBytes, authentication, authentication, Collections.emptyMap(),
+                tokenFuture);
         final String accessToken = tokenFuture.get().getAccessToken();
         final String clientRefreshToken = tokenFuture.get().getRefreshToken();
         assertNotNull(accessToken);

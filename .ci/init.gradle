@@ -90,13 +90,13 @@ if (USE_ARTIFACTORY) {
   }
 }
 
-gradle.settingsEvaluated { settings ->
-  settings.pluginManager.withPlugin("com.gradle.enterprise") {
-    settings.gradleEnterprise {
-      server = 'https://gradle-enterprise.elastic.co'
-    }
-  }
-}
+// gradle.settingsEvaluated { settings ->
+//   settings.pluginManager.withPlugin("com.gradle.enterprise") {
+//     settings.gradleEnterprise {
+//       server = 'https://gradle-enterprise.elastic.co'
+//     }
+//   }
+// }
 
 
 final String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.url')

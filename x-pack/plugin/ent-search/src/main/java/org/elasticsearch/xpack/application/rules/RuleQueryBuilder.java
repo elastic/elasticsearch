@@ -62,11 +62,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
      */
     static final Set<String> ALLOWED_MATCH_CRITERIA = Set.of("query_string");
 
-    /**
-     * Defines the set of allowed match criteria, so that we can validate that rule query requests are sending in allowed/supported data.
-     */
-    static final Set<String> ALLOWED_MATCH_CRITERIA = Set.of("query_string");
-
     private final String rulesetId;
     private final Map<String, Object> matchCriteria;
     private final QueryBuilder organicQuery;

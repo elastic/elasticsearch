@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -49,7 +49,7 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
         final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(request.param("name"));
-        if (DataLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isEnabled()) {
             getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         }
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));

@@ -68,4 +68,9 @@ public class TransportVersionUtilsTests extends ESTestCase {
 
         assertThat(TransportVersionUtils.isMinTransformVersionSameAsCurrent(state1), equalTo(true));
     }
+
+    public void testIsMinTransportVersionOnOrAfter() {
+        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersion.V_7_0_0), equalTo(true));
+        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersion.V_8_9_0), equalTo(false));
+    }
 }

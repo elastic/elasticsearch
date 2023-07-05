@@ -390,7 +390,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
         DirectoryReader reader = w.getReader();
         List<LeafReaderContext> contexts = reader.leaves();
-        for (int i = 0; i < 64; i++) {
+        int iter = randomIntBetween(16, 64);
+        for (int i = 0; i < iter; i++) {
             int numThreads = randomIntBetween(1, 16);
             IndexSearcher.LeafSlice[] slices = ContextIndexSearcher.computeSlices(contexts, numThreads, 1);
             assertSlices(slices, numDocs, numThreads);

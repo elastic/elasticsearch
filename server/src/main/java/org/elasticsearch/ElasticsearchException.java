@@ -1846,12 +1846,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             170,
             TransportVersion.V_8_500_016
         ),
-        API_NOT_AVAILABLE_EXCEPTION(
-            ApiNotAvailableException.class,
-            ApiNotAvailableException::new,
-            171,
-            TransportVersion.V_8_500_031
-        );
+        API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersion.V_8_500_031);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

@@ -12,18 +12,22 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 public class PartialHitCountCollectorTests extends ESTestCase {
 
@@ -109,7 +113,25 @@ public class PartialHitCountCollectorTests extends ESTestCase {
         int totalHitsThreshold = randomInt(2);
         PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(totalHitsThreshold);
         searcher.search(query, partialHitCountCollector);
-        assertEquals(totalHitsThreshold, partialHitCountCollector.getTotalHits());
-        assertTrue(partialHitCountCollector.hasEarlyTerminated());
+
+        try {
+            assertEquals(totalHitsThreshold, partialHitCountCollector.getTotalHits());
+            assertTrue(partialHitCountCollector.hasEarlyTerminated());
+        } catch (AssertionError e) {
+            // if we get very unlucky with the document distribution, we can get more than one segment with only one document
+            // in this case early termination might not kick in because we never collect
+            // check if this was the case here and disregard error in that case
+            Weight weight = searcher.createWeight(query, ScoreMode.TOP_DOCS, 1.0f);
+            List<LeafReaderContext> leafContexts = searcher.getLeafContexts();
+            int totalHitsWithoutCollecting = 0;
+            for (LeafReaderContext leafContext : leafContexts) {
+                int count = weight.count(leafContext);
+                if (count != -1) {
+                    totalHitsWithoutCollecting += count;
+                }
+            }
+            assertTrue(totalHitsWithoutCollecting > totalHitsThreshold);
+            assertFalse(partialHitCountCollector.hasEarlyTerminated());
+        }
     }
 }

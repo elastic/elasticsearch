@@ -179,7 +179,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     @Override
     protected Object simulateMethod(Method method, Object[] args) {
-        // Get request, to pull the query ruleset from the system index
+        // Get request, to pull the query ruleset from the system index using clientWithOrigin
         if (method.getDeclaringClass().equals(ElasticsearchClient.class)
             && method.getName().equals("execute")
             && args[0] instanceof GetAction) {

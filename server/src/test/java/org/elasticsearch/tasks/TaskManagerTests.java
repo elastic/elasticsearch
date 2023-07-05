@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TaskManagerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -76,7 +77,9 @@ public class TaskManagerTests extends ESTestCase {
     public void testTrackingChannelTask() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         Set<Task> cancelledTasks = ConcurrentCollections.newConcurrentSet();
-        taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
+        final TransportService transportServiceMock = mock(TransportService.class);
+        when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
+        taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
                 assertThat(reason, equalTo("channel was closed"));
@@ -124,7 +127,9 @@ public class TaskManagerTests extends ESTestCase {
     public void testTrackingTaskAndCloseChannelConcurrently() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
-        taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
+        final TransportService transportServiceMock = mock(TransportService.class);
+        when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
+        taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
                 assertTrue("task [" + task + "] was cancelled already", cancelledTasks.add(task));
@@ -180,7 +185,9 @@ public class TaskManagerTests extends ESTestCase {
 
     public void testRemoveBansOnChannelDisconnects() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
+        final TransportService transportServiceMock = mock(TransportService.class);
+        when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
+        taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {}
         });

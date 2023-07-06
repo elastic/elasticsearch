@@ -8,12 +8,9 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.IntVector;
-
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
-import java.util.Objects;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ConstantBooleanVector;
+import org.elasticsearch.compute.data.Constant$Type$Vector;
 
 /**
  * Aggregator state for a single $type$.
@@ -48,9 +45,16 @@ final class $Type$State implements AggregatorState<$Type$State> {
         this.seen = seen;
     }
 
+    /** Extracts an intermediate view of the contents of this state.  */
+    void toIntermediate(Block[] blocks, int offset) {
+        assert blocks.length >= offset + 2;
+        blocks[offset + 0] = new Constant$Type$Vector(value, 1).asBlock();
+        blocks[offset + 1] = new ConstantBooleanVector(seen, 1).asBlock();
+    }
+
     @Override
     public long getEstimatedSize() {
-        return $BYTES$ + 1;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -58,31 +62,6 @@ final class $Type$State implements AggregatorState<$Type$State> {
 
     @Override
     public AggregatorStateSerializer<$Type$State> serializer() {
-        return new $Type$StateSerializer();
-    }
-
-    private static class $Type$StateSerializer implements AggregatorStateSerializer<$Type$State> {
-        private static final VarHandle handle = MethodHandles.byteArrayViewVarHandle($type$[].class, ByteOrder.BIG_ENDIAN);
-
-        @Override
-        public int size() {
-            return $BYTES$ + 1;
-        }
-
-        @Override
-        public int serialize($Type$State state, byte[] ba, int offset, IntVector selected) {
-            assert selected.getPositionCount() == 1;
-            assert selected.getInt(0) == 0;
-            handle.set(ba, offset, state.value);
-            ba[offset + $BYTES$] = (byte) (state.seen ? 1 : 0);
-            return size(); // number of bytes written
-        }
-
-        @Override
-        public void deserialize($Type$State state, byte[] ba, int offset) {
-            Objects.requireNonNull(state);
-            state.value = ($type$) handle.get(ba, offset);
-            state.seen = ba[offset + $BYTES$] == (byte) 1;
-        }
+        throw new UnsupportedOperationException();
     }
 }

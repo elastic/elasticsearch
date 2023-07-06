@@ -8,12 +8,9 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.IntVector;
-
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
-import java.util.Objects;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ConstantBooleanVector;
+import org.elasticsearch.compute.data.ConstantIntVector;
 
 /**
  * Aggregator state for a single int.
@@ -48,9 +45,16 @@ final class IntState implements AggregatorState<IntState> {
         this.seen = seen;
     }
 
+    /** Extracts an intermediate view of the contents of this state.  */
+    void toIntermediate(Block[] blocks, int offset) {
+        assert blocks.length >= offset + 2;
+        blocks[offset + 0] = new ConstantIntVector(value, 1).asBlock();
+        blocks[offset + 1] = new ConstantBooleanVector(seen, 1).asBlock();
+    }
+
     @Override
     public long getEstimatedSize() {
-        return Integer.BYTES + 1;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -58,31 +62,6 @@ final class IntState implements AggregatorState<IntState> {
 
     @Override
     public AggregatorStateSerializer<IntState> serializer() {
-        return new IntStateSerializer();
-    }
-
-    private static class IntStateSerializer implements AggregatorStateSerializer<IntState> {
-        private static final VarHandle handle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
-
-        @Override
-        public int size() {
-            return Integer.BYTES + 1;
-        }
-
-        @Override
-        public int serialize(IntState state, byte[] ba, int offset, IntVector selected) {
-            assert selected.getPositionCount() == 1;
-            assert selected.getInt(0) == 0;
-            handle.set(ba, offset, state.value);
-            ba[offset + Integer.BYTES] = (byte) (state.seen ? 1 : 0);
-            return size(); // number of bytes written
-        }
-
-        @Override
-        public void deserialize(IntState state, byte[] ba, int offset) {
-            Objects.requireNonNull(state);
-            state.value = (int) handle.get(ba, offset);
-            state.seen = ba[offset + Integer.BYTES] == (byte) 1;
-        }
+        throw new UnsupportedOperationException();
     }
 }

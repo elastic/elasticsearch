@@ -9,15 +9,13 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SumLongAggregator}.
@@ -25,7 +23,8 @@ import org.elasticsearch.compute.data.Vector;
  */
 public final class SumLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("aggstate", ElementType.UNKNOWN)  );
+      new IntermediateStateDesc("sum", ElementType.LONG),
+      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final LongState state;
 
@@ -87,29 +86,21 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addIntermediateInput(Page page) {
-    Block block = page.getBlock(channels.get(0));
-    Vector vector = block.asVector();
-    if (vector == null || vector instanceof AggregatorStateVector == false) {
-      throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
+    assert channels.size() == intermediateBlockCount();
+    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    LongVector sum = page.<LongBlock>getBlock(channels.get(0)).asVector();
+    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    assert sum.getPositionCount() == 1;
+    assert sum.getPositionCount() == seen.getPositionCount();
+    if (seen.getBoolean(0)) {
+      state.longValue(SumLongAggregator.combine(state.longValue(), sum.getLong(0)));
+      state.seen(true);
     }
-    @SuppressWarnings("unchecked") AggregatorStateVector<LongState> blobVector = (AggregatorStateVector<LongState>) vector;
-    // TODO exchange big arrays directly without funny serialization - no more copying
-    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    LongState tmpState = new LongState(SumLongAggregator.init());
-    for (int i = 0; i < block.getPositionCount(); i++) {
-      blobVector.get(i, tmpState);
-      state.longValue(SumLongAggregator.combine(state.longValue(), tmpState.longValue()));
-    }
-    state.seen(state.seen() || tmpState.seen());
-    tmpState.close();
   }
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset) {
-    AggregatorStateVector.Builder<AggregatorStateVector<LongState>, LongState> builder =
-        AggregatorStateVector.builderOfAggregatorState(LongState.class, state.getEstimatedSize());
-    builder.add(state, IntVector.range(0, 1));
-    blocks[offset] = builder.build().asBlock();
+    state.toIntermediate(blocks, offset);
   }
 
   @Override

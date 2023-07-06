@@ -32,6 +32,7 @@ import javax.lang.model.util.Elements;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
+import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
@@ -398,7 +399,7 @@ public class AggregatorImplementer {
     private MethodSpec addIntermediateInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
-        if (combineIntermediate != null) {
+        if (isAggState() == false) {
             builder.addStatement("assert channels.size() == intermediateBlockCount()");
             builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
             int count = 0;
@@ -420,10 +421,25 @@ public class AggregatorImplementer {
                         .map(s -> first + ".getPositionCount() == " + s + ".getPositionCount()")
                         .collect(joining(" && "))
             );
-            builder.addStatement(
-                "$T.combineIntermediate(state, " + intermediateState.stream().map(IntermediateStateDesc::name).collect(joining(", ")) + ")",
-                declarationType
-            );
+            if (hasPrimitiveState()) {
+                assert intermediateState.size() == 2;
+                assert intermediateState.get(1).name().equals("seen");
+                builder.beginControlFlow("if (seen.getBoolean(0))");
+                {
+                    var state = intermediateState.get(0);
+                    var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
+                    builder.addStatement(s, primitiveStateMethod(), declarationType, primitiveStateMethod());
+                    builder.addStatement("state.seen(true)");
+                    builder.endControlFlow();
+                }
+            } else {
+                builder.addStatement(
+                    "$T.combineIntermediate(state, "
+                        + intermediateState.stream().map(IntermediateStateDesc::name).collect(joining(", "))
+                        + ")",
+                    declarationType
+                );
+            }
         } else {
             builder.addStatement("Block block = page.getBlock(channels.get(0))");
             builder.addStatement("$T vector = block.asVector()", VECTOR);
@@ -480,8 +496,9 @@ public class AggregatorImplementer {
             .addModifiers(Modifier.PUBLIC)
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset");
-        if (combineIntermediate != null) {
-            builder.addStatement("$T.evaluateIntermediate(state, blocks, offset)", declarationType);
+        if (isAggState() == false) {
+            assert hasPrimitiveState();
+            builder.addStatement("state.toIntermediate(blocks, offset)");
         } else {
             ParameterizedTypeName stateBlockBuilderType = ParameterizedTypeName.get(
                 AGGREGATOR_STATE_VECTOR_BUILDER,
@@ -556,5 +573,17 @@ public class AggregatorImplementer {
 
     private ParameterizedTypeName stateBlockType() {
         return ParameterizedTypeName.get(AGGREGATOR_STATE_VECTOR, stateType);
+    }
+
+    private boolean isAggState() {
+        return intermediateState.get(0).name().equals("aggstate");
+    }
+
+    private boolean hasPrimitiveState() {
+        return switch (stateType.toString()) {
+            case "org.elasticsearch.compute.aggregation.IntState", "org.elasticsearch.compute.aggregation.LongState",
+                "org.elasticsearch.compute.aggregation.DoubleState" -> true;
+            default -> false;
+        };
     }
 }

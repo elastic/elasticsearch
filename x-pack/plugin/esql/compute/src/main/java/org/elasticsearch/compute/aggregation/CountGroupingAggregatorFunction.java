@@ -9,8 +9,10 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -22,6 +24,11 @@ import java.util.List;
 @Experimental
 public class CountGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
+    private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
+        new IntermediateStateDesc("count", ElementType.LONG),
+        new IntermediateStateDesc("seen", ElementType.BOOLEAN)
+    );
+
     private final LongArrayState state;
     private final List<Integer> channels;
 
@@ -30,7 +37,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     public static List<IntermediateStateDesc> intermediateStateDesc() {
-        return IntermediateStateDesc.AGG_STATE;
+        return INTERMEDIATE_STATE_DESC;
     }
 
     private CountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state) {
@@ -120,21 +127,13 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void addIntermediateInput(LongVector groupIdVector, Page page) {
-        Block block = page.getBlock(channels.get(0));
-        Vector vector = block.asVector();
-        if (vector instanceof AggregatorStateVector) {
-            @SuppressWarnings("unchecked")
-            AggregatorStateVector<LongArrayState> blobBlock = (AggregatorStateVector<LongArrayState>) vector;
-            // TODO exchange big arrays directly without funny serialization - no more copying
-            LongArrayState tmpState = new LongArrayState(BigArrays.NON_RECYCLING_INSTANCE, 0);
-            blobBlock.get(0, tmpState);
-            final int positions = groupIdVector.getPositionCount();
-            final LongArrayState state = this.state;
-            for (int i = 0; i < positions; i++) {
-                state.increment(tmpState.get(i), Math.toIntExact(groupIdVector.getLong(i)));
-            }
-        } else {
-            throw new RuntimeException("expected AggregatorStateVector, got:" + block);
+        assert channels.size() == intermediateBlockCount();
+        assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+        LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
+        BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+        assert count.getPositionCount() == seen.getPositionCount();
+        for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
+            state.increment(count.getLong(position), Math.toIntExact(groupIdVector.getLong(position)));
         }
     }
 
@@ -149,10 +148,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        AggregatorStateVector.Builder<AggregatorStateVector<LongArrayState>, LongArrayState> builder = AggregatorStateVector
-            .builderOfAggregatorState(LongArrayState.class, state.getEstimatedSize());
-        builder.add(state, selected);
-        blocks[offset] = builder.build().asBlock();
+        state.toIntermediate(blocks, offset, selected);
     }
 
     @Override

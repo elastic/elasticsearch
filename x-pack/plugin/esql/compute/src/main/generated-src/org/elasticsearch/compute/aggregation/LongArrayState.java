@@ -12,14 +12,11 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.core.Releasables;
-
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
-import java.util.Objects;
 
 /**
  * Aggregator state for an array of longs.
@@ -121,9 +118,23 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
         }
     }
 
+    /** Extracts an intermediate view of the contents of this state.  */
+    void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+        assert blocks.length >= offset + 2;
+        var valuesBuilder = LongBlock.newBlockBuilder(selected.getPositionCount());
+        var nullsBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+        for (int i = 0; i < selected.getPositionCount(); i++) {
+            int group = selected.getInt(i);
+            valuesBuilder.appendLong(values.get(group));
+            nullsBuilder.appendBoolean(hasValue(group));
+        }
+        blocks[offset + 0] = valuesBuilder.build();
+        blocks[offset + 1] = nullsBuilder.build();
+    }
+
     @Override
     public long getEstimatedSize() {
-        return Long.BYTES + (largestIndex + 1L) * Long.BYTES + LongArrayState.estimateSerializeSize(nonNulls);
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -133,78 +144,6 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
 
     @Override
     public AggregatorStateSerializer<LongArrayState> serializer() {
-        return new LongArrayStateSerializer();
-    }
-
-    private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
-
-    static int serializeBitArray(BitArray bits, byte[] ba, int offset) {
-        if (bits == null) {
-            longHandle.set(ba, offset, 0);
-            return Long.BYTES;
-        }
-        final LongArray array = bits.getBits();
-        longHandle.set(ba, offset, array.size());
-        offset += Long.BYTES;
-        for (long i = 0; i < array.size(); i++) {
-            longHandle.set(ba, offset, array.get(i));
-        }
-        return Long.BYTES + Math.toIntExact(array.size() * Long.BYTES);
-    }
-
-    static BitArray deseralizeBitArray(BigArrays bigArrays, byte[] ba, int offset) {
-        long size = (long) longHandle.get(ba, offset);
-        if (size == 0) {
-            return null;
-        } else {
-            offset += Long.BYTES;
-            final LongArray array = bigArrays.newLongArray(size);
-            for (long i = 0; i < size; i++) {
-                array.set(i, (long) longHandle.get(ba, offset));
-            }
-            return new BitArray(bigArrays, array);
-        }
-    }
-
-    static int estimateSerializeSize(BitArray bits) {
-        if (bits == null) {
-            return Long.BYTES;
-        }
-        return Long.BYTES + Math.toIntExact(bits.getBits().size() * Long.BYTES);
-    }
-
-    private static class LongArrayStateSerializer implements AggregatorStateSerializer<LongArrayState> {
-        private static final VarHandle lengthHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
-        private static final VarHandle valueHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
-
-        @Override
-        public int size() {
-            return Long.BYTES;
-        }
-
-        @Override
-        public int serialize(LongArrayState state, byte[] ba, int offset, org.elasticsearch.compute.data.IntVector selected) {
-            lengthHandle.set(ba, offset, selected.getPositionCount());
-            offset += Long.BYTES;
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                valueHandle.set(ba, offset, state.values.get(selected.getInt(i)));
-                offset += Long.BYTES;
-            }
-            final int valuesBytes = Long.BYTES + (Long.BYTES * selected.getPositionCount());
-            return valuesBytes + LongArrayState.serializeBitArray(state.nonNulls, ba, offset);
-        }
-
-        @Override
-        public void deserialize(LongArrayState state, byte[] ba, int offset) {
-            Objects.requireNonNull(state);
-            int positions = (int) (long) lengthHandle.get(ba, offset);
-            offset += Long.BYTES;
-            for (int i = 0; i < positions; i++) {
-                state.set((long) valueHandle.get(ba, offset), i);
-                offset += Long.BYTES;
-            }
-            state.largestIndex = positions - 1;
-            state.nonNulls = LongArrayState.deseralizeBitArray(state.bigArrays, ba, offset);
-        }
+        throw new UnsupportedOperationException();
     }
 }

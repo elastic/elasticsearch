@@ -173,7 +173,14 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
     LongVector min = page.<LongBlock>getBlock(channels.get(0)).asVector();
     BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
     assert min.getPositionCount() == seen.getPositionCount();
-    MinLongAggregator.combineIntermediate(groupIdVector, state, min, seen);
+    for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
+      int groupId = Math.toIntExact(groupIdVector.getLong(position));
+      if (seen.getBoolean(position)) {
+        state.set(MinLongAggregator.combine(state.getOrDefault(groupId), min.getLong(position)), groupId);
+      } else {
+        state.putNull(groupId);
+      }
+    }
   }
 
   @Override
@@ -191,7 +198,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    MinLongAggregator.evaluateIntermediate(state, blocks, offset, selected);
+    state.toIntermediate(blocks, offset, selected);
   }
 
   @Override

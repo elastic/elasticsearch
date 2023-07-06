@@ -36,6 +36,7 @@ import static org.elasticsearch.compute.gen.AggregatorImplementer.valueBlockType
 import static org.elasticsearch.compute.gen.AggregatorImplementer.valueVectorType;
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
+import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
@@ -394,7 +395,7 @@ public class GroupingAggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(LONG_VECTOR, "groupIdVector").addParameter(PAGE, "page");
 
-        if (combineIntermediate != null) {
+        if (isAggState() == false) {
             builder.addStatement("assert channels.size() == intermediateBlockCount()");
             builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
             int count = 0;
@@ -415,12 +416,34 @@ public class GroupingAggregatorImplementer {
                         .map(s -> first + ".getPositionCount() == " + s + ".getPositionCount()")
                         .collect(joining(" && "))
             );
-            builder.addStatement(
-                "$T.combineIntermediate(groupIdVector, state, "
-                    + intermediateState.stream().map(IntermediateStateDesc::name).collect(joining(", "))
-                    + ")",
-                declarationType
-            );
+            if (hasPrimitiveState()) {
+                assert intermediateState.size() == 2;
+                assert intermediateState.get(1).name().equals("seen");
+                builder.beginControlFlow("for (int position = 0; position < groupIdVector.getPositionCount(); position++)");
+                {
+                    builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(position))");
+                    builder.beginControlFlow("if (seen.getBoolean(position))");
+                    {
+                        var name = intermediateState.get(0).name();
+                        var m = vectorAccessorName(intermediateState.get(0).elementType());
+                        builder.addStatement(
+                            "state.set($T.combine(state.getOrDefault(groupId), " + name + "." + m + "(position)), groupId)",
+                            declarationType
+                        );
+                        builder.nextControlFlow("else");
+                        builder.addStatement("state.putNull(groupId)");
+                        builder.endControlFlow();
+                    }
+                    builder.endControlFlow();
+                }
+            } else {
+                builder.addStatement(
+                    "$T.combineIntermediate(groupIdVector, state, "
+                        + intermediateState.stream().map(IntermediateStateDesc::name).collect(joining(", "))
+                        + ")",
+                    declarationType
+                );
+            }
         } else {
             builder.addStatement("Block block = page.getBlock(channels.get(0))");
             builder.addStatement("$T vector = block.asVector()", VECTOR);
@@ -478,8 +501,9 @@ public class GroupingAggregatorImplementer {
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
             .addParameter(INT_VECTOR, "selected");
-        if (combineIntermediate != null) {
-            builder.addStatement("$T.evaluateIntermediate(state, blocks, offset, selected)", declarationType);
+        if (isAggState() == false) {
+            assert hasPrimitiveState();
+            builder.addStatement("state.toIntermediate(blocks, offset, selected)");
         } else {
             ParameterizedTypeName stateBlockBuilderType = ParameterizedTypeName.get(
                 AGGREGATOR_STATE_VECTOR_BUILDER,
@@ -533,5 +557,17 @@ public class GroupingAggregatorImplementer {
 
     private ParameterizedTypeName stateBlockType() {
         return ParameterizedTypeName.get(AGGREGATOR_STATE_VECTOR, stateType);
+    }
+
+    private boolean isAggState() {
+        return intermediateState.get(0).name().equals("aggstate");
+    }
+
+    private boolean hasPrimitiveState() {
+        return switch (stateType.toString()) {
+            case "org.elasticsearch.compute.aggregation.IntArrayState", "org.elasticsearch.compute.aggregation.LongArrayState",
+                "org.elasticsearch.compute.aggregation.DoubleArrayState" -> true;
+            default -> false;
+        };
     }
 }

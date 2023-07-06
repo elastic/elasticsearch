@@ -9,10 +9,12 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -38,8 +40,13 @@ public class CountAggregatorFunction implements AggregatorFunction {
         };
     }
 
+    private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
+        new IntermediateStateDesc("count", ElementType.LONG),
+        new IntermediateStateDesc("seen", ElementType.BOOLEAN)
+    );
+
     public static List<IntermediateStateDesc> intermediateStateDesc() {
-        return IntermediateStateDesc.AGG_STATE;
+        return INTERMEDIATE_STATE_DESC;
     }
 
     private final LongState state;
@@ -68,29 +75,18 @@ public class CountAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void addIntermediateInput(Page page) {
-        Block block = page.getBlock(channels.get(0));
-        if (block.asVector() != null && block.asVector() instanceof AggregatorStateVector) {
-            @SuppressWarnings("unchecked")
-            AggregatorStateVector<LongState> blobVector = (AggregatorStateVector) block.asVector();
-            LongState state = this.state;
-            LongState tmpState = new LongState();
-            for (int i = 0; i < block.getPositionCount(); i++) {
-                blobVector.get(i, tmpState);
-                state.longValue(state.longValue() + tmpState.longValue());
-            }
-        } else {
-            throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
-        }
+        assert channels.size() == intermediateBlockCount();
+        assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+        LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
+        BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+        assert count.getPositionCount() == 1;
+        assert count.getPositionCount() == seen.getPositionCount();
+        state.longValue(state.longValue() + count.getLong(0));
     }
 
     @Override
     public void evaluateIntermediate(Block[] blocks, int offset) {
-        AggregatorStateVector.Builder<AggregatorStateVector<LongState>, LongState> builder = AggregatorStateVector.builderOfAggregatorState(
-            LongState.class,
-            state.getEstimatedSize()
-        );
-        builder.add(state, IntVector.range(0, 1));
-        blocks[offset] = builder.build().asBlock();
+        state.toIntermediate(blocks, offset);
     }
 
     @Override

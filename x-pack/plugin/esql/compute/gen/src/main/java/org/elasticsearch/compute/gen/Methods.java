@@ -117,4 +117,19 @@ public class Methods {
         }
         throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }
+
+    /**
+     * Returns the name of the method used to get {@code valueType} instances
+     * from vectors or blocks.
+     */
+    static String vectorAccessorName(String elementTypeName) {
+        return switch (elementTypeName) {
+            case "INT" -> "getInt";
+            case "LONG" -> "getLong";
+            case "DOUBLE" -> "getDouble";
+            default -> throw new IllegalArgumentException(
+                "don't know how to fetch primitive values from " + elementTypeName + ". define combineStates."
+            );
+        };
+    }
 }

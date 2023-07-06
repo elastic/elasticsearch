@@ -318,7 +318,7 @@ public class OperatorTests extends ESTestCase {
         }
     }
 
-    public void testGroupingWithOrdinals() throws IOException {
+    public void testGroupingWithOrdinals() throws Exception {
         final String gField = "g";
         final int numDocs = between(100, 10000);
         final Map<BytesRef, Long> expectedCounts = new HashMap<>();
@@ -415,7 +415,7 @@ public class OperatorTests extends ESTestCase {
                             driverContext
                         ),
                         new HashAggregationOperator(
-                            List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1)).groupingAggregatorFactory(FINAL)),
+                            List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1, 2)).groupingAggregatorFactory(FINAL)),
                             () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)), bigArrays),
                             driverContext
                         )

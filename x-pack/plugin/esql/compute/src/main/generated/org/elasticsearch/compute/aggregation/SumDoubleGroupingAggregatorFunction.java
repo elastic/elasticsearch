@@ -195,7 +195,7 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    SumDoubleAggregator.evaluateIntermediate(state, blocks, offset, selected);
+    state.toIntermediate(blocks, offset, selected);
   }
 
   @Override

@@ -11,7 +11,7 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
-@Aggregator({ @IntermediateState(name = "aggstate", type = "UNKNOWN") })
+@Aggregator({ @IntermediateState(name = "sum", type = "LONG"), @IntermediateState(name = "seen", type = "BOOLEAN") })
 @GroupingAggregator
 class SumIntAggregator {
 
@@ -23,15 +23,7 @@ class SumIntAggregator {
         return Math.addExact(current, v);
     }
 
-    public static void combineStates(LongState current, LongState state) {
-        current.longValue(Math.addExact(current.longValue(), state.longValue()));
-    }
-
-    public static void combineStates(LongArrayState current, int groupId, LongArrayState state, int position) {
-        if (state.hasValue(position)) {
-            current.set(Math.addExact(current.getOrDefault(groupId), state.get(position)), groupId);
-        } else {
-            current.putNull(groupId);
-        }
+    public static long combine(long current, long v) {
+        return Math.addExact(current, v);
     }
 }

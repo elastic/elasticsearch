@@ -92,12 +92,15 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
     BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
     assert min.getPositionCount() == 1;
     assert min.getPositionCount() == seen.getPositionCount();
-    MinLongAggregator.combineIntermediate(state, min, seen);
+    if (seen.getBoolean(0)) {
+      state.longValue(MinLongAggregator.combine(state.longValue(), min.getLong(0)));
+      state.seen(true);
+    }
   }
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset) {
-    MinLongAggregator.evaluateIntermediate(state, blocks, offset);
+    state.toIntermediate(blocks, offset);
   }
 
   @Override

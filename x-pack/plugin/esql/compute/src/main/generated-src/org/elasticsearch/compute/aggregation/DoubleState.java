@@ -8,12 +8,9 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.IntVector;
-
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
-import java.util.Objects;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ConstantBooleanVector;
+import org.elasticsearch.compute.data.ConstantDoubleVector;
 
 /**
  * Aggregator state for a single double.
@@ -48,9 +45,16 @@ final class DoubleState implements AggregatorState<DoubleState> {
         this.seen = seen;
     }
 
+    /** Extracts an intermediate view of the contents of this state.  */
+    void toIntermediate(Block[] blocks, int offset) {
+        assert blocks.length >= offset + 2;
+        blocks[offset + 0] = new ConstantDoubleVector(value, 1).asBlock();
+        blocks[offset + 1] = new ConstantBooleanVector(seen, 1).asBlock();
+    }
+
     @Override
     public long getEstimatedSize() {
-        return Double.BYTES + 1;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -58,31 +62,6 @@ final class DoubleState implements AggregatorState<DoubleState> {
 
     @Override
     public AggregatorStateSerializer<DoubleState> serializer() {
-        return new DoubleStateSerializer();
-    }
-
-    private static class DoubleStateSerializer implements AggregatorStateSerializer<DoubleState> {
-        private static final VarHandle handle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.BIG_ENDIAN);
-
-        @Override
-        public int size() {
-            return Double.BYTES + 1;
-        }
-
-        @Override
-        public int serialize(DoubleState state, byte[] ba, int offset, IntVector selected) {
-            assert selected.getPositionCount() == 1;
-            assert selected.getInt(0) == 0;
-            handle.set(ba, offset, state.value);
-            ba[offset + Double.BYTES] = (byte) (state.seen ? 1 : 0);
-            return size(); // number of bytes written
-        }
-
-        @Override
-        public void deserialize(DoubleState state, byte[] ba, int offset) {
-            Objects.requireNonNull(state);
-            state.value = (double) handle.get(ba, offset);
-            state.seen = ba[offset + Double.BYTES] == (byte) 1;
-        }
+        throw new UnsupportedOperationException();
     }
 }

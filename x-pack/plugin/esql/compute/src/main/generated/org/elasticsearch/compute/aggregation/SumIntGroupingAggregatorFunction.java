@@ -10,15 +10,15 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link SumIntAggregator}.
@@ -26,7 +26,8 @@ import org.elasticsearch.compute.data.Vector;
  */
 public final class SumIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("aggstate", ElementType.UNKNOWN)  );
+      new IntermediateStateDesc("sum", ElementType.LONG),
+      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final LongArrayState state;
 
@@ -168,21 +169,19 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
 
   @Override
   public void addIntermediateInput(LongVector groupIdVector, Page page) {
-    Block block = page.getBlock(channels.get(0));
-    Vector vector = block.asVector();
-    if (vector == null || vector instanceof AggregatorStateVector == false) {
-      throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
-    }
-    @SuppressWarnings("unchecked") AggregatorStateVector<LongArrayState> blobVector = (AggregatorStateVector<LongArrayState>) vector;
-    // TODO exchange big arrays directly without funny serialization - no more copying
-    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    LongArrayState inState = new LongArrayState(bigArrays, SumIntAggregator.init());
-    blobVector.get(0, inState);
+    assert channels.size() == intermediateBlockCount();
+    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    LongVector sum = page.<LongBlock>getBlock(channels.get(0)).asVector();
+    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    assert sum.getPositionCount() == seen.getPositionCount();
     for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      SumIntAggregator.combineStates(state, groupId, inState, position);
+      if (seen.getBoolean(position)) {
+        state.set(SumIntAggregator.combine(state.getOrDefault(groupId), sum.getLong(position)), groupId);
+      } else {
+        state.putNull(groupId);
+      }
     }
-    inState.close();
   }
 
   @Override
@@ -191,15 +190,16 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
     LongArrayState inState = ((SumIntGroupingAggregatorFunction) input).state;
-    SumIntAggregator.combineStates(state, groupId, inState, position);
+    if (inState.hasValue(position)) {
+      state.set(SumIntAggregator.combine(state.getOrDefault(groupId), inState.get(position)), groupId);
+    } else {
+      state.putNull(groupId);
+    }
   }
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    AggregatorStateVector.Builder<AggregatorStateVector<LongArrayState>, LongArrayState> builder =
-        AggregatorStateVector.builderOfAggregatorState(LongArrayState.class, state.getEstimatedSize());
-    builder.add(state, selected);
-    blocks[offset] = builder.build().asBlock();
+    state.toIntermediate(blocks, offset, selected);
   }
 
   @Override

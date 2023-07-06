@@ -156,6 +156,10 @@ class SumDoubleAggregator {
             super(value, delta);
         }
 
+        void toIntermediate(Block[] blocks, int offset) {
+            SumDoubleAggregator.evaluateIntermediate(this, blocks, offset);
+        }
+
         @Override
         public long getEstimatedSize() {
             throw new UnsupportedOperationException();
@@ -258,6 +262,10 @@ class SumDoubleAggregator {
                 values = bigArrays.grow(values, groupId + 1);
                 deltas = bigArrays.grow(deltas, groupId + 1);
             }
+        }
+
+        void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+            SumDoubleAggregator.evaluateIntermediate(this, blocks, offset, selected);
         }
 
         @Override

@@ -99,7 +99,7 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset) {
-    SumDoubleAggregator.evaluateIntermediate(state, blocks, offset);
+    state.toIntermediate(blocks, offset);
   }
 
   @Override

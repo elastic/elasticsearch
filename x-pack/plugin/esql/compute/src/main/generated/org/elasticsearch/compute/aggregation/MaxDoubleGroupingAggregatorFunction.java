@@ -10,8 +10,9 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -19,7 +20,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link MaxDoubleAggregator}.
@@ -27,7 +27,8 @@ import org.elasticsearch.compute.data.Vector;
  */
 public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("aggstate", ElementType.UNKNOWN)  );
+      new IntermediateStateDesc("max", ElementType.DOUBLE),
+      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final DoubleArrayState state;
 
@@ -169,25 +170,19 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void addIntermediateInput(LongVector groupIdVector, Page page) {
-    Block block = page.getBlock(channels.get(0));
-    Vector vector = block.asVector();
-    if (vector == null || vector instanceof AggregatorStateVector == false) {
-      throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
-    }
-    @SuppressWarnings("unchecked") AggregatorStateVector<DoubleArrayState> blobVector = (AggregatorStateVector<DoubleArrayState>) vector;
-    // TODO exchange big arrays directly without funny serialization - no more copying
-    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    DoubleArrayState inState = new DoubleArrayState(bigArrays, MaxDoubleAggregator.init());
-    blobVector.get(0, inState);
+    assert channels.size() == intermediateBlockCount();
+    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    DoubleVector max = page.<DoubleBlock>getBlock(channels.get(0)).asVector();
+    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    assert max.getPositionCount() == seen.getPositionCount();
     for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      if (inState.hasValue(position)) {
-        state.set(MaxDoubleAggregator.combine(state.getOrDefault(groupId), inState.get(position)), groupId);
+      if (seen.getBoolean(position)) {
+        state.set(MaxDoubleAggregator.combine(state.getOrDefault(groupId), max.getDouble(position)), groupId);
       } else {
         state.putNull(groupId);
       }
     }
-    inState.close();
   }
 
   @Override
@@ -205,10 +200,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    AggregatorStateVector.Builder<AggregatorStateVector<DoubleArrayState>, DoubleArrayState> builder =
-        AggregatorStateVector.builderOfAggregatorState(DoubleArrayState.class, state.getEstimatedSize());
-    builder.add(state, selected);
-    blocks[offset] = builder.build().asBlock();
+    state.toIntermediate(blocks, offset, selected);
   }
 
   @Override

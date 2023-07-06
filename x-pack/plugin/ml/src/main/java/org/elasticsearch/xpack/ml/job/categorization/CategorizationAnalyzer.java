@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 
@@ -112,7 +113,8 @@ public class CategorizationAnalyzer implements Releasable {
             return new Tuple<>(globalAnalyzer, Boolean.FALSE);
         } else {
             return new Tuple<>(
-                analysisRegistry.buildCustomAnalyzer(null, false, config.getTokenizer(), config.getCharFilters(), config.getTokenFilters()),
+                analysisRegistry.buildCustomAnalyzer(IndexCreationContext.RELOAD_ANALYZERS,
+                        null, false, config.getTokenizer(), config.getCharFilters(), config.getTokenFilters()),
                 Boolean.TRUE
             );
         }

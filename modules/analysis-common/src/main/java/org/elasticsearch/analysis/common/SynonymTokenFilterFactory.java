@@ -12,11 +12,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
-import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
@@ -27,7 +27,6 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Reader;
 import java.io.StringReader;
@@ -45,15 +44,13 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     protected final Environment environment;
     protected final AnalysisMode analysisMode;
     private final SynonymsManagementAPIService synonymsManagementAPIService;
-    private final ThreadPool threadPool;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
         Environment env,
         String name,
         Settings settings,
-        SynonymsManagementAPIService synonymsManagementAPIService,
-        ThreadPool threadPool
+        SynonymsManagementAPIService synonymsManagementAPIService
     ) {
         super(name, settings);
         this.settings = settings;
@@ -73,7 +70,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
         this.environment = env;
         this.synonymsManagementAPIService = synonymsManagementAPIService;
-        this.threadPool = threadPool;
     }
 
     @Override
@@ -88,13 +84,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getChainAwareTokenFilterFactory(
+        IndexCreationContext context,
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
         Function<String, TokenFilterFactory> allFilters
     ) {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
-        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment);
+        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment, context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesFromSettings);
         final String name = name();
         return new TokenFilterFactory() {
@@ -156,7 +153,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    protected ReaderWithOrigin getRulesFromSettings(Environment env) {
+    protected ReaderWithOrigin getRulesFromSettings(Environment env, IndexCreationContext context) {
         if (settings.getAsList("synonyms", null) != null) {
             List<String> rulesList = Analysis.getWordList(env, settings, "synonyms");
             StringBuilder sb = new StringBuilder();
@@ -172,14 +169,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             }
             String synonymsSet = settings.get("synonyms_set", null);
             // provide fake synonyms on master thread, as on Master an analyzer is built for validation only
-            if (MasterService.isMasterUpdateThread()) {
+            if (context != IndexCreationContext.RELOAD_ANALYZERS) {
                 return new ReaderWithOrigin(
                     new StringReader("fake rule => fake"),
                     "fake [" + synonymsSet + "] synonyms_set in .synonyms index"
                 );
             }
             return new ReaderWithOrigin(
-                Analysis.getReaderFromIndex(synonymsSet, threadPool, synonymsManagementAPIService),
+                Analysis.getReaderFromIndex(synonymsSet, synonymsManagementAPIService),
                 "[" + synonymsSet + "] synonyms_set in .synonyms index",
                 synonymsSet
             );

@@ -312,7 +312,7 @@ public class Analysis {
             }
         };
         threadPool.executor(ThreadPool.Names.SYSTEM_READ).execute(() -> {
-            synonymsManagementAPIService.getSynonymRules(synonymsSet, 0, 10_000, synonymsLoadingFuture);
+            synonymsManagementAPIService.getSynonymSetRules(synonymsSet, 0, 10_000, synonymsLoadingFuture);
         });
         PagedResult<SynonymRule> results = synonymsLoadingFuture.actionGet();
 

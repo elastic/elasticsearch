@@ -88,7 +88,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         final MapperBuilderContext context = MapperBuilderContext.root(false);
         if (type.equals("string")) {
             if (docValues) {
-                fieldType = new KeywordFieldMapper.Builder(fieldName, IndexVersion.CURRENT).build(context).fieldType();
+                fieldType = new KeywordFieldMapper.Builder(fieldName, IndexVersion.current()).build(context).fieldType();
             } else {
                 fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers()).fielddata(true)
                     .build(context)
@@ -101,7 +101,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 ScriptCompiler.NONE,
                 false,
                 true,
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("double")) {
@@ -111,7 +111,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 ScriptCompiler.NONE,
                 false,
                 true,
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("long")) {
@@ -121,7 +121,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 ScriptCompiler.NONE,
                 false,
                 true,
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("int")) {
@@ -131,7 +131,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 ScriptCompiler.NONE,
                 false,
                 true,
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("short")) {
@@ -141,7 +141,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 ScriptCompiler.NONE,
                 false,
                 true,
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("byte")) {
@@ -151,11 +151,11 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 ScriptCompiler.NONE,
                 false,
                 true,
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
-            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false, IndexVersion.CURRENT, null).docValues(
+            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false, IndexVersion.current(), null).docValues(
                 docValues
             ).build(context).fieldType();
         } else if (type.equals("binary")) {

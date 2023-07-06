@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -693,9 +694,11 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getBasicMockedClient();
 
         JobResultsProvider provider = createProvider(client);
-        provider.datafeedTimingStats(List.of(), null, ActionListener.wrap(statsByJobId -> assertThat(statsByJobId, anEmptyMap()), e -> {
-            throw new AssertionError("Failure getting datafeed timing stats", e);
-        }));
+        provider.datafeedTimingStats(
+            List.of(),
+            null,
+            ActionTestUtils.assertNoFailureListener(statsByJobId -> assertThat(statsByJobId, anEmptyMap()))
+        );
 
         verifyNoMoreInteractions(client);
     }
@@ -785,7 +788,7 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.datafeedTimingStats(
             List.of("foo", "bar"),
             null,
-            ActionListener.wrap(
+            ActionTestUtils.assertNoFailureListener(
                 statsByJobId -> assertThat(
                     statsByJobId,
                     equalTo(
@@ -796,8 +799,7 @@ public class JobResultsProviderTests extends ESTestCase {
                             new DatafeedTimingStats("bar", 7, 77, 777.0, contextBar)
                         )
                     )
-                ),
-                e -> fail(e.getMessage())
+                )
             )
         );
 

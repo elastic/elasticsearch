@@ -120,8 +120,8 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                 new GetPipelineResponse(
                     Arrays.stream(mGetResponse.getResponses())
                         .filter(itemResponse -> itemResponse.isFailed() == false)
-                        .filter(itemResponse -> itemResponse.getResponse().isExists())
                         .map(MultiGetItemResponse::getResponse)
+                        .filter(GetResponse::isExists)
                         .collect(Collectors.toMap(GetResponse::getId, GetResponse::getSourceAsBytesRef))
                 )
             );

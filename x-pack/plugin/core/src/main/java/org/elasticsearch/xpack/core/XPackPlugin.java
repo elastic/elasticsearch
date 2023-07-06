@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -318,7 +319,8 @@ public class XPackPlugin extends XPackClientPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         List<Object> components = new ArrayList<>();
 
@@ -353,7 +355,7 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class));
-        if (DataLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isEnabled()) {
             actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_LIFECYCLE, DataLifecycleUsageTransportAction.class));
         }
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.HEALTH, HealthApiUsageTransportAction.class));

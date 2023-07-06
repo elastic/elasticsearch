@@ -278,10 +278,13 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
-        LatchedActionListener<GetCheckpointAction.Response> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
-            assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
-            furtherTests.accept(r);
-        }, e -> { fail("got unexpected exception: " + e); }), latch);
+        LatchedActionListener<GetCheckpointAction.Response> listener = new LatchedActionListener<>(
+            ActionTestUtils.assertNoFailureListener(r -> {
+                assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
+                furtherTests.accept(r);
+            }),
+            latch
+        );
 
         ActionTestUtils.execute(getCheckpointAction, transformTask, request, listener);
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));

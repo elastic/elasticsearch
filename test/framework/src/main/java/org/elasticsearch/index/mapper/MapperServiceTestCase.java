@@ -28,6 +28,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -154,7 +155,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected IndexVersion getVersion() {
-        return IndexVersion.CURRENT;
+        return IndexVersion.current();
     }
 
     protected final MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
@@ -172,7 +173,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected final MapperService createMapperService(Settings settings, String mappings) throws IOException {
-        MapperService mapperService = createMapperService(IndexVersion.CURRENT, settings, () -> true, mapping(b -> {}));
+        MapperService mapperService = createMapperService(IndexVersion.current(), settings, () -> true, mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService;
     }
@@ -429,6 +430,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public ClusterSettings getClusterSettings() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             public MappedFieldType getFieldType(String path) {
                 return mapperService.fieldType(path);
             }
@@ -630,17 +636,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
-        return new SearchExecutionContext(0, 0, indexSettings, new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
+        return new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
+            new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+                @Override
+                public void onCache(ShardId shardId, Accountable accountable) {
 
-            }
+                }
 
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
+                @Override
+                public void onRemoval(ShardId shardId, Accountable accountable) {
 
-            }
-        }),
+                }
+            }),
             (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),

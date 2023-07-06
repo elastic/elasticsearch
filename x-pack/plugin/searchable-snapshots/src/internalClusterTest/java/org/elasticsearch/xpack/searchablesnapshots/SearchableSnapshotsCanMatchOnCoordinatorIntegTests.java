@@ -122,7 +122,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         createRepository(repositoryName, "mock");
 
         final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexOutsideSearchRange)).snapshotId();
-        assertAcked(client().admin().indices().prepareDelete(indexOutsideSearchRange));
+        assertAcked(indicesAdmin().prepareDelete(indexOutsideSearchRange));
 
         final String searchableSnapshotIndexOutsideSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
@@ -162,7 +162,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
             .source(
                 new SearchSourceBuilder().query(
-                    QueryBuilders.rangeQuery(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+                    QueryBuilders.rangeQuery(DataStream.TIMESTAMP_FIELD_NAME)
                         .from("2020-11-28T00:00:00.000000000Z", true)
                         .to("2020-11-29T00:00:00.000000000Z")
                 )
@@ -291,7 +291,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         SearchRequest request = new SearchRequest().indices(indexOutsideSearchRange, searchableSnapshotIndexOutsideSearchRange)
             .source(
                 new SearchSourceBuilder().query(
-                    QueryBuilders.rangeQuery(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+                    QueryBuilders.rangeQuery(DataStream.TIMESTAMP_FIELD_NAME)
                         .from("2020-11-28T00:00:00.000000000Z", true)
                         .to("2020-11-29T00:00:00.000000000Z")
                 )
@@ -368,7 +368,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         createRepository(repositoryName, "mock");
 
         final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexWithinSearchRange)).snapshotId();
-        assertAcked(client().admin().indices().prepareDelete(indexWithinSearchRange));
+        assertAcked(indicesAdmin().prepareDelete(indexWithinSearchRange));
 
         final String searchableSnapshotIndexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
@@ -402,7 +402,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         SearchRequest request = new SearchRequest().indices(searchableSnapshotIndexWithinSearchRange)
             .source(
                 new SearchSourceBuilder().query(
-                    QueryBuilders.rangeQuery(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+                    QueryBuilders.rangeQuery(DataStream.TIMESTAMP_FIELD_NAME)
                         .from("2020-11-28T00:00:00.000000000Z", true)
                         .to("2020-11-29T00:00:00.000000000Z")
                 )
@@ -440,14 +440,12 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
     private void createIndexWithTimestamp(String indexName, int numShards, Settings extraSettings) throws IOException {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setMapping(
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("properties")
-                        .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+                        .startObject(DataStream.TIMESTAMP_FIELD_NAME)
                         .field("type", randomFrom("date", "date_nanos"))
                         .field("format", "strict_date_optional_time_nanos")
                         .endObject()
@@ -465,7 +463,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             indexRequestBuilders.add(
                 client().prepareIndex(indexName)
                     .setSource(
-                        DataStream.TimestampField.FIXED_TIMESTAMP_FIELD,
+                        DataStream.TIMESTAMP_FIELD_NAME,
                         String.format(
                             Locale.ROOT,
                             timestampTemplate,
@@ -480,7 +478,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         indexRandom(true, false, indexRequestBuilders);
 
         assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+            indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
             equalTo(0)
         );
         refresh(indexName);
@@ -488,21 +486,12 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
     }
 
     private IndexMetadata getIndexMetadata(String indexName) {
-        return client().admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setMetadata(true)
-            .setIndices(indexName)
-            .get()
-            .getState()
-            .metadata()
-            .index(indexName);
+        return clusterAdmin().prepareState().clear().setMetadata(true).setIndices(indexName).get().getState().metadata().index(indexName);
     }
 
     private void waitUntilRecoveryIsDone(String index) throws Exception {
         assertBusy(() -> {
-            RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(index).get();
+            RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(index).get();
             assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
             for (List<RecoveryState> value : recoveryResponse.shardRecoveryStates().values()) {
                 for (RecoveryState recoveryState : value) {

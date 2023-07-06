@@ -24,7 +24,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -89,7 +89,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
     private final BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup;
-    private SearchLookup lookup = null;
+    private SearchLookup lookup;
+    private ClusterSettings clusterSettings;
 
     private final int shardId;
     private final int shardRequestIndex;
@@ -108,6 +109,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardId,
         int shardRequestIndex,
         IndexSettings indexSettings,
+        ClusterSettings clusterSettings,
         BitsetFilterCache bitsetFilterCache,
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
@@ -129,6 +131,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             shardId,
             shardRequestIndex,
             indexSettings,
+            clusterSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
             mapperService,
@@ -157,6 +160,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardId,
             source.shardRequestIndex,
             source.indexSettings,
+            source.clusterSettings,
             source.bitsetFilterCache,
             source.indexFieldDataLookup,
             source.mapperService,
@@ -181,6 +185,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardId,
         int shardRequestIndex,
         IndexSettings indexSettings,
+        ClusterSettings clusterSettings,
         BitsetFilterCache bitsetFilterCache,
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
@@ -222,6 +227,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.indexFieldDataLookup = indexFieldDataLookup;
         this.nestedScope = new NestedScope();
         this.searcher = searcher;
+        this.clusterSettings = clusterSettings;
     }
 
     private void reset() {
@@ -302,36 +308,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public boolean hasMappings() {
         return mappingLookup.hasMappings();
-    }
-
-    /**
-     * Returns the names of all mapped fields that match a given pattern
-     *
-     * All names returned by this method are guaranteed to resolve to a
-     * MappedFieldType if passed to {@link #getFieldType(String)}
-     *
-     * @param pattern the field name pattern
-     */
-    public Set<String> getMatchingFieldNames(String pattern) {
-        if (runtimeMappings.isEmpty()) {
-            return mappingLookup.getMatchingFieldNames(pattern);
-        }
-        Set<String> matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
-        if ("*".equals(pattern)) {
-            matches.addAll(runtimeMappings.keySet());
-        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcard
-            if (runtimeMappings.containsKey(pattern)) {
-                matches.add(pattern);
-            }
-        } else {
-            for (String name : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(pattern, name)) {
-                    matches.add(name);
-                }
-            }
-        }
-        return matches;
     }
 
     /**
@@ -596,6 +572,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Override
     public final SearchExecutionContext convertToSearchExecutionContext() {
         return this;
+    }
+
+    /**
+     * Returns the cluster settings for this context. This might return null if the
+     * context has not cluster scope.
+     */
+    public ClusterSettings getClusterSettings() {
+        return clusterSettings;
     }
 
     /** Return the current {@link IndexReader}, or {@code null} if no index reader is available,

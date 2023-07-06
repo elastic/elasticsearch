@@ -213,7 +213,7 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
                             task,
                             action,
                             request,
-                            ActionListener.wrap(resp -> executorService.execute(() -> actionWrapper.accept(resp)), listener::onFailure)
+                            listener.delegateFailureAndWrap((l, resp) -> executorService.execute(() -> actionWrapper.accept(resp)))
                         );
                     } else {
                         chain.proceed(task, action, request, listener);
@@ -245,7 +245,7 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
     }
 
     protected TaskInfo getTaskInfoWithXOpaqueId(String id, String action) {
-        ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(action).get();
+        ListTasksResponse tasks = clusterAdmin().prepareListTasks().setActions(action).get();
         for (TaskInfo task : tasks.getTasks()) {
             if (id.equals(task.headers().get(Task.X_OPAQUE_ID_HTTP_HEADER))) {
                 return task;
@@ -258,7 +258,7 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
         TaskId taskId = findTaskWithXOpaqueId(id, action);
         assertNotNull(taskId);
         logger.trace("Cancelling task " + taskId);
-        CancelTasksResponse response = client().admin().cluster().prepareCancelTasks().setTargetTaskId(taskId).get();
+        CancelTasksResponse response = clusterAdmin().prepareCancelTasks().setTargetTaskId(taskId).get();
         assertThat(response.getTasks(), hasSize(1));
         assertThat(response.getTasks().get(0).action(), equalTo(action));
         logger.trace("Task is cancelled " + taskId);

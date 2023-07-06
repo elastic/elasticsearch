@@ -38,7 +38,9 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.junit.BeforeClass;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -73,6 +75,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class FileRolesStoreTests extends ESTestCase {
+
+    @BeforeClass
+    public static void setUpClass() {
+        // Initialize the reserved roles store so that static fields are populated.
+        // In production code, this is guaranteed by how components are initialized by the Security plugin
+        new ReservedRolesStore();
+    }
 
     public RestrictedIndices restrictedIndices = new RestrictedIndices(Automatons.EMPTY);
 

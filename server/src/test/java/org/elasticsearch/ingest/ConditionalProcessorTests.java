@@ -95,10 +95,6 @@ public class ConditionalProcessorTests extends ESTestCase {
                     return null;
                 }
 
-                @Override
-                public boolean isAsync() {
-                    return false;
-                }
             },
             relativeTimeProvider
         );

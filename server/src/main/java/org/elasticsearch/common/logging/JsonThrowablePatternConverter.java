@@ -99,8 +99,4 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
         return "\"" + new String(bytes, Charset.defaultCharset()) + "\"";
     }
 
-    @Override
-    public boolean handlesThrowable() {
-        return true;
-    }
 }

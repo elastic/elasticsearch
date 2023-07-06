@@ -98,17 +98,17 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
             return;
         }
 
-        // ensure that index templates are present
-        if (isAllTemplatesCreated(event) == false) {
-            logger.trace("Skipping index creation; not all templates are present yet");
+        // ensure that all resources are present that we need to create indices
+        if (isAllResourcesCreated(event) == false) {
+            logger.trace("Skipping index creation; not all required resources are present yet");
             return;
         }
 
         addIndicesIfMissing(event.state());
     }
 
-    protected boolean isAllTemplatesCreated(ClusterChangedEvent event) {
-        return ProfilingIndexTemplateRegistry.areAllTemplatesCreated(event.state());
+    protected boolean isAllResourcesCreated(ClusterChangedEvent event) {
+        return ProfilingIndexTemplateRegistry.isAllResourcesCreated(event.state());
     }
 
     private void addIndicesIfMissing(ClusterState state) {

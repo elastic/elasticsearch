@@ -1,0 +1,6 @@
+pr: 96069
+summary: Improve MatchNoDocsQuery description 
+area: Search
+type: enhancement
+issues:
+ - 95741

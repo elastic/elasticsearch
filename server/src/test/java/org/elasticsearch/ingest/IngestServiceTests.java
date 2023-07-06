@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -1966,7 +1966,7 @@ public class IngestServiceTests extends ESTestCase {
                     tag,
                     description,
                     // just always set the timestamp field to 100
-                    (ingestDocument) -> ingestDocument.setFieldValue(TimestampField.FIXED_TIMESTAMP_FIELD, 100)
+                    (ingestDocument) -> ingestDocument.setFieldValue(DataStream.TIMESTAMP_FIELD_NAME, 100)
                 )
             )
         );
@@ -2000,7 +2000,7 @@ public class IngestServiceTests extends ESTestCase {
         IndexRequest indexRequest4 = new IndexRequest("idx").setPipeline("_id1").setFinalPipeline("_id2").source(doc1);
 
         // feed a document with a timestamp through four scenarios
-        Map<String, Object> doc2 = Map.of(TimestampField.FIXED_TIMESTAMP_FIELD, 10);
+        Map<String, Object> doc2 = Map.of(DataStream.TIMESTAMP_FIELD_NAME, 10);
 
         // neither a request nor a final pipeline
         IndexRequest indexRequest5 = new IndexRequest("idx").setPipeline("_none").setFinalPipeline("_none").source(doc2);

@@ -31,7 +31,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     private final Settings settings;

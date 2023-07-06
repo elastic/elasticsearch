@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertWindowsPath;
@@ -71,7 +70,7 @@ public abstract class VagrantShellTask extends DefaultTask {
                 script.add("try {");
                 script.add("cd " + convertWindowsPath(buildLayout.getRootDirectory(), buildLayout.getRootDirectory().toString()));
                 extension.getVmEnv().forEach((k, v) -> script.add("$Env:" + k + " = \"" + v + "\""));
-                script.addAll(getWindowsScript().stream().map(s -> "    " + s).collect(Collectors.toList()));
+                script.addAll(getWindowsScript().stream().map(s -> "    " + s).toList());
                 script.addAll(
                     Arrays.asList(
                         "    exit $LASTEXITCODE",

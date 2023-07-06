@@ -50,9 +50,16 @@ public final class ProfileCollectorManager<T> implements CollectorManager<Intern
     ) {
         this.collectorManager = collectorManager;
         this.reason = reason;
-        assert aggsSubCollectorManager != null && topDocsSubCollectorManager == null : "top docs manager is null while aggs manager isn't";
+        assert assertSubCollectorManagers() : "top docs manager is null while aggs manager isn't";
         this.topDocsSubCollectorManager = topDocsSubCollectorManager;
         this.aggsSubCollectorManager = aggsSubCollectorManager;
+    }
+
+    private boolean assertSubCollectorManagers() {
+        if (aggsSubCollectorManager != null) {
+            return topDocsSubCollectorManager != null;
+        }
+        return true;
     }
 
     @Override

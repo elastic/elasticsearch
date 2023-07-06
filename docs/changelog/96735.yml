@@ -1,0 +1,11 @@
+pr: 96735
+summary: Removes the technical preview admonition from query_vector_builder docs 
+area: Machine Learning
+type: feature
+issues: []
+highlight:
+  title: Make text embedding for kNN search GA
+  body: From 8.9, the `text_embedding` `query_vector_builder` extension to kNN 
+    search is generally available. This functionality is required to perform 
+    <<semantic-search,semantic search>> by converting text to dense vectors.
+  notable: true

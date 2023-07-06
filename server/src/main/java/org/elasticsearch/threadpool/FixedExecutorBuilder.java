@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 
@@ -28,7 +29,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
 
     private final Setting<Integer> sizeSetting;
     private final Setting<Integer> queueSizeSetting;
-    private final boolean trackExecutionTime;
+    private final TaskTrackingConfig taskTrackingConfig;
 
     /**
      * Construct a fixed executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
@@ -50,6 +51,25 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
     }
 
     /**
+     * Construct a fixed executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
+     *
+     * @param settings  the node-level settings
+     * @param name      the name of the executor
+     * @param size      the fixed number of threads
+     * @param queueSize the size of the backing queue, -1 for unbounded
+     * @param taskTrackingConfig whether to track statics about task execution time
+     */
+    FixedExecutorBuilder(
+        final Settings settings,
+        final String name,
+        final int size,
+        final int queueSize,
+        final TaskTrackingConfig taskTrackingConfig
+    ) {
+        this(settings, name, size, queueSize, "thread_pool." + name, taskTrackingConfig);
+    }
+
+    /**
      * Construct a fixed executor builder.
      *
      * @param settings  the node-level settings
@@ -67,6 +87,27 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         final String prefix,
         final boolean trackExecutionTime
     ) {
+        this(settings, name, size, queueSize, prefix, trackExecutionTime ? TaskTrackingConfig.DEFAULT : TaskTrackingConfig.DO_NOT_TRACK);
+    }
+
+    /**
+     * Construct a fixed executor builder.
+     *
+     * @param settings  the node-level settings
+     * @param name      the name of the executor
+     * @param size      the fixed number of threads
+     * @param queueSize the size of the backing queue, -1 for unbounded
+     * @param prefix    the prefix for the settings keys
+     * @param taskTrackingConfig whether to track statics about task execution time
+     */
+    public FixedExecutorBuilder(
+        final Settings settings,
+        final String name,
+        final int size,
+        final int queueSize,
+        final String prefix,
+        final TaskTrackingConfig taskTrackingConfig
+    ) {
         super(name);
         final String sizeKey = settingsKey(prefix, "size");
         this.sizeSetting = new Setting<>(
@@ -77,7 +118,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         );
         final String queueSizeKey = settingsKey(prefix, "queue_size");
         this.queueSizeSetting = Setting.intSetting(queueSizeKey, queueSize, Setting.Property.NodeScope);
-        this.trackExecutionTime = trackExecutionTime;
+        this.taskTrackingConfig = taskTrackingConfig;
     }
 
     @Override
@@ -104,7 +145,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
             queueSize,
             threadFactory,
             threadContext,
-            trackExecutionTime
+            taskTrackingConfig
         );
         final ThreadPool.Info info = new ThreadPool.Info(
             name(),

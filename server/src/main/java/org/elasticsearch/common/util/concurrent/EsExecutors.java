@@ -126,13 +126,31 @@ public class EsExecutors {
         ThreadContext contextHolder,
         boolean trackExecutionTime
     ) {
+        return newFixed(
+            name,
+            size,
+            queueCapacity,
+            threadFactory,
+            contextHolder,
+            trackExecutionTime ? TaskTrackingConfig.DEFAULT : TaskTrackingConfig.DO_NOT_TRACK
+        );
+    }
+
+    public static EsThreadPoolExecutor newFixed(
+        String name,
+        int size,
+        int queueCapacity,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        TaskTrackingConfig config
+    ) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
-        if (trackExecutionTime) {
+        if (config.trackExecutionTime()) {
             return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
                 size,
@@ -143,7 +161,8 @@ public class EsExecutors {
                 TimedRunnable::new,
                 threadFactory,
                 new EsAbortPolicy(),
-                contextHolder
+                contextHolder,
+                config.getEWMAAlpha()
             );
         } else {
             return new EsThreadPoolExecutor(
@@ -384,6 +403,35 @@ public class EsExecutors {
         private void reject(ThreadPoolExecutor executor, Runnable task) {
             incrementRejections();
             throw newRejectedException(task, executor, true);
+        }
+    }
+
+    public static class TaskTrackingConfig {
+        private final boolean trackExecutionTime;
+        private final double EWMAAlpha;
+
+        public static TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(false);
+        public static TaskTrackingConfig DEFAULT = new TaskTrackingConfig(true);
+
+        public TaskTrackingConfig(double EWMAAlpha) {
+            this(true, EWMAAlpha);
+        }
+
+        private TaskTrackingConfig(boolean trackExecutionTime) {
+            this(trackExecutionTime, TaskExecutionTimeTrackingEsThreadPoolExecutor.EWMA_ALPHA);
+        }
+
+        private TaskTrackingConfig(boolean trackExecutionTime, double EWMAAlpha) {
+            this.trackExecutionTime = trackExecutionTime;
+            this.EWMAAlpha = EWMAAlpha;
+        }
+
+        public boolean trackExecutionTime() {
+            return trackExecutionTime;
+        }
+
+        public double getEWMAAlpha() {
+            return EWMAAlpha;
         }
     }
 

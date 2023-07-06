@@ -29,7 +29,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -356,11 +355,7 @@ public class SynonymsManagementAPIService {
     // Retrieves the internal synonym rule ID to store it in the index. As the same synonym rule ID
     // can be used in different synonym sets, we prefix the ID with the synonym set to avoid collisions
     private static String internalSynonymRuleId(String synonymsSetId, String synonymRuleId) {
-        if (synonymRuleId == null) {
-            synonymRuleId = UUIDs.base64UUID();
-        }
-        final String id = synonymsSetId + SYNONYM_RULE_ID_SEPARATOR + synonymRuleId;
-        return id;
+        return synonymsSetId + SYNONYM_RULE_ID_SEPARATOR + synonymRuleId;
     }
 
     static Settings settings() {

@@ -8,7 +8,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.snapshotbasedrecoveries.SnapshotBasedRecoveriesPlugin'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-snapshot-based-recoveries'
+base {
+  archivesName = 'x-pack-snapshot-based-recoveries'
+}
 
 dependencies {
   compileOnly project(":server")

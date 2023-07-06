@@ -223,7 +223,7 @@ cluster can not write into this data stream or change its mappings.
 
 `lifecycle`::
 (object)
-Functionality in preview:[]. Contains the configuration for the data lifecycle management of this data stream.
+Functionality in preview:[]. Contains the configuration for the data stream lifecycle management of this data stream.
 +
 .Properties of `lifecycle`
 [%collapsible%open]

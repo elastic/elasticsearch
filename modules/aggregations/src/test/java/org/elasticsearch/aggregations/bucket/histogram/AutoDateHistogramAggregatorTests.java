@@ -1072,7 +1072,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
     private Map<String, Integer> bucketCountsAsMap(InternalAutoDateHistogram result) {
         Map<String, Integer> map = Maps.newLinkedHashMapWithExpectedSize(result.getBuckets().size());
-        result.getBuckets().stream().forEach(b -> {
+        result.getBuckets().forEach(b -> {
             Object old = map.put(b.getKeyAsString(), Math.toIntExact(b.getDocCount()));
             assertNull(old);
         });
@@ -1081,7 +1081,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
     private Map<String, Double> maxAsMap(InternalAutoDateHistogram result) {
         Map<String, Double> map = Maps.newLinkedHashMapWithExpectedSize(result.getBuckets().size());
-        result.getBuckets().stream().forEach(b -> {
+        result.getBuckets().forEach(b -> {
             Max max = b.getAggregations().get("max");
             Object old = map.put(b.getKeyAsString(), max.value());
             assertNull(old);

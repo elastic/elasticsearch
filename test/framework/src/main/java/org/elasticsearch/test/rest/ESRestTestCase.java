@@ -53,6 +53,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
@@ -839,13 +840,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (hasIlm && false == preserveILMPoliciesUponCompletion()) {
             Set<String> unexpectedIlmPlicies = getAllUnexpectedIlmPolicies(preserveILMPolicyIds());
             assertTrue(
-                "Expected no ILM policies after deletions, but found " + unexpectedIlmPlicies.stream().collect(Collectors.joining(", ")),
+                "Expected no ILM policies after deletions, but found " + String.join(", ", unexpectedIlmPlicies),
                 unexpectedIlmPlicies.isEmpty()
             );
         }
         Set<String> unexpectedTemplates = getAllUnexpectedTemplates();
         assertTrue(
-            "Expected no templates after deletions, but found " + unexpectedTemplates.stream().collect(Collectors.joining(", ")),
+            "Expected no templates after deletions, but found " + String.join(", ", unexpectedTemplates),
             unexpectedTemplates.isEmpty()
         );
     }
@@ -893,12 +894,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                     Request compReq = new Request("GET", "_component_template");
                     String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
                     Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                    unexpectedTemplates.addAll(
-                        ((List<?>) cTemplates.get("component_templates")).stream()
-                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                            .filter(name -> isXPackTemplate(name) == false)
-                            .collect(Collectors.toList())
-                    );
+                    ((List<?>) cTemplates.get("component_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
+                        .forEach(unexpectedTemplates::add);
                 }
                 // Always check for legacy templates:
                 Request getLegacyTemplatesRequest = new Request("GET", "_template");
@@ -1966,6 +1965,32 @@ public abstract class ESRestTestCase extends ESTestCase {
             Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
             if (minVersion == null || minVersion.after(nodeVersion)) {
                 minVersion = nodeVersion;
+            }
+        }
+        assertNotNull(minVersion);
+        return minVersion;
+    }
+
+    /**
+     * Returns the minimum index version among all nodes of the cluster
+     */
+    protected static IndexVersion minimumIndexVersion() throws IOException {
+        final Request request = new Request("GET", "_nodes");
+        request.addParameter("filter_path", "nodes.*.version,nodes.*.max_index_version");
+
+        final Response response = adminClient().performRequest(request);
+        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
+
+        IndexVersion minVersion = null;
+        for (Map.Entry<String, Object> node : nodes.entrySet()) {
+            Map<?, ?> nodeData = (Map<?, ?>) node.getValue();
+            String versionStr = (String) nodeData.get("max_index_version");
+            // fallback on version if index version is not there
+            IndexVersion indexVersion = versionStr != null
+                ? IndexVersion.fromId(Integer.parseInt(versionStr))
+                : IndexVersion.fromId(Version.fromString((String) nodeData.get("version")).id);
+            if (minVersion == null || minVersion.after(indexVersion)) {
+                minVersion = indexVersion;
             }
         }
         assertNotNull(minVersion);

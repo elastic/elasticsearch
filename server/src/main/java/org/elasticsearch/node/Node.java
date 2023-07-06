@@ -108,6 +108,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.DiskHealthIndicatorService;
@@ -1029,7 +1030,9 @@ public class Node implements Closeable {
                 threadPool,
                 systemIndices
             );
-            HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService);
+            HealthPeriodicLogger healthPeriodicLogger = createHealthPeriodicLogger(clusterService, settings, client, healthService);
+            healthPeriodicLogger.init();
+            HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
             HealthApiStats healthApiStats = new HealthApiStats();
@@ -1136,6 +1139,7 @@ public class Node implements Closeable {
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
+                b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1283,6 +1287,15 @@ public class Node implements Closeable {
             concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
             threadPool
         );
+    }
+
+    private HealthPeriodicLogger createHealthPeriodicLogger(
+        ClusterService clusterService,
+        Settings settings,
+        NodeClient client,
+        HealthService healthService
+    ) {
+        return new HealthPeriodicLogger(settings, clusterService, client, healthService);
     }
 
     private RecoveryPlannerService getRecoveryPlannerService(
@@ -1659,6 +1672,7 @@ public class Node implements Closeable {
             toClose.add(injector.getInstance(ReadinessService.class));
         }
         toClose.add(injector.getInstance(FileSettingsService.class));
+        toClose.add(injector.getInstance(HealthPeriodicLogger.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

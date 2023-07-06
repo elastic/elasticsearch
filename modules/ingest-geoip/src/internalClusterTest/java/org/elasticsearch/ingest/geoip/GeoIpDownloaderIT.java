@@ -662,7 +662,25 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 try {
                     IOUtils.rm(path);
                 } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+                    /*
+                     * If the test is emulating Windows mode then it will throw an IOException if something has an open file handle to this
+                     * directory. ConfigDatabases adds a FileWatcher that lists the contents of this directory every 5 seconds. If the
+                     * timing is unlucky a directory listing can happen just as we are attempting to do this delete. In that case we wait a
+                     * small amount of time and retry once. If it fails a second time then something more serious is going on so we bail
+                     * out.
+                     */
+                    if (path.getFileSystem().provider().getScheme().equals("windows://") && e.getMessage().contains("access denied")) {
+                        logger.debug("Caught an IOException, will sleep and try deleting again", e);
+                        safeSleep(500);
+                        try {
+                            IOUtils.rm(path);
+                        } catch (IOException e2) {
+                            throw new UncheckedIOException(e2);
+                        }
+                    } else {
+                        throw new UncheckedIOException(e);
+                    }
+
                 }
             });
 

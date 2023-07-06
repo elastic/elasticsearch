@@ -174,7 +174,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 return new ReaderWithOrigin(
                     new StringReader("fake rule => fake"),
                     "fake [" + synonymsSet + "] synonyms_set in .synonyms index",
-                        synonymsSet
+                    synonymsSet
                 );
             }
             return new ReaderWithOrigin(

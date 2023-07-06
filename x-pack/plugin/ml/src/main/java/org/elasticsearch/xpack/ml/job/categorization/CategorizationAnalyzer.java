@@ -113,8 +113,14 @@ public class CategorizationAnalyzer implements Releasable {
             return new Tuple<>(globalAnalyzer, Boolean.FALSE);
         } else {
             return new Tuple<>(
-                analysisRegistry.buildCustomAnalyzer(IndexCreationContext.RELOAD_ANALYZERS,
-                        null, false, config.getTokenizer(), config.getCharFilters(), config.getTokenFilters()),
+                analysisRegistry.buildCustomAnalyzer(
+                    IndexCreationContext.RELOAD_ANALYZERS,
+                    null,
+                    false,
+                    config.getTokenizer(),
+                    config.getCharFilters(),
+                    config.getTokenFilters()
+                ),
                 Boolean.TRUE
             );
         }

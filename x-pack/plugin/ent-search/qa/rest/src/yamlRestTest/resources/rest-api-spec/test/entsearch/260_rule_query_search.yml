@@ -82,7 +82,29 @@ setup:
   - match: { hits.hits.0._id: 'doc1' }
 
 ---
-"Perform a rule query with a doc match":
+"As a user, perform a rule query with an ID match":
+  - skip:
+      features: headers
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      search:
+        body:
+          query:
+            rule_query:
+              organic:
+                query_string:
+                  default_field: text
+                  query: search
+              match_criteria:
+                query_string: search
+              ruleset_id: test-ruleset
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: 'doc1' }
+
+---
+"As a user, perform a rule query with a doc match":
   - skip:
       features: headers
 
@@ -105,11 +127,8 @@ setup:
 
 ---
 "Perform a rule query with no matching rules":
-  - skip:
-      features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search:
         body:
           query:

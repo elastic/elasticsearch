@@ -36,6 +36,7 @@ user:
     - manage_api_key
   indices:
     - names: [
+      "test-index1",
       "test-search-application",
       "test-search-application-1",
       "test-search-application-with-list"

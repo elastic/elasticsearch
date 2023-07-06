@@ -123,7 +123,6 @@ public class PowTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected List<ArgumentSpec> argSpec() {
-        var validDataTypes = new DataType[] { DataTypes.DOUBLE, DataTypes.LONG, DataTypes.INTEGER };
         return List.of(required(numerics()), required(numerics()));
     }
 

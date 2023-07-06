@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public abstract class UnaryScalarFunction extends ScalarFunction {
@@ -33,7 +33,7 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
             return new Expression.TypeResolution("Unresolved children");
         }
 
-        return isNumeric(field, sourceText(), FIRST);
+        return isNumeric(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
     }
 
     @Override

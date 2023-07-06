@@ -266,7 +266,7 @@ public final class PlanNamedTypes {
             // UnaryScalarFunction
             of(QL_UNARY_SCLR_CLS, IsNotNull.class, PlanNamedTypes::writeQLUnaryScalar, PlanNamedTypes::readQLUnaryScalar),
             of(QL_UNARY_SCLR_CLS, IsNull.class, PlanNamedTypes::writeQLUnaryScalar, PlanNamedTypes::readQLUnaryScalar),
-            of(QL_UNARY_SCLR_CLS, Length.class, PlanNamedTypes::writeQLUnaryScalar, PlanNamedTypes::readQLUnaryScalar),
+            of(ESQL_UNARY_SCLR_CLS, Length.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(QL_UNARY_SCLR_CLS, Not.class, PlanNamedTypes::writeQLUnaryScalar, PlanNamedTypes::readQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Abs.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ScalarFunction.class, E.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
@@ -943,6 +943,7 @@ public final class PlanNamedTypes {
         entry(name(IsFinite.class), IsFinite::new),
         entry(name(IsInfinite.class), IsInfinite::new),
         entry(name(IsNaN.class), IsNaN::new),
+        entry(name(Length.class), Length::new),
         entry(name(Metadata.class), Metadata::new),
         entry(name(ToBoolean.class), ToBoolean::new),
         entry(name(ToDatetime.class), ToDatetime::new),
@@ -989,7 +990,6 @@ public final class PlanNamedTypes {
             Map.ofEntries(
                 entry(name(IsNotNull.class), IsNotNull::new),
                 entry(name(IsNull.class), IsNull::new),
-                entry(name(Length.class), Length::new),
                 entry(name(Not.class), Not::new)
             );
 

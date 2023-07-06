@@ -32,15 +32,27 @@ import static org.hamcrest.Matchers.equalTo;
  * Base class for function tests.
  */
 public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTestCase {
-
+    /**
+     * Describe supported arguments. Build each argument with
+     * {@link #required} or {@link #optional}.
+     */
     protected abstract List<ArgumentSpec> argSpec();
 
+    /**
+     * The data type that applying this function to arguments of this type should produce.
+     */
     protected abstract DataType expectedType(List<DataType> argTypes);
 
+    /**
+     * Define a required argument.
+     */
     protected final ArgumentSpec required(DataType... validTypes) {
         return new ArgumentSpec(false, withNullAndSorted(validTypes));
     }
 
+    /**
+     * Define an optional argument.
+     */
     protected final ArgumentSpec optional(DataType... validTypes) {
         return new ArgumentSpec(true, withNullAndSorted(validTypes));
     }
@@ -52,18 +64,30 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         return realValidTypes;
     }
 
+    /**
+     * All string types (keyword, text, match_only_text, etc). For passing to {@link #required} or {@link #optional}.
+     */
     protected final DataType[] strings() {
         return EsqlDataTypes.types().stream().filter(DataTypes::isString).toArray(DataType[]::new);
     }
 
+    /**
+     * All integer types (long, int, short, byte). For passing to {@link #required} or {@link #optional}.
+     */
     protected final DataType[] integers() {
         return EsqlDataTypes.types().stream().filter(DataType::isInteger).toArray(DataType[]::new);
     }
 
+    /**
+     * All rational types (double, float, whatever). For passing to {@link #required} or {@link #optional}.
+     */
     protected final DataType[] rationals() {
         return EsqlDataTypes.types().stream().filter(DataType::isRational).toArray(DataType[]::new);
     }
 
+    /**
+     * All numeric types (integers and rationals.) For passing to {@link #required} or {@link #optional}.
+     */
     protected final DataType[] numerics() {
         return EsqlDataTypes.types().stream().filter(DataType::isNumeric).toArray(DataType[]::new);
     }

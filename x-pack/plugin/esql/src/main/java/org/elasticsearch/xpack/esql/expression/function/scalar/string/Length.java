@@ -11,15 +11,15 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -62,13 +62,8 @@ public class Length extends UnaryScalarFunction implements Mappable {
     }
 
     @Override
-    protected UnaryScalarFunction replaceChild(Expression newChild) {
-        return new Length(source(), newChild);
-    }
-
-    @Override
-    protected Processor makeProcessor() {
-        throw new UnsupportedOperationException();
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new Length(source(), newChildren.get(0));
     }
 
     @Override

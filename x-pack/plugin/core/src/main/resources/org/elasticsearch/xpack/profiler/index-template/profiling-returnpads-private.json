@@ -34,7 +34,20 @@
           "store": false
         },
         "Symbfile.file.id": {
-          /* 'binary' type fields don't allow using 'index: true'. */
+          /*
+           'binary' type fields don't allow using 'index: true'.
+           The value is stored in its binary form (byte array).
+           Not readable or writeable via JSON (CBOR and SMILE only).
+            */
+          "type": "keyword",
+          "index": true,
+          "doc_values": false,
+          "store": false
+        },
+        "Symbfile.file.id_str": {
+          /*
+           The value is stored as base64 encoded string to allow JSON queries.
+           */
           "type": "keyword",
           "index": true,
           "doc_values": false,

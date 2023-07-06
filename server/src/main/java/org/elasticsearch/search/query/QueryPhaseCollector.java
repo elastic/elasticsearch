@@ -48,13 +48,7 @@ final class QueryPhaseCollector implements Collector {
     private boolean terminatedAfter = false;
 
     QueryPhaseCollector(Collector topDocsCollector, Weight postFilterWeight, int terminateAfter, Collector aggsCollector, Float minScore) {
-        this(
-            topDocsCollector,
-            postFilterWeight,
-            resolveTerminateAfterChecker(terminateAfter),
-            aggsCollector,
-            minScore
-        );
+        this(topDocsCollector, postFilterWeight, resolveTerminateAfterChecker(terminateAfter), aggsCollector, minScore);
     }
 
     QueryPhaseCollector(

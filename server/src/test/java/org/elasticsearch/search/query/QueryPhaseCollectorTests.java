@@ -102,7 +102,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         );
     }
 
-    //TODO remove some of these tests as they are now duplicated?
+    // TODO remove some of these tests as they are now duplicated?
 
     public void testTopDocsOnly() throws IOException {
         {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -133,40 +134,6 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     }
 
     @Override
-    protected GetResponse executeGet(GetRequest getRequest) {
-        String rulesetId = getRequest.id();
-        // List<QueryRule> rules = new ArrayList<>();
-        // for (int i = 0; i < randomIntBetween(1, 5); i++) {
-        // rules.add(SearchApplicationTestUtils.randomQueryRule());
-        // }
-        // Removing randomization here, so that copies are all equal.
-        // This is part of trying to get tests to work, will re-introduce randomization if it makes sense.
-        List<QueryRule> rules = List.of(
-            new QueryRule(
-                "my_rule1",
-                QueryRule.QueryRuleType.PINNED,
-                List.of(new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.EXACT, "query_string", "elastic")),
-                Map.of("ids", List.of("id1", "id2"))
-            )
-        );
-        QueryRuleset queryRuleset = new QueryRuleset(rulesetId, rules);
-
-        assertThat(getRequest.index(), Matchers.equalTo(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME));
-
-        String json;
-        try {
-            XContentBuilder builder = queryRuleset.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS);
-            json = Strings.toString(builder);
-        } catch (IOException ex) {
-            throw new ElasticsearchException("boom", ex);
-        }
-
-        return new GetResponse(
-            new GetResult(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME, rulesetId, 0, 1, 0L, true, new BytesArray(json), null, null)
-        );
-    }
-
-    @Override
     protected boolean canSimulateMethod(Method method, Object[] args) throws NoSuchMethodException {
         if (method.getDeclaringClass().equals(ElasticsearchClient.class) && method.getName().equals("execute")) {
             return true;
@@ -183,7 +150,38 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         if (method.getDeclaringClass().equals(ElasticsearchClient.class)
             && method.getName().equals("execute")
             && args[0] instanceof GetAction) {
-            return executeGet((GetRequest) args[1]);
+
+            GetRequest getRequest = (GetRequest) args[1];
+            assertThat(getRequest.index(), Matchers.equalTo(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME));
+            String rulesetId = getRequest.id();
+
+            List<QueryRule> rules = List.of(
+                new QueryRule(
+                    "my_rule1",
+                    QueryRule.QueryRuleType.PINNED,
+                    List.of(new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.EXACT, "query_string", "elastic")),
+                    Map.of("ids", List.of("id1", "id2"))
+                )
+            );
+            QueryRuleset queryRuleset = new QueryRuleset(rulesetId, rules);
+
+            String json;
+            try {
+                XContentBuilder builder = queryRuleset.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS);
+                json = Strings.toString(builder);
+            } catch (IOException ex) {
+                throw new ElasticsearchException("boom", ex);
+            }
+
+            GetResponse response = new GetResponse(
+                new GetResult(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME, rulesetId, 0, 1, 0L, true, new BytesArray(json), null, null)
+            );
+
+            @SuppressWarnings("unchecked")
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) args[2];
+            listener.onResponse(response);
+
+            return null;
         }
 
         // Client settings, used when creating the client with origin
@@ -192,18 +190,5 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         }
 
         return super.simulateMethod(method, args);
-    }
-
-    @Override
-    public void testCacheability() throws IOException {
-        // TODO - Implement. This is copied from the percolate builder, and I _think_ this should
-        // not be cacheable for query rules, in case they changes? Confirm and implement.
-        // For now, do nothing until testToQuery passes.
-        // RuleQueryBuilder queryBuilder = createTestQueryBuilder();
-        // SearchExecutionContext context = createSearchExecutionContext();
-        // assert context.isCacheable();
-        // QueryBuilder rewritten = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
-        // assertNotNull(rewritten.toQuery(context));
-        // assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 }

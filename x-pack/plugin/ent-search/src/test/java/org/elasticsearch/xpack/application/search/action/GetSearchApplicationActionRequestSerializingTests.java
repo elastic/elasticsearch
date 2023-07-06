@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.application.search.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
-public class GetSearchApplicationActionRequestSerializingTests extends AbstractWireSerializingTestCase<GetSearchApplicationAction.Request> {
+import java.io.IOException;
+
+public class GetSearchApplicationActionRequestSerializingTests extends AbstractBWCSerializationTestCase<
+    GetSearchApplicationAction.Request> {
 
     @Override
     protected Writeable.Reader<GetSearchApplicationAction.Request> instanceReader() {
@@ -25,5 +30,18 @@ public class GetSearchApplicationActionRequestSerializingTests extends AbstractW
     @Override
     protected GetSearchApplicationAction.Request mutateInstance(GetSearchApplicationAction.Request instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    @Override
+    protected GetSearchApplicationAction.Request doParseInstance(XContentParser parser) throws IOException {
+        return GetSearchApplicationAction.Request.parse(parser);
+    }
+
+    @Override
+    protected GetSearchApplicationAction.Request mutateInstanceForVersion(
+        GetSearchApplicationAction.Request instance,
+        TransportVersion version
+    ) {
+        return new GetSearchApplicationAction.Request(instance.getName());
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.distribution.TDistribution;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -28,11 +29,7 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -196,11 +193,13 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 nextOffsetToWrite = geometric.next();
             }
 
-            void maybeWrite(String line) throws IOException {
+            boolean maybeWrite(String line) throws IOException {
                 if (offset++ == nextOffsetToWrite) {
                     writer.write(line);
                     nextOffsetToWrite += geometric.next();
+                    return true;
                 }
+                return false;
             }
 
             private final BufferedWriter writer;
@@ -213,57 +212,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 writer.close();
             }
         }
-        ;
 
-        String tempDate = null;
-        String tempName = null;
-        try (
-            BufferedReader br = new BufferedReader(
-                new FileReader("/Users/kkrik/IdeaProjects/elasticsearch-internal/server/build/testrun/test/temp/container_cpu_usage_24h")
-            );
-            BufferedWriter bw = new BufferedWriter(
-                new FileWriter(
-                    "/Users/kkrik/IdeaProjects/elasticsearch-internal/server/build/testrun/test/temp/container_cpu_usage_24h_all"
-                )
-            );
-            SampleBuilder sb1 = new SampleBuilder(
-                "/Users/kkrik/IdeaProjects/elasticsearch-internal/server/build/testrun/test/temp/container_cpu_usage_24h_0_2",
-                0.2
-            );
-            SampleBuilder sb2 = new SampleBuilder(
-                "/Users/kkrik/IdeaProjects/elasticsearch-internal/server/build/testrun/test/temp/container_cpu_usage_24h_0_04",
-                0.04
-            );
-            SampleBuilder sb3 = new SampleBuilder(
-                "/Users/kkrik/IdeaProjects/elasticsearch-internal/server/build/testrun/test/temp/container_cpu_usage_24h_0_008",
-                0.008
-            );
-            SampleBuilder sb4 = new SampleBuilder(
-                "/Users/kkrik/IdeaProjects/elasticsearch-internal/server/build/testrun/test/temp/container_cpu_usage_24h_0_002",
-                0.002
-            );
-        ) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                if (tempDate == null) {
-                    tempDate = line;
-                } else if (tempName == null) {
-                    tempName = line;
-                } else {
-                    String out = tempDate + " " + tempName + " " + line + "\n";
-                    tempName = tempDate = null;
-
-                    bw.write(out);
-                    sb1.maybeWrite(out);
-                    sb2.maybeWrite(out);
-                    sb3.maybeWrite(out);
-                    sb4.maybeWrite(out);
-                }
-            }
-        }
-    }
-
-    public void testSampleAggPerTier() throws IOException {
         class AvgCalculator {
             AvgCalculator() {}
 
@@ -281,10 +230,13 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 return sum / count;
             }
 
+            double count() {
+                return count;
+            }
+
             double sum = 0;
             int count = 0;
         }
-
 
         /**
          * Bootstrap aggregation error estimate
@@ -337,18 +289,24 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                     double mean = stats.getMean();
                     double std = stats.getStandardDeviation();
                     double a = stats.getSkewness() / 6;
-                    alpha = (1- alpha) / 2;
 
                     NormalDistribution normalZero = new NormalDistribution();
                     NormalDistribution normalFitted = new NormalDistribution(mean, std);
 
-                    double z = normalFitted.density(sampledResults.get(entry.getKey()));
-                    double zl = normalZero.density(alpha);
-                    double zu = normalZero.density(1 - alpha);
+                    double count = entry.getValue().get(0).count();
+                    TDistribution tDistribution = new TDistribution(count - 1);
+                    // alpha = (1 - alpha) / 2;
+                    alpha = normalZero.cumulativeProbability(
+                        Math.sqrt(count / (count - 1)) * tDistribution.inverseCumulativeProbability((1 - alpha) / 2)
+                    );
+
+                    double z = normalFitted.inverseCumulativeProbability(sampledResults.get(entry.getKey()));
+                    double zl = normalZero.inverseCumulativeProbability(alpha);
+                    double zu = normalZero.inverseCumulativeProbability(1 - alpha);
                     double pl = normalZero.cumulativeProbability(z + (z + zl) / (1 - a * (z + zl)));
                     double pu = normalZero.cumulativeProbability(z + (z + zu) / (1 - a * (z + zu)));
-                    lower.put(entry.getKey(), normalFitted.density(pl));
-                    upper.put(entry.getKey(), normalFitted.density(pu));
+                    lower.put(entry.getKey(), normalFitted.inverseCumulativeProbability(pl));
+                    upper.put(entry.getKey(), normalFitted.inverseCumulativeProbability(pu));
                 }
             }
 
@@ -361,60 +319,102 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             }
         }
 
-        List<Map<String, Double>> results = new ArrayList<>();
-        Set<String> names = new TreeSet<>();
-        for (String path : new String[] {
-            "/Users/kkrik/IdeaProjects/elasticsearch/server/build/testrun/test/temp/container_cpu_usage_24h_all",
-            "/Users/kkrik/IdeaProjects/elasticsearch/server/build/testrun/test/temp/container_cpu_usage_24h_0_2",
-            "/Users/kkrik/IdeaProjects/elasticsearch/server/build/testrun/test/temp/container_cpu_usage_24h_0_04",
-            "/Users/kkrik/IdeaProjects/elasticsearch/server/build/testrun/test/temp/container_cpu_usage_24h_0_008",
-            "/Users/kkrik/IdeaProjects/elasticsearch/server/build/testrun/test/temp/container_cpu_usage_24h_0_002" }) {
-            // Map<String, Map<String, AvgBuilder>> bucketAggs = new HashMap<>();
-            Map<String, AvgCalculator> aggs = new HashMap<>();
+        final String BASE_DIR = "/Users/kkrik/IdeaProjects/elasticsearch/server/build/testrun/test/temp/";
+        final String BASE_PATH = BASE_DIR + "container_cpu_usage_24h";
+        final String[] TIER_PATHS = { "_1", "_0_2", "_0_04", "_0_008", "_0_002" };
+        final double[] TIER_SAMPLING = { 1, 0.2, 0.04, 0.008, 0.002 };
+        final boolean USE_NESTED_SAMPLING = true;
 
-            try (BufferedReader br = new BufferedReader(new FileReader(path))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    String[] tokens = line.split(" ");
-                    assert tokens.length == 3;
-                    aggs.computeIfAbsent(tokens[1], (s) -> new AvgCalculator()).add(Double.parseDouble(tokens[2]));
+        assert TIER_SAMPLING.length == TIER_PATHS.length;
+        for (int iteration = 0; iteration < 100; iteration++) {
+            String tempDate = null;
+            String tempName = null;
+
+            double[] tierAppliedSampling = TIER_SAMPLING.clone();
+            if (USE_NESTED_SAMPLING) {
+                for (int i = 1; i < tierAppliedSampling.length; i++) {
+                    tierAppliedSampling[i] /= TIER_SAMPLING[i - 1];
                 }
             }
 
-            names.addAll(aggs.keySet());
-            results.add(aggs.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get() * 100)));
-        }
+            try (
+                BufferedReader br = new BufferedReader(new FileReader(BASE_PATH));
+                BufferedWriter bw = new BufferedWriter(new FileWriter(BASE_PATH + TIER_PATHS[0]));
+                SampleBuilder sb1 = new SampleBuilder(BASE_PATH + TIER_PATHS[1], tierAppliedSampling[1]);
+                SampleBuilder sb2 = new SampleBuilder(BASE_PATH + TIER_PATHS[2], tierAppliedSampling[2]);
+                SampleBuilder sb3 = new SampleBuilder(BASE_PATH + TIER_PATHS[3], tierAppliedSampling[3]);
+                SampleBuilder sb4 = new SampleBuilder(BASE_PATH + TIER_PATHS[4], tierAppliedSampling[4]);
+            ) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    if (tempDate == null) {
+                        tempDate = line;
+                    } else if (tempName == null) {
+                        tempName = line;
+                    } else {
+                        String out = tempDate + " " + tempName + " " + line + "\n";
+                        tempName = tempDate = null;
 
-        BootstrapAggregation bootstrapAggregation = new BootstrapAggregation(
-                names,
-                "/Users/kkrik/IdeaProjects/elasticsearch/server/build/testrun/test/temp/container_cpu_usage_24h_0_002"
-        );
-        bootstrapAggregation.calculateConfidenceIntervals(0.8, results.get(results.size() - 1));
-
-        double[] sampled = new double[results.size()];
-        double[] lower = new double[results.size()];
-        double[] upper = new double[results.size()];
-        double SQRT_5 = Math.sqrt(5.0);
-
-        for (String key : names) {
-            for (int i = 0; i < results.size(); i++) {
-                sampled[i] = results.get(i).get(key);
+                        bw.write(out);
+                        if (!USE_NESTED_SAMPLING) {
+                            sb1.maybeWrite(out);
+                            sb2.maybeWrite(out);
+                            sb3.maybeWrite(out);
+                            sb4.maybeWrite(out);
+                        } else if (sb1.maybeWrite(out) && sb2.maybeWrite(out) && sb3.maybeWrite(out) && sb4.maybeWrite(out)) {
+                        }
+                    }
+                }
             }
-            for (int i = 1; i < results.size() - 1; i++) {
-                double delta = 1.7 * Math.abs(sampled[i] - sampled[i + 1]) / SQRT_5;
-                lower[i] = sampled[i] - delta;
-                upper[i] = sampled[i] + delta;
+
+            List<Map<String, Double>> results = new ArrayList<>();
+            Set<String> names = new TreeSet<>();
+            for (String path : TIER_PATHS) {
+                Map<String, AvgCalculator> aggs = new HashMap<>();
+
+                try (BufferedReader br = new BufferedReader(new FileReader(BASE_PATH + path))) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        String[] tokens = line.split(" ");
+                        assert tokens.length == 3;
+                        aggs.computeIfAbsent(tokens[1], (s) -> new AvgCalculator()).add(Double.parseDouble(tokens[2]));
+                    }
+                }
+
+                names.addAll(aggs.keySet());
+                results.add(aggs.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get() * 100)));
             }
 
-            lower[results.size() - 1] = bootstrapAggregation.getLowerConfidence(key);
-            upper[results.size() - 1] = bootstrapAggregation.getUpperConfidence(key);
+            BootstrapAggregation bootstrapAggregation = new BootstrapAggregation(names, BASE_PATH + TIER_PATHS[TIER_PATHS.length - 1]);
+            bootstrapAggregation.calculateConfidenceIntervals(0.67, results.get(results.size() - 1));
 
-            System.out.printf("%30s   %.6f", key, sampled[0]);
-            for (int i = 1; i < results.size(); i++) {
-                boolean found = sampled[0] > lower[i] && sampled[0] < upper[i];
-                System.out.printf("    %.6f [%.6f  %.6f] %s", sampled[i], lower[i], upper[i], found ? "Y" : "N");
+            double[] sampled = new double[results.size()];
+            double[] lower = new double[results.size()];
+            double[] upper = new double[results.size()];
+            double SQRT_5 = Math.sqrt(5.0);
+
+            try (PrintWriter writer = new PrintWriter(BASE_PATH + "_result_" + iteration)) {
+                for (String key : names) {
+                    for (int i = 0; i < results.size(); i++) {
+                        sampled[i] = results.get(i).get(key);
+                    }
+                    for (int i = 1; i < results.size() - 1; i++) {
+                        double delta = 1.7 * Math.abs(sampled[i] - sampled[i + 1]) / SQRT_5;
+                        lower[i] = sampled[i] - delta;
+                        upper[i] = sampled[i] + delta;
+                    }
+
+                    lower[results.size() - 1] = bootstrapAggregation.getLowerConfidence(key);
+                    upper[results.size() - 1] = bootstrapAggregation.getUpperConfidence(key);
+
+                    writer.printf("%30s   %.6f", key, sampled[0]);
+                    for (int i = 1; i < results.size(); i++) {
+                        boolean found = sampled[0] > lower[i] && sampled[0] < upper[i];
+                        writer.printf("    %.6f [%.6f  %.6f] %s", sampled[i], lower[i], upper[i], found ? "Y" : "N");
+                    }
+                    writer.printf("%n");
+                }
             }
-            System.out.printf("%n");
         }
     }
 }

@@ -54,7 +54,7 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment, context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesFromSettings);
         final String name = name();
-        return new TokenFilterFactory() {
+        return new SynonymGraphTokenFilterFactory(indexSettings, environment, name, settings, synonymsManagementAPIService) {
             @Override
             public String name() {
                 return name;

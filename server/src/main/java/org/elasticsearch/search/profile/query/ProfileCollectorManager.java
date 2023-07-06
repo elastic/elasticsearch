@@ -98,7 +98,7 @@ public final class ProfileCollectorManager<T> implements CollectorManager<Intern
         assert assertChildrenSize(resultsPerProfiler);
 
         List<CollectorResult> childrenResults = new ArrayList<>();
-        //for the children collector managers, we rely on the chain on reduce calls to make their collector results available
+        // for the children collector managers, we rely on the chain on reduce calls to make their collector results available
         if (topDocsSubCollectorManager != null) {
             childrenResults.add(topDocsSubCollectorManager.getCollectorTree());
         }

@@ -178,6 +178,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                     modelId,
                     format("finished model upload after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos))
                 );
+                listener.onResponse(AcknowledgedResponse.TRUE);
+
             } catch (MalformedURLException e) {
                 logAndWriteNotificationAtError(modelId, format("Invalid URL [%s]", e));
             } catch (URISyntaxException e) {
@@ -187,7 +189,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
             }
         });
 
-        listener.onResponse(AcknowledgedResponse.TRUE);
+        // listener.onResponse(AcknowledgedResponse.TRUE);
     }
 
     private void logAndWriteNotificationAtError(String modelId, String message) {

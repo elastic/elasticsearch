@@ -28,12 +28,10 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,7 +52,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     public static final String NAME = "rule_query";
 
-    // TODO make this a String not an array
     private static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
     private static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
@@ -216,8 +213,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         GetRequest getRequest = new GetRequest(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME, rulesetId);
         SetOnce<List<String>> pinnedIdsSetOnce = new SetOnce<>();
         SetOnce<List<Item>> pinnedDocsSetOnce = new SetOnce<>();
-        List<String> matchingPinnedIds = new ArrayList<>();
-        List<Item> matchingPinnedDocs = new ArrayList<>();
+        AppliedQueryRules appliedRules = new AppliedQueryRules();
 
         queryRewriteContext.registerAsyncAction((client, listener) -> {
             Client clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
@@ -227,41 +223,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                 }
                 QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(rulesetId, getResponse.getSourceAsBytesRef(), XContentType.JSON);
                 for (QueryRule rule : queryRuleset.rules()) {
-                    if (rule.type() == QueryRule.QueryRuleType.PINNED) {
-                        for (QueryRuleCriteria criterion : rule.criteria()) {
-                            for (String match : matchCriteria.keySet()) {
-                                if (criterion.criteriaMetadata().equals(match)
-                                    && criterion.criteriaType() == CriteriaType.EXACT
-                                    && criterion.criteriaValue().equals(matchCriteria.get(match))) {
-
-                                    if (rule.actions().containsKey(PinnedQueryBuilder.IDS_FIELD.getPreferredName())) {
-                                        matchingPinnedIds.addAll(
-                                            (List<String>) rule.actions().get(PinnedQueryBuilder.IDS_FIELD.getPreferredName())
-                                        );
-                                    } else if (rule.actions().containsKey(PinnedQueryBuilder.DOCS_FIELD.getPreferredName())) {
-                                        List<Map<String, String>> docsToPin = (List<Map<String, String>>) rule.actions()
-                                            .get(PinnedQueryBuilder.DOCS_FIELD.getPreferredName());
-                                        List<Item> items = docsToPin.stream()
-                                            .map(
-                                                map -> new Item(
-                                                    map.get(Item.INDEX_FIELD.getPreferredName()),
-                                                    map.get(Item.ID_FIELD.getPreferredName())
-                                                )
-                                            )
-                                            .toList();
-                                        matchingPinnedDocs.addAll(items);
-                                    } else {
-                                        throw new UnsupportedOperationException("Pinned rules must specify id or docs");
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        throw new IllegalStateException("unsupported query rule type [" + rule.type() + "]");
-                    }
+                    logger.info("Applying rule: " + rule);
+                    appliedRules.applyRule(rule, matchCriteria);
                 }
-                pinnedIdsSetOnce.set(matchingPinnedIds.stream().distinct().toList());
-                pinnedDocsSetOnce.set(matchingPinnedDocs.stream().distinct().toList());
+                pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());
+                pinnedDocsSetOnce.set(appliedRules.pinnedDocs().stream().distinct().toList());
                 listener.onResponse(null);
             }));
         });

@@ -1,0 +1,5 @@
+pr: 97410
+summary: Introduce a collector manager for `QueryPhaseCollector`
+area: Search
+type: enhancement
+issues: []

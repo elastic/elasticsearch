@@ -339,21 +339,11 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("stemmer", StemmerTokenFilterFactory::new);
         filters.put(
             "synonym",
-            requiresAnalysisSettings(
-                (i, e, n, s) -> new SynonymTokenFilterFactory(i, e, n, s, synonymsManagementServiceHolder.get())
-            )
+            requiresAnalysisSettings((i, e, n, s) -> new SynonymTokenFilterFactory(i, e, n, s, synonymsManagementServiceHolder.get()))
         );
         filters.put(
             "synonym_graph",
-            requiresAnalysisSettings(
-                (i, e, n, s) -> new SynonymGraphTokenFilterFactory(
-                    i,
-                    e,
-                    n,
-                    s,
-                    synonymsManagementServiceHolder.get()
-                )
-            )
+            requiresAnalysisSettings((i, e, n, s) -> new SynonymGraphTokenFilterFactory(i, e, n, s, synonymsManagementServiceHolder.get()))
         );
         filters.put("trim", TrimTokenFilterFactory::new);
         filters.put("truncate", requiresAnalysisSettings(TruncateTokenFilterFactory::new));

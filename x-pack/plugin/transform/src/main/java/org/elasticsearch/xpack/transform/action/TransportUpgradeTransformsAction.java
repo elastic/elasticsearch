@@ -96,7 +96,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         TransformNodes.warnIfNoTransformNodes(state);
 
         // do not allow in mixed clusters
-        if (TransportVersionUtils.isMinTransformVersionSameAsCurrent(state) == false) {
+        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot upgrade transforms while cluster upgrade is in progress.",

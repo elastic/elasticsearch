@@ -48,7 +48,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
     }
 
     public void testIsMinTransformVersionSameAsCurrent() {
-        assertThat(TransportVersionUtils.isMinTransformVersionSameAsCurrent(state), equalTo(false));
+        assertThat(TransportVersionUtils.isMinTransportVersionSameAsCurrent(state), equalTo(false));
 
         Map<String, TransportVersion> transportVersions1 = Map.of("Eugene", TransportVersion.current());
 
@@ -66,7 +66,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
             null
         );
 
-        assertThat(TransportVersionUtils.isMinTransformVersionSameAsCurrent(state1), equalTo(true));
+        assertThat(TransportVersionUtils.isMinTransportVersionSameAsCurrent(state1), equalTo(true));
     }
 
     public void testIsMinTransportVersionOnOrAfter() {

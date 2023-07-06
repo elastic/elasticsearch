@@ -137,7 +137,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             return;
         }
 
-        if (TransportVersionUtils.isMinTransformVersionSameAsCurrent(state) == false) {
+        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot start model [{}] while cluster upgrade is in progress.",

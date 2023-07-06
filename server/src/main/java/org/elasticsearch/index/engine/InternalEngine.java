@@ -2609,6 +2609,7 @@ public class InternalEngine extends Engine {
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
         mergePolicy = new RecoverySourcePruneMergePolicy(
             SourceFieldMapper.RECOVERY_SOURCE_NAME,
+            engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? IdFieldMapper.NAME : null,
             softDeletesPolicy::getRetentionQuery,
             new SoftDeletesRetentionMergePolicy(
                 Lucene.SOFT_DELETES_FIELD,

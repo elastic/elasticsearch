@@ -80,6 +80,7 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'server'
   }
 
+  testImplementation 'org.apache.commons:commons-math3:3.2'
 }
 
 spotless {

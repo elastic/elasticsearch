@@ -628,14 +628,24 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         };
         final IndexEventListener beforeIndexShardRecovery = new IndexEventListener() {
+            volatile boolean reloaded;
+
             @Override
             public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
                 try {
                     if (indexShard.mapperService() != null) {
-                        // we finish loading analyzers from resources here
-                        // during shard recovery in the generic thread pool,
-                        // as this may require longer running operations and blocking calls
-                        indexShard.mapperService().reloadSearchAnalyzers(getAnalysis(), null);
+                        // we need to reload once, not on every shard recovery in case multiple shards are on the same node
+                        if (reloaded == false) {
+                            synchronized (indexShard.mapperService()) {
+                                if (reloaded == false) {
+                                    // we finish loading analyzers from resources here
+                                    // during shard recovery in the generic thread pool,
+                                    // as this may require longer running operations and blocking calls
+                                    indexShard.mapperService().reloadSearchAnalyzers(getAnalysis(), null);
+                                }
+                                reloaded = true;
+                            }
+                        }
                     }
                     listener.onResponse(null);
                 } catch (Exception e) {

@@ -168,11 +168,13 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 );
             }
             String synonymsSet = settings.get("synonyms_set", null);
-            // provide fake synonyms on master thread, as on Master an analyzer is built for validation only
+            // provide fake synonyms on index creation and index metadata checks to ensure that we
+            // don't block a master thread
             if (context != IndexCreationContext.RELOAD_ANALYZERS) {
                 return new ReaderWithOrigin(
                     new StringReader("fake rule => fake"),
-                    "fake [" + synonymsSet + "] synonyms_set in .synonyms index"
+                    "fake [" + synonymsSet + "] synonyms_set in .synonyms index",
+                        synonymsSet
                 );
             }
             return new ReaderWithOrigin(

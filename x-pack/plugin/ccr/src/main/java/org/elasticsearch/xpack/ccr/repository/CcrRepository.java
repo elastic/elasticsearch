@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
@@ -198,7 +197,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         List.copyOf(indicesMap.keySet()),
                         List.copyOf(responseMetadata.dataStreams().keySet()),
                         List.of(),
-                        response.getNodes().getMaxNodeVersion().indexVersion,
+                        response.getNodes().getMaxDataNodeCompatibleIndexVersion(),
                         SnapshotState.SUCCESS
                     );
                 }))
@@ -307,7 +306,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
-        Version repositoryMetaVersion,
+        IndexVersion repositoryMetaVersion,
         SnapshotDeleteListener listener
     ) {
         listener.onFailure(new UnsupportedOperationException("Unsupported for repository of type: " + TYPE));

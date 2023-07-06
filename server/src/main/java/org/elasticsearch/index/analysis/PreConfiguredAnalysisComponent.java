@@ -8,10 +8,10 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
 
@@ -36,7 +36,7 @@ public abstract class PreConfiguredAnalysisComponent<T> implements AnalysisModul
 
     @Override
     public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
-        Version versionCreated = indexSettings.getIndexVersionCreated().toVersion();
+        IndexVersion versionCreated = indexSettings.getIndexVersionCreated();
         synchronized (this) {
             T factory = cache.get(versionCreated);
             if (factory == null) {
@@ -54,5 +54,5 @@ public abstract class PreConfiguredAnalysisComponent<T> implements AnalysisModul
         return name;
     }
 
-    protected abstract T create(Version version);
+    protected abstract T create(IndexVersion version);
 }

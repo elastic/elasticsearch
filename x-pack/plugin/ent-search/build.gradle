@@ -9,7 +9,9 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-archivesBaseName = 'x-pack-ent-search'
+base {
+  archivesName = 'x-pack-ent-search'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

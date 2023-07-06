@@ -2,7 +2,7 @@ steps:
   - group: bwc-snapshots-windows
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots-windows"
-        command: '& .buildkite\generated-scripts\4ef3241cf6b8dbbae758f32a006b0bc0.bat'
+        command: '@()|.\.buildkite\generated-scripts\4ef3241cf6b8dbbae758f32a006b0bc0.bat'
         timeout_in_minutes: 180
         matrix:
           setup:
@@ -23,7 +23,7 @@ steps:
   - group: packaging-tests-windows
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-windows"
-        command: '& .buildkite\generated-scripts\ca6b2b9c7738eac3d32fd7cd4ac2faa8.bat'
+        command: '@()|.\.buildkite\generated-scripts\ca6b2b9c7738eac3d32fd7cd4ac2faa8.bat'
         timeout_in_minutes: 180
         matrix:
           setup:
@@ -43,7 +43,7 @@ steps:
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - label: part-1-windows
-    command: '& .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat'
+    command: '@()|.\.buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat'
     timeout_in_minutes: 180
     agents:
       provider: gcp
@@ -53,7 +53,7 @@ steps:
       diskType: pd-ssd
       diskSizeGb: 350
   - label: part-2-windows
-    command: '& .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat'
+    command: '@()|.\.buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat'
     timeout_in_minutes: 180
     agents:
       provider: gcp
@@ -63,7 +63,7 @@ steps:
       diskType: pd-ssd
       diskSizeGb: 350
   - label: part-3-windows
-    command: '& .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat'
+    command: '@()|.\.buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat'
     timeout_in_minutes: 180
     agents:
       provider: gcp

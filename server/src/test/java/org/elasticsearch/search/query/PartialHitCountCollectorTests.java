@@ -12,17 +12,13 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.test.ESTestCase;
@@ -115,27 +111,6 @@ public class PartialHitCountCollectorTests extends ESTestCase {
 
         assertEquals(totalHitsThreshold, partialHitCountCollector.getTotalHits());
         assertTrue(partialHitCountCollector.hasEarlyTerminated());
-    }
-
-    /**
-     * A {@link TermQuery} which does not retrieve hit count from Weight#count for reproducible tests.
-     * Using this query we will never early-terminate the collection phase because we can already
-     * get the document count from the term statistics of each segment.
-     */
-    static class NonCountingTermQuery extends TermQuery {
-
-        NonCountingTermQuery(Term term) {
-            super(term);
-        }
-
-        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            Weight w = super.createWeight(searcher, scoreMode, boost);
-            return new FilterWeight(w) {
-                public int count(LeafReaderContext context) throws IOException {
-                    return -1;
-                }
-            };
-        }
     }
 
 }

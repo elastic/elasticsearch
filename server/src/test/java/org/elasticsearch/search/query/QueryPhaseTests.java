@@ -77,7 +77,6 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.query.PartialHitCountCollectorTests.NonCountingTermQuery;
 import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.sort.SortAndFormats;

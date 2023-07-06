@@ -180,18 +180,13 @@ public abstract class AbstractProfilingPersistenceManager<T extends AbstractProf
         Object value = meta.get(fieldName);
         if (value instanceof Integer) {
             return (int) value;
-        } else if (value == null) {
+        }
+        if (value == null) {
             logger.warn("Metadata version field [{}] of index [{}] is empty.", fieldName, index);
             return -1;
-        } else {
-            logger.warn(
-                "Expected metadata version field [{}] of index [{}] to contain an integer value but found [{}].",
-                fieldName,
-                index,
-                value
-            );
-            return -1;
         }
+        logger.warn("Metadata version field [{}] of index [{}] is [{}] (expected an integer).", fieldName, index, value);
+        return -1;
     }
 
     enum Status {

@@ -375,13 +375,7 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
 
         @Override
         public String getName() {
-            StringBuilder sb = new StringBuilder();
-            sb.append(indexPrefix());
-            if (generation != null) {
-                sb.append("-");
-                sb.append(generation);
-            }
-            return sb.toString();
+            return isKvIndex() ? String.format(Locale.ROOT, "%s-%s", indexPrefix(), generation) : indexPrefix();
         }
 
         public int getVersion() {

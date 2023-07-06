@@ -994,13 +994,9 @@ public final class TokenService {
                 logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
                 listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
             } else {
-                // TODO Remove this conditional after backporting to 7.x
-                if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
-                    final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
-                    findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
-                } else {
-                    findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
-                }
+                assert refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS);
+                final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
+                findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
             }
         }
     }
@@ -1345,6 +1341,7 @@ public final class TokenService {
                                     response.getPrimaryTerm(),
                                     response.getSeqNo()
                                 );
+                                assert refreshTokenStatus.getTransportVersion().onOrAfter(VERSION_HASHED_TOKENS);
                                 listener.onResponse(
                                     new CreateTokenResult(
                                         prependVersionAndEncodeAccessToken(refreshTokenStatus.getTransportVersion(), decryptedTokens[0]),
@@ -2037,7 +2034,6 @@ public final class TokenService {
             TransportVersion.writeVersion(version, out);
             out.writeString(payload);
             return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
-
         } catch (IOException e) {
             throw new RuntimeException("Unexpected exception when working with small in-memory streams", e);
         }

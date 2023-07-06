@@ -340,6 +340,7 @@ public class Constants {
         "cluster:monitor/xpack/info/voting_only",
         "cluster:monitor/xpack/info/watcher",
         "cluster:monitor/xpack/license/get",
+        "cluster:monitor/xpack/ml/autoscaling/stats/get",
         "cluster:monitor/xpack/ml/calendars/events/get",
         "cluster:monitor/xpack/ml/calendars/get",
         "cluster:monitor/xpack/ml/data_frame/analytics/get",

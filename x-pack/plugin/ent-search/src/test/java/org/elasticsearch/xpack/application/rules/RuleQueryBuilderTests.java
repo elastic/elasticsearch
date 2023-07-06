@@ -57,7 +57,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     @Override
     protected void doAssertLuceneQuery(RuleQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         // The query rule always applies here, so we turn into a pinned query which is rewritten into a Dismax query.
-        assertTrue(query.toString(),  query instanceof DisjunctionMaxQuery);
+        assertTrue(query.toString(), query instanceof DisjunctionMaxQuery);
     }
 
     @Override
@@ -67,14 +67,8 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     public void testIllegalArguments() {
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, "rulesetId"));
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateMatchCriteria(), null)
-        );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateMatchCriteria(), "")
-        );
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateMatchCriteria(), null));
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateMatchCriteria(), ""));
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, generateMatchCriteria(), "rulesetId"));
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, Collections.emptyMap(), "rulesetId"));
         expectThrows(

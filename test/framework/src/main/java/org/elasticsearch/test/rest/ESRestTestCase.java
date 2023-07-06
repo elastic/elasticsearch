@@ -1827,6 +1827,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith("profiling-")) {
             return true;
         }
+        if (name.startsWith("elastic-connectors")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
@@ -1849,6 +1852,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "security-index-template":
             case "data-streams-mappings":
             case "ecs@dynamic_templates":
+            case "search-acl-filter":
                 return true;
             default:
                 return false;

@@ -353,6 +353,11 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 if (rounds.isEmpty()) {
                     throw new IllegalArgumentException("Downsampling configuration should have at least one round configured.");
                 }
+                if (rounds.size() > 10) {
+                    throw new IllegalArgumentException(
+                        "Downsampling configuration supports maximum 10 configured rounds. Found: " + rounds.size()
+                    );
+                }
                 Round previous = null;
                 for (Round round : rounds) {
                     if (previous == null) {

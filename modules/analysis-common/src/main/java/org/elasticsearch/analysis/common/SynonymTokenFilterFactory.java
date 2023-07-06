@@ -37,14 +37,13 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SynonymTokenFilterFactory.class);
 
-    final IndexSettings indexSettings;
     private final String format;
     private final boolean expand;
     private final boolean lenient;
     protected final Settings settings;
     protected final Environment environment;
     protected final AnalysisMode analysisMode;
-    final SynonymsManagementAPIService synonymsManagementAPIService;
+    private final SynonymsManagementAPIService synonymsManagementAPIService;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
@@ -54,7 +53,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         SynonymsManagementAPIService synonymsManagementAPIService
     ) {
         super(name, settings);
-        this.indexSettings = indexSettings;
         this.settings = settings;
 
         if (settings.get("ignore_case") != null) {
@@ -96,7 +94,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment, context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesFromSettings);
         final String name = name();
-        return new SynonymTokenFilterFactory(indexSettings, environment, name, settings, synonymsManagementAPIService) {
+        return new TokenFilterFactory() {
             @Override
             public String name() {
                 return name;

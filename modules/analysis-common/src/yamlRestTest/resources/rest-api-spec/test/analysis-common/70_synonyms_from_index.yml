@@ -158,7 +158,7 @@ setup:
             match:
               my_field:
                 query: hola
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 2 }
 
 ---
 "Delete the synonyms set and confirm failed reload analyzers details":

@@ -626,21 +626,6 @@ public final class TokenService {
     }
 
     /**
-     * This method performs the steps necessary to invalidate a token so that it may no longer be used.
-     */
-    public void invalidateAccessToken(UserToken userToken, ActionListener<TokensInvalidationResult> listener) {
-        ensureEnabled();
-        if (userToken == null) {
-            logger.trace("No access token provided");
-            listener.onFailure(new IllegalArgumentException("access token must be provided"));
-        } else {
-            maybeStartTokenRemover();
-            final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-            indexInvalidation(Collections.singleton(userToken), backoff, "access_token", null, listener);
-        }
-    }
-
-    /**
      * This method invalidates a refresh token so that it may no longer be used. Invalidation involves performing an update to the token
      * document and setting the <code>refresh_token.invalidated</code> field to <code>true</code>
      *
@@ -734,7 +719,7 @@ public final class TokenService {
      * @param tokenTuples The user token tuples for which access and refresh tokens (if exist) should be invalidated
      * @param listener  the listener to notify upon completion
      */
-    private void invalidateAllTokens(Collection<Tuple<UserToken, String>> tokenTuples, ActionListener<TokensInvalidationResult> listener) {
+    public void invalidateAllTokens(Collection<Tuple<UserToken, String>> tokenTuples, ActionListener<TokensInvalidationResult> listener) {
         maybeStartTokenRemover();
 
         // Invalidate the refresh tokens first so that they cannot be used to get new
@@ -992,34 +977,29 @@ public final class TokenService {
             );
             findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
         } else {
-            if (refreshToken.length() == HASHED_TOKEN_LENGTH) {
-                logger.debug("Assuming a hashed refresh token [{}] retrieved from the tokens index", refreshToken);
-                findTokenFromRefreshToken(refreshToken, securityTokensIndex, backoff, listener);
+            logger.debug("Assuming a refresh token [{}] provided from a client", refreshToken);
+            final TransportVersion refreshTokenVersion;
+            final String unencodedRefreshToken;
+            final Tuple<TransportVersion, String> versionAndRefreshTokenTuple;
+            try {
+                versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
+                refreshTokenVersion = versionAndRefreshTokenTuple.v1();
+                unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
+            } catch (IOException e) {
+                logger.debug(() -> "Could not decode refresh token [" + refreshToken + "].", e);
+                listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+                return;
+            }
+            if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
+                logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
+                listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
             } else {
-                logger.debug("Assuming a refresh token [{}] provided from a client", refreshToken);
-                final TransportVersion refreshTokenVersion;
-                final String unencodedRefreshToken;
-                final Tuple<TransportVersion, String> versionAndRefreshTokenTuple;
-                try {
-                    versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
-                    refreshTokenVersion = versionAndRefreshTokenTuple.v1();
-                    unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
-                } catch (IOException e) {
-                    logger.debug(() -> "Could not decode refresh token [" + refreshToken + "].", e);
-                    listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
-                    return;
-                }
-                if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
-                    logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
-                    listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+                // TODO Remove this conditional after backporting to 7.x
+                if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
+                    final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
+                    findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
                 } else {
-                    // TODO Remove this conditional after backporting to 7.x
-                    if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
-                        final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
-                        findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
-                    } else {
-                        findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
-                    }
+                    findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
                 }
             }
         }

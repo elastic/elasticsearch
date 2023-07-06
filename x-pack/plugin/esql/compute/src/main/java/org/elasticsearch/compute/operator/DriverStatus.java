@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -23,6 +24,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * {@link Task.Status} reported from a {@link Driver} to be reported by the tasks api.
+ */
 public class DriverStatus implements Task.Status {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Task.Status.class,
@@ -30,23 +34,38 @@ public class DriverStatus implements Task.Status {
         DriverStatus::new
     );
 
+    /**
+     * The session for this driver.
+     */
     private final String sessionId;
+    /**
+     * When this status was generated.
+     */
+    private final long lastUpdated;
+    /**
+     * The state of the overall driver - queue, starting, running, finished.
+     */
     private final Status status;
+    /**
+     * Status of each {@link Operator} in the driver.
+     */
     private final List<OperatorStatus> activeOperators;
 
-    DriverStatus(String sessionId, Status status, List<OperatorStatus> activeOperators) {
+    DriverStatus(String sessionId, long lastUpdated, Status status, List<OperatorStatus> activeOperators) {
         this.sessionId = sessionId;
+        this.lastUpdated = lastUpdated;
         this.status = status;
         this.activeOperators = activeOperators;
     }
 
     DriverStatus(StreamInput in) throws IOException {
-        this(in.readString(), Status.valueOf(in.readString()), in.readImmutableList(OperatorStatus::new));
+        this(in.readString(), in.readLong(), Status.valueOf(in.readString()), in.readImmutableList(OperatorStatus::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sessionId);
+        out.writeLong(lastUpdated);
         out.writeString(status.toString());
         out.writeList(activeOperators);
     }
@@ -56,14 +75,30 @@ public class DriverStatus implements Task.Status {
         return ENTRY.name;
     }
 
+    /**
+     * The session for this driver.
+     */
     public String sessionId() {
         return sessionId;
     }
 
+    /**
+     * When this status was generated.
+     */
+    public long lastUpdated() {
+        return lastUpdated;
+    }
+
+    /**
+     * The state of the overall driver - queue, starting, running, finished.
+     */
     public Status status() {
         return status;
     }
 
+    /**
+     * Status of each {@link Operator} in the driver.
+     */
     public List<OperatorStatus> activeOperators() {
         return activeOperators;
     }
@@ -72,6 +107,7 @@ public class DriverStatus implements Task.Status {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("sessionId", sessionId);
+        builder.field("last_updated", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lastUpdated));
         builder.field("status", status.toString().toLowerCase(Locale.ROOT));
         builder.startArray("active_operators");
         for (OperatorStatus active : activeOperators) {
@@ -86,12 +122,15 @@ public class DriverStatus implements Task.Status {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DriverStatus that = (DriverStatus) o;
-        return sessionId.equals(that.sessionId) && status == that.status && activeOperators.equals(that.activeOperators);
+        return sessionId.equals(that.sessionId)
+            && lastUpdated == that.lastUpdated
+            && status == that.status
+            && activeOperators.equals(that.activeOperators);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, status, activeOperators);
+        return Objects.hash(sessionId, lastUpdated, status, activeOperators);
     }
 
     @Override
@@ -99,8 +138,18 @@ public class DriverStatus implements Task.Status {
         return Strings.toString(this);
     }
 
+    /**
+     * Status of an {@link Operator}.
+     */
     public static class OperatorStatus implements Writeable, ToXContentObject {
+        /**
+         * String representation of the {@link Operator}. Literally just the
+         * {@link Object#toString()} of it.
+         */
         private final String operator;
+        /**
+         * Status as reported by the {@link Operator}.
+         */
         @Nullable
         private final Operator.Status status;
 

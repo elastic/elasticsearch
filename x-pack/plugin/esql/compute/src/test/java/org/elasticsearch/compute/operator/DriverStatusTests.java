@@ -17,6 +17,7 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperatorStatusTests;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperatorStatusTests;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,6 +29,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
     public void testToXContent() {
         DriverStatus status = new DriverStatus(
             "ABC:123",
+            123413243214L,
             DriverStatus.Status.RUNNING,
             List.of(
                 new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
@@ -38,7 +40,9 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             Strings.toString(status),
             equalTo(
                 """
-                    {"sessionId":"ABC:123","status":"running","active_operators":[{"operator":"LuceneSource","status":"""
+                    {"sessionId":"ABC:123","last_updated":"1973-11-29T09:27:23.214Z","status":"running","active_operators":["""
+                    + """
+                        {"operator":"LuceneSource","status":"""
                     + LuceneSourceOperatorStatusTests.simpleToJson()
                     + "},{\"operator\":\"ValuesSourceReader\",\"status\":"
                     + ValuesSourceReaderOperatorStatusTests.simpleToJson()
@@ -54,7 +58,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
 
     @Override
     protected DriverStatus createTestInstance() {
-        return new DriverStatus(randomSessionId(), randomStatus(), randomActiveOperators());
+        return new DriverStatus(randomSessionId(), randomLong(), randomStatus(), randomActiveOperators());
     }
 
     private String randomSessionId() {
@@ -81,22 +85,26 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
     @Override
     protected DriverStatus mutateInstance(DriverStatus instance) throws IOException {
         var sessionId = instance.sessionId();
+        long lastUpdated = instance.lastUpdated();
         var status = instance.status();
         var operators = instance.activeOperators();
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0:
                 sessionId = randomValueOtherThan(sessionId, this::randomSessionId);
                 break;
             case 1:
-                status = randomValueOtherThan(status, this::randomStatus);
+                lastUpdated = randomValueOtherThan(lastUpdated, ESTestCase::randomLong);
                 break;
             case 2:
+                status = randomValueOtherThan(status, this::randomStatus);
+                break;
+            case 3:
                 operators = randomValueOtherThan(operators, this::randomActiveOperators);
                 break;
             default:
                 throw new UnsupportedOperationException();
         }
-        return new DriverStatus(sessionId, status, operators);
+        return new DriverStatus(sessionId, lastUpdated, status, operators);
     }
 
     @Override

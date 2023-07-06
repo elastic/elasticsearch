@@ -94,5 +94,8 @@ public interface Operator extends Releasable {
         Operator get(DriverContext driverContext);
     }
 
+    /**
+     * Status of an {@link Operator} to be returned by the tasks API.
+     */
     interface Status extends ToXContentObject, NamedWriteable {}
 }

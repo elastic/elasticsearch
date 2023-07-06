@@ -77,7 +77,7 @@ public class Driver implements Runnable, Releasable, Describable {
         this.activeOperators.addAll(intermediateOperators);
         this.activeOperators.add(sink);
         this.releasable = releasable;
-        this.status = new AtomicReference<>(new DriverStatus(sessionId, DriverStatus.Status.QUEUED, List.of()));
+        this.status = new AtomicReference<>(new DriverStatus(sessionId, System.currentTimeMillis(), DriverStatus.Status.QUEUED, List.of()));
     }
 
     /**
@@ -141,11 +141,11 @@ public class Driver implements Runnable, Releasable, Describable {
             }
         }
         if (isFinished()) {
-            status.set(buildStatus(DriverStatus.Status.DONE));  // Report status for the tasks API
+            status.set(updateStatus(DriverStatus.Status.DONE));  // Report status for the tasks API
             driverContext.finish();
             releasable.close();
         } else {
-            status.set(buildStatus(DriverStatus.Status.RUNNING));  // Report status for the tasks API
+            status.set(updateStatus(DriverStatus.Status.RUNNING));  // Report status for the tasks API
         }
         return Operator.NOT_BLOCKED;
     }
@@ -244,7 +244,7 @@ public class Driver implements Runnable, Releasable, Describable {
 
     public static void start(Executor executor, Driver driver, ActionListener<Void> listener) {
         int maxIterations = 10000;
-        driver.status.set(driver.buildStatus(DriverStatus.Status.STARTING));  // Report status for the tasks API
+        driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));  // Report status for the tasks API
         schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, executor, driver, listener);
     }
 
@@ -324,13 +324,23 @@ public class Driver implements Runnable, Releasable, Describable {
         return sessionId;
     }
 
+    /**
+     * Get the last status update from the driver. These updates are made
+     * when the driver is queued and after every
+     * processing {@link #run(TimeValue, int) batch}.
+     */
     public DriverStatus status() {
         return status.get();
     }
 
-    private DriverStatus buildStatus(DriverStatus.Status status) {
+    /**
+     * Update the status.
+     * @param status the status of the overall driver request
+     */
+    private DriverStatus updateStatus(DriverStatus.Status status) {
         return new DriverStatus(
             sessionId,
+            System.currentTimeMillis(),
             status,
             activeOperators.stream().map(o -> new DriverStatus.OperatorStatus(o.toString(), o.status())).toList()
         );

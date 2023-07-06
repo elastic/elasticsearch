@@ -101,7 +101,7 @@ public abstract class StringTemplateTask extends DefaultTask {
             this.inputFile = inputFile;
         }
 
-        @Internal
+        @Input
         public String getOutputFile() {
             return outputFile;
         }

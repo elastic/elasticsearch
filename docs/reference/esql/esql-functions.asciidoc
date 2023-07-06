@@ -23,6 +23,7 @@ these functions:
 * <<esql-is_nan>>
 * <<esql-is_null>>
 * <<esql-length>>
+* <<esql-log10>>
 * <<esql-mv_avg>>
 * <<esql-mv_concat>>
 * <<esql-mv_count>>
@@ -62,6 +63,7 @@ include::functions/is_infinite.asciidoc[]
 include::functions/is_nan.asciidoc[]
 include::functions/is_null.asciidoc[]
 include::functions/length.asciidoc[]
+include::functions/log10.asciidoc[]
 include::functions/mv_avg.asciidoc[]
 include::functions/mv_concat.asciidoc[]
 include::functions/mv_count.asciidoc[]

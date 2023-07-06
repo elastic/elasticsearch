@@ -20,7 +20,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public abstract class UnaryScalarFunction extends ScalarFunction {
-    private final Expression field;
+    protected final Expression field;
 
     public UnaryScalarFunction(Source source, Expression field) {
         super(source, Arrays.asList(field));

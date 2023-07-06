@@ -43,7 +43,8 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerializ
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Base class for function tests.
+ * Base class for function tests.  Tests based on this class will generally build out a single example evaluation,
+ * which can be automatically tested against several scenarios (null handling, concurrency, etc).
  */
 public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
@@ -71,20 +72,45 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }, type);
     }
 
+    /**
+     * Used for constructing a sample data point for the function being tested.  This should return a
+     * List of arguments for the Expression, which will be used by {@link AbstractFunctionTestCase#expressionForSimpleData()}
+     * to build the actual expression
+     */
     protected abstract List<Object> simpleData();
 
+    /**
+     * Return an {@link Expression} capable of parsing the data from {@link AbstractFunctionTestCase#simpleData()}
+     */
     protected abstract Expression expressionForSimpleData();
 
     protected abstract DataType expressionForSimpleDataType();
 
+    /**
+     * Return a {@link Matcher} to validate the results of evaluating the function
+     *
+     * @param data a list of the parameters that were passed to the evaluator
+     * @return a matcher to validate correctness against the given data set
+     */
     protected abstract Matcher<Object> resultMatcher(List<Object> data, DataType dataType);
 
     protected Matcher<Object> resultMatcher(List<Object> data) {
         return resultMatcher(data, EsqlDataTypes.fromJava(data.get(0) instanceof List<?> list ? list.get(0) : data.get(0)));
     }
 
+    /**
+     * The expected results for calling {@code toString} on the {@link Expression} created by
+     * {@link AbstractFunctionTestCase#expressionForSimpleData()}.  Generally speaking, this can be implemented by returning
+     * a string literal
+     * @return The expected string representation
+     */
     protected abstract String expectedEvaluatorSimpleToString();
 
+    /**
+     * Build an {@link Expression} that operates on {@link Literal} versions of the given data
+     * @param data a list of the parameters that were passed to the evaluator
+     * @return An {@link Expression} operating only on literals
+     */
     protected abstract Expression constantFoldable(List<Object> data);
 
     protected abstract Expression build(Source source, List<Literal> args);

@@ -159,6 +159,60 @@ d:double | s:boolean
 1.0      | false
 ;
 
+isNaNTrue
+row d = 0.0/0.0 | eval s = is_nan(d);
+
+d:double | s:boolean
+NaN      | true
+;
+
+log10
+// tag::log10[]
+ROW d = 1000.0 
+| EVAL s = LOG10(d);
+// end::log10[]
+
+// tag::log10-result[]
+d: double | s:double
+1000.0    | 3.0
+// end::log10-result[]
+;
+
+log10ofNegative
+row d = -1.0 | eval s = is_nan(log10(d));
+
+d:double | s:boolean
+-1.0     | true
+;
+
+log10ofNan
+row d = 0.0/0.0 | eval s = is_nan(log10(d));
+
+d:double | s:boolean
+NaN      | true
+;
+
+log10ofZero
+row d = 0.0 |eval s = is_infinite(log10(d));
+
+d:double | s:boolean
+0.0     | true
+;
+
+log10ofNegativeZero
+row d = -0.0 |eval s = is_infinite(log10(d));
+
+d:double | s:boolean
+-0.0     | true
+;
+
+log10ofInfinite
+row d = 1/0.0 | eval s = is_infinite(log10(d));
+
+d:double | s:boolean
+Infinity | true
+;
+
 powDoubleDouble
 row base = 2.0, exponent = 2.0 | eval s = pow(base, exponent);
 

@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -39,7 +38,6 @@ import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 import org.elasticsearch.xpack.core.archive.ArchiveFeatureSetUsage;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
-import org.elasticsearch.xpack.core.datastreams.DataLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
@@ -549,13 +547,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             ),
             // Data Streams
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new),
-            DataStreamLifecycle.isEnabled()
-                ? new NamedWriteableRegistry.Entry(
-                    XPackFeatureSet.Usage.class,
-                    XPackField.DATA_LIFECYCLE,
-                    DataLifecycleFeatureSetUsage::new
-                )
-                : null,
             // Data Tiers
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new),
             // Archive

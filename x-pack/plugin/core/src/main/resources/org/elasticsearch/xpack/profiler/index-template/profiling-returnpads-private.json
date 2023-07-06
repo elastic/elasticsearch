@@ -38,7 +38,7 @@
            'binary' type fields don't allow using 'index: true'.
            The value is stored in its binary form (byte array).
            Not readable or writeable via JSON (CBOR and SMILE only).
-            */
+           */
           "type": "keyword",
           "index": true,
           "doc_values": false,

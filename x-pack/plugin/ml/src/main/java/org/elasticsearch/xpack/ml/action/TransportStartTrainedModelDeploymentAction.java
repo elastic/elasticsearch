@@ -140,8 +140,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         if (TransportVersionUtils.isMinTransformVersionSameAsCurrent(state) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "Cannot start a new model deployment as not all transport versions used by the cluster are on version {}. "
-                        + "All transport versions must be the same version.",
+                    "Cannot start model [{}] while cluster upgrade is in progress.",
                     RestStatus.FORBIDDEN,
                     TransportVersionUtils.getCurrentTransportVersion().toString()
                 )

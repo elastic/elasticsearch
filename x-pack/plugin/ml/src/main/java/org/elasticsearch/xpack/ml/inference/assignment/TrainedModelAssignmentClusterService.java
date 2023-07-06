@@ -592,8 +592,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (clusterState.getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot update number_of_allocations for deployment with model id [{}] while there are transport"
-                        + " versions older than [{}]",
+                    "cannot update number_of_allocations for deployment with model id [{}] while cluster upgrade is in progress.",
                     RestStatus.CONFLICT,
                     deploymentId,
                     DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION

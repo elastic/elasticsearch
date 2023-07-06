@@ -99,7 +99,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         if (TransportVersionUtils.isMinTransformVersionSameAsCurrent(state) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "Cannot upgrade transforms while cluster upgrade is in progress. All transport versions must be the same [{}]",
+                    "Cannot upgrade transforms while cluster upgrade is in progress.",
                     RestStatus.CONFLICT,
                     TransportVersionUtils.getCurrentTransportVersion().toString()
                 )

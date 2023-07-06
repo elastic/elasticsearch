@@ -21,7 +21,7 @@ public class TransportVersionUtils {
         return TransportVersion.current();
     }
 
-    public static boolean isMinTransformVersionSameAsCurrent(ClusterState state) {
+    public static boolean isMinTransportVersionSameAsCurrent(ClusterState state) {
         TransportVersion minTransportVersion = getMinTransportVersion(state);
         TransportVersion currentTransformVersion = TransportVersion.current();
         return minTransportVersion.compareTo(currentTransformVersion) == 0;

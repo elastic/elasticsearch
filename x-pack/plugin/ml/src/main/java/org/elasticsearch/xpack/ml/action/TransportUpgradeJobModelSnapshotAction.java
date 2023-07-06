@@ -113,8 +113,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         if (TransportVersionUtils.isMinTransformVersionSameAsCurrent(state) == false) {
             listener.onFailure(
                 ExceptionsHelper.conflictStatusException(
-                    "Cannot upgrade job [{}] snapshot [{}] as not all transport versions are {}."
-                        + " All transport versions must be the same version",
+                    "Cannot upgrade job [{}] snapshot [{}] while cluster upgrade is in progress.",
                     request.getJobId(),
                     request.getSnapshotId(),
                     TransportVersionUtils.getCurrentTransportVersion().toString()

@@ -11,16 +11,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -36,6 +35,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,9 +60,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-public class ProfilingIndexManagerTests extends ESTestCase {
+public class ProfilingDataStreamManagerTests extends ESTestCase {
     private final AtomicBoolean templatesCreated = new AtomicBoolean();
-    private ProfilingIndexManager indexManager;
+    private ProfilingDataStreamManager datastreamManager;
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
@@ -72,13 +73,13 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        indexManager = new ProfilingIndexManager(threadPool, client, clusterService) {
+        datastreamManager = new ProfilingDataStreamManager(threadPool, client, clusterService) {
             @Override
             protected boolean isAllResourcesCreated(ClusterChangedEvent event) {
                 return templatesCreated.get();
             }
         };
-        indexManager.setTemplatesEnabled(true);
+        datastreamManager.setTemplatesEnabled(true);
     }
 
     @After
@@ -98,7 +99,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         });
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), nodes);
-        indexManager.clusterChanged(event);
+        datastreamManager.clusterChanged(event);
     }
 
     public void testThatMissingTemplatesDoesNothing() {
@@ -111,10 +112,10 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         });
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), nodes);
-        indexManager.clusterChanged(event);
+        datastreamManager.clusterChanged(event);
     }
 
-    public void testThatNonExistingIndicesAreAddedImmediately() throws Exception {
+    public void testThatNonExistingDataStreamsAreAddedImmediately() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         templatesCreated.set(true);
@@ -123,9 +124,9 @@ public class ProfilingIndexManagerTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
 
-        client.setVerifier((action, request, listener) -> verifyIndexInstalled(calledTimes, action, request, listener));
-        indexManager.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingIndexManager.PROFILING_INDICES.size())));
+        client.setVerifier((action, request, listener) -> verifyDataStreamInstalled(calledTimes, action, request, listener));
+        datastreamManager.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size())));
 
         calledTimes.set(0);
     }
@@ -135,10 +136,10 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         templatesCreated.set(true);
 
-        // This index is an upgrade candidate
-        ProfilingIndexManager.ProfilingIndex existingIndex = randomFrom(ProfilingIndexManager.PROFILING_INDICES);
+        // This data stream is a rollover candidate
+        ProfilingDataStreamManager.ProfilingDataStream existingDataStream = randomFrom(ProfilingDataStreamManager.PROFILING_DATASTREAMS);
         ClusterChangedEvent event = createClusterChangedEvent(
-            List.of(existingIndex.withVersion(0)),
+            List.of(existingDataStream.withVersion(0)),
             nodes,
             IndexMetadata.State.OPEN,
             false
@@ -146,10 +147,10 @@ public class ProfilingIndexManagerTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
 
-        client.setVerifier((action, request, listener) -> verifyIndexInstalled(calledTimes, action, request, listener));
-        indexManager.clusterChanged(event);
+        client.setVerifier((action, request, listener) -> verifyDataStreamInstalled(calledTimes, action, request, listener));
+        datastreamManager.clusterChanged(event);
         // should not create the index because a newer generation with the correct version exists
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingIndexManager.PROFILING_INDICES.size() - 1)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size() - 1)));
 
         calledTimes.set(0);
     }
@@ -160,9 +161,9 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         templatesCreated.set(true);
 
         // This index is an upgrade candidate
-        ProfilingIndexManager.ProfilingIndex existingIndex = randomFrom(ProfilingIndexManager.PROFILING_INDICES);
+        ProfilingDataStreamManager.ProfilingDataStream existingDataStream = randomFrom(ProfilingDataStreamManager.PROFILING_DATASTREAMS);
         ClusterChangedEvent event = createClusterChangedEvent(
-            List.of(existingIndex.withVersion(0)),
+            List.of(existingDataStream.withVersion(0)),
             nodes,
             IndexMetadata.State.CLOSE,
             true
@@ -170,10 +171,10 @@ public class ProfilingIndexManagerTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
 
-        client.setVerifier((action, request, listener) -> verifyIndexInstalled(calledTimes, action, request, listener));
-        indexManager.clusterChanged(event);
+        client.setVerifier((action, request, listener) -> verifyDataStreamInstalled(calledTimes, action, request, listener));
+        datastreamManager.clusterChanged(event);
         // should not create the index because a newer generation with the correct version exists
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingIndexManager.PROFILING_INDICES.size() - 1)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size() - 1)));
 
         calledTimes.set(0);
     }
@@ -183,85 +184,70 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         templatesCreated.set(true);
 
-        ProfilingIndexManager.ProfilingIndex existingIndex = randomFrom(ProfilingIndexManager.PROFILING_INDICES);
-        ClusterChangedEvent event = createClusterChangedEvent(List.of(existingIndex), nodes);
+        ProfilingDataStreamManager.ProfilingDataStream existingDataStream = randomFrom(ProfilingDataStreamManager.PROFILING_DATASTREAMS);
+        ClusterChangedEvent event = createClusterChangedEvent(List.of(existingDataStream), nodes);
 
         AtomicInteger calledTimes = new AtomicInteger(0);
 
-        client.setVerifier((action, request, listener) -> verifyIndexInstalled(calledTimes, action, request, listener));
-        indexManager.clusterChanged(event);
+        client.setVerifier((action, request, listener) -> verifyDataStreamInstalled(calledTimes, action, request, listener));
+        datastreamManager.clusterChanged(event);
         // should not create the existing index
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingIndexManager.PROFILING_INDICES.size() - 1)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size() - 1)));
 
         calledTimes.set(0);
     }
 
-    public void testUpgradesOldIndex() throws Exception {
+    public void testThatDataStreamIsRolledOver() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         templatesCreated.set(true);
 
-        ProfilingIndexManager.ProfilingIndex indexWithDeleteOnVersionBump = randomFrom(
-            ProfilingIndexManager.PROFILING_INDICES.stream()
-                .filter(p -> p.getOnVersionBump().equals(ProfilingIndexManager.OnVersionBump.DELETE_OLD))
-                .toList()
+        ProfilingDataStreamManager.ProfilingDataStream dataStreamToRollover = randomFrom(ProfilingDataStreamManager.PROFILING_DATASTREAMS);
+        List<ProfilingDataStreamManager.ProfilingDataStream> existingDataStreams = new ArrayList<>(
+            ProfilingDataStreamManager.PROFILING_DATASTREAMS
         );
-        ProfilingIndexManager.ProfilingIndex oldIndex = indexWithDeleteOnVersionBump.withVersion(0);
-        List<ProfilingIndexManager.ProfilingIndex> existingIndices = new ArrayList<>(ProfilingIndexManager.PROFILING_INDICES);
-        // only the old index must exist
-        existingIndices.remove(indexWithDeleteOnVersionBump);
-        existingIndices.add(oldIndex);
+        existingDataStreams.remove(dataStreamToRollover);
+        existingDataStreams.add(dataStreamToRollover.withVersion(0));
 
-        ClusterChangedEvent event = createClusterChangedEvent(existingIndices, nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(existingDataStreams, nodes);
 
-        AtomicInteger indicesCreated = new AtomicInteger(0);
-        AtomicInteger indicesDeleted = new AtomicInteger(0);
+        AtomicInteger calledTimes = new AtomicInteger(0);
 
-        client.setVerifier((action, request, listener) -> verifyIndexUpgraded(indicesCreated, indicesDeleted, action, request, listener));
-        indexManager.clusterChanged(event);
-        // should delete one old index and create a new one
-        assertBusy(() -> assertThat(indicesCreated.get(), equalTo(1)));
-        assertBusy(() -> assertThat(indicesDeleted.get(), equalTo(1)));
+        client.setVerifier((action, request, listener) -> verifyDataStreamRolledOver(calledTimes, action, request, listener));
+        datastreamManager.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
 
-        indicesCreated.set(0);
-        indicesDeleted.set(0);
+        calledTimes.set(0);
     }
 
-    private ActionResponse verifyIndexInstalled(
+    private ActionResponse verifyDataStreamInstalled(
         AtomicInteger calledTimes,
         ActionType<?> action,
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        if (action instanceof CreateIndexAction) {
+        if (action instanceof CreateDataStreamAction) {
             calledTimes.incrementAndGet();
-            assertThat(action, instanceOf(CreateIndexAction.class));
-            assertThat(request, instanceOf(CreateIndexRequest.class));
+            assertThat(action, instanceOf(CreateDataStreamAction.class));
+            assertThat(request, instanceOf(CreateDataStreamAction.Request.class));
             assertNotNull(listener);
-            return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
+            return AcknowledgedResponse.TRUE;
         } else {
             fail("client called with unexpected request:" + request.toString());
             return null;
         }
     }
 
-    private ActionResponse verifyIndexUpgraded(
-        AtomicInteger indicesCreated,
-        AtomicInteger indicesDeleted,
+    private ActionResponse verifyDataStreamRolledOver(
+        AtomicInteger calledTimes,
         ActionType<?> action,
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        if (action instanceof CreateIndexAction) {
-            indicesCreated.incrementAndGet();
-            assertThat(action, instanceOf(CreateIndexAction.class));
-            assertThat(request, instanceOf(CreateIndexRequest.class));
-            assertNotNull(listener);
-            return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
-        } else if (action instanceof DeleteIndexAction) {
-            indicesDeleted.incrementAndGet();
-            assertThat(action, instanceOf(DeleteIndexAction.class));
-            assertThat(request, instanceOf(DeleteIndexRequest.class));
+        if (action instanceof RolloverAction) {
+            calledTimes.incrementAndGet();
+            assertThat(action, instanceOf(RolloverAction.class));
+            assertThat(request, instanceOf(RolloverRequest.class));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
         } else {
@@ -271,19 +257,19 @@ public class ProfilingIndexManagerTests extends ESTestCase {
     }
 
     private ClusterChangedEvent createClusterChangedEvent(
-        Iterable<ProfilingIndexManager.ProfilingIndex> existingIndices,
+        Iterable<ProfilingDataStreamManager.ProfilingDataStream> existingDataStreams,
         DiscoveryNodes nodes
     ) {
-        return createClusterChangedEvent(existingIndices, nodes, IndexMetadata.State.OPEN, true);
+        return createClusterChangedEvent(existingDataStreams, nodes, IndexMetadata.State.OPEN, true);
     }
 
     private ClusterChangedEvent createClusterChangedEvent(
-        Iterable<ProfilingIndexManager.ProfilingIndex> existingIndices,
+        Iterable<ProfilingDataStreamManager.ProfilingDataStream> existingDataStreams,
         DiscoveryNodes nodes,
         IndexMetadata.State state,
         boolean allShardsAssigned
     ) {
-        ClusterState cs = createClusterState(Settings.EMPTY, existingIndices, nodes, state, allShardsAssigned);
+        ClusterState cs = createClusterState(Settings.EMPTY, existingDataStreams, nodes, state, allShardsAssigned);
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,
@@ -297,19 +283,32 @@ public class ProfilingIndexManagerTests extends ESTestCase {
 
     private ClusterState createClusterState(
         Settings nodeSettings,
-        Iterable<ProfilingIndexManager.ProfilingIndex> existingIndices,
+        Iterable<ProfilingDataStreamManager.ProfilingDataStream> existingDataStreams,
         DiscoveryNodes nodes,
         IndexMetadata.State state,
         boolean allShardsAssigned
     ) {
+        Metadata.Builder metadataBuilder = Metadata.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Map<String, IndexMetadata> indices = new HashMap<>();
-        for (ProfilingIndexManager.ProfilingIndex profilingIndex : existingIndices) {
-            String indexName = profilingIndex.getName();
-            Index index = new Index(indexName, indexName);
-            IndexMetadata.Builder builder = new IndexMetadata.Builder(indexName);
+        for (ProfilingDataStreamManager.ProfilingDataStream existingDataStream : existingDataStreams) {
+            String writeIndexName = String.format(Locale.ROOT, ".ds-%s", existingDataStream.getName());
+            Index writeIndex = new Index(writeIndexName, writeIndexName);
+            DataStream ds = new DataStream(
+                existingDataStream.getName(),
+                List.of(writeIndex),
+                1,
+                Map.of(),
+                false,
+                false,
+                false,
+                false,
+                IndexMode.STANDARD
+            );
+            metadataBuilder.put(ds);
+            IndexMetadata.Builder builder = new IndexMetadata.Builder(writeIndexName);
             builder.state(state);
-            builder.settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID()));
+            builder.settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, writeIndex.getUUID()));
             builder.putMapping(
                 new MappingMetadata(
                     MapperService.SINGLE_MAPPING_NAME,
@@ -317,7 +316,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
                         "_meta",
                         Map.of(
                             "index-version",
-                            profilingIndex.getVersion(),
+                            existingDataStream.getVersion(),
                             "index-template-version",
                             ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION
                         )
@@ -328,9 +327,9 @@ public class ProfilingIndexManagerTests extends ESTestCase {
             builder.numberOfShards(1);
             IndexMetadata indexMetadata = builder.build();
 
-            indices.put(indexName, indexMetadata);
+            indices.put(writeIndexName, indexMetadata);
             ShardRouting shardRouting = ShardRouting.newUnassigned(
-                new ShardId(index, 0),
+                new ShardId(writeIndex, 0),
                 true,
                 RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
@@ -340,13 +339,13 @@ public class ProfilingIndexManagerTests extends ESTestCase {
                 shardRouting = shardRouting.initialize("node0", null, 0).moveToStarted(0);
             }
             routingTableBuilder.add(
-                IndexRoutingTable.builder(index)
+                IndexRoutingTable.builder(writeIndex)
                     .addIndexShard(IndexShardRoutingTable.builder(shardRouting.shardId()).addShard(shardRouting))
             );
         }
 
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder().indices(indices).transientSettings(nodeSettings).build())
+            .metadata(metadataBuilder.indices(indices).transientSettings(nodeSettings).build())
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .routingTable(routingTableBuilder)

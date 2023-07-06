@@ -55,7 +55,10 @@ public class IndexSettingsModule extends AbstractModule {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(indexSetting)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder(index.getName()).settings(build).build();
+        IndexMetadata metadata = IndexMetadata.builder(index.getName())
+            .system(IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexSetting))
+            .settings(build)
+            .build();
         Set<Setting<?>> settingSet = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         if (setting.length > 0) {
             settingSet.addAll(Arrays.asList(setting));
@@ -70,7 +73,10 @@ public class IndexSettingsModule extends AbstractModule {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(settings)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder(index.getName()).settings(build).build();
+        IndexMetadata metadata = IndexMetadata.builder(index.getName())
+            .system(IndexSettings.INDEX_FAST_REFRESH_SETTING.get(settings))
+            .settings(build)
+            .build();
         return new IndexSettings(metadata, Settings.EMPTY, indexScopedSettings);
     }
 

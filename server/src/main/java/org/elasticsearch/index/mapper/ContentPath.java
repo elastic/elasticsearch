@@ -38,6 +38,9 @@ public final class ContentPath {
     }
 
     public void remove() {
+        if (sb.length() > 0) {
+            sb.setLength(0);
+        }
         path[index--] = null;
     }
 

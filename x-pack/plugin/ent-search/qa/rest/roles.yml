@@ -28,7 +28,7 @@ admin:
         "test-nonexistent-search-application",
         "test-search-application-with-invalid-template"
     ]
-      privileges: [ "manage", "write" ]
+      privileges: [ "manage", "write", "read" ]
 
 user:
   cluster:

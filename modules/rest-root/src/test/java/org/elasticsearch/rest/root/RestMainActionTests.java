@@ -36,7 +36,7 @@ public class RestMainActionTests extends ESTestCase {
         final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final Version version = Version.CURRENT;
         final TransportVersion transportVersion = TransportVersion.current();
-        final Build build = Build.CURRENT;
+        final Build build = Build.current();
 
         final MainResponse mainResponse = new MainResponse(nodeName, version, transportVersion, clusterName, clusterUUID, build);
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -61,7 +61,7 @@ public class RestMainActionTests extends ESTestCase {
         final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final Version version = Version.CURRENT;
         final TransportVersion transportVersion = TransportVersion.current();
-        final Build build = Build.CURRENT;
+        final Build build = Build.current();
         final boolean prettyPrint = randomBoolean();
 
         final MainResponse mainResponse = new MainResponse(nodeName, version, transportVersion, clusterName, clusterUUID, build);

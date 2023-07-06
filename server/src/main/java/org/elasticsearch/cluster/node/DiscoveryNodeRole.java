@@ -36,7 +36,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     private static final Boolean USE_STATELESS_FEATURE_FLAG;
     static {
         final Boolean useStateless = Booleans.parseBoolean(System.getProperty(USE_STATELESS_SYSTEM_PROPERTY), false);
-        if (useStateless && Build.CURRENT.isSnapshot() == false) {
+        if (useStateless && Build.current().isSnapshot() == false) {
             throw new IllegalArgumentException("Enabling stateless usage is only supported in snapshot builds");
         }
         USE_STATELESS_FEATURE_FLAG = useStateless;
@@ -49,7 +49,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     private static final Boolean USE_SERVERLESS_FEATURE_FLAG;
     static {
         final Boolean useStateless = Booleans.parseBoolean(System.getProperty(USE_SERVERLESS_SYSTEM_PROPERTY), false);
-        if (useStateless && Build.CURRENT.isSnapshot() == false) {
+        if (useStateless && Build.current().isSnapshot() == false) {
             throw new IllegalArgumentException("Enabling serverless usage is only supported in snapshot builds");
         }
         USE_SERVERLESS_FEATURE_FLAG = useStateless;

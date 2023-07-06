@@ -11,6 +11,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
@@ -51,7 +52,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadContext,
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -120,7 +121,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadContext,
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -273,7 +274,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
         try {
             for (int i = 0; i < actions; i++) {
@@ -379,7 +380,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
         try {
             executor.execute(() -> {
@@ -416,7 +417,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
         try {
             Runnable r = () -> {

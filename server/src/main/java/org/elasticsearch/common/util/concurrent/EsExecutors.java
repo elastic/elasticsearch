@@ -124,24 +124,6 @@ public class EsExecutors {
         int queueCapacity,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        boolean trackExecutionTime
-    ) {
-        return newFixed(
-            name,
-            size,
-            queueCapacity,
-            threadFactory,
-            contextHolder,
-            trackExecutionTime ? TaskTrackingConfig.DEFAULT : TaskTrackingConfig.DO_NOT_TRACK
-        );
-    }
-
-    public static EsThreadPoolExecutor newFixed(
-        String name,
-        int size,
-        int queueCapacity,
-        ThreadFactory threadFactory,
-        ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
         BlockingQueue<Runnable> queue;
@@ -162,7 +144,7 @@ public class EsExecutors {
                 threadFactory,
                 new EsAbortPolicy(),
                 contextHolder,
-                config.getEWMAAlpha()
+                config.getEwmaAlpha()
             );
         } else {
             return new EsThreadPoolExecutor(
@@ -408,7 +390,7 @@ public class EsExecutors {
 
     public static class TaskTrackingConfig {
         private final boolean trackExecutionTime;
-        private final double EWMAAlpha;
+        private final double ewmaAlpha;
 
         public static TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(false);
         public static TaskTrackingConfig DEFAULT = new TaskTrackingConfig(true);
@@ -423,15 +405,15 @@ public class EsExecutors {
 
         private TaskTrackingConfig(boolean trackExecutionTime, double EWMAAlpha) {
             this.trackExecutionTime = trackExecutionTime;
-            this.EWMAAlpha = EWMAAlpha;
+            this.ewmaAlpha = EWMAAlpha;
         }
 
         public boolean trackExecutionTime() {
             return trackExecutionTime;
         }
 
-        public double getEWMAAlpha() {
-            return EWMAAlpha;
+        public double getEwmaAlpha() {
+            return ewmaAlpha;
         }
     }
 

@@ -38,25 +38,6 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
      * @param name      the name of the executor
      * @param size      the fixed number of threads
      * @param queueSize the size of the backing queue, -1 for unbounded
-     * @param trackExecutionTime whether to track statics about task execution time
-     */
-    FixedExecutorBuilder(
-        final Settings settings,
-        final String name,
-        final int size,
-        final int queueSize,
-        final boolean trackExecutionTime
-    ) {
-        this(settings, name, size, queueSize, "thread_pool." + name, trackExecutionTime);
-    }
-
-    /**
-     * Construct a fixed executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
-     *
-     * @param settings  the node-level settings
-     * @param name      the name of the executor
-     * @param size      the fixed number of threads
-     * @param queueSize the size of the backing queue, -1 for unbounded
      * @param taskTrackingConfig whether to track statics about task execution time
      */
     FixedExecutorBuilder(
@@ -67,27 +48,6 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         final TaskTrackingConfig taskTrackingConfig
     ) {
         this(settings, name, size, queueSize, "thread_pool." + name, taskTrackingConfig);
-    }
-
-    /**
-     * Construct a fixed executor builder.
-     *
-     * @param settings  the node-level settings
-     * @param name      the name of the executor
-     * @param size      the fixed number of threads
-     * @param queueSize the size of the backing queue, -1 for unbounded
-     * @param prefix    the prefix for the settings keys
-     * @param trackExecutionTime whether to track statics about task execution time
-     */
-    public FixedExecutorBuilder(
-        final Settings settings,
-        final String name,
-        final int size,
-        final int queueSize,
-        final String prefix,
-        final boolean trackExecutionTime
-    ) {
-        this(settings, name, size, queueSize, prefix, trackExecutionTime ? TaskTrackingConfig.DEFAULT : TaskTrackingConfig.DO_NOT_TRACK);
     }
 
     /**

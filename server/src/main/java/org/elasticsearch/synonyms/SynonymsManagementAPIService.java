@@ -284,25 +284,26 @@ public class SynonymsManagementAPIService {
         String synonymRuleId,
         ActionListener<SynonymsReloadResult<AcknowledgedResponse>> listener
     ) {
-        checkSynonymSetExists(
-            synonymSetId,
-            listener.delegateFailure(
-                (l1, obj) -> client.prepareDelete(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymSetId, synonymRuleId))
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .execute(l1.delegateFailure((l2, deleteResponse) -> {
-                        if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                            l2.onFailure(
+        client.prepareDelete(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymSetId, synonymRuleId))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute(listener.delegateFailure((deleteListener, deleteResponse) -> {
+                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                    // When not found, check whether it's the synonym set not existing
+                    checkSynonymSetExists(
+                        synonymSetId,
+                        deleteListener.delegateFailure(
+                            (checkListener, obj) -> checkListener.onFailure(
                                 new ResourceNotFoundException(
                                     "synonym rule [" + synonymRuleId + "] not found on synonym set [" + synonymSetId + "]"
                                 )
-                            );
-                            return;
-                        }
+                            )
+                        )
+                    );
+                    return;
+                }
 
-                        reloadAnalyzers(synonymSetId, l2, AcknowledgedResponse.of(true));
-                    }))
-            )
-        );
+                reloadAnalyzers(synonymSetId, listener, AcknowledgedResponse.of(true));
+            }));
     }
 
     private static IndexRequest createSynonymRuleIndexRequest(String synonymsSetId, SynonymRule synonymRule) throws IOException {

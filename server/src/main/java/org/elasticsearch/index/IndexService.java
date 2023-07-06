@@ -190,6 +190,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Engine.IndexCommitListener indexCommitListener
     ) {
         super(indexSettings);
+        assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
+                : "IndexCreationContext.RELOAD_ANALYZERS should only be used when reloading analysers";
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
         this.parserConfiguration = parserConfiguration;

@@ -18,6 +18,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -57,6 +58,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -76,6 +78,8 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
+    // same as searcher, with the difference that it has a set executor to support parallel collection
+    private final ContextIndexSearcher parallelSearcher;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
     private FetchSearchResult fetchResult;
@@ -154,6 +158,15 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation
+        );
+        this.parallelSearcher = new ContextIndexSearcher(
+            engineSearcher.getIndexReader(),
+            engineSearcher.getSimilarity(),
+            engineSearcher.getQueryCache(),
+            engineSearcher.getQueryCachingPolicy(),
+            lowLevelCancellation,
+            // use the search threadpool for now, TODO maybe we will change to a separate one
+            (EsThreadPoolExecutor) this.indexService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
         releasables.addAll(List.of(engineSearcher, searcher));
 
@@ -489,6 +502,11 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public ContextIndexSearcher searcher() {
         return this.searcher;
+    }
+
+    @Override
+    public ContextIndexSearcher parallelSearcher() {
+        return this.parallelSearcher;
     }
 
     @Override

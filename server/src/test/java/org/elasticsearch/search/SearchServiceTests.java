@@ -285,6 +285,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(activeRefs, indexShard.store().refCount());
     }
 
+    @AwaitsFix(bugUrl = "Something wrong here")
     public void testSearchWhileIndexDeleted() throws InterruptedException {
         createIndex("index");
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();

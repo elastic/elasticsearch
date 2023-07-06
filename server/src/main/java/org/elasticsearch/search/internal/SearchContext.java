@@ -203,6 +203,14 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ContextIndexSearcher searcher();
 
+    /**
+     * @return a {@link ContextIndexSearcher} that can support parallel execution through a
+     * set executor.
+     */
+    public ContextIndexSearcher parallelSearcher() {
+        return searcher();
+    }
+
     public abstract IndexShard indexShard();
 
     public abstract BitsetFilterCache bitsetFilterCache();

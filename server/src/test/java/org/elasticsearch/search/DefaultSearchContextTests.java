@@ -91,6 +91,7 @@ public class DefaultSearchContextTests extends ESTestCase {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any()))
             .thenReturn(searchExecutionContext);
+        when(indexService.getThreadPool()).thenReturn(threadPool);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
         when(indexService.mapperService()).thenReturn(mapperService);
@@ -303,6 +304,7 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(indexShard.getThreadPool()).thenReturn(threadPool);
 
         IndexService indexService = mock(IndexService.class);
+        when(indexService.getThreadPool()).thenReturn(threadPool);
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 

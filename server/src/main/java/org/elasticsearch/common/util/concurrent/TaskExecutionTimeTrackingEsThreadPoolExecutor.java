@@ -41,11 +41,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         ThreadFactory threadFactory,
         RejectedExecutionHandler handler,
         ThreadContext contextHolder,
-        double EWMAAlpha
+        double ewmaAlpha
     ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
         this.runnableWrapper = runnableWrapper;
-        this.executionEWMA = new ExponentiallyWeightedMovingAverage(EWMAAlpha, 0);
+        this.executionEWMA = new ExponentiallyWeightedMovingAverage(ewmaAlpha, 0);
     }
 
     @Override

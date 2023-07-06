@@ -118,9 +118,9 @@ setup:
                 query_string:
                   default_field: text
                   query: logstash
-                match_criteria:
-                  query_string: logstash
-                ruleset_id: test-ruleset
+              match_criteria:
+                query_string: logstash
+              ruleset_id: test-ruleset
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: 'doc3' }

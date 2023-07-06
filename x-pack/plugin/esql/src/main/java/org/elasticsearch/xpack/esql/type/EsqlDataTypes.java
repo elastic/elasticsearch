@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
@@ -55,6 +56,7 @@ public final class EsqlDataTypes {
         FLOAT,
         HALF_FLOAT,
         KEYWORD,
+        TEXT,
         DATETIME,
         DATE_PERIOD,
         TIME_DURATION,
@@ -128,7 +130,7 @@ public final class EsqlDataTypes {
     }
 
     public static boolean isString(DataType t) {
-        return t == KEYWORD;
+        return t == KEYWORD || t == TEXT;
     }
 
     public static boolean isPrimitive(DataType t) {

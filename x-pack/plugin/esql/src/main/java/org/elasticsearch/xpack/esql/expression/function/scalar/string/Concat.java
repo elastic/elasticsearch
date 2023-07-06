@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 /**
  * Join strings.
@@ -51,7 +51,7 @@ public class Concat extends ScalarFunction implements Mappable {
 
         TypeResolution resolution = TypeResolution.TYPE_RESOLVED;
         for (Expression value : children()) {
-            resolution = isStringAndExact(value, sourceText(), DEFAULT);
+            resolution = isString(value, sourceText(), DEFAULT);
 
             if (resolution.unresolved()) {
                 return resolution;

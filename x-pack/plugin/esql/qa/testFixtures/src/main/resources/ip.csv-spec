@@ -1,5 +1,5 @@
 simpleProject
-from hosts;
+from hosts | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip                                                                           |ip1:ip
 eth0           |alpha          |127.0.0.1                                                                        |127.0.0.1
@@ -15,7 +15,7 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 equals
-from hosts | sort host, card | where ip0 == ip1;
+from hosts | sort host, card | where ip0 == ip1 | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth0           |alpha          |127.0.0.1                |127.0.0.1
@@ -24,7 +24,7 @@ eth1           |alpha          |::1                      |::1
 
 # ignored due to unstable sort
 equalityNoSort-Ignore
-from hosts | where ip0 == ip1;
+from hosts | where ip0 == ip1 | keep card, host, ip0, ip1
 
 card:keyword   |host:keyword   |ip0:ip                                                |ip1:ip
 eth0           |alpha          |127.0.0.1                                             |127.0.0.1
@@ -33,7 +33,7 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 greaterThanEquals
-from hosts | sort host, card | where ip0 >= ip1;
+from hosts | sort host, card | where ip0 >= ip1 | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth0           |alpha          |127.0.0.1                |127.0.0.1
@@ -44,7 +44,7 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 
 # ignored due to unstable sort
 greaterThanEqualsNoSort-Ignore
-from hosts | where ip0 >= ip1;
+from hosts | where ip0 >= ip1 | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip                                                |ip1:ip
 eth0           |alpha          |127.0.0.1                                             |127.0.0.1
@@ -55,7 +55,7 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 lessThen
-from hosts | sort host, card | where ip0 < ip1;
+from hosts | sort host, card | where ip0 < ip1 | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
@@ -64,7 +64,7 @@ lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:f
 ;
 
 notEquals
-from hosts | sort host, card, ip1 | where ip0 != ip1;
+from hosts | sort host, card, ip1 | where ip0 != ip1 | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth0           |beta           |127.0.0.1                |::1
@@ -87,7 +87,7 @@ c:long         |ip:ip
 ;
 
 doubleSort
-from hosts | sort ip0 asc nulls first, ip1 desc;
+from hosts | sort ip0 asc nulls first, ip1 desc| keep card, host, ip0, ip1;
 
   card:keyword | host:keyword  |                                      ip0:ip                                     |                       ip1:ip                          
 eth1           |epsilon        |null                                                                             |[127.0.0.1, 127.0.0.2, 127.0.0.3]                     
@@ -126,7 +126,7 @@ fe80::cae2:65ff:fece:fec1                             |[fe80::cae2:65ff:fece:feb
 ;
 
 in
-from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1);
+from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip                   |eq:ip
 eth0           |alpha          |127.0.0.1                |127.0.0.1                |127.0.0.1
@@ -139,14 +139,14 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3             
 ;
 
 cidrMatchSimple
-from hosts | where cidr_match(ip1, "127.0.0.2/32");
+from hosts | where cidr_match(ip1, "127.0.0.2/32") | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip         |ip1:ip
 eth1           |beta           |127.0.0.1      |127.0.0.2
 ;
 
 cidrMatchNullField
-from hosts | where is_null(cidr_match(ip0, "127.0.0.2/32"));
+from hosts | where is_null(cidr_match(ip0, "127.0.0.2/32")) | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip                                                                           |ip1:ip
 eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1
@@ -155,7 +155,7 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 cdirMatchMultipleArgs
-from hosts | where cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32");
+from hosts | where cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32") | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
@@ -163,7 +163,7 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
 cidrMatchFunctionArg
-from hosts | where cidr_match(ip1, concat("127.0.0.2", "/32"), "127.0.0.3/32");
+from hosts | where cidr_match(ip1, concat("127.0.0.2", "/32"), "127.0.0.3/32") | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
@@ -171,7 +171,7 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
 cidrMatchFieldArg
-from hosts | eval cidr="127.0.0.2" | where cidr_match(ip1, cidr, "127.0.0.3/32") | drop cidr;
+from hosts | eval cidr="127.0.0.2" | where cidr_match(ip1, cidr, "127.0.0.3/32") | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
@@ -203,7 +203,7 @@ str1:keyword |str2:keyword |ip1:ip  |ip2:ip
 ;
 
 pushDownIP
-from hosts | where ip1 == to_ip("::1");
+from hosts | where ip1 == to_ip("::1") | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip     |ip1:ip
 eth1           |alpha          |::1        |::1
@@ -211,7 +211,7 @@ eth0           |beta           |127.0.0.1  |::1
 ;
 
 pushDownIPWithIn
-from hosts | where ip1 in (to_ip("::1"), to_ip("127.0.0.1"));
+from hosts | where ip1 in (to_ip("::1"), to_ip("127.0.0.1")) | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip      |ip1:ip
 eth0           |alpha          |127.0.0.1   |127.0.0.1

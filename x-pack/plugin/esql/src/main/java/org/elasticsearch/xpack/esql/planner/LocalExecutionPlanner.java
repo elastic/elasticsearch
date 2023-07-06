@@ -240,6 +240,7 @@ public class LocalExecutionPlanner {
         }
         // unsupported fields are passed through as a BytesRef
         if (dataType == DataTypes.KEYWORD
+            || dataType == DataTypes.TEXT
             || dataType == DataTypes.IP
             || dataType == DataTypes.VERSION
             || dataType == DataTypes.UNSUPPORTED) {

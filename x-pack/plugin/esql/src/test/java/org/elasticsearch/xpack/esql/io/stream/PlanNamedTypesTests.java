@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DateEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
+import org.elasticsearch.xpack.ql.type.TextEsField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.DateUtils;
 
@@ -225,6 +226,24 @@ public class PlanNamedTypesTests extends ESTestCase {
 
     public void testKeywordEsField() {
         Stream.generate(PlanNamedTypesTests::randomKeywordEsField).limit(100).forEach(PlanNamedTypesTests::assertNamedEsField);
+    }
+
+    public void testTextdEsFieldSimple() throws IOException {
+        var orig = new TextEsField(
+            "BarKeyField", // name
+            Map.of(), // no properties
+            true, // hasDocValues
+            true // alias
+        );
+        BytesStreamOutput bso = new BytesStreamOutput();
+        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
+        PlanNamedTypes.writeTextEsField(out, orig);
+        var deser = PlanNamedTypes.readTextEsField(planStreamInput(bso));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
+    }
+
+    public void testTextEsField() {
+        Stream.generate(PlanNamedTypesTests::randomTextEsField).limit(100).forEach(PlanNamedTypesTests::assertNamedEsField);
     }
 
     public void testEsDateFieldSimple() throws IOException {
@@ -422,6 +441,15 @@ public class PlanNamedTypesTests extends ESTestCase {
             randomBoolean(), // hasDocValues
             randomIntBetween(1, 12), // precision
             randomBoolean(), // normalized
+            randomBoolean() // alias
+        );
+    }
+
+    static TextEsField randomTextEsField() {
+        return new TextEsField(
+            randomAlphaOfLength(randomIntBetween(1, 25)), // name
+            randomProperties(),
+            randomBoolean(), // hasDocValues
             randomBoolean() // alias
         );
     }

@@ -120,7 +120,7 @@ public final class CsvAssert {
                 if (blockType == Type.LONG && (expectedType == Type.DATETIME || expectedType == UNSIGNED_LONG)) {
                     continue;
                 }
-                if (blockType == Type.KEYWORD && (expectedType == Type.IP || expectedType == Type.VERSION)) {
+                if (blockType == Type.KEYWORD && (expectedType == Type.IP || expectedType == Type.VERSION || expectedType == Type.TEXT)) {
                     // Type.asType translates all bytes references into keywords
                     continue;
                 }

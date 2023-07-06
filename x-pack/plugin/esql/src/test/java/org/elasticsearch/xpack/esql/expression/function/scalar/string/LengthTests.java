@@ -56,7 +56,7 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected List<ArgumentSpec> argSpec() {
-        return List.of(required(DataTypes.KEYWORD));
+        return List.of(required(strings()));
     }
 
     @Override

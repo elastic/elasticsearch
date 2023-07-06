@@ -225,7 +225,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             case "long" -> ((LongBlock) block).getLong(offset);
             case "integer" -> ((IntBlock) block).getInt(offset);
             case "double" -> ((DoubleBlock) block).getDouble(offset);
-            case "keyword" -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
+            case "keyword", "text" -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case "ip" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
                 yield DocValueFormat.IP.format(val);
@@ -259,7 +259,9 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     case "long" -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case "integer" -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
                     case "double" -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
-                    case "keyword", "unsupported" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
+                    case "keyword", "text", "unsupported" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                        new BytesRef(value.toString())
+                    );
                     case "ip" -> ((BytesRefBlock.Builder) builder).appendBytesRef(parseIP(value.toString()));
                     case "date" -> {
                         long longVal = UTC_DATE_TIME_FORMATTER.parseMillis(value.toString());

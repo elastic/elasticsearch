@@ -227,6 +227,7 @@ public class Verifier {
 
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataTypes.KEYWORD);
+        allowed.add(DataTypes.TEXT);
         allowed.add(DataTypes.IP);
         allowed.add(DataTypes.DATETIME);
         allowed.add(DataTypes.VERSION);

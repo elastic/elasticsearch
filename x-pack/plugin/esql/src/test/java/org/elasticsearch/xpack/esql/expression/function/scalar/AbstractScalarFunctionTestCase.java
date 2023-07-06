@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Base class for function tests.
  */
 public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTestCase {
+
     protected abstract List<ArgumentSpec> argSpec();
 
     protected abstract DataType expectedType(List<DataType> argTypes);
@@ -49,6 +50,10 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         Arrays.stream(validTypes).sorted(Comparator.comparing(DataType::name)).forEach(realValidTypes::add);
         realValidTypes.add(DataTypes.NULL);
         return realValidTypes;
+    }
+
+    protected final DataType[] strings() {
+        return EsqlDataTypes.types().stream().filter(DataTypes::isString).toArray(DataType[]::new);
     }
 
     protected final DataType[] integers() {
@@ -141,12 +146,8 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     private String expectedTypeName(Set<DataType> validTypes) {
         List<DataType> withoutNull = validTypes.stream().filter(t -> t != DataTypes.NULL).toList();
-        if (withoutNull.size() == 1) {
-            String expectedType = withoutNull.get(0).typeName();
-            if (expectedType.equals("keyword")) {
-                expectedType = "string";
-            }
-            return expectedType;
+        if (withoutNull.equals(Arrays.asList(strings()))) {
+            return "string";
         }
         if (withoutNull.equals(Arrays.asList(integers()))) {
             return "integer";

@@ -145,6 +145,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DateEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
+import org.elasticsearch.xpack.ql.type.TextEsField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 
 import java.io.IOException;
@@ -242,6 +243,7 @@ public final class PlanNamedTypes {
             of(EsField.class, EsField.class, PlanNamedTypes::writeEsField, PlanNamedTypes::readEsField),
             of(EsField.class, DateEsField.class, PlanNamedTypes::writeDateEsField, PlanNamedTypes::readDateEsField),
             of(EsField.class, KeywordEsField.class, PlanNamedTypes::writeKeywordEsField, PlanNamedTypes::readKeywordEsField),
+            of(EsField.class, TextEsField.class, PlanNamedTypes::writeTextEsField, PlanNamedTypes::readTextEsField),
             of(EsField.class, UnsupportedEsField.class, PlanNamedTypes::writeUnsupportedEsField, PlanNamedTypes::readUnsupportedEsField),
             // NamedExpressions
             of(NamedExpression.class, Alias.class, PlanNamedTypes::writeAlias, PlanNamedTypes::readAlias),
@@ -826,6 +828,22 @@ public final class PlanNamedTypes {
         out.writeInt(keywordEsField.getPrecision());
         out.writeBoolean(keywordEsField.getNormalized());
         out.writeBoolean(keywordEsField.isAlias());
+    }
+
+    static TextEsField readTextEsField(PlanStreamInput in) throws IOException {
+        return new TextEsField(
+            in.readString(),
+            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed)),
+            in.readBoolean(),
+            in.readBoolean()
+        );
+    }
+
+    static void writeTextEsField(PlanStreamOutput out, TextEsField textEsField) throws IOException {
+        out.writeString(textEsField.getName());
+        out.writeMap(textEsField.getProperties(), StreamOutput::writeString, (o, v) -> out.writeNamed(EsField.class, v));
+        out.writeBoolean(textEsField.isAggregatable());
+        out.writeBoolean(textEsField.isAlias());
     }
 
     static UnsupportedEsField readUnsupportedEsField(PlanStreamInput in) throws IOException {

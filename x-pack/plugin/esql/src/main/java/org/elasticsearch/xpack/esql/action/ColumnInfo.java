@@ -128,7 +128,7 @@ public record ColumnInfo(String name, String type) implements Writeable {
                     return builder.value(unsignedLongAsNumber(l));
                 }
             };
-            case "keyword" -> new PositionToXContent(block) {
+            case "keyword", "text" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {

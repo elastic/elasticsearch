@@ -57,7 +57,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected List<ArgumentSpec> argSpec() {
-        return List.of(required(DataTypes.KEYWORD), optional(DataTypes.KEYWORD));
+        return List.of(required(strings()), optional(strings()));
     }
 
     @Override

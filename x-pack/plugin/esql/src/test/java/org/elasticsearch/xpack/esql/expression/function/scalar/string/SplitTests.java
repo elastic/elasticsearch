@@ -72,7 +72,7 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected List<ArgumentSpec> argSpec() {
-        return List.of(required(DataTypes.KEYWORD), required(DataTypes.KEYWORD));
+        return List.of(required(strings()), required(strings()));
     }
 
     @Override

@@ -7,10 +7,18 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.TextDocValuesField;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -36,6 +44,15 @@ public final class ValueSources {
                 sources.add(new ValueSourceInfo(new NullValueSourceType(), new NullValueSource(), elementType, ctx.getIndexReader()));
                 continue; // the field does not exist in this context
             }
+
+            // MatchOnlyTextFieldMapper class lives in the mapper-extras module. We use string equality
+            // for the field type name to avoid adding a dependency to the module
+            if (fieldType instanceof TextFieldMapper.TextFieldType || "match_only_text".equals(fieldType.typeName())) {
+                var vs = textValueSource(ctx, fieldType);
+                sources.add(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, vs, elementType, ctx.getIndexReader()));
+                continue;
+            }
+
             IndexFieldData<?> fieldData;
             try {
                 fieldData = ctx.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
@@ -73,5 +90,36 @@ public final class ValueSources {
         }
 
         return sources;
+    }
+
+    private static TextValueSource textValueSource(SearchExecutionContext ctx, MappedFieldType fieldType) {
+        if (fieldType.isStored()) {
+            IndexFieldData<?> fieldData = new StoredFieldSortedBinaryIndexFieldData(
+                fieldType.name(),
+                CoreValuesSourceType.KEYWORD,
+                TextDocValuesField::new
+            ) {
+                @Override
+                protected BytesRef storedToBytesRef(Object stored) {
+                    return new BytesRef((String) stored);
+                }
+            };
+            return new TextValueSource(fieldData);
+        }
+
+        FieldDataContext fieldDataContext = new FieldDataContext(
+            ctx.getFullyQualifiedIndex().getName(),
+            () -> ctx.lookup().forkAndTrackFieldReferences(fieldType.name()),
+            ctx::sourcePath,
+            MappedFieldType.FielddataOperation.SEARCH
+        );
+        IndexFieldData<?> fieldData = new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+            fieldType.name(),
+            CoreValuesSourceType.KEYWORD,
+            SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(fieldType.name())),
+            fieldDataContext.lookupSupplier().get(),
+            TextDocValuesField::new
+        ).build(null, null); // Neither cache nor breakerService are used by SourceValueFetcherSortedBinaryIndexFieldData builder
+        return new TextValueSource(fieldData);
     }
 }

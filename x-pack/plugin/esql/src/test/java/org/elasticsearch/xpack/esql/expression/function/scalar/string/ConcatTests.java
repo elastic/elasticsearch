@@ -62,18 +62,18 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
     @Override
     protected List<ArgumentSpec> argSpec() {
         return List.of(
-            required(DataTypes.KEYWORD),
-            optional(DataTypes.KEYWORD),
-            optional(DataTypes.KEYWORD),
-            optional(DataTypes.KEYWORD),
-            optional(DataTypes.KEYWORD),
-            optional(DataTypes.KEYWORD),
-            optional(DataTypes.KEYWORD),
-            optional(DataTypes.KEYWORD),
-            optional(DataTypes.KEYWORD),
-            optional(DataTypes.KEYWORD),
-            optional(DataTypes.KEYWORD),
-            optional(DataTypes.KEYWORD)
+            required(strings()),
+            optional(strings()),
+            optional(strings()),
+            optional(strings()),
+            optional(strings()),
+            optional(strings()),
+            optional(strings()),
+            optional(strings()),
+            optional(strings()),
+            optional(strings()),
+            optional(strings()),
+            optional(strings())
         );
     }
 

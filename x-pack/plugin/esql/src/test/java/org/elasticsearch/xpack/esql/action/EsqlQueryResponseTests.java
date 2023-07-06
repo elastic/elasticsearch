@@ -78,6 +78,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case "integer" -> ((IntBlock.Builder) builder).appendInt(randomInt());
                 case "double" -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
                 case "keyword" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                case "text" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
                 case "ip" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())))
                 );

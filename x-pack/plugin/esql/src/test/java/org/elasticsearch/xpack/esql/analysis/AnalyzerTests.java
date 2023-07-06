@@ -234,7 +234,7 @@ public class AnalyzerTests extends ESTestCase {
             DataTypes.KEYWORD,
             DataTypes.INTEGER,
             DataTypes.KEYWORD,
-            DataTypes.UNSUPPORTED,
+            DataTypes.TEXT,
             DataTypes.INTEGER,
             DataTypes.KEYWORD,
             DataTypes.INTEGER

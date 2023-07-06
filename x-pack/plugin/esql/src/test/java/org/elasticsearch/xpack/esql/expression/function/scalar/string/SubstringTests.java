@@ -79,7 +79,7 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected List<AbstractScalarFunctionTestCase.ArgumentSpec> argSpec() {
-        return List.of(required(DataTypes.KEYWORD), required(integers()), optional(integers()));
+        return List.of(required(strings()), required(integers()), optional(integers()));
     }
 
     @Override

@@ -131,7 +131,7 @@ unsupported:
   - match: { columns.13.name: long_range }
   - match: { columns.13.type: unsupported }
   - match: { columns.14.name: match_only_text }
-  - match: { columns.14.type: unsupported }
+  - match: { columns.14.type: text }
   - match: { columns.15.name: name }
   - match: { columns.15.type: keyword }
   - match: { columns.16.name: rank_feature }
@@ -153,7 +153,7 @@ unsupported:
   - match: { columns.24.name: some_doc.foo }
   - match: { columns.24.type: keyword }
   - match: { columns.25.name: text }
-  - match: { columns.25.type: unsupported }
+  - match: { columns.25.type: text }
   - match: { columns.26.name: token_count }
   - match: { columns.26.type: integer }
 
@@ -172,7 +172,7 @@ unsupported:
   - match: { values.0.11: "<unsupported>" }
   - match: { values.0.12: "<unsupported>" }
   - match: { values.0.13: "<unsupported>" }
-  - match: { values.0.14: "<unsupported>" }
+  - match: { values.0.14: "foo bar baz" }
   - match: { values.0.15: Alice }
   - match: { values.0.16: "<unsupported>" }
   - match: { values.0.17: "<unsupported>" }
@@ -183,7 +183,7 @@ unsupported:
   - match: { values.0.22: "<unsupported>" }
   - match: { values.0.23: 12 }
   - match: { values.0.24: xy }
-  - match: { values.0.25: "<unsupported>" }
+  - match: { values.0.25: "foo bar" }
   - match: { values.0.26: 3 }
 
 
@@ -221,7 +221,7 @@ unsupported:
   - match: { columns.13.name: long_range }
   - match: { columns.13.type: unsupported }
   - match: { columns.14.name: match_only_text }
-  - match: { columns.14.type: unsupported }
+  - match: { columns.14.type: text }
   - match: { columns.15.name: name }
   - match: { columns.15.type: keyword }
   - match: { columns.16.name: rank_feature }
@@ -243,7 +243,7 @@ unsupported:
   - match: { columns.24.name: some_doc.foo }
   - match: { columns.24.type: keyword }
   - match: { columns.25.name: text }
-  - match: { columns.25.type: unsupported }
+  - match: { columns.25.type: text }
   - match: { columns.26.name: token_count }
   - match: { columns.26.type: integer }
 

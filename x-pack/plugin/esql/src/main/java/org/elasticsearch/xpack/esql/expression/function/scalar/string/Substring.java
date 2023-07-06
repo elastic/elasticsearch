@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 public class Substring extends ScalarFunction implements OptionalArgument, Mappable {
 
@@ -54,7 +54,7 @@ public class Substring extends ScalarFunction implements OptionalArgument, Mappa
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isStringAndExact(str, sourceText(), FIRST);
+        TypeResolution resolution = isString(str, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }

@@ -24,7 +24,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 public class Length extends UnaryScalarFunction implements Mappable {
 
@@ -43,7 +43,7 @@ public class Length extends UnaryScalarFunction implements Mappable {
             return new TypeResolution("Unresolved children");
         }
 
-        return isStringAndExact(field(), sourceText(), DEFAULT);
+        return isString(field(), sourceText(), DEFAULT);
     }
 
     @Override

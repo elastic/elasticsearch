@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 public class StartsWith extends ScalarFunction implements Mappable {
 
@@ -50,11 +50,11 @@ public class StartsWith extends ScalarFunction implements Mappable {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isStringAndExact(str, sourceText(), FIRST);
+        TypeResolution resolution = isString(str, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
-        return isStringAndExact(prefix, sourceText(), SECOND);
+        return isString(prefix, sourceText(), SECOND);
     }
 
     @Override

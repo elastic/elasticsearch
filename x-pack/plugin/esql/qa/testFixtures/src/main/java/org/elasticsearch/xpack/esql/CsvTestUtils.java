@@ -307,6 +307,7 @@ public final class CsvTestUtils {
         // for it, so the scaling_factor isn't available
         SCALED_FLOAT(s -> s == null ? null : scaledFloat(s, "100"), Double.class),
         KEYWORD(Object::toString, BytesRef.class),
+        TEXT(Object::toString, BytesRef.class),
         IP(StringUtils::parseIP, BytesRef.class),
         VERSION(v -> new Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> null, Void.class),
@@ -331,6 +332,7 @@ public final class CsvTestUtils {
             LOOKUP.put("K", KEYWORD);
             LOOKUP.put("S", KEYWORD);
             LOOKUP.put("STRING", KEYWORD);
+            LOOKUP.put("TXT", TEXT);
             LOOKUP.put("N", NULL);
             LOOKUP.put("DATE", DATETIME);
             LOOKUP.put("DT", DATETIME);

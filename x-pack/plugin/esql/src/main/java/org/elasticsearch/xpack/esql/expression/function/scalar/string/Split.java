@@ -26,6 +26,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
 /**
@@ -52,7 +53,7 @@ public class Split extends BinaryScalarFunction implements Mappable {
             return resolution;
         }
 
-        return isStringAndExact(right(), sourceText(), SECOND);
+        return isString(right(), sourceText(), SECOND);
     }
 
     @Override

@@ -64,6 +64,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "keyword" -> new BytesRef(randomAlphaOfLength(5));
             case "ip" -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
             case "time_duration" -> Duration.ofMillis(randomNonNegativeLong());
+            case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> new Version(randomIdentifier()).toBytesRef();
             case "null" -> null;
             default -> throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");

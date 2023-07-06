@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.rules;
 
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -40,32 +40,24 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.application.rules.RuleQueryBuilder.ALLOWED_MATCH_CRITERIA;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilder> {
 
-    protected static String rulesetId;
-
-    private Map<String, Object> generateRandomMatchCriteria() {
-        final int randomIndex = Randomness.get().nextInt(ALLOWED_MATCH_CRITERIA.size());
-        final String matchCriteria = (String) ALLOWED_MATCH_CRITERIA.toArray()[randomIndex];
-
-        return generateRandomMatchCriteria(matchCriteria);
-    }
-
-    private Map<String, Object> generateRandomMatchCriteria(String key) {
-        return Map.of(key, randomAlphaOfLengthBetween(1, 10));
+    private Map<String, Object> generateMatchCriteria() {
+        // This has to be constant, so the rule hits.
+        return Map.of("query_string", "elastic");
     }
 
     @Override
     protected RuleQueryBuilder doCreateTestQueryBuilder() {
-        return new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), randomAlphaOfLength(10));
+        return new RuleQueryBuilder(new MatchAllQueryBuilder(), generateMatchCriteria(), randomAlphaOfLength(10));
     }
 
     @Override
     protected void doAssertLuceneQuery(RuleQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
-        // TODO - Figure out what needs to be validated here.
+        // The query rule always applies here, so we turn into a pinned query which is rewritten into a Dismax query.
+        assertTrue(query.toString(),  query instanceof DisjunctionMaxQuery);
     }
 
     @Override
@@ -77,17 +69,17 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, "rulesetId"));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), null)
+            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateMatchCriteria(), null)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria(), "")
+            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateMatchCriteria(), "")
         );
-        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, generateRandomMatchCriteria(), "rulesetId"));
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, generateMatchCriteria(), "rulesetId"));
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, Collections.emptyMap(), "rulesetId"));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateRandomMatchCriteria("invalid_value"), "rulesetId")
+            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("invalid_key", "invalid_value"), "rulesetId")
         );
     }
 

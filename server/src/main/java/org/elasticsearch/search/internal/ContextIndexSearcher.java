@@ -209,6 +209,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     /* pkg private for testing */
     static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int numThreads, int minDocsPerSlice) {
+        if (numThreads < 1) {
+            throw new IllegalArgumentException("numThreads must be >= 1 (got " + numThreads + ")");
+        }
         // total number of documents to be searched
         final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
         // percentage of documents per slice, minumum 10%

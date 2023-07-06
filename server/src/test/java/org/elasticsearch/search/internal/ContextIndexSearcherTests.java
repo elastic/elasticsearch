@@ -383,7 +383,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
     public void testComputeSlices() throws IOException {
         Directory dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
-        int numDocs = randomIntBetween(1000, 25000);
+        int numDocs = rarely() ? randomIntBetween(0, 1000) : randomIntBetween(1000, 25000);
         Document doc = new Document();
         for (int i = 0; i < numDocs; i++) {
             w.addDocument(doc);
@@ -396,6 +396,13 @@ public class ContextIndexSearcherTests extends ESTestCase {
             IndexSearcher.LeafSlice[] slices = ContextIndexSearcher.computeSlices(contexts, numThreads, 1);
             assertSlices(slices, numDocs, numThreads);
         }
+        // expect exception for numThreads < 1
+        int numThreads = randomIntBetween(-16, 0);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ContextIndexSearcher.computeSlices(contexts, numThreads, 1)
+        );
+        assertThat(ex.getMessage(), equalTo("numThreads must be >= 1 (got " + numThreads + ")"));
         IOUtils.close(reader, w, dir);
     }
 

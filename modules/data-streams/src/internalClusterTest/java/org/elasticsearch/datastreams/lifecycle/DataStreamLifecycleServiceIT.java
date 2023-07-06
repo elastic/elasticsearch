@@ -625,15 +625,34 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 .put(DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.getKey(), ByteSizeValue.ofMb(5))
         );
 
+        // rollover to assert the second generation is configured with the new setting values (note that the first index _might_ pick up
+        // the new settings as well if the data stream lifecycle runs often enough - every second in tests - and the index has not yet been
+        // forcemerged)
+
+        indexDocs(dataStreamName, 1);
+
+        // let's allow one rollover to go through
         assertBusy(() -> {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(firstGenerationIndex).includeDefaults(true);
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+            assertThat(backingIndices.size(), equalTo(3));
+        });
+
+        String secondGenerationIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1L);
+        // check the 2nd generation index picked up the new setting values
+        assertBusy(() -> {
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(secondGenerationIndex).includeDefaults(true);
             GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
             assertThat(
-                getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
+                getSettingsResponse.getSetting(secondGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
                 is("5")
             );
             assertThat(
-                getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()),
+                getSettingsResponse.getSetting(secondGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()),
                 is(ByteSizeValue.ofMb(5).getStringRep())
             );
         });

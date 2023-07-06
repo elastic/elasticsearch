@@ -756,6 +756,10 @@ public class SecuritySystemIndices {
                             builder.field("type", "boolean");
                             builder.endObject();
 
+                            builder.startObject("token");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
                             builder.startObject("realm");
                             builder.field("type", "keyword");
                             builder.endObject();

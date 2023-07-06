@@ -207,6 +207,7 @@ public final class TokenService {
     static final TransportVersion VERSION_ACCESS_TOKENS_AS_UUIDS = TransportVersion.V_7_2_0;
     static final TransportVersion VERSION_MULTIPLE_CONCURRENT_REFRESHES = TransportVersion.V_7_2_0;
     static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersion.V_8_2_0;
+    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersion.V_8_500_031;
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
@@ -391,21 +392,22 @@ public final class TokenService {
             );
         } else {
             final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
-            final String storedAccessToken;
+            final UserToken userToken;
             final String storedRefreshToken;
-            if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
-                storedAccessToken = hashTokenString(accessToken);
+            final String storedAccessToken;
+            if (tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+
+            } else if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
+                userToken = new UserToken(hashTokenString(accessToken), tokenVersion, tokenAuth, getExpirationTime(), metadata);
                 storedRefreshToken = (null == refreshToken) ? null : hashTokenString(refreshToken);
             } else {
-                storedAccessToken = accessToken;
+                userToken = new UserToken(accessToken, tokenVersion, tokenAuth, getExpirationTime(), metadata);
                 storedRefreshToken = refreshToken;
             }
-            final UserToken userToken = new UserToken(storedAccessToken, tokenVersion, tokenAuth, getExpirationTime(), metadata);
             final BytesReference tokenDocument = createTokenDocument(userToken, storedRefreshToken, originatingClientAuth);
-            final String documentId = getTokenDocumentId(storedAccessToken);
 
             final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName())
-                .setId(documentId)
+                .setId(getTokenDocumentId(userToken))
                 .setOpType(OpType.CREATE)
                 .setSource(tokenDocument, XContentType.JSON)
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)

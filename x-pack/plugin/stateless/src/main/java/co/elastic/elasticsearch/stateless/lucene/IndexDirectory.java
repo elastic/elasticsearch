@@ -171,16 +171,22 @@ public class IndexDirectory extends FilterDirectory {
     public void rename(String source, String dest) throws IOException {
         synchronized (this) {
             var localFile = localFiles.get(source);
-            if (localFile == null) {
-                throw new NoSuchFileException(dest);
+            // Lucene only renames pending_segments_N files before finishing the commit so the file should exist on disk
+            if (localFile != null && localFile.tryIncRef()) {
+                try {
+                    if (localFiles.containsKey(dest)) {
+                        throw new FileAlreadyExistsException("Local file [" + dest + "] already exists");
+                    }
+                    super.rename(source, dest);
+                    localFiles.put(dest, localFile);
+                    localFile.renameTo(dest);
+                    localFiles.remove(source);
+                } finally {
+                    localFile.decRef();
+                }
+            } else {
+                throw new NoSuchFileException(source);
             }
-            // Lucene only renames pending_segments_N files before finishing the commit so the file should exist on disk here
-            super.rename(source, dest);
-            if (localFiles.putIfAbsent(dest, localFile) != null) {
-                throw new FileAlreadyExistsException("Local file [" + dest + "] already exists");
-            }
-            localFile.renameTo(dest);
-            localFiles.remove(source);
         }
     }
 

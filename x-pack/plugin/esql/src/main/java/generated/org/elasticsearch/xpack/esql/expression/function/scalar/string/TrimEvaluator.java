@@ -18,9 +18,12 @@ import org.elasticsearch.compute.operator.EvalOperator;
  * This class is generated. Do not edit it.
  */
 public final class TrimEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final BytesRef scratch;
+
   private final EvalOperator.ExpressionEvaluator val;
 
-  public TrimEvaluator(EvalOperator.ExpressionEvaluator val) {
+  public TrimEvaluator(BytesRef scratch, EvalOperator.ExpressionEvaluator val) {
+    this.scratch = scratch;
     this.val = val;
   }
 
@@ -46,7 +49,7 @@ public final class TrimEvaluator implements EvalOperator.ExpressionEvaluator {
         result.appendNull();
         continue position;
       }
-      result.appendBytesRef(Trim.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+      result.appendBytesRef(Trim.process(scratch, valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
     }
     return result.build();
   }
@@ -55,13 +58,13 @@ public final class TrimEvaluator implements EvalOperator.ExpressionEvaluator {
     BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
     BytesRef valScratch = new BytesRef();
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendBytesRef(Trim.process(valVector.getBytesRef(p, valScratch)));
+      result.appendBytesRef(Trim.process(scratch, valVector.getBytesRef(p, valScratch)));
     }
     return result.build();
   }
 
   @Override
   public String toString() {
-    return "TrimEvaluator[" + "val=" + val + "]";
+    return "TrimEvaluator[" + "scratch=" + scratch + ", val=" + val + "]";
   }
 }

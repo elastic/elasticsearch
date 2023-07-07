@@ -21,9 +21,6 @@ import java.util.function.Function;
 
 @Experimental
 public class GroupingAggregator implements Releasable {
-
-    public static final Object[] EMPTY_PARAMS = new Object[] {};
-
     private final GroupingAggregatorFunction aggregatorFunction;
 
     private final AggregatorMode mode;
@@ -40,19 +37,27 @@ public class GroupingAggregator implements Releasable {
         return mode.isOutputPartial() ? aggregatorFunction.intermediateBlockCount() : 1;
     }
 
-    public void processPage(LongBlock groupIdBlock, Page page) {
-        final LongVector groupIdVector = groupIdBlock.asVector();
+    /**
+     * Prepare to process a single page of results.
+     */
+    public GroupingAggregatorFunction.AddInput prepareProcessPage(Page page) {
         if (mode.isInputPartial()) {
-            if (groupIdVector == null) {
-                throw new IllegalStateException("Intermediate group id must not have nulls");
-            }
-            aggregatorFunction.addIntermediateInput(groupIdVector, page);
+            return new GroupingAggregatorFunction.AddInput() {
+                @Override
+                public void add(int positionOffset, LongBlock groupIds) {
+                    throw new IllegalStateException("Intermediate group id must not have nulls");
+                }
+
+                @Override
+                public void add(int positionOffset, LongVector groupIds) {
+                    if (positionOffset != 0) {
+                        throw new IllegalStateException("Intermediate doesn't support offset");
+                    }
+                    aggregatorFunction.addIntermediateInput(groupIds, page);
+                }
+            };
         } else {
-            if (groupIdVector != null) {
-                aggregatorFunction.addRawInput(groupIdVector, page);
-            } else {
-                aggregatorFunction.addRawInput(groupIdBlock, page);
-            }
+            return aggregatorFunction.prepareProcessPage(page);
         }
     }
 

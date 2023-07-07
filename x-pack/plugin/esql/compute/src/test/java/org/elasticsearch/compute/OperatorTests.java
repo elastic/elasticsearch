@@ -416,7 +416,11 @@ public class OperatorTests extends ESTestCase {
                         ),
                         new HashAggregationOperator(
                             List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1, 2)).groupingAggregatorFactory(FINAL)),
-                            () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)), bigArrays),
+                            () -> BlockHash.build(
+                                List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)),
+                                bigArrays,
+                                LuceneSourceOperator.PAGE_SIZE
+                            ),
                             driverContext
                         )
                     ),

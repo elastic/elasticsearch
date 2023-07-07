@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -23,21 +24,27 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.startsWith;
 
 public class BlockHashTests extends ESTestCase {
@@ -524,42 +531,43 @@ public class BlockHashTests extends ESTestCase {
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
     }
 
+    private void append(LongBlock.Builder b1, LongBlock.Builder b2, long[] v1, long[] v2) {
+        if (v1 == null) {
+            b1.appendNull();
+        } else if (v1.length == 1) {
+            b1.appendLong(v1[0]);
+        } else {
+            b1.beginPositionEntry();
+            for (long v : v1) {
+                b1.appendLong(v);
+            }
+            b1.endPositionEntry();
+        }
+        if (v2 == null) {
+            b2.appendNull();
+        } else if (v2.length == 1) {
+            b2.appendLong(v2[0]);
+        } else {
+            b2.beginPositionEntry();
+            for (long v : v2) {
+                b2.appendLong(v);
+            }
+            b2.endPositionEntry();
+        }
+    }
+
     public void testLongLongHashWithMultiValuedFields() {
         var b1 = LongBlock.newBlockBuilder(8);
         var b2 = LongBlock.newBlockBuilder(8);
-        BiConsumer<long[], long[]> append = (v1, v2) -> {
-            if (v1 == null) {
-                b1.appendNull();
-            } else if (v1.length == 1) {
-                b1.appendLong(v1[0]);
-            } else {
-                b1.beginPositionEntry();
-                for (long v : v1) {
-                    b1.appendLong(v);
-                }
-                b1.endPositionEntry();
-            }
-            if (v2 == null) {
-                b2.appendNull();
-            } else if (v2.length == 1) {
-                b2.appendLong(v2[0]);
-            } else {
-                b2.beginPositionEntry();
-                for (long v : v2) {
-                    b2.appendLong(v);
-                }
-                b2.endPositionEntry();
-            }
-        };
-        append.accept(new long[] { 1, 2 }, new long[] { 10, 20 });
-        append.accept(new long[] { 1, 2 }, new long[] { 10 });
-        append.accept(new long[] { 1 }, new long[] { 10, 20 });
-        append.accept(new long[] { 1 }, new long[] { 10 });
-        append.accept(null, new long[] { 10 });
-        append.accept(new long[] { 1 }, null);
-        append.accept(new long[] { 1, 1, 1 }, new long[] { 10, 10, 10 });
-        append.accept(new long[] { 1, 1, 2, 2 }, new long[] { 10, 20, 20 });
-        append.accept(new long[] { 1, 2, 3 }, new long[] { 30, 30, 10 });
+        append(b1, b2, new long[] { 1, 2 }, new long[] { 10, 20 });
+        append(b1, b2, new long[] { 1, 2 }, new long[] { 10 });
+        append(b1, b2, new long[] { 1 }, new long[] { 10, 20 });
+        append(b1, b2, new long[] { 1 }, new long[] { 10 });
+        append(b1, b2, null, new long[] { 10 });
+        append(b1, b2, new long[] { 1 }, null);
+        append(b1, b2, new long[] { 1, 1, 1 }, new long[] { 10, 10, 10 });
+        append(b1, b2, new long[] { 1, 1, 2, 2 }, new long[] { 10, 20, 20 });
+        append(b1, b2, new long[] { 1, 2, 3 }, new long[] { 30, 30, 10 });
 
         OrdsAndKeys ordsAndKeys = hash(b1.build(), b2.build());
         assertThat(
@@ -593,6 +601,38 @@ public class BlockHashTests extends ESTestCase {
                 new Object[] { 3L, 10L }, }
         );
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 8)));
+    }
+
+    public void testLongLongHashHugeCombinatorialExplosion() {
+        assumeFalse("fix doesn't exist for packed hash yet", forcePackedHash);
+        long[] v1 = LongStream.range(0, 10000).toArray();
+        long[] v2 = LongStream.range(100, 200).toArray();
+
+        var b1 = LongBlock.newBlockBuilder(v1.length);
+        var b2 = LongBlock.newBlockBuilder(v2.length);
+        append(b1, b2, v1, v2);
+
+        int[] expectedEntries = new int[1];
+        hash(ordsAndKeys -> {
+            int start = expectedEntries[0];
+            expectedEntries[0] = Math.min(expectedEntries[0] + LuceneSourceOperator.PAGE_SIZE, v1.length * v2.length);
+            assertThat(
+                ordsAndKeys.description,
+                forcePackedHash
+                    ? startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:LONG], entries=8, size=")
+                    : equalTo("LongLongBlockHash{channels=[0,1], entries=" + expectedEntries[0] + "}")
+            );
+            assertOrds(ordsAndKeys.ords, LongStream.range(start, expectedEntries[0]).toArray());
+            assertKeys(
+                ordsAndKeys.keys,
+                IntStream.range(0, expectedEntries[0])
+                    .mapToObj(i -> new Object[] { v1[i / v2.length], v2[i % v2.length] })
+                    .toArray(l -> new Object[l][])
+            );
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, expectedEntries[0])));
+        }, LuceneSourceOperator.PAGE_SIZE, b1.build(), b2.build());
+
+        assertThat("misconfigured test", expectedEntries[0], greaterThan(0));
     }
 
     public void testIntLongHash() {
@@ -809,41 +849,77 @@ public class BlockHashTests extends ESTestCase {
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 8)));
     }
 
-    record OrdsAndKeys(String description, LongBlock ords, Block[] keys, IntVector nonEmpty) {}
+    record OrdsAndKeys(String description, int positionOffset, LongBlock ords, Block[] keys, IntVector nonEmpty) {}
 
+    /**
+     * Hash some values into a single block of group ids. If the hash produces
+     * more than one block of group ids this will fail.
+     */
     private OrdsAndKeys hash(Block... values) {
+        OrdsAndKeys[] result = new OrdsAndKeys[1];
+        hash(ordsAndKeys -> {
+            if (result[0] != null) {
+                throw new IllegalStateException("hash produced more than one block");
+            }
+            result[0] = ordsAndKeys;
+        }, LuceneSourceOperator.PAGE_SIZE, values);
+        return result[0];
+    }
+
+    private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block... values) {
         List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(values.length);
         for (int c = 0; c < values.length; c++) {
             specs.add(new HashAggregationOperator.GroupSpec(c, values[c].elementType()));
         }
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
-        try (BlockHash blockHash = forcePackedHash ? new PackedValuesBlockHash(specs, bigArrays) : BlockHash.build(specs, bigArrays)) {
-            return hash(blockHash, values);
+        try (
+            BlockHash blockHash = forcePackedHash
+                ? new PackedValuesBlockHash(specs, bigArrays)
+                : BlockHash.build(specs, bigArrays, emitBatchSize)
+        ) {
+            hash(blockHash, callback, values);
         }
     }
 
-    static OrdsAndKeys hash(BlockHash blockHash, Block... values) {
-        LongBlock ordsBlock = blockHash.add(new Page(values));
-        OrdsAndKeys result = new OrdsAndKeys(blockHash.toString(), ordsBlock, blockHash.getKeys(), blockHash.nonEmpty());
-        for (Block k : result.keys) {
-            assertThat(k.getPositionCount(), equalTo(result.nonEmpty.getPositionCount()));
-        }
-        List<Long> allowedOrds = new ArrayList<>();
-        for (int p = 0; p < result.nonEmpty.getPositionCount(); p++) {
-            allowedOrds.add(Long.valueOf(result.nonEmpty.getInt(p)));
-        }
-        Matcher<Long> ordIsAllowed = oneOf(allowedOrds.toArray(Long[]::new));
-        for (int p = 0; p < result.ords.getPositionCount(); p++) {
-            if (result.ords.isNull(p)) {
-                continue;
+    static void hash(BlockHash blockHash, Consumer<OrdsAndKeys> callback, Block... values) {
+        blockHash.add(new Page(values), new GroupingAggregatorFunction.AddInput() {
+            @Override
+            public void add(int positionOffset, LongBlock groupIds) {
+                OrdsAndKeys result = new OrdsAndKeys(
+                    blockHash.toString(),
+                    positionOffset,
+                    groupIds,
+                    blockHash.getKeys(),
+                    blockHash.nonEmpty()
+                );
+                for (Block k : result.keys) {
+                    assertThat(k.getPositionCount(), equalTo(result.nonEmpty.getPositionCount()));
+                }
+                Set<Long> allowedOrds = new HashSet<>();
+                for (int p = 0; p < result.nonEmpty.getPositionCount(); p++) {
+                    allowedOrds.add(Long.valueOf(result.nonEmpty.getInt(p)));
+                }
+                for (int p = 0; p < result.ords.getPositionCount(); p++) {
+                    if (result.ords.isNull(p)) {
+                        continue;
+                    }
+                    int start = result.ords.getFirstValueIndex(p);
+                    int end = start + result.ords.getValueCount(p);
+                    for (int i = start; i < end; i++) {
+                        long ord = result.ords.getLong(i);
+                        if (false == allowedOrds.contains(ord)) {
+                            fail("ord is not allowed " + ord);
+                        }
+                    }
+                }
+                callback.accept(result);
             }
-            int start = result.ords.getFirstValueIndex(p);
-            int end = start + result.ords.getValueCount(p);
-            for (int i = start; i < end; i++) {
-                assertThat(result.ords.getLong(i), ordIsAllowed);
+
+            @Override
+            public void add(int positionOffset, LongVector groupIds) {
+                add(positionOffset, groupIds.asBlock());
             }
-        }
-        return result;
+        });
     }
 
     private void assertOrds(LongBlock ordsBlock, Long... expectedOrds) {

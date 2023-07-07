@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -18,6 +19,9 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.MultivalueDedupeInt;
 
+/**
+ * Maps a {@link IntBlock} column to group ids.
+ */
 final class IntBlockHash extends BlockHash {
     private final int channel;
     private final LongHash longHash;
@@ -28,13 +32,14 @@ final class IntBlockHash extends BlockHash {
     }
 
     @Override
-    public LongBlock add(Page page) {
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         IntBlock block = page.getBlock(channel);
         IntVector vector = block.asVector();
         if (vector == null) {
-            return add(block);
+            addInput.add(0, add(block));
+        } else {
+            addInput.add(0, add(vector));
         }
-        return add(vector).asBlock();
     }
 
     private LongVector add(IntVector vector) {

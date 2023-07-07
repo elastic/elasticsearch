@@ -192,8 +192,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "Cannot create model [{}] while cluster upgrade is in progress.",
-                        config.getModelId(),
-                        minCompatibilityVersion.toString()
+                        config.getModelId()
                     )
                 );
                 return;

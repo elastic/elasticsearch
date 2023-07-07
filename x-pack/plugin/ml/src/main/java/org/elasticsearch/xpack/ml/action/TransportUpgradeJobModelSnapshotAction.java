@@ -115,8 +115,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 ExceptionsHelper.conflictStatusException(
                     "Cannot upgrade job [{}] snapshot [{}] while cluster upgrade is in progress.",
                     request.getJobId(),
-                    request.getSnapshotId(),
-                    TransportVersionUtils.getCurrentTransportVersion().toString()
+                    request.getSnapshotId()
                 )
             );
             return;

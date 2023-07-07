@@ -594,8 +594,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 new ElasticsearchStatusException(
                     "cannot update number_of_allocations for deployment with model id [{}] while cluster upgrade is in progress.",
                     RestStatus.CONFLICT,
-                    deploymentId,
-                    DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION
+                    deploymentId
                 )
             );
             return;

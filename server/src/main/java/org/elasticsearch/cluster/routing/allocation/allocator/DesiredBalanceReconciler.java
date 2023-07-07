@@ -250,10 +250,7 @@ public class DesiredBalanceReconciler {
                     final var isThrottled = new AtomicBoolean(false);
                     if (assignment != null) {
 
-                        for (final var nodeIdIterator : List.of(
-                            getDesiredNodesIds(shard, assignment),
-                            getFallbackNodeIds(shard, isThrottled)
-                        )) {
+                        for (final var nodeIdIterator : getPrioritizedNodeIdsSets(shard, assignment, isThrottled)) {
                             for (final var desiredNodeId : nodeIdIterator) {
                                 final var routingNode = routingNodes.node(desiredNodeId);
                                 if (routingNode == null) {
@@ -321,23 +318,29 @@ public class DesiredBalanceReconciler {
             } while (primaryLength > 0);
         }
 
-        private Iterable<String> getDesiredNodesIds(ShardRouting shard, ShardAssignment assignment) {
-            return allocationOrdering.sort(allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation).map(forced -> {
+        /**
+         * This method provides:
+         * * sorted assigned node ids
+         * * fallback nodes for primary shards in case primary nodes were throttled
+         * * only the forced initial node ids if provided by allocation deciders
+         */
+        private List<Iterable<String>> getPrioritizedNodeIdsSets(
+            ShardRouting shard,
+            ShardAssignment assignment,
+            AtomicBoolean isThrottled
+        ) {
+            return allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation).map(forced -> {
                 logger.debug("Shard [{}] assignment is ignored. Initial allocation forced to {}", shard.shardId(), forced);
-                return forced;
-            }).orElse(assignment.nodeIds()));
-        }
-
-        private Iterable<String> getFallbackNodeIds(ShardRouting shard, AtomicBoolean isThrottled) {
-            return () -> {
+                return List.<Iterable<String>>of(allocationOrdering.sort(forced));
+            }).orElse(List.<Iterable<String>>of(allocationOrdering.sort(assignment.nodeIds()), () -> {
                 if (shard.primary() && isThrottled.get() == false) {
                     var fallbackNodeIds = allocation.routingNodes().getAllNodeIds();
-                    logger.debug("Shard [{}] assignment is temporary not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
+                    logger.debug("Shard [{}] assignment is temporary throttled. Falling back to {}", shard.shardId(), fallbackNodeIds);
                     return allocationOrdering.sort(fallbackNodeIds).iterator();
                 } else {
                     return Collections.emptyIterator();
                 }
-            };
+            }));
         }
 
         private void moveShards() {

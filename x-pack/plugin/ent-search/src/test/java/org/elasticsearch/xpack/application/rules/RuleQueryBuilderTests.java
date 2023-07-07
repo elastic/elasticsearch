@@ -44,14 +44,12 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilder> {
 
-    private Map<String, Object> generateMatchCriteria() {
-        // This has to be constant, so the rule hits.
-        return Map.of("query_string", "elastic");
-    }
+    // This criteria has to be constant, to ensure the rule hits.
+    private static final Map<String,Object> MATCH_CRITERIA = Map.of("query_string", "elastic");
 
     @Override
     protected RuleQueryBuilder doCreateTestQueryBuilder() {
-        return new RuleQueryBuilder(new MatchAllQueryBuilder(), generateMatchCriteria(), randomAlphaOfLength(10));
+        return new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, randomAlphaOfLength(10));
     }
 
     @Override
@@ -67,9 +65,9 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     public void testIllegalArguments() {
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, "rulesetId"));
-        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateMatchCriteria(), null));
-        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), generateMatchCriteria(), ""));
-        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, generateMatchCriteria(), "rulesetId"));
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, null));
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, ""));
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, MATCH_CRITERIA, "rulesetId"));
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, Collections.emptyMap(), "rulesetId"));
         expectThrows(
             IllegalArgumentException.class,

@@ -32,12 +32,12 @@ public class TrimTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected List<Object> simpleData() {
-        return List.of(addRandomLeadingOrTrailingWhitespaces(randomAlphaOfLength(4)));
+        return List.of(addRandomLeadingOrTrailingWhitespaces(randomUnicodeOfLength(8)));
     }
 
     @Override
     protected Expression expressionForSimpleData() {
-        return new Trim(Source.EMPTY, field(randomAlphaOfLength(4), randomType));
+        return new Trim(Source.EMPTY, field(randomUnicodeOfLength(8), randomType));
     }
 
     @Override
@@ -71,7 +71,7 @@ public class TrimTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testTrim() {
-        String expected = randomAlphaOfLength(4);
+        String expected = randomUnicodeOfLength(8).trim();
         BytesRef result = Trim.process(addRandomLeadingOrTrailingWhitespaces(expected));
         assertThat(result.utf8ToString(), equalTo(expected));
     }
@@ -93,7 +93,7 @@ public class TrimTests extends AbstractScalarFunctionTestCase {
 
     private static char[] randomWhiteSpace() {
         char[] randomWhitespace = new char[randomIntBetween(1, 8)];
-        Arrays.fill(randomWhitespace, ' ');
+        Arrays.fill(randomWhitespace, randomFrom(' ', '\t', '\n'));
         return randomWhitespace;
     }
 

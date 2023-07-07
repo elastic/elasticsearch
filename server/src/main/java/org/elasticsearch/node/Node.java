@@ -360,11 +360,11 @@ public class Node implements Closeable {
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                Build.CURRENT.qualifiedVersion(),
+                Build.current().qualifiedVersion(),
                 jvmInfo.pid(),
-                Build.CURRENT.type().displayName(),
-                Build.CURRENT.hash(),
-                Build.CURRENT.date(),
+                Build.current().type().displayName(),
+                Build.current().hash(),
+                Build.current().date(),
                 Constants.OS_NAME,
                 Constants.OS_VERSION,
                 Constants.OS_ARCH,
@@ -375,10 +375,10 @@ public class Node implements Closeable {
             );
             logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
-            if (Build.CURRENT.isProductionRelease() == false) {
+            if (Build.current().isProductionRelease() == false) {
                 logger.warn(
                     "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                    Build.CURRENT.qualifiedVersion()
+                    Build.current().qualifiedVersion()
                 );
             }
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {

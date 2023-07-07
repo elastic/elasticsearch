@@ -119,7 +119,7 @@ final class QueryPhaseCollector implements Collector {
         return minScore == null || scorer.score() >= minScore;
     }
 
-    private boolean doesDocMatchPostFilter(int doc, Bits postFilterBits) {
+    private static boolean doesDocMatchPostFilter(int doc, Bits postFilterBits) {
         return postFilterBits == null || postFilterBits.get(doc);
     }
 
@@ -155,7 +155,7 @@ final class QueryPhaseCollector implements Collector {
                 }
             }
             final LeafCollector topDocsLeafCollector = tdlc;
-            if (postFilterWeight == null && terminateAfter == 0 && minScore == null) {
+            if (postFilterBits == null && terminateAfter == 0 && minScore == null) {
                 // no need to wrap if we just need to collect unfiltered docs through leaf collector
                 // aggs collector was not originally provided so the overall score mode is that of the top docs collector
                 return topDocsLeafCollector;
@@ -187,15 +187,17 @@ final class QueryPhaseCollector implements Collector {
         final LeafCollector aggsLeafCollector = alf;
 
         if (topDocsLeafCollector == null && terminateAfter == 0 && minScore == null) {
-            // top docs collector early terminated, we can avoid wrapping as long as we don't need to apply terminate_after and min_score
-            // aggs don't support skipping low scoring hits, so we can rely on setMinCompetitiveScore being a no-op already
+            // top docs collector early terminated, we can avoid wrapping as long as we don't need to apply terminate_after and min_score.
+            // post_filter does not matter because it's not applied to aggs collection anyways. terminate_after matters only until we
+            // address the different TODOs around needless collection to honour terminate_after after early termination.
+            // aggs don't support skipping low scoring hits, so we can rely on setMinCompetitiveScore being a no-op already.
             return aggsLeafCollector;
         }
 
         // if that the aggs collector early terminates while the top docs collector does not, we still need to wrap the leaf collector
         // to enforce that setMinCompetitiveScore is a no-op. Otherwise we may allow the top docs collector to skip non competitive
         // hits despite the score mode of the Collector did not allow it (because aggs don't support TOP_SCORES).
-        if (aggsLeafCollector == null && postFilterWeight == null && terminateAfter == 0 && minScore == null) {
+        if (aggsLeafCollector == null && postFilterBits == null && terminateAfter == 0 && minScore == null) {
             // special case for early terminated aggs
             return new FilterLeafCollector(topDocsLeafCollector) {
                 @Override

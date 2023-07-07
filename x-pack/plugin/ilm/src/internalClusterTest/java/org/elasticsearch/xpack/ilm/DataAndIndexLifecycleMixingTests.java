@@ -15,20 +15,20 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
-import org.elasticsearch.action.dlm.ExplainIndexDataLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.DataLifecycleService;
-import org.elasticsearch.datastreams.lifecycle.action.ExplainDataLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -84,8 +84,8 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        settings.put(DataLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
-        settings.put(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
+        settings.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
+        settings.put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -103,7 +103,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
         indexTemplateName = "indextemplate-" + randomAlphaOfLengthBetween(10, 15).toLowerCase(Locale.ROOT);
     }
 
-    public void testIndexTemplateSwapsILMForDLM() throws Exception {
+    public void testIndexTemplateSwapsILMForDataStreamLifecycle() throws Exception {
         // ILM rolls over every 2 documents
         RolloverAction rolloverIlmAction = new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build());
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
@@ -156,14 +156,14 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(secondGenerationExplain.getStep(), is(WaitForRolloverReadyStep.NAME));
         });
 
-        // let's update the index template to remove the ILM configuration and configured DLM
-        // note that this index template change will NOT configure DLM on the data stream, only for **new** data streams
+        // let's update the index template to remove the ILM configuration and configured data stream lifecycle
+        // note that this index template change will NOT configure a data stream lifecycle on the data stream, only for **new** data streams
 
         // to transition this existing data stream we'll need to use the PUT _lifecycle API
 
         // we'll rollover the data stream by indexing 2 documents (like ILM expects) and assert that the rollover happens once so the
         // data stream has 3 backing indices, two managed by ILM and one will be UNMANAGED
-        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), Settings.EMPTY, null, new DataLifecycle());
+        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), Settings.EMPTY, null, new DataStreamLifecycle());
 
         indexDocs(dataStreamName, 2);
 
@@ -202,26 +202,27 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse thirdGenerationExplain = explainResponse.getIndexResponses().get(thirdGenerationIndex);
             assertThat(thirdGenerationExplain.managedByILM(), is(false));
 
-            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
-                ExplainDataLifecycleAction.INSTANCE,
-                new ExplainDataLifecycleAction.Request(new String[] { thirdGenerationIndex })
+            ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex })
             ).actionGet();
-            assertThat(dlmExplainResponse.getIndices().size(), is(1));
-            ExplainIndexDataLifecycle writeIndexDLMExplain = dlmExplainResponse.getIndices().get(0);
-            assertThat(writeIndexDLMExplain.isManagedByDLM(), is(false));
+            assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(1));
+            ExplainIndexDataStreamLifecycle writeIndexDataStreamLifecycleExplain = dataStreamLifecycleExplainResponse.getIndices().get(0);
+            assertThat(writeIndexDataStreamLifecycleExplain.isManagedByLifecycle(), is(false));
         });
 
-        // let's migrate this data stream to use DLM starting with the next generation
+        // let's migrate this data stream to use the data stream lifecycle starting with the next generation
         client().execute(
-            PutDataLifecycleAction.INSTANCE,
-            new PutDataLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
+            PutDataStreamLifecycleAction.INSTANCE,
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
         );
 
-        // at this point we should be able to rollover the data stream by indexing only one document (as DLM is configured to)
+        // at this point we should be able to rollover the data stream by indexing only one document (as the data stream lifecycle is
+        // configured to)
         indexDocs(dataStreamName, 1);
 
         // data stream was rolled over and has 4 indices, 2 managed by ILM, the previous write index that was UNMANAGED will now be
-        // managed by DLM and the new write index managed by DLM
+        // managed by the data stream lifecycle and the new write index managed by the data stream lifecycle
         assertBusy(() -> {
             GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -257,19 +258,19 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse thirdGenerationExplain = explainResponse.getIndexResponses().get(thirdGenerationIndex);
             assertThat(thirdGenerationExplain.managedByILM(), is(false));
 
-            // the write index is managed by DLM
-            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
-                ExplainDataLifecycleAction.INSTANCE,
-                new ExplainDataLifecycleAction.Request(new String[] { thirdGenerationIndex, writeIndex })
+            // the write index is managed by data stream lifecycle
+            ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex, writeIndex })
             ).actionGet();
-            assertThat(dlmExplainResponse.getIndices().size(), is(2));
-            for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
-                assertThat(index.isManagedByDLM(), is(true));
+            assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(2));
+            for (ExplainIndexDataStreamLifecycle index : dataStreamLifecycleExplainResponse.getIndices()) {
+                assertThat(index.isManagedByLifecycle(), is(true));
             }
         });
     }
 
-    public void testUpdateIndexTemplateFromILMtoBothILMAndDLM() throws Exception {
+    public void testUpdateIndexTemplateFromILMtoBothILMAndDataStreamLifecycle() throws Exception {
         // ILM rolls over every 2 documents
         RolloverAction rolloverIlmAction = new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build());
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
@@ -318,8 +319,9 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(secondGenerationExplain.getStep(), is(WaitForRolloverReadyStep.NAME));
         });
 
-        // let's update the index template to add the DLM configuration next to the ILM configuration
-        // note that this index template change will NOT configure DLM on the data stream, only for **new** data streams
+        // let's update the index template to add the data stream lifecycle configuration next to the ILM configuration
+        // note that this index template change will NOT configure the data stream lifecycle on the data stream, only for **new** data
+        // streams
 
         // to transition this existing data stream we'll need to use the PUT _lifecycle API AND update the index template to either:
         // * remove the ILM configuration so ILM is not configured of the next backing indices anymore
@@ -334,7 +336,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List.of(dataStreamName + "*"),
             Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
             null,
-            new DataLifecycle()
+            new DataStreamLifecycle()
         );
 
         indexDocs(dataStreamName, 2);
@@ -375,10 +377,10 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(thirdGenerationExplain.getStep(), is(WaitForRolloverReadyStep.NAME));
         });
 
-        // let's migrate this data stream to use DLM starting with the next generation
+        // let's migrate this data stream to use the data stream lifecycle starting with the next generation
         client().execute(
-            PutDataLifecycleAction.INSTANCE,
-            new PutDataLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
+            PutDataStreamLifecycleAction.INSTANCE,
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
         );
 
         putComposableIndexTemplate(
@@ -387,13 +389,14 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List.of(dataStreamName + "*"),
             Settings.builder().put(IndexSettings.PREFER_ILM, false).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
             null,
-            new DataLifecycle()
+            new DataStreamLifecycle()
         );
 
-        // note that all indices now are still managed by ILM, so we index 2 documents. the new write index will be managed by DLM
+        // note that all indices now are still managed by ILM, so we index 2 documents. the new write index will be managed by the data
+        // stream lifecycle
         indexDocs(dataStreamName, 2);
 
-        // data stream was rolled over and has 4 indices, 3 managed by ILM, and the write index managed by DLM
+        // data stream was rolled over and has 4 indices, 3 managed by ILM, and the write index managed by the data stream lifecycle
         assertBusy(() -> {
             GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -431,19 +434,19 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(thirdGenerationExplain.getPhase(), is("hot"));
             assertThat(thirdGenerationExplain.getStep(), is(PhaseCompleteStep.NAME));
 
-            // the write index is managed by DLM
-            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
-                ExplainDataLifecycleAction.INSTANCE,
-                new ExplainDataLifecycleAction.Request(new String[] { writeIndex })
+            // the write index is managed by the data stream lifecycle
+            ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { writeIndex })
             ).actionGet();
-            assertThat(dlmExplainResponse.getIndices().size(), is(1));
-            ExplainIndexDataLifecycle dlmExplain = dlmExplainResponse.getIndices().get(0);
-            assertThat(dlmExplain.isManagedByDLM(), is(true));
-            assertThat(dlmExplain.getIndex(), is(writeIndex));
+            assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(1));
+            ExplainIndexDataStreamLifecycle dataStreamLifecycleExplain = dataStreamLifecycleExplainResponse.getIndices().get(0);
+            assertThat(dataStreamLifecycleExplain.isManagedByLifecycle(), is(true));
+            assertThat(dataStreamLifecycleExplain.getIndex(), is(writeIndex));
         });
     }
 
-    public void testUpdateIndexTemplateToDLMPreference() throws Exception {
+    public void testUpdateIndexTemplateToDataStreamLifecyclePreference() throws Exception {
         // ILM rolls over every 2 documents
         RolloverAction rolloverIlmAction = new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build());
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
@@ -492,9 +495,9 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(secondGenerationExplain.getStep(), is(WaitForRolloverReadyStep.NAME));
         });
 
-        // let's update the index template to add the DLM configuration next to the ILM configuration, and configure the management
-        // preference to be DLM using the prefer_ilm setting
-        // note that this index template change will NOT configure DLM on the data stream, only for **new** data streams
+        // let's update the index template to add the data stream lifecycle configuration next to the ILM configuration, and configure the
+        // management preference to be data stream lifecycle using the prefer_ilm setting note that this index template change will NOT
+        // configure data stream lifecycle on the data stream, only for **new** data streams
 
         // to transition this existing data stream we'll need to use the PUT _lifecycle API
 
@@ -506,13 +509,14 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List.of(dataStreamName + "*"),
             Settings.builder().put(IndexSettings.PREFER_ILM, false).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
             null,
-            new DataLifecycle()
+            new DataStreamLifecycle()
         );
 
         indexDocs(dataStreamName, 2);
 
         // data stream was rolled over and has 3 indices, ALL managed by ILM, however the 3rd index has prefer_ilm: false now (so if a user
-        // configures DLM for the data stream this index will not be managed by ILM anymore, but will be picked up by DLM)
+        // configures the data stream lifecycle for the data stream this index will not be managed by ILM anymore, but will be picked up by
+        // the data stream lifecycle)
         assertBusy(() -> {
             GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -548,19 +552,21 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(thirdGenerationExplain.getStep(), is(WaitForRolloverReadyStep.NAME));
         });
 
-        // let's migrate this data stream to use DLM starting with the current generation (note that the 3rd generation index was created
-        // after we updated the index template to have prefer_ilm: false, so the 3rd generation index will no receive both ILM and DLM
-        // configurations and because its prefer_ilm: false setting, it will switch from being managed by ILM to DLM)
+        // let's migrate this data stream to use the data stream lifecycle starting with the current generation (note that the 3rd
+        // generation index was created after we updated the index template to have prefer_ilm: false, so the 3rd generation index will no
+        // receive both ILM and data stream lifecycle configurations and because its prefer_ilm: false setting, it will switch from being
+        // managed by ILM to data stream lifecycle)
         client().execute(
-            PutDataLifecycleAction.INSTANCE,
-            new PutDataLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
+            PutDataStreamLifecycleAction.INSTANCE,
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
         );
 
-        // at this point, the write index of the data stream is managed by DLM and not by ILM anymore so we can just index one document
+        // at this point, the write index of the data stream is managed by data stream lifecycle and not by ILM anymore so we can just index
+        // one document
         // to trigger the rollover
         indexDocs(dataStreamName, 1);
 
-        // data stream was rolled over and has 4 indices, 2 managed by ILM, and 2 managed by DLM
+        // data stream was rolled over and has 4 indices, 2 managed by ILM, and 2 managed by the data stream lifecycle
         assertBusy(() -> {
             GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -597,21 +603,21 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse thirdGenerationExplain = explainResponse.getIndexResponses().get(thirdGenerationIndex);
             assertThat(thirdGenerationExplain.managedByILM(), is(false));
 
-            // the write index is managed by DLM
-            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
-                ExplainDataLifecycleAction.INSTANCE,
-                new ExplainDataLifecycleAction.Request(new String[] { thirdGenerationIndex, writeIndex })
+            // the write index is managed by the data stream lifecycle
+            ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex, writeIndex })
             ).actionGet();
-            assertThat(dlmExplainResponse.getIndices().size(), is(2));
-            for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
-                assertThat(index.isManagedByDLM(), is(true));
+            assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(2));
+            for (ExplainIndexDataStreamLifecycle index : dataStreamLifecycleExplainResponse.getIndices()) {
+                assertThat(index.isManagedByLifecycle(), is(true));
             }
         });
     }
 
-    public void testUpdateIndexTemplateToMigrateFromDLMToILM() throws Exception {
-        // starting with a data stream managed by DLM (rolling over every 1 doc)
-        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), null, null, new DataLifecycle());
+    public void testUpdateIndexTemplateToMigrateFromDataStreamLifecycleToIlm() throws Exception {
+        // starting with a data stream managed by the data stream lifecycle (rolling over every 1 doc)
+        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), null, null, new DataStreamLifecycle());
 
         // this will create the data stream and trigger a rollover so we will end up with a data stream with 2 backing indices
         indexDocs(dataStreamName, 1);
@@ -629,14 +635,14 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
             String writeIndex = getDefaultBackingIndexName(dataStreamName, 2);
 
-            // let's check the indices are managed by DLM
-            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
-                ExplainDataLifecycleAction.INSTANCE,
-                new ExplainDataLifecycleAction.Request(new String[] { firstGenerationIndex, writeIndex })
+            // let's check the indices are managed by the data stream lifecycle
+            ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { firstGenerationIndex, writeIndex })
             ).actionGet();
-            assertThat(dlmExplainResponse.getIndices().size(), is(2));
-            for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
-                assertThat(index.isManagedByDLM(), is(true));
+            assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(2));
+            for (ExplainIndexDataStreamLifecycle index : dataStreamLifecycleExplainResponse.getIndices()) {
+                assertThat(index.isManagedByLifecycle(), is(true));
             }
         });
 
@@ -647,15 +653,15 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 
-        // let's update the index template to remove the DLM configuration and replace it with an ILM configuration
-        // note that this change will apply to new backing indices only. the write index will continue to be managed by DLM
-        // so we'll trigger a rollover by indexing one document (the next write index, and all subsequent new generations will start being
-        // managed by ILM)
+        // let's update the index template to remove the data stream lifecycle configuration and replace it with an ILM configuration
+        // note that this change will apply to new backing indices only. The write index will continue to be managed by the data stream
+        // lifecycle so we'll trigger a rollover by indexing one document (the next write index, and all subsequent new generations will
+        // start being managed by ILM)
 
-        // note that simply removing the DLM configuration from the index template does NOT remove it from the data stream, however the
-        // default value for the prefer_ilm setting is `true` so even though the new indices of the data stream will have both the DLM
-        // lifecycle configuration (by virtue of being part of a data stream that has `lifecycle` configured) and the ILM lifecycle
-        // configuration provided by the index template, ILM will take priority
+        // note that simply removing the data stream lifecycle configuration from the index template does NOT remove it from the data
+        // stream, however the default value for the prefer_ilm setting is `true` so even though the new indices of the data stream will
+        // have both the data stream lifecycle configuration (by virtue of being part of a data stream that has `lifecycle` configured) and
+        // the ILM lifecycle configuration provided by the index template, ILM will take priority
 
         putComposableIndexTemplate(
             indexTemplateName,
@@ -682,14 +688,14 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
             String writeIndex = getDefaultBackingIndexName(dataStreamName, 3);
 
-            // let's check the previous indices are managed by DLM
-            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
-                ExplainDataLifecycleAction.INSTANCE,
-                new ExplainDataLifecycleAction.Request(new String[] { firstGenerationIndex, secondGenerationIndex })
+            // let's check the previous indices are managed by the data stream lifecycle
+            ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { firstGenerationIndex, secondGenerationIndex })
             ).actionGet();
-            assertThat(dlmExplainResponse.getIndices().size(), is(2));
-            for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
-                assertThat(index.isManagedByDLM(), is(true));
+            assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(2));
+            for (ExplainIndexDataStreamLifecycle index : dataStreamLifecycleExplainResponse.getIndices()) {
+                assertThat(index.isManagedByLifecycle(), is(true));
             }
 
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(writeIndex);
@@ -758,7 +764,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(name);
         request.indexTemplate(

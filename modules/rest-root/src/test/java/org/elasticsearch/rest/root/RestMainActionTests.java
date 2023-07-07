@@ -38,7 +38,7 @@ public class RestMainActionTests extends ESTestCase {
         final Version version = Version.CURRENT;
         final IndexVersion indexVersion = IndexVersion.current();
         final TransportVersion transportVersion = TransportVersion.current();
-        final Build build = Build.CURRENT;
+        final Build build = Build.current();
 
         final MainResponse mainResponse = new MainResponse(
             nodeName,
@@ -72,7 +72,7 @@ public class RestMainActionTests extends ESTestCase {
         final Version version = Version.CURRENT;
         final IndexVersion indexVersion = IndexVersion.current();
         final TransportVersion transportVersion = TransportVersion.current();
-        final Build build = Build.CURRENT;
+        final Build build = Build.current();
         final boolean prettyPrint = randomBoolean();
 
         final MainResponse mainResponse = new MainResponse(

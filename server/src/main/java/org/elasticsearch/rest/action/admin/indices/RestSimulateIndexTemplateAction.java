@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplat
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -44,7 +44,7 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
         simulateIndexTemplateRequest.masterNodeTimeout(
             request.paramAsTime("master_timeout", simulateIndexTemplateRequest.masterNodeTimeout())
         );
-        if (DataLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isEnabled()) {
             simulateIndexTemplateRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         }
         if (request.hasContent()) {

@@ -101,7 +101,7 @@ public class DfsPhaseTests extends ESTestCase {
             assertEquals("SimpleTopScoreDocCollector", (collectorResult.getName()));
             assertEquals("search_top_hits", (collectorResult.getReason()));
             assertTrue(collectorResult.getTime() > 0);
-            List<CollectorResult> children = collectorResult.getCollectorResults();
+            List<CollectorResult> children = collectorResult.getChildrenResults();
             if (children.size() > 0) {
                 long totalTime = 0L;
                 for (CollectorResult child : children) {

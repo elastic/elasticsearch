@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
@@ -276,6 +277,33 @@ public class SynonymsManagementAPIService {
                     }))
             )
         );
+    }
+
+    public void deleteSynonymRule(
+        String synonymSetId,
+        String synonymRuleId,
+        ActionListener<SynonymsReloadResult<AcknowledgedResponse>> listener
+    ) {
+        client.prepareDelete(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymSetId, synonymRuleId))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute(listener.delegateFailure((deleteListener, deleteResponse) -> {
+                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                    // When not found, check whether it's the synonym set not existing
+                    checkSynonymSetExists(
+                        synonymSetId,
+                        deleteListener.delegateFailure(
+                            (checkListener, obj) -> checkListener.onFailure(
+                                new ResourceNotFoundException(
+                                    "synonym rule [" + synonymRuleId + "] not found on synonym set [" + synonymSetId + "]"
+                                )
+                            )
+                        )
+                    );
+                    return;
+                }
+
+                reloadAnalyzers(synonymSetId, listener, AcknowledgedResponse.of(true));
+            }));
     }
 
     private static IndexRequest createSynonymRuleIndexRequest(String synonymsSetId, SynonymRule synonymRule) throws IOException {

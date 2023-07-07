@@ -55,7 +55,7 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
 
     public void testToXContent() throws IOException {
         String clusterUUID = randomAlphaOfLengthBetween(10, 20);
-        final Build current = Build.CURRENT;
+        final Build current = Build.current();
         Build build = new Build(current.type(), current.hash(), current.date(), current.isSnapshot(), current.qualifiedVersion());
         Version version = Version.CURRENT;
         IndexVersion indexVersion = IndexVersion.current();

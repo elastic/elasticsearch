@@ -20,10 +20,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
@@ -141,8 +139,13 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 totalRemoteRequestsTotal += stats.remoteRequestsTotal;
                 totalExecutedSearchesTotal += stats.executedSearchesTotal;
             }
-            return new CoordinatorStats("N/A", totalQueueSize, totalRemoteRequestsCurrent,
-                totalRemoteRequestsTotal, totalExecutedSearchesTotal);
+            return new CoordinatorStats(
+                "N/A",
+                totalQueueSize,
+                totalRemoteRequestsCurrent,
+                totalRemoteRequestsTotal,
+                totalExecutedSearchesTotal
+            );
         }
 
         private static CacheStats rollupCacheStats(List<CacheStats> cacheStatsList) {
@@ -231,11 +234,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (params.paramAsBoolean("show_node_info", true)) {
-                    builder.field("node_id", nodeId);
-                } else {
-                    builder.field("node_id", "N/A");
-                }
+                builder.field("node_id", nodeId);
                 builder.field("queue_size", queueSize);
                 builder.field("remote_requests_current", remoteRequestsCurrent);
                 builder.field("remote_requests_total", remoteRequestsTotal);
@@ -356,11 +355,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (params.paramAsBoolean("show_node_info", true)) {
-                    builder.field("node_id", nodeId);
-                } else {
-                    builder.field("node_id", "N/A");
-                }
+                builder.field("node_id", nodeId);
                 builder.field("count", count);
                 builder.field("hits", hits);
                 builder.field("misses", misses);

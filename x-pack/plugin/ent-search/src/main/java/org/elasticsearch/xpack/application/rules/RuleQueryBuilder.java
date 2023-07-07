@@ -40,6 +40,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX_NUM_PINNED_HITS;
 
 /**
  * A query that will determine based on query context and configured query rules,
@@ -115,6 +116,16 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         }
         if (Strings.isNullOrEmpty(rulesetId)) {
             throw new IllegalArgumentException("rulesetId must not be null or empty");
+        }
+
+        // PinnedQueryBuilder will return an error if we attmept to return more than the maximum number of
+        // pinned hits. Here, we truncate matching rules rather than return an error.
+        if (pinnedIds != null && pinnedIds.size() > MAX_NUM_PINNED_HITS) {
+            pinnedIds = pinnedIds.subList(0, MAX_NUM_PINNED_HITS);
+        }
+
+        if (pinnedDocs != null && pinnedDocs.size() > MAX_NUM_PINNED_HITS) {
+            pinnedDocs = pinnedDocs.subList(0, MAX_NUM_PINNED_HITS);
         }
 
         this.organicQuery = organicQuery;

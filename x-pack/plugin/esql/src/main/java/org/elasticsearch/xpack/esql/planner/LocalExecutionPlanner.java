@@ -36,13 +36,13 @@ import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
-import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -86,6 +86,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -106,9 +107,9 @@ public class LocalExecutionPlanner {
     private final String sessionId;
     private final CancellableTask parentTask;
     private final BigArrays bigArrays;
-    private final ThreadPool threadPool;
     private final EsqlConfiguration configuration;
-    private final ExchangeService exchangeService;
+    private final ExchangeSourceHandler exchangeSourceHandler;
+    private final ExchangeSinkHandler exchangeSinkHandler;
     private final EnrichLookupService enrichLookupService;
     private final PhysicalOperationProviders physicalOperationProviders;
 
@@ -116,17 +117,17 @@ public class LocalExecutionPlanner {
         String sessionId,
         CancellableTask parentTask,
         BigArrays bigArrays,
-        ThreadPool threadPool,
         EsqlConfiguration configuration,
-        ExchangeService exchangeService,
+        ExchangeSourceHandler exchangeSourceHandler,
+        ExchangeSinkHandler exchangeSinkHandler,
         EnrichLookupService enrichLookupService,
         PhysicalOperationProviders physicalOperationProviders
     ) {
         this.sessionId = sessionId;
         this.parentTask = parentTask;
         this.bigArrays = bigArrays;
-        this.threadPool = threadPool;
-        this.exchangeService = exchangeService;
+        this.exchangeSourceHandler = exchangeSourceHandler;
+        this.exchangeSinkHandler = exchangeSinkHandler;
         this.enrichLookupService = enrichLookupService;
         this.physicalOperationProviders = physicalOperationProviders;
         this.configuration = configuration;
@@ -287,9 +288,9 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
-        var sinkHandler = exchangeService.getSinkHandler(sessionId, true);
+        Objects.requireNonNull(exchangeSinkHandler, "ExchangeSinkHandler wasn't provided");
         PhysicalOperation source = plan(exchangeSink.child(), context);
-        return source.withSink(new ExchangeSinkOperatorFactory(sinkHandler::createExchangeSink), source.layout);
+        return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkHandler::createExchangeSink), source.layout);
     }
 
     private PhysicalOperation planExchangeSource(ExchangeSourceExec exchangeSource) {
@@ -303,8 +304,11 @@ public class LocalExecutionPlanner {
         );
 
         var planToGetLayout = plan(exchangeSource.nodeLayout(), dummyContext);
-        var sourceHandler = exchangeService.getSourceHandler(sessionId, true);
-        return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(sourceHandler::createExchangeSource), planToGetLayout.layout);
+        Objects.requireNonNull(exchangeSourceHandler, "ExchangeSourceHandler wasn't provided");
+        return PhysicalOperation.fromSource(
+            new ExchangeSourceOperatorFactory(exchangeSourceHandler::createExchangeSource),
+            planToGetLayout.layout
+        );
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {

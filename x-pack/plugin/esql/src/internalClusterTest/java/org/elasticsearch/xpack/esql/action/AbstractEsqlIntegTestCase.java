@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.junit.After;
 
 import java.util.Collection;
+import java.util.List;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
@@ -35,16 +37,16 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        if (randomBoolean()) {
-            Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-            if (randomBoolean()) {
-                settings.put(ExchangeService.INACTIVE_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 100)));
-            }
-            return settings.build();
-        } else {
-            return super.nodeSettings(nodeOrdinal, otherSettings);
+    public static class InternalExchangePlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(
+                Setting.timeSetting(
+                    ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING,
+                    TimeValue.timeValueSeconds(5),
+                    Setting.Property.NodeScope
+                )
+            );
         }
     }
 
@@ -53,16 +55,26 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPlugin.class);
     }
 
-    protected static EsqlQueryResponse run(String esqlCommands) {
-        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(randomPragmas()).get();
+    protected EsqlQueryResponse run(String esqlCommands) {
+        return run(esqlCommands, randomPragmas());
     }
 
-    protected static EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
-        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(pragmas).get();
+    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
+        return run(esqlCommands, pragmas, null);
     }
 
-    protected static EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
-        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(pragmas).filter(filter).get();
+    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query(esqlCommands);
+        request.pragmas(pragmas);
+        if (filter != null) {
+            request.filter(filter);
+        }
+        return run(request);
+    }
+
+    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+        return client().execute(EsqlQueryAction.INSTANCE, request).actionGet();
     }
 
     protected static QueryPragmas randomPragmas() {
@@ -90,4 +102,5 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         }
         return new QueryPragmas(settings.build());
     }
+
 }

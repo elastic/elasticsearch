@@ -64,7 +64,7 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
         @Override
         public boolean isFinished() {
             checkFailure();
-            return buffer.isFinished();
+            return finished || buffer.isFinished();
         }
 
         @Override

@@ -79,7 +79,7 @@ public class ExchangeServiceTests extends ESTestCase {
         for (int i = 0; i < pages.length; i++) {
             pages[i] = new Page(new ConstantIntVector(i, 2).asBlock());
         }
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2);
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool::relativeTimeInMillis);
         ExchangeSink sink1 = sinkExchanger.createExchangeSink();
         ExchangeSink sink2 = sinkExchanger.createExchangeSink();
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(3, threadPool.executor("esql_test_executor"));
@@ -294,7 +294,7 @@ public class ExchangeServiceTests extends ESTestCase {
             if (sinkHandlers.isEmpty() == false && randomBoolean()) {
                 sinkHandler = randomFrom(sinkHandlers);
             } else {
-                sinkHandler = new ExchangeSinkHandler(randomExchangeBuffer());
+                sinkHandler = new ExchangeSinkHandler(randomExchangeBuffer(), threadPool::relativeTimeInMillis);
                 sourceExchanger.addRemoteSink(sinkHandler::fetchPageAsync, randomIntBetween(1, 3));
                 sinkHandlers.add(sinkHandler);
             }
@@ -309,7 +309,7 @@ public class ExchangeServiceTests extends ESTestCase {
         IntBlock block = new ConstantIntVector(1, 2).asBlock();
         Page p1 = new Page(block);
         Page p2 = new Page(block);
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2);
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool::relativeTimeInMillis);
         ExchangeSink sink = sinkExchanger.createExchangeSink();
         sink.addPage(p1);
         sink.addPage(p2);
@@ -394,100 +394,6 @@ public class ExchangeServiceTests extends ESTestCase {
             Throwable cause = ExceptionsHelper.unwrap(err, IOException.class);
             assertNotNull(cause);
             assertThat(cause.getMessage(), equalTo("page is too large"));
-        }
-    }
-
-    public void testTimeoutExchangeRequest() throws Exception {
-        int inactiveTimeoutInMillis = between(1, 100);
-        Settings settings = Settings.builder()
-            .put(ExchangeService.INACTIVE_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(inactiveTimeoutInMillis))
-            .build();
-        MockTransportService node0 = newTransportService();
-        ExchangeService exchange0 = new ExchangeService(settings, threadPool);
-        exchange0.registerTransportHandler(node0);
-        MockTransportService node1 = newTransportService();
-        ExchangeService exchange1 = new ExchangeService(settings, threadPool);
-        exchange1.registerTransportHandler(node1);
-        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
-        // exchange source will retry the timed out response
-        CountDownLatch latch = new CountDownLatch(between(1, 5));
-        node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, new StubbableTransport.RequestHandlingBehavior<>() {
-            @Override
-            public void messageReceived(
-                TransportRequestHandler<TransportRequest> handler,
-                TransportRequest request,
-                TransportChannel channel,
-                Task task
-            ) throws Exception {
-                handler.messageReceived(request, new FilterTransportChannel(channel) {
-                    @Override
-                    public void sendResponse(TransportResponse response) throws IOException {
-                        latch.countDown();
-                        super.sendResponse(response);
-                    }
-
-                    @Override
-                    public void sendResponse(Exception exception) throws IOException {
-                        latch.countDown();
-                        super.sendResponse(exception);
-                    }
-                }, task);
-            }
-        });
-        try (exchange0; exchange1; node0; node1) {
-            String exchangeId = "exchange";
-            Task task = new Task(1, "", "", "", null, Collections.emptyMap());
-            final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
-            PlainActionFuture<Void> collectorFuture = new PlainActionFuture<>();
-            {
-                final int maxOutputSeqNo = randomIntBetween(1, 50_000);
-                SeqNoCollector seqNoCollector = new SeqNoCollector(maxOutputSeqNo);
-                ExchangeSourceHandler sourceHandler = exchange0.createSourceHandler(
-                    exchangeId,
-                    randomIntBetween(1, 128),
-                    "esql_test_executor"
-                );
-                sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, node1.getLocalNode()), randomIntBetween(1, 5));
-                int numSources = randomIntBetween(1, 10);
-                List<Driver> sourceDrivers = new ArrayList<>(numSources);
-                for (int i = 0; i < numSources; i++) {
-                    String description = "source-" + i;
-                    ExchangeSourceOperator sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());
-                    DriverContext dc = new DriverContext();
-                    Driver d = new Driver(description, dc, () -> description, sourceOperator, List.of(), seqNoCollector.get(dc), () -> {});
-                    sourceDrivers.add(d);
-                }
-                new DriverRunner() {
-                    @Override
-                    protected void start(Driver driver, ActionListener<Void> listener) {
-                        Driver.start(threadPool.executor("esql_test_executor"), driver, listener);
-                    }
-                }.runToCompletion(sourceDrivers, collectorFuture);
-            }
-            // Verify that some exchange requests are timed out because we don't have the exchange sink handler yet
-            assertTrue(latch.await(10, TimeUnit.SECONDS));
-            PlainActionFuture<Void> generatorFuture = new PlainActionFuture<>();
-            {
-                SeqNoGenerator seqNoGenerator = new SeqNoGenerator(maxInputSeqNo);
-                int numSinks = randomIntBetween(1, 10);
-                ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
-                List<Driver> sinkDrivers = new ArrayList<>(numSinks);
-                for (int i = 0; i < numSinks; i++) {
-                    String description = "sink-" + i;
-                    ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink());
-                    DriverContext dc = new DriverContext();
-                    Driver d = new Driver(description, dc, () -> description, seqNoGenerator.get(dc), List.of(), sinkOperator, () -> {});
-                    sinkDrivers.add(d);
-                }
-                new DriverRunner() {
-                    @Override
-                    protected void start(Driver driver, ActionListener<Void> listener) {
-                        Driver.start(threadPool.executor("esql_test_executor"), driver, listener);
-                    }
-                }.runToCompletion(sinkDrivers, generatorFuture);
-            }
-            generatorFuture.actionGet(1, TimeUnit.MINUTES);
-            collectorFuture.actionGet(1, TimeUnit.MINUTES);
         }
     }
 

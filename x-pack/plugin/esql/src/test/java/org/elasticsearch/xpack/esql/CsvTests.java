@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
-import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasables;
@@ -305,15 +304,16 @@ public class CsvTests extends ESTestCase {
         var parsed = parser.createStatement(testCase.query);
         var testDataset = testsDataset(parsed);
 
-        ExchangeService exchangeService = new ExchangeService(Settings.EMPTY, threadPool);
         String sessionId = "csv-test";
+        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), threadPool.executor(ESQL_THREAD_POOL_NAME));
+        ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(between(1, 64), threadPool::relativeTimeInMillis);
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             sessionId,
             new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
             BigArrays.NON_RECYCLING_INSTANCE,
-            threadPool,
             configuration,
-            exchangeService,
+            exchangeSource,
+            exchangeSink,
             Mockito.mock(EnrichLookupService.class),
             testOperationProviders(testDataset)
         );
@@ -342,29 +342,19 @@ public class CsvTests extends ESTestCase {
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         Map<String, List<String>> responseHeaders;
 
-        ExchangeSourceHandler sourceHandler = exchangeService.createSourceHandler(
-            sessionId,
-            randomIntBetween(1, 64),
-            ESQL_THREAD_POOL_NAME
-        );
         // replace fragment inside the coordinator plan
         try {
             LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(new OutputExec(coordinatorPlan, collectedPages::add));
             drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(sessionId));
             if (dataNodePlan != null) {
                 var csvDataNodePhysicalPlan = CSVlocalPlan(List.of(), configuration, dataNodePlan, localTestOptimizer);
-                ExchangeSinkHandler sinkHandler = exchangeService.createSinkHandler(sessionId, randomIntBetween(1, 64));
-                sourceHandler.addRemoteSink(sinkHandler::fetchPageAsync, randomIntBetween(1, 3));
+                exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3));
                 LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
                 drivers.addAll(dataNodeExecutionPlan.createDrivers(sessionId));
             }
             responseHeaders = runToCompletion(threadPool, drivers);
         } finally {
-            Releasables.close(
-                () -> Releasables.close(drivers),
-                () -> exchangeService.completeSinkHandler(sessionId),
-                sourceHandler::decRef
-            );
+            Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
         }
         return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
     }

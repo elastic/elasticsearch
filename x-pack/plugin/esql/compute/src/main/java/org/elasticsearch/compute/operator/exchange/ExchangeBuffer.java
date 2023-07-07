@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
@@ -28,6 +29,8 @@ final class ExchangeBuffer {
     private final Object notFullLock = new Object();
     private ListenableActionFuture<Void> notFullFuture = null;
 
+    private final ListenableActionFuture<Void> completionFuture = new ListenableActionFuture<>();
+
     private volatile boolean noMoreInputs = false;
 
     ExchangeBuffer(int maxSize) {
@@ -38,11 +41,9 @@ final class ExchangeBuffer {
     }
 
     void addPage(Page page) {
-        if (noMoreInputs == false) {
-            queue.add(page);
-            if (queueSize.incrementAndGet() == 1) {
-                notifyNotEmpty();
-            }
+        queue.add(page);
+        if (queueSize.incrementAndGet() == 1) {
+            notifyNotEmpty();
         }
     }
 
@@ -50,6 +51,9 @@ final class ExchangeBuffer {
         final var page = queue.poll();
         if (page != null && queueSize.decrementAndGet() == maxSize - 1) {
             notifyNotFull();
+        }
+        if (page == null && noMoreInputs && queueSize.get() == 0) {
+            completionFuture.onResponse(null);
         }
         return page;
     }
@@ -115,10 +119,13 @@ final class ExchangeBuffer {
             }
         }
         notifyNotEmpty();
+        if (drainingPages || queueSize.get() == 0) {
+            completionFuture.onResponse(null);
+        }
     }
 
     boolean isFinished() {
-        return noMoreInputs && queueSize.get() == 0;
+        return completionFuture.isDone();
     }
 
     boolean noMoreInputs() {
@@ -127,5 +134,12 @@ final class ExchangeBuffer {
 
     int size() {
         return queueSize.get();
+    }
+
+    /**
+     * Adds a listener that will be notified when this exchange buffer is finished.
+     */
+    void addCompletionListener(ActionListener<Void> listener) {
+        completionFuture.addListener(listener);
     }
 }

@@ -15,6 +15,8 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
 /**
  * An {@link ExchangeSinkHandler} receives pages and status from its {@link ExchangeSink}s, which are created using
@@ -26,20 +28,30 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @see ExchangeSourceHandler
  */
 public final class ExchangeSinkHandler {
+
     private final ExchangeBuffer buffer;
     private final Queue<ActionListener<ExchangeResponse>> listeners = new ConcurrentLinkedQueue<>();
     private final AtomicInteger outstandingSinks = new AtomicInteger();
     // listeners are notified by only one thread.
     private final Semaphore promised = new Semaphore(1);
 
-    public ExchangeSinkHandler(int maxBufferSize) {
+    private final ListenableActionFuture<Void> completionFuture;
+    private final LongSupplier nowInMillis;
+    private final AtomicLong lastUpdatedInMillis;
+
+    public ExchangeSinkHandler(int maxBufferSize, LongSupplier nowInMillis) {
         this.buffer = new ExchangeBuffer(maxBufferSize);
+        this.completionFuture = new ListenableActionFuture<>();
+        this.buffer.addCompletionListener(completionFuture);
+        this.nowInMillis = nowInMillis;
+        this.lastUpdatedInMillis = new AtomicLong(nowInMillis.getAsLong());
     }
 
     private class LocalExchangeSink implements ExchangeSink {
         boolean finished;
 
         LocalExchangeSink() {
+            onChanged();
             outstandingSinks.incrementAndGet();
         }
 
@@ -53,6 +65,7 @@ public final class ExchangeSinkHandler {
         public void finish() {
             if (finished == false) {
                 finished = true;
+                onChanged();
                 if (outstandingSinks.decrementAndGet() == 0) {
                     buffer.finish(false);
                     notifyListeners();
@@ -62,7 +75,7 @@ public final class ExchangeSinkHandler {
 
         @Override
         public boolean isFinished() {
-            return finished || buffer.noMoreInputs();
+            return finished || buffer.isFinished();
         }
 
         @Override
@@ -84,6 +97,28 @@ public final class ExchangeSinkHandler {
             buffer.finish(true);
         }
         listeners.add(listener);
+        onChanged();
+        notifyListeners();
+    }
+
+    /**
+     * Add a listener, which will be notified when this exchange sink handler is completed. An exchange sink
+     * handler is consider completed when all associated sinks are completed and the output pages are fetched.
+     */
+    public void addCompletionListener(ActionListener<Void> listener) {
+        completionFuture.addListener(listener);
+    }
+
+    boolean isFinished() {
+        return completionFuture.isDone();
+    }
+
+    /**
+     * Fails this sink exchange handler
+     */
+    void onFailure(Exception failure) {
+        completionFuture.onFailure(failure);
+        buffer.finish(true);
         notifyListeners();
     }
 
@@ -104,6 +139,7 @@ public final class ExchangeSinkHandler {
             } finally {
                 promised.release();
             }
+            onChanged();
             listener.onResponse(response);
         }
     }
@@ -117,8 +153,30 @@ public final class ExchangeSinkHandler {
         return new LocalExchangeSink();
     }
 
-    public void finish() {
-        buffer.finish(false);
-        notifyListeners();
+    /**
+     * Whether this sink handler has sinks attached or available pages
+     */
+    boolean hasData() {
+        return outstandingSinks.get() > 0 || buffer.size() > 0;
+    }
+
+    /**
+     * Whether this sink handler has listeners waiting for data
+     */
+    boolean hasListeners() {
+        return listeners.isEmpty() == false;
+    }
+
+    private void onChanged() {
+        lastUpdatedInMillis.accumulateAndGet(nowInMillis.getAsLong(), Math::max);
+    }
+
+    /**
+     * The time in millis when this sink handler was updated. This timestamp is used to prune idle sinks.
+     *
+     * @see ExchangeService#INACTIVE_SINKS_INTERVAL_SETTING
+     */
+    long lastUpdatedTimeInMillis() {
+        return lastUpdatedInMillis.get();
     }
 }

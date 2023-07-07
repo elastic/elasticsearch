@@ -6,6 +6,7 @@ spock = "2.1-groovy-3.0"
 
 [libraries]
 ant = "org.apache.ant:ant:1.10.12"
+antlrst4 = "org.antlr:ST4:4.3.4"
 apache-compress = "org.apache.commons:commons-compress:1.21"
 apache-rat = "org.apache.rat:apache-rat:0.11"
 asm = { group = "org.ow2.asm", name="asm", version.ref="asm" }

@@ -45,7 +45,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilder> {
 
     // This criteria has to be constant, to ensure the rule hits.
-    private static final Map<String,Object> MATCH_CRITERIA = Map.of("query_string", "elastic");
+    private static final Map<String, Object> MATCH_CRITERIA = Map.of("query_string", "elastic");
 
     @Override
     protected RuleQueryBuilder doCreateTestQueryBuilder() {

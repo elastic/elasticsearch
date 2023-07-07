@@ -86,9 +86,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
         matchCriteria = in.readMap();
         rulesetId = in.readString();
-        pinnedIds = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
+        pinnedIds = in.readOptionalStringList();
         pinnedIdsSupplier = null;
-        pinnedDocs = in.readBoolean() ? in.readList(Item::new) : null;
+        pinnedDocs = in.readOptionalList(Item::new);
         pinnedDocsSupplier = null;
     }
 
@@ -138,18 +138,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         out.writeNamedWriteable(organicQuery);
         out.writeGenericMap(matchCriteria);
         out.writeString(rulesetId);
-        if (pinnedIds != null) {
-            out.writeBoolean(true);
-            out.writeStringCollection(pinnedIds);
-        } else {
-            out.writeBoolean(false);
-        }
-        if (pinnedDocs != null) {
-            out.writeBoolean(true);
-            out.writeList(pinnedDocs);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalStringCollection(pinnedIds);
+        out.writeOptionalCollection(pinnedDocs);
     }
 
     public String rulesetId() {

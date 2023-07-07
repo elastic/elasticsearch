@@ -684,7 +684,8 @@ version constant, there will be a git conflict on those lines. This is to ensure
 two PRs don't accidentally use the same version constant.
 
 If your pull request has a conflict around your new version constant,
-you need to update your PR from `main` and change your PR to use the next available version number.
+you need to update your PR from `main` and change your PR to use the next
+available version number.
 
 ### Creating A Distribution
 

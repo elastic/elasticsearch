@@ -56,7 +56,7 @@ public class IndexSettingsModule extends AbstractModule {
             .put(indexSetting)
             .build();
         IndexMetadata metadata = IndexMetadata.builder(index.getName())
-            .system(IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexSetting))
+            .system(IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexSetting)) // using fast refresh requires a system index
             .settings(build)
             .build();
         Set<Setting<?>> settingSet = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
@@ -74,7 +74,7 @@ public class IndexSettingsModule extends AbstractModule {
             .put(settings)
             .build();
         IndexMetadata metadata = IndexMetadata.builder(index.getName())
-            .system(IndexSettings.INDEX_FAST_REFRESH_SETTING.get(settings))
+            .system(IndexSettings.INDEX_FAST_REFRESH_SETTING.get(settings)) // using fast refresh requires a system index
             .settings(build)
             .build();
         return new IndexSettings(metadata, Settings.EMPTY, indexScopedSettings);

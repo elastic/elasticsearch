@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.file.ConfigurableFileTree;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
@@ -29,10 +28,7 @@ public class StringTemplatePlugin implements Plugin<Project> {
         project.getPlugins().withType(JavaPlugin.class, javaPlugin -> {
             SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
             SourceSet mainSourceSet = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME);
-            ConfigurableFileTree outputFileTree = project.fileTree(outputDir);
-            outputFileTree.builtBy(generateSourceTask);
             mainSourceSet.getJava().srcDir(generateSourceTask);
-            project.getTasks().named(mainSourceSet.getCompileJavaTaskName()).configure(task -> task.dependsOn(generateSourceTask));
         });
     }
 }

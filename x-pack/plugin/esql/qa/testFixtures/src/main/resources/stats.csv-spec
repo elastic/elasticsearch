@@ -8,8 +8,9 @@ l:long
 maxOfInteger
 // tag::max[]
 FROM employees
-| STATS MAX(languages);
+| STATS MAX(languages)
 // end::max[]
+;
 
 // tag::max-result[]
 MAX(languages):integer
@@ -20,8 +21,9 @@ MAX(languages):integer
 minOfInteger
 // tag::min[]
 FROM employees
-| STATS MIN(languages);
+| STATS MIN(languages)
 // end::min[]
+;
 
 // tag::min-result[]
 MIN(languages):integer
@@ -186,8 +188,9 @@ l:long
 sumOfInteger
 // tag::sum[]
 FROM employees
-| STATS SUM(languages);
+| STATS SUM(languages)
 // end::sum[]
+;
 
 // tag::sum-result[]
 SUM(languages):long

@@ -169,8 +169,9 @@ NaN      | true
 log10
 // tag::log10[]
 ROW d = 1000.0 
-| EVAL s = LOG10(d);
+| EVAL s = LOG10(d)
 // end::log10[]
+;
 
 // tag::log10-result[]
 d: double | s:double

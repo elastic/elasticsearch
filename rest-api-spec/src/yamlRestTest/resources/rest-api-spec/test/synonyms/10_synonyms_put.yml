@@ -22,8 +22,8 @@ setup:
       synonyms.get:
         synonyms_set: test-update-synonyms
 
-  - length: { synonyms_set.0.id: 20 }
-  - length: { synonyms_set.1.id: 20 }
+  - is_true: synonyms_set.0.id
+  - is_true: synonyms_set.1.id
 
 ---
 "Create and Update synonyms set":

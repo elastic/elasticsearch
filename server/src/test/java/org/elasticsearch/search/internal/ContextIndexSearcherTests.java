@@ -402,7 +402,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> ContextIndexSearcher.computeSlices(contexts, numThreads, 1)
         );
-        assertThat(ex.getMessage(), equalTo("numThreads must be >= 1 (got " + numThreads + ")"));
+        assertThat(ex.getMessage(), equalTo("maxSliceNum must be >= 1 (got " + numThreads + ")"));
         IOUtils.close(reader, w, dir);
     }
 

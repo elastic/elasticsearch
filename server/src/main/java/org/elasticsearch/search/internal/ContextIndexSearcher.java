@@ -72,7 +72,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private static final int MINIMUM_DOCS_PER_SLICE = 50_000;
 
-    private static final double MINIMUM_DOCS_PRECENT_PER_SLICE = 0.1;
+    private static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
@@ -205,17 +205,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /**
      * Each computed slice contains at least 10% of the total data in the leaves with a
      * minimum given by the <code>minDocsPerSlice</code> parameter and the final number
-     * of {@link LeafSlice} will be equal or lower than the number of available threads.
+     * of {@link LeafSlice} will be equal or lower than the max number of slices.
      */
     /* pkg private for testing */
-    static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int numThreads, int minDocsPerSlice) {
-        if (numThreads < 1) {
-            throw new IllegalArgumentException("numThreads must be >= 1 (got " + numThreads + ")");
+    static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int maxSliceNum, int minDocsPerSlice) {
+        if (maxSliceNum < 1) {
+            throw new IllegalArgumentException("maxSliceNum must be >= 1 (got " + maxSliceNum + ")");
         }
         // total number of documents to be searched
         final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
         // percentage of documents per slice, minumum 10%
-        final double percentageDocsPerThread = Math.max(MINIMUM_DOCS_PRECENT_PER_SLICE, 1.0 / numThreads);
+        final double percentageDocsPerThread = Math.max(MINIMUM_DOCS_PERCENT_PER_SLICE, 1.0 / maxSliceNum);
         // compute slices
         return computeSlices(leaves, Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs)));
     }

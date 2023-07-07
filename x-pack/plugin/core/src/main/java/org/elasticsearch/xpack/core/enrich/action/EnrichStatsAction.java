@@ -20,8 +20,10 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
@@ -97,23 +99,64 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             }
             builder.endArray();
             builder.startArray("coordinator_stats");
-            for (CoordinatorStats entry : coordinatorStats) {
+            if (params.paramAsBoolean("show_node_info", true)) {
+                for (CoordinatorStats entry : coordinatorStats) {
+                    builder.startObject();
+                    entry.toXContent(builder, params);
+                    builder.endObject();
+                }
+            } else {
                 builder.startObject();
-                entry.toXContent(builder, params);
+                rollupCoordinatorStats(coordinatorStats).toXContent(builder, params);
                 builder.endObject();
             }
             builder.endArray();
             if (cacheStats != null) {
                 builder.startArray("cache_stats");
-                for (CacheStats cacheStat : cacheStats) {
+                if (params.paramAsBoolean("show_node_info", true)) {
+                    for (CacheStats cacheStat : cacheStats) {
+                        builder.startObject();
+                        cacheStat.toXContent(builder, params);
+                        builder.endObject();
+                    }
+                } else {
                     builder.startObject();
-                    cacheStat.toXContent(builder, params);
+                    rollupCacheStats(cacheStats).toXContent(builder, params);
                     builder.endObject();
                 }
                 builder.endArray();
             }
             builder.endObject();
             return builder;
+        }
+
+        private static CoordinatorStats rollupCoordinatorStats(List<CoordinatorStats> coordinatorStatsList) {
+            int totalQueueSize = 0;
+            int totalRemoteRequestsCurrent = 0;
+            long totalRemoteRequestsTotal = 0;
+            long totalExecutedSearchesTotal = 0;
+            for (CoordinatorStats stats : coordinatorStatsList) {
+                totalQueueSize += stats.queueSize;
+                totalRemoteRequestsCurrent += stats.remoteRequestsCurrent;
+                totalRemoteRequestsTotal += stats.remoteRequestsTotal;
+                totalExecutedSearchesTotal += stats.executedSearchesTotal;
+            }
+            return new CoordinatorStats("N/A", totalQueueSize, totalRemoteRequestsCurrent,
+                totalRemoteRequestsTotal, totalExecutedSearchesTotal);
+        }
+
+        private static CacheStats rollupCacheStats(List<CacheStats> cacheStatsList) {
+            long totalCount = 0;
+            long totalHits = 0;
+            long totalMisses = 0;
+            long totalEvictions = 0;
+            for (CacheStats stats : cacheStatsList) {
+                totalCount += stats.count;
+                totalHits += stats.hits;
+                totalMisses += stats.misses;
+                totalEvictions += stats.evictions;
+            }
+            return new CacheStats("N/A", totalCount, totalHits, totalMisses, totalEvictions);
         }
 
         @Override
@@ -188,7 +231,11 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.field("node_id", nodeId);
+                if (params.paramAsBoolean("show_node_info", true)) {
+                    builder.field("node_id", nodeId);
+                } else {
+                    builder.field("node_id", "N/A");
+                }
                 builder.field("queue_size", queueSize);
                 builder.field("remote_requests_current", remoteRequestsCurrent);
                 builder.field("remote_requests_total", remoteRequestsTotal);
@@ -309,7 +356,11 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.field("node_id", nodeId);
+                if (params.paramAsBoolean("show_node_info", true)) {
+                    builder.field("node_id", nodeId);
+                } else {
+                    builder.field("node_id", "N/A");
+                }
                 builder.field("count", count);
                 builder.field("hits", hits);
                 builder.field("misses", misses);
@@ -344,5 +395,4 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             }
         }
     }
-
 }

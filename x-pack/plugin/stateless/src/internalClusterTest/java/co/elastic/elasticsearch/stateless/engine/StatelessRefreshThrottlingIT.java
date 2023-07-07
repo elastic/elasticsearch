@@ -19,52 +19,17 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.indices.SystemIndexDescriptorUtils;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SystemIndexPlugin;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class StatelessRefreshThrottlingIT extends AbstractStatelessIntegTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), List.of(SystemIndexTestPlugin.class).stream()).toList();
-    }
-
-    public static class SystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {
-
-        public static final String SYSTEM_INDEX_NAME = ".test-system-idx";
-
-        @Override
-        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(
-                SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "System indices for tests")
-            );
-        }
-
-        @Override
-        public String getFeatureName() {
-            return SystemIndexTestPlugin.class.getSimpleName();
-        }
-
-        @Override
-        public String getFeatureDescription() {
-            return "A simple test plugin";
-        }
-    }
 
     private RefreshNodeCreditManager getRegularIndicesCreditManager(String indexingNode) {
         var refreshThrottlingService = internalCluster().getInstance(RefreshThrottlingService.class, indexingNode);
@@ -72,19 +37,13 @@ public class StatelessRefreshThrottlingIT extends AbstractStatelessIntegTestCase
     }
 
     private RefreshThrottler getRefreshThrottler(String indexingNode, String indexName, int shard) {
-        var indicesService = internalCluster().getInstance(IndicesService.class, indexingNode);
-        var indexServiceIterator = indicesService.iterator();
-        while (indexServiceIterator.hasNext()) {
-            var indexService = indexServiceIterator.next();
-            if (indexService.index().getName().equals(indexName) && indexService.hasShard(shard)) {
-                var indexShard = indexService.getShard(shard);
-                assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
-                var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
-                return indexEngine.getRefreshThrottler();
-            }
-        }
-        assert false : "did not find index service for " + indexName + " and shard " + shard + " on node " + indexingNode;
-        return null;
+        Index index = resolveIndices().entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
+        var indexService = internalCluster().getInstance(IndicesService.class, indexingNode).indexService(index);
+        assertTrue(indexService.hasShard(shard));
+        var indexShard = indexService.getShard(shard);
+        assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+        var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
+        return indexEngine.getRefreshThrottler();
     }
 
     private RefreshBurstableThrottler getRefreshBurstableThrottler(String indexingNode, String indexName, int shard) {
@@ -168,20 +127,9 @@ public class StatelessRefreshThrottlingIT extends AbstractStatelessIntegTestCase
 
     public void testSystemIndexIsNotThrottled() throws Exception {
         String indexNode = startMasterAndIndexNode();
-        startSearchNode(); // only needed because system index created by the test util needs one replica shard
-
-        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "field", "value");
-        RefreshThrottler shardThrottler = getRefreshThrottler(indexNode, SystemIndexTestPlugin.SYSTEM_INDEX_NAME, 0);
-        assertThat(shardThrottler, instanceOf(RefreshThrottler.Noop.class));
-    }
-
-    public void testFastRefreshIndexIsNotThrottled() throws Exception {
-        String indexNode = startMasterAndIndexNode();
-
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
-
-        RefreshThrottler shardThrottler = getRefreshThrottler(indexNode, indexName, 0);
+        createSystemIndex(indexSettings(1, 0).build());
+        indexDoc(SYSTEM_INDEX_NAME, "1", "field", "value");
+        RefreshThrottler shardThrottler = getRefreshThrottler(indexNode, SYSTEM_INDEX_NAME, 0);
         assertThat(shardThrottler, instanceOf(RefreshThrottler.Noop.class));
     }
 }

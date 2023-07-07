@@ -27,6 +27,6 @@ Remove-Item -Recurse -Force \tmp -ErrorAction Ignore
 New-Item -ItemType directory -Path \tmp
 
 $ErrorActionPreference="Continue"
-& .\gradlew.bat -g "$env:USERPROFILE\.gradle" --parallel --no-daemon --console=plain help
+& .\gradlew.bat -g "$env:USERPROFILE\.gradle" --parallel --no-daemon --console=plain $GradleTasks
 
 exit $LastExitCode

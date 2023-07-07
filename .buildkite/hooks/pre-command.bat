@@ -8,6 +8,8 @@ SET JAVA16_HOME=%USERPROFILE%\.java\openjdk16
 
 SET GRADLEW_BAT=./gradlew.bat --parallel --no-daemon --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
 
+(if not exist "%USERPROFILE%/.gradle" mkdir "%USERPROFILE%/.gradle") && (echo. >> "%USERPROFILE%/.gradle/gradle.properties" && echo org.gradle.daemon=false >> "%USERPROFILE%/.gradle/gradle.properties")
+
 set WORKSPACE=%cd%
 set BUILD_NUMBER=%BUILDKITE_BUILD_NUMBER%
 set COMPOSE_HTTP_TIMEOUT=120

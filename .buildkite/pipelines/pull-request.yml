@@ -61,6 +61,8 @@ steps:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - label: part-1-windows
     command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
+    env:
+      GRADLE_TASK: checkPart1
     timeout_in_minutes: 180
     agents:
       provider: gcp
@@ -71,6 +73,8 @@ steps:
       diskSizeGb: 350
   - label: part-2-windows
     command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
+    env:
+      GRADLE_TASK: checkPart2
     timeout_in_minutes: 180
     agents:
       provider: gcp
@@ -81,6 +85,8 @@ steps:
       diskSizeGb: 350
   - label: part-3-windows
     command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
+    env:
+      GRADLE_TASK: checkPart3
     timeout_in_minutes: 180
     agents:
       provider: gcp

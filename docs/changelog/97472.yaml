@@ -1,0 +1,5 @@
+pr: 97472
+summary: Making it possible to remove nodes info from enrich stats response
+area: Stats
+type: enhancement
+issues: []

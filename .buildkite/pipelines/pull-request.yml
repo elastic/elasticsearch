@@ -1,6 +1,16 @@
 steps:
   - group: bwc-snapshots-windows
     steps:
+      - label: "help task"
+        command: ".ci/scripts/run-gradle.sh -Dignore.tests.seed help"
+        timeout_in_minutes: 180
+        agents:
+          provider: gcp
+          image: family/brian-elasticsearch-windows-2022
+          imageProject: elastic-images-qa
+          machineType: custom-32-98304
+          diskType: pd-ssd
+          diskSizeGb: 350
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots-windows"
         command: ".ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest"
         timeout_in_minutes: 180

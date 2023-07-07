@@ -24,6 +24,9 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
             }
           }
         """.stripIndent().stripTrailing()
+        file('src/main/generated-src/someFile.txt') << """
+          Just some random data
+        """
 
         buildFile << """
           apply plugin: 'elasticsearch.build'
@@ -48,6 +51,7 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
 
         then:
         result.task(":stringTemplates").outcome == TaskOutcome.SUCCESS
+        file("src/main/generated-src/someFile.txt").exists() == false
         file("src/main/generated-src/p/IntBox.java").exists()
         file("src/main/generated-src/p/LongBox.java").exists()
 
@@ -210,5 +214,30 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
         normalized(file("src/main/generated-src/Message.txt").text) == """
             Hello World!
           """.stripIndent().stripTrailing()
+    }
+
+    def "cleanup delete files"() {
+        given:
+        internalBuild()
+        file('src/main/generated-src/someFile.txt') << """
+          Just some random data
+        """
+
+        buildFile << """
+          apply plugin: 'elasticsearch.build'
+          apply plugin: 'elasticsearch.string-templates'
+
+          tasks.named("stringTemplates").configure {
+            // no templates
+          }
+        """
+
+        when:
+        def result = gradleRunner("stringTemplates", '-g', gradleUserHome).build()
+
+        then:
+        result.task(":stringTemplates").outcome == TaskOutcome.SUCCESS
+        file("src/main/generated-src/someFile.txt").exists() == false
+        file("src/main/generated-src").exists() == true
     }
 }

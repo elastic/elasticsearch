@@ -12,6 +12,7 @@ import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
@@ -36,11 +37,13 @@ public abstract class StringTemplateTask extends DefaultTask {
 
     private final ListProperty<TemplateSpec> templateSpecListProperty;
     private final DirectoryProperty outputFolder;
+    private final FileSystemOperations fileSystemOperations;
 
     @Inject
-    public StringTemplateTask(ObjectFactory objectFactory) {
+    public StringTemplateTask(ObjectFactory objectFactory, FileSystemOperations fileSystemOperations) {
         templateSpecListProperty = objectFactory.listProperty(TemplateSpec.class);
         outputFolder = objectFactory.directoryProperty();
+        this.fileSystemOperations = fileSystemOperations;
     }
 
     public void template(Action<TemplateSpec> spec) {
@@ -62,6 +65,9 @@ public abstract class StringTemplateTask extends DefaultTask {
     @TaskAction
     public void generate() {
         File outputRootFolder = getOutputFolder().getAsFile().get();
+        // clean the output directory to ensure no stale files persist
+        fileSystemOperations.delete(d -> d.delete(outputRootFolder));
+
         for (TemplateSpec spec : getTemplates().get()) {
             getLogger().info("StringTemplateTask generating {}, with properties {}", spec.inputFile, spec.properties);
             try {

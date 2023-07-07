@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -549,13 +548,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             ),
             // Data Streams
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new),
-            DataLifecycle.isEnabled()
-                ? new NamedWriteableRegistry.Entry(
-                    XPackFeatureSet.Usage.class,
-                    XPackField.DATA_LIFECYCLE,
-                    DataLifecycleFeatureSetUsage::new
-                )
-                : null,
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_LIFECYCLE, DataLifecycleFeatureSetUsage::new),
             // Data Tiers
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new),
             // Archive

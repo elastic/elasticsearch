@@ -15,19 +15,24 @@ public class DataLifecycleFeatureSetUsageTests extends AbstractWireSerializingTe
 
     @Override
     protected DataLifecycleFeatureSetUsage createTestInstance() {
-        return new DataLifecycleFeatureSetUsage(
-            new DataLifecycleFeatureSetUsage.LifecycleStats(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomDouble(),
-                randomBoolean()
+        return randomBoolean()
+            ? new DataLifecycleFeatureSetUsage(
+                new DataLifecycleFeatureSetUsage.LifecycleStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomDouble(),
+                    randomBoolean()
+                )
             )
-        );
+            : DataLifecycleFeatureSetUsage.DISABLED;
     }
 
     @Override
     protected DataLifecycleFeatureSetUsage mutateInstance(DataLifecycleFeatureSetUsage instance) {
+        if (instance.equals(DataLifecycleFeatureSetUsage.DISABLED)) {
+            return new DataLifecycleFeatureSetUsage(DataLifecycleFeatureSetUsage.LifecycleStats.INITIAL);
+        }
         return switch (randomInt(4)) {
             case 0 -> new DataLifecycleFeatureSetUsage(
                 new DataLifecycleFeatureSetUsage.LifecycleStats(

@@ -128,16 +128,7 @@ public class GetSearchApplicationAction extends ActionType<GetSearchApplicationA
             long updatedAtMillis,
             SearchApplicationTemplate template
         ) {
-            if (Strings.isNullOrEmpty(name)) {
-                throw new IllegalArgumentException("Search Application name cannot be null or blank");
-            }
-            // if (name!=null){
             this.searchApp = new SearchApplication(name, indices, analyticsCollectionName, updatedAtMillis, template);
-            // }
-            // else {
-            // this
-            // }
-
         }
 
         private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
@@ -155,7 +146,6 @@ public class GetSearchApplicationAction extends ActionType<GetSearchApplicationA
         }
 
         public static Response fromXContent(String resourceName, XContentParser parser) throws IOException {
-            // TODO this seems not good
             return new Response(SearchApplication.fromXContent(resourceName, parser));
         }
 

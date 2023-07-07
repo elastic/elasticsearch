@@ -58,7 +58,7 @@ public class DeleteAnalyticsCollectionAction extends ActionType<AcknowledgedResp
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(collectionName)) {
-                validationException = addValidationError("Collection name missing", validationException);
+                validationException = addValidationError("collection name missing", validationException);
             }
 
             return validationException;

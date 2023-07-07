@@ -14,10 +14,12 @@ CC BY-SA 4.0 license. It automatically downloads these databases if your nodes c
 
 * `ingest.geoip.downloader.eager.download` is set to true
 * your cluster has at least one pipeline with a `geoip` processor
- 
-{es} automatically downloads updates for these databases from the Elastic GeoIP endpoint:
-https://geoip.elastic.co/v1/database. To get download statistics for these
-updates, use the <<geoip-stats-api,GeoIP stats API>>.
+
+{es} automatically downloads updates for these databases from the Elastic GeoIP
+endpoint:
+https://geoip.elastic.co/v1/database?elastic_geoip_service_tos=agree[https://geoip.elastic.co/v1/database].
+To get download statistics for these updates, use the <<geoip-stats-api,GeoIP
+stats API>>.
 
 If your cluster can't connect to the Elastic GeoIP endpoint or you want to
 manage your own updates, see <<manage-geoip-database-updates>>.

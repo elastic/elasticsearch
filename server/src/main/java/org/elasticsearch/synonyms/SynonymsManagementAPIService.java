@@ -66,14 +66,12 @@ public class SynonymsManagementAPIService {
     public static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
     public static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-1";
     public static final String SYNONYMS_ALIAS_NAME = ".synonyms";
-
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
     // Stores the synonym set the rule belongs to
     public static final String SYNONYMS_SET_FIELD = "synonyms_set";
     // Stores the synonym rule
     public static final String SYNONYMS_FIELD = SynonymRule.SYNONYMS_FIELD.getPreferredName();
     // Field that stores either SYNONYM_RULE_OBJECT_TYPE or SYNONYM_SET_OBJECT_TYPE
-
     private static final String OBJECT_TYPE_FIELD = "type";
     // Identifies synonym rule objects stored in the index
     private static final String SYNONYM_RULE_OBJECT_TYPE = "synonym_rule";
@@ -166,6 +164,7 @@ public class SynonymsManagementAPIService {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setSize(0)
             .addAggregation(
+                // Retrieves synonym rules for each synonym set, excluding the synonym set object type
                 new FilterAggregationBuilder(RULESET_FILTER_AGG_NAME, QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
                     .subAggregation(
                         new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD)
@@ -205,7 +204,7 @@ public class SynonymsManagementAPIService {
 
     public void getSynonymSetRules(String synonymSetId, int from, int size, ActionListener<PagedResult<SynonymRule>> listener) {
         checkSynonymSetExists(synonymSetId, listener.delegateFailure((existsListener, response) -> {
-            // Retrieves query rules, excluding the synonym set object type
+            // Retrieves synonym rules, excluding the synonym set object type
             client.prepareSearch(SYNONYMS_ALIAS_NAME)
                 .setQuery(
                     QueryBuilders.boolQuery()

@@ -13,6 +13,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * The desired balance of the cluster, indicating which nodes should hold a copy of each shard.
@@ -25,6 +26,11 @@ public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignme
 
     public ShardAssignment getAssignment(ShardId shardId) {
         return assignments.get(shardId);
+    }
+
+    public Set<String> getNodeIds(ShardId shardId) {
+        ShardAssignment assignment = assignments.get(shardId);
+        return assignment != null ? assignment.nodeIds() : Set.of();
     }
 
     public static boolean hasChanges(DesiredBalance a, DesiredBalance b) {

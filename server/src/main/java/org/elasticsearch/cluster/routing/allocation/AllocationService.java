@@ -120,6 +120,10 @@ public class AllocationService {
         return allocationDeciders;
     }
 
+    public ShardsAllocator getShardsAllocator() {
+        return shardsAllocator;
+    }
+
     public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
         return shardRoutingRoleStrategy;
     }

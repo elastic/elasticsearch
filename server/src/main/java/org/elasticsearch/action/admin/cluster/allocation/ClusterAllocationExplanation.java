@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
 
@@ -48,6 +49,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     private final DiscoveryNode relocationTargetNode;
     private final ClusterInfo clusterInfo;
     private final ShardAllocationDecision shardAllocationDecision;
+    private final Set<String> desiredNodeIds;
 
     public ClusterAllocationExplanation(
         boolean specificShard,
@@ -55,7 +57,8 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
         @Nullable DiscoveryNode currentNode,
         @Nullable DiscoveryNode relocationTargetNode,
         @Nullable ClusterInfo clusterInfo,
-        ShardAllocationDecision shardAllocationDecision
+        ShardAllocationDecision shardAllocationDecision,
+        @Nullable Set<String> desiredNodeIds
     ) {
 
         this.specificShard = specificShard;
@@ -64,6 +67,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
         this.relocationTargetNode = relocationTargetNode;
         this.clusterInfo = clusterInfo;
         this.shardAllocationDecision = shardAllocationDecision;
+        this.desiredNodeIds = desiredNodeIds;
     }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
@@ -77,6 +81,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
         this.relocationTargetNode = in.readOptionalWriteable(DiscoveryNode::new);
         this.clusterInfo = in.readOptionalWriteable(ClusterInfo::new);
         this.shardAllocationDecision = new ShardAllocationDecision(in);
+        this.desiredNodeIds = null;// TODO read desired node ids
     }
 
     @Override
@@ -89,6 +94,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
         out.writeOptionalWriteable(relocationTargetNode);
         out.writeOptionalWriteable(clusterInfo);
         shardAllocationDecision.writeTo(out);
+        // TODO write desired node ids
     }
 
     public boolean isSpecificShard() {
@@ -178,6 +184,9 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
                     }
                 }
                 builder.endObject();
+            }
+            if (desiredNodeIds != null) {
+                builder.field("desired_node_ids", desiredNodeIds);
             }
             if (this.clusterInfo != null) {
                 builder.startObject("cluster_info");

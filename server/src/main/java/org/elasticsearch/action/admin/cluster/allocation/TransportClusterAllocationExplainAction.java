@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation.DebugMode;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -133,13 +134,18 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
             shardDecision = allocationService.explainShardAllocation(shardRouting, allocation);
         }
 
+        var desiredNodeIds = allocationService.getShardsAllocator() instanceof DesiredBalanceShardsAllocator dbsa
+            ? dbsa.getDesiredBalance().getNodeIds(shardRouting.shardId())
+            : null;
+
         return new ClusterAllocationExplanation(
             isSpecificShard,
             shardRouting,
             shardRouting.currentNodeId() != null ? allocation.nodes().get(shardRouting.currentNodeId()) : null,
             shardRouting.relocatingNodeId() != null ? allocation.nodes().get(shardRouting.relocatingNodeId()) : null,
             clusterInfo,
-            shardDecision
+            shardDecision,
+            desiredNodeIds
         );
     }
 

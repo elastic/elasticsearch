@@ -448,7 +448,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromStatsEvalWithPragma() {
-        assumeTrue("pragmas only enabled on snapshot builds", Build.CURRENT.isSnapshot());
+        assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
         EsqlQueryResponse results = run("from test | stats avg_count = avg(count) | eval x = avg_count + 7");
         logger.info(results);
         Assert.assertEquals(1, results.values().size());
@@ -874,9 +874,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             equalTo(List.of(new ColumnInfo("version", "keyword"), new ColumnInfo("date", "keyword"), new ColumnInfo("hash", "keyword")))
         );
         assertThat(results.values().size(), equalTo(1));
-        assertThat(results.values().get(0).get(0), equalTo(Build.CURRENT.version()));
-        assertThat(results.values().get(0).get(1), equalTo(Build.CURRENT.date()));
-        assertThat(results.values().get(0).get(2), equalTo(Build.CURRENT.hash()));
+        assertThat(results.values().get(0).get(0), equalTo(Build.current().version()));
+        assertThat(results.values().get(0).get(1), equalTo(Build.current().date()));
+        assertThat(results.values().get(0).get(2), equalTo(Build.current().hash()));
     }
 
     public void testShowFunctions() {

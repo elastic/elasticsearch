@@ -80,7 +80,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     protected static QueryPragmas randomPragmas() {
         Settings.Builder settings = Settings.builder();
         // pragmas are only enabled on snapshot builds
-        if (Build.CURRENT.isSnapshot()) {
+        if (Build.current().isSnapshot()) {
             if (randomBoolean()) {
                 settings.put("task_concurrency", randomLongBetween(1, 10));
             }

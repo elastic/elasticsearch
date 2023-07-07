@@ -41,7 +41,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 
         RequestObjectBuilder builder = new RequestObjectBuilder().query(fromIndex() + " | stats avg(value)");
-        if (Build.CURRENT.isSnapshot()) {
+        if (Build.current().isSnapshot()) {
             builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         }
         builder.build();
@@ -53,7 +53,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testInvalidPragma() throws IOException {
-        assumeTrue("pragma only enabled on snapshot builds", Build.CURRENT.isSnapshot());
+        assumeTrue("pragma only enabled on snapshot builds", Build.current().isSnapshot());
         RequestObjectBuilder builder = new RequestObjectBuilder().query("row a = 1, b = 2");
         builder.pragmas(Settings.builder().put("data_partitioning", "invalid-option").build());
         builder.build();
@@ -62,7 +62,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testPragmaNotAllowed() throws IOException {
-        assumeFalse("pragma only disabled on release builds", Build.CURRENT.isSnapshot());
+        assumeFalse("pragma only disabled on release builds", Build.current().isSnapshot());
         RequestObjectBuilder builder = new RequestObjectBuilder().query("row a = 1, b = 2");
         builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         builder.build();

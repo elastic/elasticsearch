@@ -5,6 +5,9 @@ setup:
 
 ---
 "Create synonyms with no ID creates ID automatically":
+  - skip:
+      version: " - 8.9.99"
+      reason: Fixed for 8.10.0
   - do:
       synonyms.put:
         synonyms_set: test-update-synonyms

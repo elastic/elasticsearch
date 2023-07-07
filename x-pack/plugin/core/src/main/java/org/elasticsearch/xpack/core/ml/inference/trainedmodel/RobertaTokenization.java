@@ -23,6 +23,7 @@ import java.util.Optional;
 
 public class RobertaTokenization extends Tokenization {
     public static final String NAME = "roberta";
+    public static final String MASK_TOKEN = "<mask>";
     private static final boolean DEFAULT_ADD_PREFIX_SPACE = false;
 
     private static final ParseField ADD_PREFIX_SPACE = new ParseField("add_prefix_space");
@@ -97,6 +98,11 @@ public class RobertaTokenization extends Tokenization {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(addPrefixSpace);
+    }
+
+    @Override
+    public String getMaskToken() {
+        return MASK_TOKEN;
     }
 
     @Override

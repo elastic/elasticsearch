@@ -245,7 +245,7 @@
 window.addEventListener("DOMContentLoaded", (event) => {
   const left_col = document.getElementById("left_col")
   left_col.classList.remove('col-0')
-  left_col.classList.add("col-12", "order-2", "col-md-4", "col-lg-3", "h-almost-full-md", "sticky-top-md")
+  left_col.classList.add("col-12", "col-md-4", "col-lg-3", "h-almost-full-md", "sticky-top-md")
   const right_col = document.getElementById("right_col")
   right_col.classList.add('d-none')
   const middle_col = document.getElementById("middle_col")

@@ -390,4 +390,5 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             }
         }
     }
+
 }

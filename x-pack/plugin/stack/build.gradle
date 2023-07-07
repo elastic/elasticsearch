@@ -8,7 +8,9 @@ esplugin {
   hasNativeController false
   requiresKeystore true
 }
-archivesBaseName = 'x-pack-stack'
+base {
+  archivesName = 'x-pack-stack'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

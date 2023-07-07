@@ -1,0 +1,6 @@
+pr: 97355
+summary: Fix mapping parsing logic to determine synthetic source is active
+area: "Mapping"
+type: bug
+issues:
+ - 97320

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyti
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
+import org.elasticsearch.xpack.application.rules.QueryRulesetConfig;
 import org.elasticsearch.xpack.application.rules.RuleQueryBuilder;
 import org.elasticsearch.xpack.application.rules.action.DeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.GetQueryRulesetAction;
@@ -263,16 +264,13 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             AnalyticsEventIngestConfig.MAX_NUMBER_OF_EVENTS_PER_BULK_SETTING,
             AnalyticsEventIngestConfig.FLUSH_DELAY_SETTING,
             AnalyticsEventIngestConfig.MAX_NUMBER_OF_RETRIES_SETTING,
-            AnalyticsEventIngestConfig.MAX_BYTES_IN_FLIGHT_SETTING
+            AnalyticsEventIngestConfig.MAX_BYTES_IN_FLIGHT_SETTING,
+            QueryRulesetConfig.MAX_RULE_LIMIT_SETTING
         );
     }
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
-            return singletonList(new QuerySpec<>(RuleQueryBuilder.NAME, RuleQueryBuilder::new, RuleQueryBuilder::fromXContent));
-        } else {
-            return Collections.emptyList();
-        }
+        return singletonList(new QuerySpec<>(RuleQueryBuilder.NAME, RuleQueryBuilder::new, RuleQueryBuilder::fromXContent));
     }
 }

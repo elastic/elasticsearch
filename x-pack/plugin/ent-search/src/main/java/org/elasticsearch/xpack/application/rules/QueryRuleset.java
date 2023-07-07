@@ -13,7 +13,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -31,20 +30,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class QueryRuleset implements Writeable, ToXContentObject {
-
-    /**
-     * Index setting describing the maximum number of {@link QueryRule}s that can be included
-     * in a query ruleset.
-     */
-    private static final Setting<Integer> MAX_RULES_PER_RULESET_SETTING = Setting.intSetting(
-        "query_rules.max_rules_per_ruleset",
-        100,
-        1,
-        1000,
-        Setting.Property.Dynamic,
-        Setting.Property.IndexScope
-    );
-    private static final int MAX_RULES_PER_RULESET = 100; // TODO remove and replace with setting
 
     private final String id;
     private final List<QueryRule> rules;
@@ -65,8 +50,6 @@ public class QueryRuleset implements Writeable, ToXContentObject {
         Objects.requireNonNull(rules, "rules cannot be null");
         if (rules.isEmpty()) {
             throw new IllegalArgumentException("rules cannot be empty");
-        } else if (rules.size() > MAX_RULES_PER_RULESET) {
-            throw new IllegalArgumentException("rules cannot contain more than " + MAX_RULES_PER_RULESET + " rules");
         }
         this.rules = rules;
     }

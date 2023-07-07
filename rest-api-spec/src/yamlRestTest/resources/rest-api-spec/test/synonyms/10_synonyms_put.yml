@@ -30,6 +30,23 @@ setup:
   - length: { reload_analyzers_details.reload_details: 0 }
 
 ---
+"Create empty synonyms set":
+  - do:
+      synonyms.put:
+        synonyms_set: test-empty-synonyms
+        body:
+          synonyms_set: []
+
+  - match: { result: "created" }
+
+  - do:
+      synonyms.get:
+        synonyms_set: test-empty-synonyms
+
+  - match: { count: 0 }
+  - match: { synonyms_set: [] }
+
+---
 "Validation fails tests":
   - do:
       catch: /\[synonyms\] field can't be empty/

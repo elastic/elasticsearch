@@ -20,6 +20,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -27,26 +29,13 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class SearchApplicationSearchRequest extends ActionRequest implements IndicesRequest {
+public class SearchApplicationSearchRequest extends ActionRequest implements IndicesRequest, ToXContentObject {
 
     private static final ParseField QUERY_PARAMS_FIELD = new ParseField("params");
+    private static final ParseField NAME_FIELD = new ParseField("name");
     private final String name;
-
-    private static final ConstructingObjectParser<SearchApplicationSearchRequest, String> PARSER = new ConstructingObjectParser<>(
-        "query_params",
-        false,
-        (params, searchAppName) -> {
-            @SuppressWarnings("unchecked")
-            final Map<String, Object> queryParams = (Map<String, Object>) params[0];
-            return new SearchApplicationSearchRequest(searchAppName, queryParams);
-        }
-    );
-
-    static {
-        PARSER.declareObject(constructorArg(), (p, c) -> p.map(), QUERY_PARAMS_FIELD);
-    }
 
     private final Map<String, Object> queryParams;
 
@@ -63,6 +52,24 @@ public class SearchApplicationSearchRequest extends ActionRequest implements Ind
     public SearchApplicationSearchRequest(String name, @Nullable Map<String, Object> queryParams) {
         this.name = Objects.requireNonNull(name, "Application name must be specified");
         this.queryParams = Objects.requireNonNullElse(queryParams, Map.of());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<SearchApplicationSearchRequest, String> PARSER = new ConstructingObjectParser<>(
+        "query_params",
+        false,
+        (params, searchAppName) -> {
+            final String name = Strings.isEmpty(searchAppName) ? (String) params[0] : searchAppName;
+
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> queryParams = (Map<String, Object>) params[1];
+            return new SearchApplicationSearchRequest(name, queryParams);
+        }
+    );
+
+    static {
+        PARSER.declareString(optionalConstructorArg(), NAME_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), QUERY_PARAMS_FIELD);
     }
 
     public static SearchApplicationSearchRequest fromXContent(String name, XContentParser contentParser) {
@@ -121,5 +128,20 @@ public class SearchApplicationSearchRequest extends ActionRequest implements Ind
     @Override
     public IndicesOptions indicesOptions() {
         return IndicesOptions.strictNoExpandForbidClosed();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(NAME_FIELD.getPreferredName(), name);
+        if (queryParams.isEmpty() != true) {
+            builder.field(QUERY_PARAMS_FIELD.getPreferredName(), queryParams);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    public static SearchApplicationSearchRequest parse(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

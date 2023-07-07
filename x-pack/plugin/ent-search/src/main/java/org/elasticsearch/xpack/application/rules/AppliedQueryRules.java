@@ -38,12 +38,10 @@ public class AppliedQueryRules {
     }
 
     public void applyRule(QueryRule queryRule, Map<String, Object> matchCriteria) {
-        if (QueryRuleValidator.validRule(queryRule)) {
-            if (queryRule.type() == QueryRule.QueryRuleType.PINNED) {
-                applyPinnedRule(queryRule, matchCriteria);
-            } else {
-                throw new UnsupportedOperationException("Unsupported QueryRule type: " + queryRule.type());
-            }
+        if (queryRule.type() == QueryRule.QueryRuleType.PINNED) {
+            applyPinnedRule(queryRule, matchCriteria);
+        } else {
+            throw new UnsupportedOperationException("Unsupported QueryRule type: " + queryRule.type());
         }
     }
 

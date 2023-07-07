@@ -13,29 +13,22 @@ setup:
               number_of_replicas: 0
 
   - do:
-      index:
-        index: test-index1
-        id: doc1
-        body:
-          text: elastic
+      bulk:
         refresh: true
-
-  - do:
-      index:
         index: test-index1
-        id: doc2
         body:
-          text: kibana
-        refresh: true
-
-  - do:
-      index:
-        index: test-index1
-        id: doc3
-        body:
-          text: logstash
-        refresh: true
-
+          - index:
+              _id: doc1
+          - { "text": "elastic" }
+          - index:
+              _id: doc2
+          - { "text": "kibana" }
+          - index:
+              _id: doc3
+          - { "text": "logstash" }
+          - index:
+              _id: doc4
+          - { "text": "you know, for search" }
 
   - do:
       query_ruleset.put:
@@ -78,8 +71,9 @@ setup:
                 query_string: search
               ruleset_id: test-ruleset
 
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: 'doc1' }
+  - match: { hits.hits.1._id: 'doc4' }
 
 ---
 "As a user, perform a rule query with an ID match":
@@ -100,8 +94,9 @@ setup:
                 query_string: search
               ruleset_id: test-ruleset
 
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: 'doc1' }
+  - match: { hits.hits.1._id: 'doc4' }
 
 ---
 "As a user, perform a rule query with a doc match":

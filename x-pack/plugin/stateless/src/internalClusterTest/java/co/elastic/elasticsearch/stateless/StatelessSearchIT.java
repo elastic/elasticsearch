@@ -44,7 +44,6 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -151,7 +150,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(BlobCachePlugin.class, MockTransportService.TestPlugin.class, TestStateless.class);
+        return super.nodePlugins().stream().map(c -> c.equals(Stateless.class) ? TestStateless.class : c).toList();
     }
 
     private static int getNumberOfCreatedCommits() {
@@ -175,14 +174,14 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         startIndexNodes(numShards);
         startSearchNodes(numShards * numReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsWithRandomFastRefresh(numShards, numReplicas).build());
+        createIndex(indexName, indexSettings(numShards, numReplicas).build());
         ensureGreen(indexName);
     }
 
     public void testSearchShardsStartedAfterIndexShards() {
         startIndexNodes(numShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsWithRandomFastRefresh(numShards, 0).build());
+        createIndex(indexName, indexSettings(numShards, 0).build());
         ensureGreen(indexName);
 
         startSearchNodes(numShards * numReplicas);
@@ -194,7 +193,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         startIndexNodes(numShards);
         startSearchNodes(numShards * numReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsWithRandomFastRefresh(numShards, numReplicas).build());
+        createIndex(indexName, indexSettings(numShards, numReplicas).build());
         ensureGreen(indexName);
 
         indexDocs(indexName, randomIntBetween(1, 100));
@@ -208,7 +207,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     public void testSearchShardsStartedAfterIndexShardsWithDocs() {
         startIndexNodes(numShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsWithRandomFastRefresh(numShards, 0).build());
+        createIndex(indexName, indexSettings(numShards, 0).build());
         ensureGreen(indexName);
 
         indexDocs(indexName, randomIntBetween(1, 100));
@@ -398,7 +397,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsWithRandomFastRefresh(numShards, numReplicas).build());
+        createIndex(indexName, indexSettings(numShards, numReplicas).build());
         ensureGreen(indexName);
 
         var bulkResponse = client().prepareBulk()
@@ -413,7 +412,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     public void testSearchShardsNotifiedOnNewCommits() throws Exception {
         startIndexNodes(numShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsWithRandomFastRefresh(numShards, 0).build());
+        createIndex(indexName, indexSettings(numShards, 0).build());
         ensureGreen(indexName);
         startSearchNodes(numReplicas);
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas), indexName);
@@ -481,9 +480,8 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
     private void testRefresh(boolean fastRefresh) throws InterruptedException, ExecutionException {
         assert cluster().numDataNodes() > 0 : "Should have already started nodes";
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
+        final String indexName = SYSTEM_INDEX_NAME;
+        createSystemIndex(
             indexSettings(numShards, numReplicas).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), fastRefresh).build()
         );
         ensureGreen(indexName);
@@ -534,7 +532,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         startIndexNodes(1);
         startSearchNodes(1);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsWithRandomFastRefresh(1, 0).build());
+        createIndex(indexName, indexSettings(1, 0).build());
 
         ensureGreen(indexName);
         int docsToIndex = randomIntBetween(10, 20);
@@ -620,7 +618,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        var indexSettings = indexSettingsWithRandomFastRefresh(numShards, numReplicas);
+        var indexSettings = indexSettings(numShards, numReplicas);
         createIndex(indexName, indexSettings.build());
         ensureGreen(indexName);
 
@@ -684,10 +682,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         startSearchNodes(numReplicas);
         // create index on all nodes except one search node
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        var indexSettings = indexSettingsWithRandomFastRefresh(numShards, numReplicas).put(
-            "index.routing.allocation.exclude._name",
-            coordinatingSearchNode
-        );
+        var indexSettings = indexSettings(numShards, numReplicas).put("index.routing.allocation.exclude._name", coordinatingSearchNode);
         createIndex(indexName, indexSettings.build());
         ensureGreen(indexName);
         int bulk1DocsToIndex = randomIntBetween(100, 200);
@@ -746,10 +741,8 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            indexSettingsWithRandomFastRefresh(numberOfShards, numberOfShards).put(
-                IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(),
-                true
-            ).build()
+            indexSettings(numberOfShards, numberOfShards).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                .build()
         );
         ensureGreen(indexName);
 
@@ -838,10 +831,9 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         startIndexNodes(numberOfShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
-            prepareCreate(
-                indexName,
-                indexSettingsWithRandomFastRefresh(numberOfShards, 0).put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "rank")
-            ).setMapping("rank", "type=integer").get()
+            prepareCreate(indexName, indexSettings(numberOfShards, 0).put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "rank"))
+                .setMapping("rank", "type=integer")
+                .get()
         );
         ensureGreen(indexName);
 
@@ -924,7 +916,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         var indexNode = startIndexNodes(1).get(0);
         startSearchNodes(1);
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsWithRandomFastRefresh(1, 1).build());
+        createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
         final int docCount = randomIntBetween(1, 100);
         indexDocs(indexName, docCount);
@@ -955,8 +947,8 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     public void testFastRefreshSearch() throws Exception {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(numShards, numReplicas).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
+        final String indexName = SYSTEM_INDEX_NAME;
+        createSystemIndex(indexSettings(numShards, numReplicas).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
         ensureGreen(indexName);
         int docsToIndex = randomIntBetween(1, 100);
         indexDocsAndRefresh(indexName, docsToIndex);
@@ -979,8 +971,8 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     public void testFastRefreshGetAndMGet() throws Exception {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(numShards, numReplicas).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
+        final String indexName = SYSTEM_INDEX_NAME;
+        createSystemIndex(indexSettings(numShards, numReplicas).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
         ensureGreen(indexName);
 
         var bulkRequest = client().prepareBulk();

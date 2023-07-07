@@ -19,12 +19,14 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.StatelessRefreshThrottlingIT;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -41,15 +43,16 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.Before;
@@ -66,6 +69,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -85,9 +89,39 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return true;
     }
 
+    public static final String SYSTEM_INDEX_NAME = ".sys-idx";
+
+    protected void createSystemIndex(Settings indexSettings) {
+        assertAcked(prepareCreate(SYSTEM_INDEX_NAME).setSettings(indexSettings));
+    }
+
+    public static class SystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return List.of(
+                SystemIndexDescriptor.builder()
+                    .setIndexPattern(SYSTEM_INDEX_NAME + "*")
+                    .setDescription("Test system indices")
+                    .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
+                    .build()
+            );
+        }
+
+        @Override
+        public String getFeatureName() {
+            return StatelessRefreshThrottlingIT.SystemIndexTestPlugin.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "A simple test plugin with test indices";
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(BlobCachePlugin.class, Stateless.class, MockTransportService.TestPlugin.class);
+        return List.of(SystemIndexTestPlugin.class, BlobCachePlugin.class, Stateless.class, MockTransportService.TestPlugin.class);
     }
 
     private boolean useBasePath;
@@ -397,6 +431,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return client().admin()
             .indices()
             .prepareGetIndex()
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
             .get()
             .getSettings()
             .values()
@@ -438,12 +473,5 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                 assertThat(totalOps, equalTo(indexShard.seqNoStats().getMaxSeqNo() + 1));
             }
         }
-    }
-
-    /**
-     * Return consistent index settings for the provided shard- and replica-count. 25% random chance of enabling the fast refresh setting.
-     */
-    public static Settings.Builder indexSettingsWithRandomFastRefresh(int shards, int replicas) {
-        return indexSettings(shards, replicas).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), randomBoolean() && randomBoolean());
     }
 }

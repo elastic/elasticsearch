@@ -194,7 +194,7 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
         indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            indexSettingsWithRandomFastRefresh(1, 1)
+            indexSettings(1, 1)
                 // tests control flushes
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                 .build()

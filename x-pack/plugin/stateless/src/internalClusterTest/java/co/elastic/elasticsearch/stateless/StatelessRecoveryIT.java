@@ -93,10 +93,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            indexSettingsWithRandomFastRefresh(1, 0).put(
-                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
-                new TimeValue(1, TimeUnit.MINUTES)
-            ).build()
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.MINUTES)).build()
         );
         ensureGreen(indexName);
 
@@ -147,7 +144,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final var indexNodes = startIndexNodes(Math.max(2, numShards));
 
         final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettingsWithRandomFastRefresh(numShards, 0).build());
+        createIndex(indexName, indexSettings(numShards, 0).build());
         ensureGreen(indexName);
 
         final ClusterStateListener verifyGreenListener = event -> {
@@ -255,10 +252,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final var indexNodes = startIndexNodes(2);
 
         final String indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettingsWithRandomFastRefresh(numShards, 0).put("index.routing.allocation.require._name", indexNodes.get(0)).build()
-        );
+        createIndex(indexName, indexSettings(numShards, 0).put("index.routing.allocation.require._name", indexNodes.get(0)).build());
         ensureGreen(indexName);
 
         indexDocs(indexName, between(1, 100));
@@ -313,10 +307,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final var indexNodes = startIndexNodes(2);
 
         final String indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettingsWithRandomFastRefresh(numShards, 0).put("index.routing.allocation.require._name", indexNodes.get(0)).build()
-        );
+        createIndex(indexName, indexSettings(numShards, 0).put("index.routing.allocation.require._name", indexNodes.get(0)).build());
         ensureGreen(indexName);
 
         indexDocs(indexName, between(1, 100));
@@ -352,10 +343,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final var indexNodes = startIndexNodes(2);
 
         final String indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettingsWithRandomFastRefresh(numShards, 0).put("index.routing.allocation.require._name", indexNodes.get(0)).build()
-        );
+        createIndex(indexName, indexSettings(numShards, 0).put("index.routing.allocation.require._name", indexNodes.get(0)).build());
         ensureGreen(indexName);
 
         indexDocs(indexName, between(1, 100));
@@ -390,7 +378,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         startSearchNode();
 
         var indexName = randomIdentifier();
-        createIndex(indexName, indexSettingsWithRandomFastRefresh(1, 1).build());
+        createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
 
         int numDocsRound1 = randomIntBetween(1, 100);
@@ -442,7 +430,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     public void testRecoverMultipleIndexingShardsWithCoordinatingRetries() throws Exception {
         String firstIndexingShard = startIndexNode();
         final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettingsWithRandomFastRefresh(1, 0).build());
+        createIndex(indexName, indexSettings(1, 0).build());
 
         ensureGreen(indexName);
 
@@ -496,10 +484,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            indexSettingsWithRandomFastRefresh(1, 0).put(
-                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
-                new TimeValue(1, TimeUnit.MINUTES)
-            ).build()
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.MINUTES)).build()
         );
         ensureGreen(indexName);
 
@@ -513,10 +498,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final String newIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             newIndex,
-            indexSettingsWithRandomFastRefresh(1, 0).put(
-                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
-                new TimeValue(1, TimeUnit.MINUTES)
-            ).build()
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.MINUTES)).build()
         );
         ensureGreen(newIndex);
 

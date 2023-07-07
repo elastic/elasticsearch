@@ -674,11 +674,11 @@ number, there are a few rules that need to be followed:
    and should not be modified once it is defined. Each version is immutable
    once merged into `main`.
 2. To create a new component version, add a new constant to the respective class
-   with the preceding version number +1, modify the version id string to a new
+   using the preceding version number +1, modify the version id string to a new
    unique string (normally a UUID), and set that constant as the new current
    version.
 
-The version ID string in the constant definitionis not used in the executing
+The version ID string in the constant definition is not used in the executing
 code; it is there to ensure that if two concurrent pull requests add the same
 version constant, there will be a git conflict on those lines. This is to ensure
 two PRs don't accidentally use the same version constant.

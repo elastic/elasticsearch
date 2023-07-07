@@ -12,6 +12,8 @@ initscript {
 
 boolean USE_ARTIFACTORY = false
 
+return
+
 if (System.getenv('VAULT_ADDR') == null) {
   // When trying to reproduce errors outside of CI, it can be useful to allow this to just return rather than blowing up
   if (System.getenv('CI') == null) {

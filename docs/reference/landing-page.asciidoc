@@ -1,3 +1,5 @@
+[subs=attributes+]
+++++
 <style>
   * {
     box-sizing: border-box;
@@ -240,4 +242,19 @@
   </div>
 </div>
 
-<p class="my-4"><a href="https://www.elastic.co/guide/index.html">View all Elastic docs</a></p>
+<script>
+window.addEventListener("DOMContentLoaded", (event) => {
+  const left_col = document.getElementById("left_col")
+  left_col.classList.remove('col-0')
+  left_col.classList.add("col-12", "col-md-4", "col-lg-3", "h-almost-full-md", "sticky-top-md")
+  const right_col = document.getElementById("right_col")
+  right_col.classList.add('d-none')
+  const middle_col = document.getElementById("middle_col")
+  middle_col.classList.remove("col-lg-7")
+  middle_col.classList.add("col-lg-9", "col-md-8")
+  const toc = middle_col.getElementsByClassName("toc")[0]
+  toc.remove()
+  left_col.appendChild(toc);
+});
+</script>
+++++

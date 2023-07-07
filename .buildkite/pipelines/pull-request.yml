@@ -1,20 +1,20 @@
 steps:
-  - group: bwc-snapshots-windows-brianseeders
-    steps:
-      - label: "{{matrix.BWC_VERSION}} / bwc-snapshots-windows"
-        command: .buildkite\generated-scripts\4ef3241cf6b8dbbae758f32a006b0bc0.bat
-        timeout_in_minutes: 180
-        matrix:
-          setup:
-            BWC_VERSION:
-              - 7.17.12
-              - 8.8.3
-              - 8.9.0
-              - 8.10.0
-        agents:
-          queue: brianseeders
-        env:
-          BWC_VERSION: "{{matrix.BWC_VERSION}}"
+  # - group: bwc-snapshots-windows-brianseeders
+  #   steps:
+  #     - label: "{{matrix.BWC_VERSION}} / bwc-snapshots-windows"
+  #       command: .buildkite\generated-scripts\4ef3241cf6b8dbbae758f32a006b0bc0.bat
+  #       timeout_in_minutes: 180
+  #       matrix:
+  #         setup:
+  #           BWC_VERSION:
+  #             - 7.17.12
+  #             - 8.8.3
+  #             - 8.9.0
+  #             - 8.10.0
+  #       agents:
+  #         queue: brianseeders
+  #       env:
+  #         BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - group: bwc-snapshots-windows
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots-windows"

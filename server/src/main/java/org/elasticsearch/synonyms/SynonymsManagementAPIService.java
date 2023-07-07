@@ -410,6 +410,7 @@ public class SynonymsManagementAPIService {
                     );
                     return;
                 }
+                reloadAnalyzers(synonymSetId, deleteRulesListener, AcknowledgedResponse.of(true));
             }));
         }));
     }

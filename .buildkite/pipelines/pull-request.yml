@@ -12,12 +12,7 @@ steps:
               - 8.9.0
               - 8.10.0
         agents:
-          provider: gcp
-          image: family/brian-elasticsearch-windows-2022
-          imageProject: elastic-images-qa
-          machineType: custom-32-98304
-          diskType: pd-ssd
-          diskSizeGb: 350
+          queue: brianseeders
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - group: packaging-tests-windows

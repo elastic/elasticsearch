@@ -4,8 +4,6 @@
 ++++
 <titleabbrev>Processing commands</titleabbrev>
 ++++
-:keywords: {es}, {esql}, {es} query language, processing commands
-:description: {esql} processing commands change an input table by adding, removing, or changing rows and columns.
 
 {esql} processing commands change an input table by adding, removing, or changing
 rows and columns.

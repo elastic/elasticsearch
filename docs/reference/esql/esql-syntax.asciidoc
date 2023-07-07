@@ -4,8 +4,6 @@
 ++++
 <titleabbrev>Syntax reference</titleabbrev>
 ++++
-:keywords: {es}, {esql}, {es} query language, syntax
-:description: An {esql} query is composed of a source command followed by an optional series of processing commands, separated by a pipe character.
 
 [discrete]
 [[esql-basic-syntax]]

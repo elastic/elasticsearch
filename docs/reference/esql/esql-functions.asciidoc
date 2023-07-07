@@ -4,8 +4,6 @@
 ++++
 <titleabbrev>Functions</titleabbrev>
 ++++
-:keywords: {es}, {esql}, {es} query language, functions
-:description: {esql} supports various functions for calculating values.
 
 <<esql-row,`ROW`>>, <<esql-eval,`EVAL`>> and <<esql-where,`WHERE`>> support
 these functions:

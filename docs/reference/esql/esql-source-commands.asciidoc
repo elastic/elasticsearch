@@ -4,8 +4,6 @@
 ++++
 <titleabbrev>Source commands</titleabbrev>
 ++++
-:keywords: {es}, {esql}, {es} query language, source commands
-:description: An {esql} source command produces a table, typically with data from {es}.
 
 An {esql} source command produces a table, typically with data from {es}.
 

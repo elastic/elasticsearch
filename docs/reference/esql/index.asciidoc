@@ -1,9 +1,6 @@
 [[esql]]
 = {esql}
 
-:keywords: {es}, {esql}, {es} query language
-:description: {esql} is a query language that enables the iterative exploration of data.
-
 :esql-tests: {xes-repo-dir}/../../plugin/esql/qa
 :esql-specs: {esql-tests}/testFixtures/src/main/resources
 

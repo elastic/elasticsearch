@@ -83,10 +83,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
          * @param id and its id
          */
         public Item(String index, String id) {
-            if (index == null) {
-                throw new IllegalArgumentException("Item requires index to be non-null");
-            }
-            if (Regex.isSimpleMatchPattern(index)) {
+            if (index != null && Regex.isSimpleMatchPattern(index)) {
                 throw new IllegalArgumentException("Item index cannot contain wildcard expressions");
             }
             if (id == null) {
@@ -129,7 +126,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         );
 
         static {
-            PARSER.declareString(constructorArg(), INDEX_FIELD);
+            PARSER.declareStringOrNull(optionalConstructorArg(), INDEX_FIELD);
             PARSER.declareString(constructorArg(), ID_FIELD);
         }
 

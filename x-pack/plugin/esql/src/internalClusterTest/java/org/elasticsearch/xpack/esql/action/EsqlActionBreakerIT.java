@@ -12,9 +12,16 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.containsString;
@@ -26,6 +33,14 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class EsqlActionBreakerIT extends AbstractEsqlIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(InternalExchangePlugin.class);
+        return plugins;
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
@@ -44,6 +59,7 @@ public class EsqlActionBreakerIT extends AbstractEsqlIntegTestCase {
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(),
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getDefault(Settings.EMPTY)
             )
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(500, 2000)))
             .build();
     }
 
@@ -58,7 +74,7 @@ public class EsqlActionBreakerIT extends AbstractEsqlIntegTestCase {
         ensureYellow("test");
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> EsqlActionIT.run("from test | stats avg(foo) by bar", QueryPragmas.EMPTY)
+            () -> run("from test | stats avg(foo) by bar", QueryPragmas.EMPTY)
         );
         logger.info("expected error", e);
         if (e instanceof CircuitBreakingException) {

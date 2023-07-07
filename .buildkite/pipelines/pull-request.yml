@@ -1,18 +1,8 @@
 steps:
   - group: bwc-snapshots-windows
     steps:
-      - label: "help task"
-        command: ".ci/scripts/run-gradle.sh -Dignore.tests.seed help"
-        timeout_in_minutes: 180
-        agents:
-          provider: gcp
-          image: family/brian-elasticsearch-windows-2022
-          imageProject: elastic-images-qa
-          machineType: custom-32-98304
-          diskType: pd-ssd
-          diskSizeGb: 350
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots-windows"
-        command: ".ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest"
+        command: .buildkite\generated-scripts\4ef3241cf6b8dbbae758f32a006b0bc0.bat
         timeout_in_minutes: 180
         matrix:
           setup:
@@ -30,30 +20,30 @@ steps:
           diskSizeGb: 350
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
-  # - group: packaging-tests-windows
-  #   steps:
-  #     - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-windows"
-  #       command: '@()|.\.buildkite\generated-scripts\ca6b2b9c7738eac3d32fd7cd4ac2faa8.bat'
-  #       timeout_in_minutes: 180
-  #       matrix:
-  #         setup:
-  #           image:
-  #             - windows-2016
-  #             - windows-2019
-  #             - windows-2022
-  #           PACKAGING_TASK:
-  #             - default-windows-archive
-  #       agents:
-  #         provider: gcp
-  #         image: family/brian-elasticsearch-{{matrix.image}}
-  #         imageProject: elastic-images-qa
-  #         machineType: custom-32-98304
-  #         diskType: pd-ssd
-  #         diskSizeGb: 350
-  #       env:
-  #         PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
+  - group: packaging-tests-windows
+    steps:
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-windows"
+        command: .buildkite\generated-scripts\ca6b2b9c7738eac3d32fd7cd4ac2faa8.bat
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - windows-2016
+              - windows-2019
+              - windows-2022
+            PACKAGING_TASK:
+              - default-windows-archive
+        agents:
+          provider: gcp
+          image: family/brian-elasticsearch-{{matrix.image}}
+          imageProject: elastic-images-qa
+          machineType: custom-32-98304
+          diskType: pd-ssd
+          diskSizeGb: 350
+        env:
+          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - label: part-1-windows
-    command: ".ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1"
+    command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
     timeout_in_minutes: 180
     agents:
       provider: gcp
@@ -63,7 +53,7 @@ steps:
       diskType: pd-ssd
       diskSizeGb: 350
   - label: part-2-windows
-    command: ".ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart2"
+    command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
     timeout_in_minutes: 180
     agents:
       provider: gcp
@@ -73,7 +63,7 @@ steps:
       diskType: pd-ssd
       diskSizeGb: 350
   - label: part-3-windows
-    command: ".ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart3"
+    command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
     timeout_in_minutes: 180
     agents:
       provider: gcp

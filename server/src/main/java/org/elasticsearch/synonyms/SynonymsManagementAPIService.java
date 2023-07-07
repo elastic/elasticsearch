@@ -111,7 +111,6 @@ public class SynonymsManagementAPIService {
         - OBJECT_TYPE_FIELD contains SYNONYM_RULE_OBJECT_TYPE
         - The id is calculated using internalSynonymRuleId method
     - Synonym sets:
-        - SYNONYMS_FIELD contains the synonym set name
         - OBJECT_TYPE_FIELD contains SYNONYM_SET_OBJECT_TYPE
         - The id is the synonym set name
      */
@@ -166,21 +165,16 @@ public class SynonymsManagementAPIService {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setSize(0)
             .addAggregation(
-                // Retrieves synonym rules for each synonym set, excluding the synonym set object type
-                new FilterAggregationBuilder(RULESET_FILTER_AGG_NAME, QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
-                    .subAggregation(
-                        new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD)
-                            .order(BucketOrder.key(true))
-                            .size(MAX_SYNONYMS_SETS)
-                    )
+                new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD)
+                    .order(BucketOrder.key(true))
+                    .size(MAX_SYNONYMS_SETS)
             )
             .setPreference(Preference.LOCAL.type())
             .execute(new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    Filter filterAggregation = searchResponse.getAggregations().get(RULESET_FILTER_AGG_NAME);
-                    Terms termsAggregation = filterAggregation.getAggregations().get(SYNONYM_SETS_AGG_NAME);
-                    List<? extends Terms.Bucket> buckets = termsAggregation.getBuckets();
+                    Terms aggregation = searchResponse.getAggregations().get(SYNONYM_SETS_AGG_NAME);
+                    List<? extends Terms.Bucket> buckets = aggregation.getBuckets();
                     SynonymSetSummary[] synonymSetSummaries = buckets.stream()
                         .skip(from)
                         .limit(size)
@@ -208,11 +202,7 @@ public class SynonymsManagementAPIService {
         checkSynonymSetExists(synonymSetId, listener.delegateFailure((existsListener, response) -> {
             // Retrieves synonym rules, excluding the synonym set object type
             client.prepareSearch(SYNONYMS_ALIAS_NAME)
-                .setQuery(
-                    QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
-                        .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
-                )
+                .setQuery(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
                 .setFrom(from)
                 .setSize(size)
                 .addSort("id", SortOrder.ASC)
@@ -237,7 +227,7 @@ public class SynonymsManagementAPIService {
         SynonymRule[] synonymsSet,
         ActionListener<SynonymsReloadResult<UpdateSynonymsResultStatus>> listener
     ) {
-        deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteByQueryResponseListener, bulkDeleteResponse) -> {
+        deleteSynonymsSetRules(synonymSetId, listener.delegateFailure((deleteByQueryResponseListener, bulkDeleteResponse) -> {
             boolean created = bulkDeleteResponse.getDeleted() == 0;
             final List<BulkItemResponse.Failure> bulkDeleteFailures = bulkDeleteResponse.getBulkFailures();
             if (bulkDeleteFailures.isEmpty() == false) {
@@ -367,7 +357,6 @@ public class SynonymsManagementAPIService {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             {
-                builder.field(SYNONYMS_SET_FIELD, synonymsSetId);
                 builder.field(OBJECT_TYPE_FIELD, SYNONYM_SET_OBJECT_TYPE);
             }
             builder.endObject();
@@ -389,7 +378,7 @@ public class SynonymsManagementAPIService {
     }
 
     // Deletes a synonym set rules and the synonym set object, using the supplied listener
-    private void deleteSynonymsSetObjects(String synonymSetId, ActionListener<BulkByScrollResponse> listener) {
+    private void deleteSynonymsSetRules(String synonymSetId, ActionListener<BulkByScrollResponse> listener) {
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_ALIAS_NAME).setQuery(
             QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId)
         ).setRefresh(true).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
@@ -400,7 +389,8 @@ public class SynonymsManagementAPIService {
     public void deleteSynonymsSet(String synonymSetId, ActionListener<SynonymsReloadResult<AcknowledgedResponse>> listener) {
         // Check it exists to simplify code paths
         checkSynonymSetExists(synonymSetId, listener.delegateFailure((checkListener, response) -> {
-            deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteRulesListener, bulkByScrollResponse) -> {
+            // First deletes all synonym rules
+            deleteSynonymsSetRules(synonymSetId, listener.delegateFailure((deleteRulesListener, bulkByScrollResponse) -> {
                 final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
                 if (bulkFailures.isEmpty() == false) {
                     deleteRulesListener.onFailure(
@@ -411,7 +401,17 @@ public class SynonymsManagementAPIService {
                     );
                     return;
                 }
-                reloadAnalyzers(synonymSetId, deleteRulesListener, AcknowledgedResponse.of(true));
+
+                // Deletes the synonym set doc
+                client.prepareDelete(SYNONYMS_ALIAS_NAME, synonymSetId).execute(deleteRulesListener.delegateFailure((deleteListener, deleteResponse) -> {
+                    if (deleteResponse.status() != RestStatus.OK) {
+                        deleteListener.onFailure(new ElasticsearchException("Error deleting synonym set [" + synonymSetId + "]"));
+                        return;
+                    }
+
+                    reloadAnalyzers(synonymSetId, deleteListener, AcknowledgedResponse.of(true));
+                }));
+
             }));
         }));
     }

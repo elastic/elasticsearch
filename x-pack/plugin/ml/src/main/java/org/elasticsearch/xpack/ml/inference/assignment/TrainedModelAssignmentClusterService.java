@@ -279,11 +279,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (clusterService.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot create new assignment [{}] for model [{}] while there are transport versions older than [{}]",
+                    "cannot create new assignment [{}] for model [{}] while cluster upgrade is in progress",
                     RestStatus.CONFLICT,
                     params.getDeploymentId(),
-                    params.getModelId(),
-                    DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION
+                    params.getModelId()
                 )
             );
             return;

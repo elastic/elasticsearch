@@ -139,7 +139,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
 
         if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
             listener.onFailure(
-                new ElasticsearchStatusException("Cannot start model [{}] while cluster upgrade is in progress.", RestStatus.FORBIDDEN)
+                new ElasticsearchStatusException(
+                    "Cannot start model deployment [{}] while cluster upgrade is in progress.",
+                    RestStatus.FORBIDDEN,
+                    request.getDeploymentId()
+                )
             );
             return;
         }

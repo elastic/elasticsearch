@@ -63,9 +63,10 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  * Manages synonyms performing operations on the system index
  */
 public class SynonymsManagementAPIService {
-    public static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
-    public static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-1";
-    public static final String SYNONYMS_ALIAS_NAME = ".synonyms";
+    private static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
+    private static final int SYNONYMS_INDEX_FORMAT = 2;
+    private static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
+    private static final String SYNONYMS_ALIAS_NAME = ".synonyms";
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
     // Stores the synonym set the rule belongs to
     public static final String SYNONYMS_SET_FIELD = "synonyms_set";
@@ -77,11 +78,11 @@ public class SynonymsManagementAPIService {
     private static final String SYNONYM_RULE_OBJECT_TYPE = "synonym_rule";
     // Identifies synonym set objects stored in the index
     private static final String SYNONYM_SET_OBJECT_TYPE = "synonym_set";
-    public static final String SYNONYM_RULE_ID_SEPARATOR = "|";
-    public static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
+    private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
     public static final int MAX_SYNONYMS_SETS = 10_000;
-    public static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
-    public static final String RULESET_FILTER_AGG_NAME = "ruleset_filter";
+    private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
+    private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
+    private static final String RULESET_FILTER_AGG_NAME = "ruleset_filter";
 
     private final Client client;
 
@@ -91,6 +92,7 @@ public class SynonymsManagementAPIService {
         .setDescription("Synonyms index for synonyms managed through APIs")
         .setPrimaryIndex(SYNONYMS_INDEX_CONCRETE_NAME)
         .setAliasName(SYNONYMS_ALIAS_NAME)
+        .setIndexFormat(SYNONYMS_INDEX_FORMAT)
         .setMappings(mappings())
         .setSettings(settings())
         .setVersionMetaKey("version")
@@ -443,6 +445,7 @@ public class SynonymsManagementAPIService {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), SYNONYMS_INDEX_FORMAT)
             .build();
     }
 

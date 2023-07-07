@@ -73,7 +73,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         if (Strings.hasText(query) == false) {
             validationException = addValidationError("[query] is required", validationException);
         }
-        if (Build.CURRENT.isSnapshot() == false && pragmas.isEmpty() == false) {
+        if (Build.current().isSnapshot() == false && pragmas.isEmpty() == false) {
             validationException = addValidationError("[pragma] only allowed in snapshot builds", validationException);
         }
         return validationException;

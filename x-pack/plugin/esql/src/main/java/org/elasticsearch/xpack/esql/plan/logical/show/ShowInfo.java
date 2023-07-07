@@ -41,9 +41,9 @@ public class ShowInfo extends LeafPlan {
 
     public List<List<Object>> values() {
         List<Object> row = new ArrayList<>(attributes.size());
-        row.add(new BytesRef(Build.CURRENT.version()));
-        row.add(new BytesRef(Build.CURRENT.date()));
-        row.add(new BytesRef(Build.CURRENT.hash()));
+        row.add(new BytesRef(Build.current().version()));
+        row.add(new BytesRef(Build.current().date()));
+        row.add(new BytesRef(Build.current().hash()));
         return List.of(row);
     }
 

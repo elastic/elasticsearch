@@ -288,8 +288,6 @@ final class QueryPhaseCollector implements Collector {
         private Scorable scorer;
 
         CompositeLeafCollector(Bits postFilterBits, LeafCollector topDocsLeafCollector, LeafCollector aggsLeafCollector) {
-            // leaf collectors may become null while collecting, but can't be null to start with
-            assert topDocsLeafCollector != null && aggsLeafCollector != null;
             this.postFilterBits = postFilterBits;
             this.topDocsLeafCollector = topDocsLeafCollector;
             this.aggsLeafCollector = aggsLeafCollector;

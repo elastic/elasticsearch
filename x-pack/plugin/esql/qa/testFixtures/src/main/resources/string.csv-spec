@@ -181,6 +181,13 @@ emp_no:integer | name:keyword
 10010 | Duangkaew
 ;
 
+trimRow
+ROW message = "   some text  ",  color = " red "| EVAL message = TRIM(message)| EVAL color = TRIM(color);
+
+message:s | color:s
+some text | red
+;
+
 concat
 from employees | sort emp_no | limit 10 | eval name = concat(first_name, " ", last_name) | keep emp_no, name;
 

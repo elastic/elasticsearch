@@ -4,7 +4,6 @@ Removes leading and trailing whitespaces from strings.
 
 [source,esql]
 ----
-FROM employees
-| KEEP first_name, last_name, height
-| EVAL trimmed_first_name = TRIM(first_name)
+ROW message = "   some text  "
+| EVAL message = TRIM(message)
 ----

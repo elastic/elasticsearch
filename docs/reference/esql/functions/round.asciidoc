@@ -4,9 +4,11 @@ Rounds a number to the closest number with the specified number of digits.
 Defaults to 0 digits if no number of digits is provided. If the specified number
 of digits is negative, rounds to the number of digits left of the decimal point.
 
-[source,esql]
+[source.merge.styled,esql]
 ----
-FROM employees
-| KEEP first_name, last_name, height
-| EVAL height = ROUND(height * 3.281, 1)
+include::{esql-specs}/docs.csv-spec[tag=round]
 ----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=round-result]
+|===

@@ -1,11 +1,11 @@
 [[esql-agg-functions]]
-== ESQL aggregation functions
+== {esql} aggregation functions
 
 ++++
 <titleabbrev>Aggregation functions</titleabbrev>
 ++++
-:keywords: {es}, ESQL, {es} query language, functions
-:description: ESQL supports various functions for calculating values.
+:keywords: {es}, {esql}, {es} query language, functions
+:description: {esql} supports various functions for calculating values.
 
 <<esql-stats-by>> support these functions:
 

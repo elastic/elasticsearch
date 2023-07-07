@@ -1,18 +1,18 @@
 [[esql-processing-commands]]
-== ESQL processing commands
+== {esql} processing commands
 
 ++++
 <titleabbrev>Processing commands</titleabbrev>
 ++++
-:keywords: {es}, ESQL, {es} query language, processing commands
-:description: ESQL processing commands change an input table by adding, removing, or changing rows and columns.
+:keywords: {es}, {esql}, {es} query language, processing commands
+:description: {esql} processing commands change an input table by adding, removing, or changing rows and columns.
 
-ESQL processing commands change an input table by adding, removing, or changing
+{esql} processing commands change an input table by adding, removing, or changing
 rows and columns.
 
 image::images/esql/processing-command.svg[A processing command changing an input table,align="center"]
 
-ESQL supports these processing commands:
+{esql} supports these processing commands:
 
 * <<esql-dissect>>
 * <<esql-drop>>

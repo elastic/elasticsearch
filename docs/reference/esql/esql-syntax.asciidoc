@@ -1,17 +1,17 @@
 [[esql-syntax]]
-== ESQL syntax reference
+== {esql} syntax reference
 
 ++++
 <titleabbrev>Syntax reference</titleabbrev>
 ++++
-:keywords: {es}, ESQL, {es} query language, syntax
-:description: An ESQL query is composed of a source command followed by an optional series of processing commands, separated by a pipe character.
+:keywords: {es}, {esql}, {es} query language, syntax
+:description: An {esql} query is composed of a source command followed by an optional series of processing commands, separated by a pipe character.
 
 [discrete]
 [[esql-basic-syntax]]
 === Basic syntax
 
-An ESQL query is composed of a <<esql-source-commands,source command>> followed
+An {esql} query is composed of a <<esql-source-commands,source command>> followed
 by an optional series of <<esql-processing-commands,processing commands>>,
 separated by a pipe character: `|`. For example:
 
@@ -25,7 +25,7 @@ source-command
 The result of a query is the table produced by the final processing command.
 
 For readability, this documentation puts each processing command on a new line.
-However, you can write an ESQL query as a single line. The following query is
+However, you can write an {esql} query as a single line. The following query is
 identical to the previous one:
 
 [source,esql]
@@ -36,7 +36,7 @@ source-command | processing-command1 | processing-command2
 [discrete]
 [[esql-comments]]
 === Comments
-ESQL uses C++ style comments:
+{esql} uses C++ style comments:
 
 * double slash `//` for single line comments
 * `/*` and `*/` for block comments

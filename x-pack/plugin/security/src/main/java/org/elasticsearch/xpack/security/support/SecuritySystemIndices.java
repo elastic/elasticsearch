@@ -37,7 +37,10 @@ public class SecuritySystemIndices {
 
     public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
     private static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
-    private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
+
+    // 8 - original version
+    // 9 - change of origin, and requiring index formats for prior descriptors
+    private static final int INTERNAL_PROFILE_INDEX_FORMAT = 9;
 
     public static final String SECURITY_MAIN_ALIAS = ".security";
     private static final String MAIN_INDEX_CONCRETE_NAME = ".security-7";
@@ -796,9 +799,11 @@ public class SecuritySystemIndices {
                         .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
                         .setDescription("Contains user profile documents")
                         .setMappings(getProfileIndexMappings())
-                        .setSettings(getProfileIndexSettings())
+                        .setSettings(
+                            Settings.builder().put(getProfileIndexSettings()).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 8).build()
+                        )
                         .setAliasName(SECURITY_PROFILE_ALIAS)
-                        .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
+                        .setIndexFormat(8) // before we required different index formats for prior descriptors
                         .setVersionMetaKey(SECURITY_VERSION_STRING)
                         .setOrigin(SECURITY_ORIGIN)
                         .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)

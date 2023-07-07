@@ -286,14 +286,17 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         Objects.requireNonNull(minimumNodeVersion, "minimumNodeVersion must be provided!");
         Objects.requireNonNull(priorSystemIndexDescriptors, "priorSystemIndexDescriptors must not be null");
         if (priorSystemIndexDescriptors.isEmpty() == false) {
+            // TODO[wrb]: remove Version from prior system index descriptor system - bwc concerns?
             // the rules for prior system index descriptors
-            // 1. No values with the same minimum node version
-            // 2. All prior system index descriptors must have a minimumNodeVersion before this one
+            // 1. No values with the same minimum node version or index format
+            // 2. All prior system index descriptors must have a minimumNodeVersion and index format before this one
             // 3. Prior system index descriptors may not have other prior system index descriptors
             // to avoid multiple branches that need followed
             // 4. Must have same indexPattern, primaryIndex, and alias
             Set<Version> versions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
             versions.add(minimumNodeVersion);
+            Set<Integer> indexFormatVersions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
+            indexFormatVersions.add(indexFormat);
             for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
                 if (versions.add(prior.minimumNodeVersion) == false) {
                     throw new IllegalArgumentException(prior + " has the same minimum node version as another descriptor");
@@ -301,6 +304,14 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 if (prior.minimumNodeVersion.after(minimumNodeVersion)) {
                     throw new IllegalArgumentException(
                         prior + " has minimum node version [" + prior.minimumNodeVersion + "] which is after [" + minimumNodeVersion + "]"
+                    );
+                }
+                if (indexFormatVersions.add(prior.indexFormat) == false) {
+                    throw new IllegalArgumentException(prior + " has the same index format version as another descriptor");
+                }
+                if (prior.indexFormat > indexFormat) {
+                    throw new IllegalArgumentException(
+                        prior + " has index format [" + prior.indexFormat + "] which is after [" + indexFormat + "]"
                     );
                 }
                 if (prior.priorSystemIndexDescriptors.isEmpty() == false) {
@@ -670,6 +681,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
+        // TODO[wrb]: index format usage
+        // * security system indices
+        // * watcher
+        // * tests
         public Builder setIndexFormat(int indexFormat) {
             this.indexFormat = indexFormat;
             return this;

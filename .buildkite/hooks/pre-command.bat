@@ -6,7 +6,7 @@ SET JAVA_HOME=%USERPROFILE%\.java\%ES_BUILD_JAVA%
 SET JAVA11_HOME=%USERPROFILE%\.java\java11
 SET JAVA16_HOME=%USERPROFILE%\.java\openjdk16
 
-SET GRADLEW_BAT=./gradlew.bat --parallel --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+SET GRADLEW_BAT=./gradlew.bat --parallel --no-daemon --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
 
 set WORKSPACE=%cd%
 set BUILD_NUMBER=%BUILDKITE_BUILD_NUMBER%

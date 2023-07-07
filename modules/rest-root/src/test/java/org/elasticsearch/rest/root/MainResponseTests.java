@@ -103,8 +103,8 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
                     current.isSnapshot(),
                     indexVersion.luceneVersion().toString(),
                     indexVersion.toString(),
-                    TransportVersion.MINIMUM_COMPATIBLE.toString(),
-                    IndexVersion.MINIMUM_COMPATIBLE.toString(),
+                    version.minimumCompatibilityVersion().toString(),
+                    version.minimumIndexCompatibilityVersion().toString(),
                     transportVersion.toString()
                 )
             ),

@@ -119,16 +119,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         }
     }
 
-    private String getMinimumWireCompatibilityVersion() {
-        // this is no longer computed from Version
-        return TransportVersion.current().equals(transportVersion) ? TransportVersion.MINIMUM_COMPATIBLE.toString() : "unknown";
-    }
-
-    private String getMinimumIndexCompatibilityVersion() {
-        // this is no longer computed from Version
-        return IndexVersion.current().equals(indexVersion) ? IndexVersion.MINIMUM_COMPATIBLE.toString() : "unknown";
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -144,8 +134,8 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("build_snapshot", build.isSnapshot())
             .field("lucene_version", getLuceneVersion())
             .field("index_version", indexVersion != null ? indexVersion.toString() : "unknown")
-            .field("minimum_wire_compatibility_version", getMinimumWireCompatibilityVersion())
-            .field("minimum_index_compatibility_version", getMinimumIndexCompatibilityVersion())
+            .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
+            .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
             .field("transport_version", transportVersion != null ? transportVersion.toString() : "unknown")
             .endObject();
         builder.field("tagline", "You Know, for Search");

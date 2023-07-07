@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
-public class DeleteSearchApplicationActionRequestSerializingTests extends AbstractBWCSerializationTestCase<
+public class DeleteSearchApplicationActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<
     DeleteSearchApplicationAction.Request> {
 
     @Override

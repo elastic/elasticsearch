@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
-public class GetSearchApplicationActionRequestSerializingTests extends AbstractBWCSerializationTestCase<
+public class GetSearchApplicationActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<
     GetSearchApplicationAction.Request> {
 
     @Override

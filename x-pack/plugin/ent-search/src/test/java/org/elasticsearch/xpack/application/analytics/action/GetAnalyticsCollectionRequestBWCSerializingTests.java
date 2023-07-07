@@ -14,7 +14,8 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
-public class GetAnalyticsCollectionRequestSerializingTests extends AbstractBWCSerializationTestCase<GetAnalyticsCollectionAction.Request> {
+public class GetAnalyticsCollectionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<
+    GetAnalyticsCollectionAction.Request> {
 
     @Override
     protected Writeable.Reader<GetAnalyticsCollectionAction.Request> instanceReader() {

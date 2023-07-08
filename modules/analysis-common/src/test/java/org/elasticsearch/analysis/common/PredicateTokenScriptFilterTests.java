@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -74,7 +75,7 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
             new StablePluginsRegistry()
         );
 
-        IndexAnalyzers analyzers = module.getAnalysisRegistry().build(idxSettings);
+        IndexAnalyzers analyzers = module.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
 
         try (NamedAnalyzer analyzer = analyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);

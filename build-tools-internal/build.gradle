@@ -156,9 +156,9 @@ gradlePlugin {
       implementationClass = 'org.elasticsearch.gradle.internal.test.StandaloneTestPlugin'
     }
     stringTemplate {
-      id = 'elasticsearch.string-templates'
-      implementationClass = 'org.elasticsearch.gradle.internal.StringTemplatePlugin'
-    }
+       id = 'elasticsearch.string-templates'
+       implementationClass = 'org.elasticsearch.gradle.internal.StringTemplatePlugin'
+     }
     testFixtures {
       id = 'elasticsearch.test.fixtures'
       implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
@@ -275,13 +275,13 @@ dependencies {
   // needs to match the jackson minor version in use
   api buildLibs.json.schema.validator
   api buildLibs.jackson.dataformat.yaml
+  api buildLibs.antlrst4
   api buildLibs.asm
   api buildLibs.asm.tree
   api buildLibs.httpclient
   api buildLibs.httpcore
   compileOnly buildLibs.checkstyle
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
-  api buildLibs.antlrst4
   testImplementation buildLibs.checkstyle
   testImplementation buildLibs.wiremock
   testImplementation buildLibs.mockito.core

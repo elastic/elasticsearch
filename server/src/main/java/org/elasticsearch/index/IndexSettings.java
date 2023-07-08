@@ -794,8 +794,13 @@ public final class IndexSettings {
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         fastRefresh = scopedSettings.get(INDEX_FAST_REFRESH_SETTING);
-        if (fastRefresh && DiscoveryNode.isStateless(nodeSettings) == false) {
-            throw new IllegalArgumentException(INDEX_FAST_REFRESH_SETTING.getKey() + " is allowed only in stateless");
+        if (fastRefresh) {
+            if (DiscoveryNode.isStateless(nodeSettings) == false) {
+                throw new IllegalArgumentException(INDEX_FAST_REFRESH_SETTING.getKey() + " is allowed only in stateless");
+            }
+            if (indexMetadata.isSystem() == false) {
+                throw new IllegalArgumentException(INDEX_FAST_REFRESH_SETTING.getKey() + " is allowed only for system indices");
+            }
         }
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         flushThresholdAge = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING);

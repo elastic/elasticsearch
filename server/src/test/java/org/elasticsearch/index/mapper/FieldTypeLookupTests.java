@@ -136,12 +136,28 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper field = new MockFieldMapper.Builder("field").addMultiField(new MockFieldMapper.Builder("field.subfield1"))
             .build(MapperBuilderContext.root(false));
 
-        MockFieldMapper otherField = new MockFieldMapper.Builder("other_field").copyTo("field").build(MapperBuilderContext.root(false));
+        MockFieldMapper nestedField = new MockFieldMapper.Builder("field.nested").addMultiField(
+            new MockFieldMapper.Builder("field.nested.subfield1")
+        ).build(MapperBuilderContext.root(false));
 
-        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field, otherField), emptyList(), emptyList());
+        MockFieldMapper otherField = new MockFieldMapper.Builder("other_field").copyTo("field")
+            .copyTo("field.nested")
+            .build(MapperBuilderContext.root(false));
 
-        assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field"));
-        assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field.subfield1"));
+        MockFieldMapper otherNestedField = new MockFieldMapper.Builder("other_field.nested").copyTo("field")
+            .copyTo("field.nested")
+            .build(MapperBuilderContext.root(false));
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            Arrays.asList(field, nestedField, otherField, otherNestedField),
+            emptyList(),
+            emptyList()
+        );
+
+        assertEquals(Set.of("other_field", "other_field.nested", "field"), lookup.sourcePaths("field"));
+        assertEquals(Set.of("other_field", "other_field.nested", "field"), lookup.sourcePaths("field.subfield1"));
+        assertEquals(Set.of("other_field", "other_field.nested", "field.nested"), lookup.sourcePaths("field.nested"));
+        assertEquals(Set.of("other_field", "other_field.nested", "field.nested"), lookup.sourcePaths("field.nested.subfield1"));
     }
 
     public void testRuntimeFieldsLookup() {

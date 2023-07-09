@@ -806,9 +806,9 @@ final class DefaultSearchContext extends SearchContext {
     public IdLoader newIdLoader() {
         if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
             var indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
-            return new IdLoader(indexRouting, indexService.getMetadata().getRoutingPaths());
+            return IdLoader.createTsIdLoader(indexRouting, indexService.getMetadata().getRoutingPaths());
         } else {
-            return null;
+            return IdLoader.fromLeafStoredFieldLoader();
         }
     }
 }

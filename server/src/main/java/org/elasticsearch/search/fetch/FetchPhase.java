@@ -100,7 +100,6 @@ public class FetchPhase {
 
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
-        IdLoader idLoader = context.newIdLoader();
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
 
@@ -108,6 +107,7 @@ public class FetchPhase {
         storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
 
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
+        IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
 
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
@@ -131,11 +131,7 @@ public class FetchPhase {
                 this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                 this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
                 this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
-                if (idLoader != null) {
-                    this.leafIdLoader = idLoader.leaf(ctx.reader(), docsInLeaf);
-                } else {
-                    this.leafIdLoader = IdLoader.fromLeafStoredFieldLoader(leafStoredFieldLoader);
-                }
+                this.leafIdLoader = idLoader.leaf(leafStoredFieldLoader, ctx.reader(), docsInLeaf);
                 fieldLookupProvider.setNextReader(ctx);
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.setNextReader(ctx);

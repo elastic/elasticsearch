@@ -21,67 +21,87 @@ import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import java.io.IOException;
 import java.util.List;
 
-public final class IdLoader {
+public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader {
 
-    private final IndexRouting.ExtractFromSource indexRouting;
-    private final List<String> routingPaths;
-
-    public IdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
-        this.routingPaths = routingPaths;
-        this.indexRouting = indexRouting;
+    static IdLoader fromLeafStoredFieldLoader() {
+        return new StoredIdLoader();
     }
 
-    public IdLoader.Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-        IndexRouting.ExtractFromSource.Builder[] builders = new IndexRouting.ExtractFromSource.Builder[docIdsInLeaf.length];
-        for (int i = 0; i < builders.length; i++) {
-            builders[i] = indexRouting.builder();
-        }
-
-        for (String routingField : routingPaths) {
-            // Routing field must always be keyword fields, so it is ok to use SortedSetDocValues directly here.
-            SortedSetDocValues dv = DocValues.getSortedSet(reader, routingField);
-            for (int i = 0; i < docIdsInLeaf.length; i++) {
-                int docId = docIdsInLeaf[i];
-                var builder = builders[i];
-                if (dv.advanceExact(docId)) {
-                    for (int j = 0; j < dv.docValueCount(); j++) {
-                        builder.addMatching(routingField, dv.lookupOrd(dv.nextOrd()));
-                    }
-                }
-            }
-        }
-
-        String[] ids = new String[docIdsInLeaf.length];
-        // Each document always has exactly one tsid and one timestamp:
-        SortedDocValues tsIdDocValues = DocValues.getSorted(reader, TimeSeriesIdFieldMapper.NAME);
-        SortedNumericDocValues timestampDocValues = DocValues.getSortedNumeric(reader, DataStream.TIMESTAMP_FIELD_NAME);
-        for (int i = 0; i < docIdsInLeaf.length; i++) {
-            int docId = docIdsInLeaf[i];
-            var routingBuilder = builders[i];
-
-            tsIdDocValues.advanceExact(docId);
-            assert tsIdDocValues.getValueCount() == 1;
-            BytesRef tsid = tsIdDocValues.lookupOrd(tsIdDocValues.ordValue());
-            timestampDocValues.advanceExact(docId);
-            assert timestampDocValues.docValueCount() == 1;
-            long timestamp = timestampDocValues.nextValue();
-
-            ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, new byte[16]);
-        }
-        return new TsIdLeaf(docIdsInLeaf, ids);
+    static IdLoader createTsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
+        return new TsIdLoader(indexRouting, routingPaths);
     }
 
-    public static Leaf fromLeafStoredFieldLoader(LeafStoredFieldLoader loader) {
-        return new StoredLeaf(loader);
-    }
+    Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
-    public sealed interface Leaf permits StoredLeaf, TsIdLeaf {
+    sealed interface Leaf permits StoredLeaf, TsIdLeaf {
 
         String getId(int subDocId);
 
     }
 
-    static final class TsIdLeaf implements Leaf {
+    final class TsIdLoader implements IdLoader {
+
+        private final IndexRouting.ExtractFromSource indexRouting;
+        private final List<String> routingPaths;
+
+        TsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
+            this.routingPaths = routingPaths;
+            this.indexRouting = indexRouting;
+        }
+
+        public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            IndexRouting.ExtractFromSource.Builder[] builders = new IndexRouting.ExtractFromSource.Builder[docIdsInLeaf.length];
+            for (int i = 0; i < builders.length; i++) {
+                builders[i] = indexRouting.builder();
+            }
+
+            for (String routingField : routingPaths) {
+                // Routing field must always be keyword fields, so it is ok to use SortedSetDocValues directly here.
+                SortedSetDocValues dv = DocValues.getSortedSet(reader, routingField);
+                for (int i = 0; i < docIdsInLeaf.length; i++) {
+                    int docId = docIdsInLeaf[i];
+                    var builder = builders[i];
+                    if (dv.advanceExact(docId)) {
+                        for (int j = 0; j < dv.docValueCount(); j++) {
+                            builder.addMatching(routingField, dv.lookupOrd(dv.nextOrd()));
+                        }
+                    }
+                }
+            }
+
+            String[] ids = new String[docIdsInLeaf.length];
+            // Each document always has exactly one tsid and one timestamp:
+            SortedDocValues tsIdDocValues = DocValues.getSorted(reader, TimeSeriesIdFieldMapper.NAME);
+            SortedNumericDocValues timestampDocValues = DocValues.getSortedNumeric(reader, DataStream.TIMESTAMP_FIELD_NAME);
+            for (int i = 0; i < docIdsInLeaf.length; i++) {
+                int docId = docIdsInLeaf[i];
+                var routingBuilder = builders[i];
+
+                tsIdDocValues.advanceExact(docId);
+                assert tsIdDocValues.getValueCount() == 1;
+                BytesRef tsid = tsIdDocValues.lookupOrd(tsIdDocValues.ordValue());
+                timestampDocValues.advanceExact(docId);
+                assert timestampDocValues.docValueCount() == 1;
+                long timestamp = timestampDocValues.nextValue();
+
+                ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, new byte[16]);
+            }
+            return new TsIdLeaf(docIdsInLeaf, ids);
+        }
+    }
+
+    final class StoredIdLoader implements IdLoader {
+
+        public StoredIdLoader() {
+        }
+
+        @Override
+        public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            return new StoredLeaf(loader);
+        }
+    }
+
+    final class TsIdLeaf implements Leaf {
 
         private final String[] ids;
         private final int[] docIdsInLeaf;
@@ -104,7 +124,7 @@ public final class IdLoader {
         }
     }
 
-    static final class StoredLeaf implements Leaf {
+    final class StoredLeaf implements Leaf {
 
         private final LeafStoredFieldLoader loader;
 

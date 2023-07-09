@@ -351,9 +351,14 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 clusterApplierService.state();
                 error.set(new AssertionError("successfully sampled state"));
             } catch (AssertionError e) {
-                if (e.getMessage().contains("should not be called by a cluster state applier") == false) {
-                    error.set(e);
+                final var message = e.getMessage();
+                if (message.contains("On the cluster applier thread")
+                    && message.contains("you must use ClusterChangedEvent#state()")
+                    && message.contains("almost certainly a bug to read the latest-applied state")
+                    && message.contains("the new state has been committed at this point but is not yet applied")) {
+                    return;
                 }
+                error.set(e);
             }
         });
 

@@ -47,7 +47,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
     @SuppressWarnings("unused")
     public SystemdPlugin() {
-        this(true, Build.CURRENT.type(), System.getenv("ES_SD_NOTIFY"));
+        this(true, Build.current().type(), System.getenv("ES_SD_NOTIFY"));
     }
 
     SystemdPlugin(final boolean assertIsPackageDistribution, final Build.Type buildType, final String esSDNotify) {

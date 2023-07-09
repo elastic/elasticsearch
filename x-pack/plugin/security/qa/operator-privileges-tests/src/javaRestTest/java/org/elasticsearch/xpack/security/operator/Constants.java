@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.util.Objects;
@@ -71,6 +71,7 @@ public class Constants {
         "cluster:admin/synonyms/get",
         "cluster:admin/synonyms/put",
         "cluster:admin/synonyms_sets/get",
+        "cluster:admin/synonym_rules/delete",
         "cluster:admin/synonym_rules/get",
         "cluster:admin/synonym_rules/put",
         "cluster:admin/settings/update",
@@ -340,6 +341,7 @@ public class Constants {
         "cluster:monitor/xpack/info/voting_only",
         "cluster:monitor/xpack/info/watcher",
         "cluster:monitor/xpack/license/get",
+        "cluster:monitor/xpack/ml/autoscaling/stats/get",
         "cluster:monitor/xpack/ml/calendars/events/get",
         "cluster:monitor/xpack/ml/calendars/get",
         "cluster:monitor/xpack/ml/data_frame/analytics/get",
@@ -377,7 +379,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/analytics",
         "cluster:monitor/xpack/usage/archive",
         "cluster:monitor/xpack/usage/ccr",
-        DataLifecycle.isEnabled() ? "cluster:monitor/xpack/usage/data_lifecycle" : null,
+        DataStreamLifecycle.isEnabled() ? "cluster:monitor/xpack/usage/data_lifecycle" : null,
         "cluster:monitor/xpack/usage/data_streams",
         "cluster:monitor/xpack/usage/data_tiers",
         "cluster:monitor/xpack/usage/enrich",
@@ -422,10 +424,10 @@ public class Constants {
         "indices:admin/data_stream/migrate",
         "indices:admin/data_stream/modify",
         "indices:admin/data_stream/promote",
-        DataLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/delete" : null,
-        DataLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/get" : null,
-        DataLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/put" : null,
-        DataLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/explain" : null,
+        DataStreamLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/delete" : null,
+        DataStreamLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/get" : null,
+        DataStreamLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/put" : null,
+        DataStreamLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/explain" : null,
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",

@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -107,16 +108,14 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         return Collections.singletonMap(aliasName, aliasMeta);
     }
 
-    private static DataLifecycle randomLifecycle() {
-        return new DataLifecycle(randomMillisUpToYear9999());
+    private static DataStreamLifecycle randomLifecycle() {
+        return new DataStreamLifecycle(randomMillisUpToYear9999());
     }
 
     private static CompressedXContent randomMappings(ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate) {
         try {
             if (dataStreamTemplate != null) {
-                return new CompressedXContent(
-                    "{\"properties\":{\"" + ComposableIndexTemplate.DataStreamTemplate.getTimestampField() + "\":{\"type\":\"date\"}}}"
-                );
+                return new CompressedXContent("{\"properties\":{\"" + TIMESTAMP_FIELD_NAME + "\":{\"type\":\"date\"}}}");
             } else {
                 return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
             }
@@ -295,7 +294,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        DataLifecycle lifecycle = randomLifecycle();
+        DataStreamLifecycle lifecycle = randomLifecycle();
         Template template = new Template(settings, mappings, aliases, lifecycle);
         new ComposableIndexTemplate(
             List.of(randomAlphaOfLength(4)),

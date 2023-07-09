@@ -48,10 +48,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            // This query is not performance sensitive, it only helps assess
-            // quality of the data, so we may use a slow query. It shouldn't
-            // be too slow in practice since the number of unique terms in this
-            // field is bounded by the number of fields in the mappings.
+            // This query is not performance sensitive, it only helps assess quality of the data, so we may use a slow query.
+            // It's ok for this query to not have optimal performance since it's mainly used for debugging purposes.
             return new TermRangeQuery(name(), null, null, true, true);
         }
 

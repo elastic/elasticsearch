@@ -34,7 +34,9 @@ public class CountDistinctLongGroupingAggregatorFunctionTests extends GroupingAg
 
     @Override
     protected SourceOperator simpleInput(int size) {
-        return new TupleBlockSourceOperator(LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomLong())));
+        return new TupleBlockSourceOperator(
+            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomGroupId(size), randomLongBetween(0, 100_000)))
+        );
     }
 
     @Override

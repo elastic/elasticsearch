@@ -50,7 +50,7 @@ public class CountDistinctLongAggregator {
         HllStates.GroupingState state,
         int statePosition
     ) {
-        current.merge(currentGroupId, state.hll, currentGroupId);
+        current.merge(currentGroupId, state.hll, statePosition);
     }
 
     public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected) {

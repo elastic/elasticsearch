@@ -105,6 +105,11 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return seenGroups;
     }
 
+    protected long randomGroupId(int pageSize) {
+        int maxGroupId = pageSize < 10 && randomBoolean() ? 4 : 100;
+        return randomIntBetween(0, maxGroupId);
+    }
+
     @Override
     protected final void assertSimpleOutput(List<Page> input, List<Page> results) {
         SortedSet<Long> seenGroups = seenGroups(input);

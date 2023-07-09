@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -58,11 +59,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedConsumer;
@@ -100,6 +101,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.index.query.DataRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -108,6 +110,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -246,7 +249,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     @Nullable
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
-    private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
+    private final Set<Index> danglingIndicesToWrite = ConcurrentCollections.newConcurrentSet();
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final TimestampFieldMapperService timestampFieldMapperService;
@@ -624,8 +627,35 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
+        final IndexEventListener beforeIndexShardRecovery = new IndexEventListener() {
+            volatile boolean reloaded;
+
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                try {
+                    if (indexShard.mapperService() != null) {
+                        // we need to reload once, not on every shard recovery in case multiple shards are on the same node
+                        if (reloaded == false) {
+                            synchronized (indexShard.mapperService()) {
+                                if (reloaded == false) {
+                                    // we finish loading analyzers from resources here
+                                    // during shard recovery in the generic thread pool,
+                                    // as this may require longer running operations and blocking calls
+                                    indexShard.mapperService().reloadSearchAnalyzers(getAnalysis(), null);
+                                }
+                                reloaded = true;
+                            }
+                        }
+                    }
+                    listener.onResponse(null);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+        };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
+        finalListeners.add(beforeIndexShardRecovery);
         IndexService indexService;
         try (var ignored = threadPool.getThreadContext().newStoredContext()) {
             indexService = createIndexService(
@@ -848,7 +878,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final PeerRecoveryTargetService.RecoveryListener recoveryListener,
         final RepositoriesService repositoriesService,
         final Consumer<IndexShard.ShardFailure> onShardFailure,
-        final Consumer<ShardId> globalCheckpointSyncer,
+        final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
         final DiscoveryNode sourceNode
@@ -1695,18 +1725,15 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return new QueryRewriteContext(parserConfig, namedWriteableRegistry, client, nowInMillis);
+        return new QueryRewriteContext(parserConfig, client, nowInMillis);
+    }
+
+    public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {
+        return new DataRewriteContext(parserConfig, client, nowInMillis);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
-        return new CoordinatorRewriteContextProvider(
-            parserConfig,
-            namedWriteableRegistry,
-            client,
-            nowInMillis,
-            clusterService::state,
-            this::getTimestampFieldType
-        );
+        return new CoordinatorRewriteContextProvider(parserConfig, client, nowInMillis, clusterService::state, this::getTimestampFieldType);
     }
 
     /**
@@ -1806,4 +1833,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return timestampFieldMapperService.getTimestampFieldType(index);
     }
 
+    public IndexScopedSettings getIndexScopedSettings() {
+        return indexScopedSettings;
+    }
 }

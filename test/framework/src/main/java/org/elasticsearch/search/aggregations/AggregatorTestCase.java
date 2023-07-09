@@ -55,6 +55,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -66,6 +67,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
@@ -262,12 +264,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     @Deprecated
     protected <A extends Aggregator> A createAggregator(AggregationBuilder builder, AggregationContext context) throws IOException {
-        QueryRewriteContext rewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            new NamedWriteableRegistry(List.of()),
-            null,
-            context::nowInMillis
-        );
+        QueryRewriteContext rewriteContext = new QueryRewriteContext(parserConfig(), null, context::nowInMillis);
         @SuppressWarnings("unchecked")
         A aggregator = (A) Rewriteable.rewrite(builder, rewriteContext, true).build(context, null).create(null, CardinalityUpperBound.ONE);
         return aggregator;
@@ -344,6 +341,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             0,
             -1,
             indexSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             bitsetFilterCache,
             fieldDataBuilder,
             null,
@@ -1219,7 +1217,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private static class MockParserContext extends MappingParserContext {
         MockParserContext(IndexSettings indexSettings) {
-            super(null, null, null, Version.CURRENT, () -> TransportVersion.CURRENT, null, ScriptCompiler.NONE, null, indexSettings, null);
+            super(
+                null,
+                null,
+                null,
+                IndexVersion.current(),
+                () -> TransportVersion.current(),
+                null,
+                ScriptCompiler.NONE,
+                null,
+                indexSettings,
+                null
+            );
         }
 
         @Override

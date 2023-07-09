@@ -65,6 +65,8 @@ public final class XPackField {
     public static final String SEARCHABLE_SNAPSHOTS = "searchable_snapshots";
     /** Name constant for the data streams feature. */
     public static final String DATA_STREAMS = "data_streams";
+    /** Name constant for the data stream lifecycle feature. */
+    public static final String DATA_LIFECYCLE = "data_lifecycle";
     /** Name constant for the data tiers feature. */
     public static final String DATA_TIERS = "data_tiers";
     /** Name constant for the aggregate_metric plugin. */

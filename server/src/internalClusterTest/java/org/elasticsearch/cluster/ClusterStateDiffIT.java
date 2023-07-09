@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -22,8 +23,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -49,6 +51,7 @@ import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.snapshots.SnapshotsInProgressSerializationTests;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,14 +60,13 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
 import static org.elasticsearch.cluster.routing.UnassignedInfoTests.randomUnassignedInfo;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
+import static org.elasticsearch.test.index.IndexVersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -212,7 +214,12 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     }
 
     private DiscoveryNode randomNode(String nodeId) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), randomVersion(random()));
+        Version nodeVersion = VersionUtils.randomVersion(random());
+        IndexVersion indexVersion = randomVersion(random());
+        return DiscoveryNodeUtils.builder(nodeId)
+            .roles(emptySet())
+            .version(nodeVersion, IndexVersion.fromId(indexVersion.id() - 1_000_000), indexVersion)
+            .build();
     }
 
     /**
@@ -551,7 +558,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 IndexMetadata.Builder builder = IndexMetadata.builder(name);
                 Settings.Builder settingsBuilder = Settings.builder();
                 setRandomIndexSettings(random(), settingsBuilder);
-                settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion(random()));
+                settingsBuilder.put(randomSettings(Settings.EMPTY))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion(random()).id());
                 builder.settings(settingsBuilder);
                 builder.numberOfShards(randomIntBetween(1, 10)).numberOfReplicas(randomInt(10));
                 int aliasCount = randomInt(10);

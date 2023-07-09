@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -40,12 +41,11 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static java.util.Collections.singletonList;
 
 public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(ProfilingPlugin.class);
@@ -62,6 +62,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private final SetOnce<ProfilingIndexTemplateRegistry> registry = new SetOnce<>();
 
     private final SetOnce<ProfilingIndexManager> indexManager = new SetOnce<>();
+    private final SetOnce<ProfilingDataStreamManager> dataStreamManager = new SetOnce<>();
 
     public ProfilingPlugin(Settings settings) {
         this.settings = settings;
@@ -82,18 +83,21 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         logger.info("Profiling is {}", enabled ? "enabled" : "disabled");
         registry.set(new ProfilingIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry));
         indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService));
+        dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService));
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);
         if (enabled) {
             registry.get().initialize();
             indexManager.get().initialize();
-            return List.of(registry.get(), indexManager.get());
+            dataStreamManager.get().initialize();
+            return List.of(registry.get(), indexManager.get(), dataStreamManager.get());
         } else {
             return Collections.emptyList();
         }
@@ -105,6 +109,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         }
         registry.get().setTemplatesEnabled(newValue);
         indexManager.get().setTemplatesEnabled(newValue);
+        dataStreamManager.get().setTemplatesEnabled(newValue);
     }
 
     @Override
@@ -117,11 +122,12 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
+        List<RestHandler> handlers = new ArrayList<>();
+        handlers.add(new RestGetStatusAction());
         if (enabled) {
-            return singletonList(new RestGetProfilingAction());
-        } else {
-            return Collections.emptyList();
+            handlers.add(new RestGetProfilingAction());
         }
+        return Collections.unmodifiableList(handlers);
     }
 
     @Override
@@ -150,12 +156,16 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(GetProfilingAction.INSTANCE, TransportGetProfilingAction.class));
+        return List.of(
+            new ActionHandler<>(GetProfilingAction.INSTANCE, TransportGetProfilingAction.class),
+            new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
+        );
     }
 
     @Override
     public void close() {
         registry.get().close();
         indexManager.get().close();
+        dataStreamManager.get().close();
     }
 }

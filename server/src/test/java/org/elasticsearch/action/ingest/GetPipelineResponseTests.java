@@ -96,11 +96,6 @@ public class GetPipelineResponseTests extends AbstractXContentSerializingTestCas
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected GetPipelineResponse mutateInstance(GetPipelineResponse response) throws IOException {
         return new GetPipelineResponse(
             CollectionUtils.appendToCopy(response.pipelines(), createRandomPipeline("pipeline_" + response.pipelines().size() + 1))

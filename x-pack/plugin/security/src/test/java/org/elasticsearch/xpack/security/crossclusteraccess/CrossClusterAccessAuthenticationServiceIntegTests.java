@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
@@ -99,7 +99,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
 
         try (var ignored = threadContext.stashContext()) {
-            final var internalUser = randomValueOtherThan(CrossClusterAccessUser.INSTANCE, AuthenticationTestHelper::randomInternalUser);
+            final var internalUser = randomValueOtherThan(InternalUsers.SYSTEM_USER, AuthenticationTestHelper::randomInternalUser);
             new CrossClusterAccessHeaders(
                 encodedCrossClusterAccessApiKey,
                 new CrossClusterAccessSubjectInfo(

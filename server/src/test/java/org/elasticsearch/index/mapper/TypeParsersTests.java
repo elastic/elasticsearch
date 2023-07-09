@@ -10,8 +10,12 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -19,6 +23,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
@@ -71,7 +76,17 @@ public class TypeParsersTests extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(defaultAnalyzers());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+
+        IndexVersion olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
         MappingParserContext olderContext = new MappingParserContext(
             null,
             type -> typeParser,
@@ -97,11 +112,11 @@ public class TypeParsersTests extends ESTestCase {
         // For indices created in 8.0 or later, we should throw an error.
         Map<String, Object> fieldNodeCopy = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_0_0, IndexVersion.current());
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.V_8_0_0,
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         MappingParserContext context = new MappingParserContext(
             null,

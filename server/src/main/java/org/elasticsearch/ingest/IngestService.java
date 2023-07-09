@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -420,15 +420,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return;
         }
 
-        nodeInfoListener.accept(ActionListener.wrap(nodeInfos -> {
+        nodeInfoListener.accept(listener.delegateFailureAndWrap((l, nodeInfos) -> {
             validatePipelineRequest(request, nodeInfos);
 
             taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
-                new PutPipelineClusterStateUpdateTask(listener, request),
+                new PutPipelineClusterStateUpdateTask(l, request),
                 request.masterNodeTimeout()
             );
-        }, listener::onFailure));
+        }));
     }
 
     public void validatePipelineRequest(PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {
@@ -1056,7 +1056,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private static void cacheRawTimestamp(final IndexRequest request, final IngestDocument document) {
         if (request.getRawTimestamp() == null) {
             // cache the @timestamp from the ingest document's source map if there is one
-            Object rawTimestamp = document.getSource().get(TimestampField.FIXED_TIMESTAMP_FIELD);
+            Object rawTimestamp = document.getSource().get(DataStream.TIMESTAMP_FIELD_NAME);
             if (rawTimestamp != null) {
                 request.setRawTimestamp(rawTimestamp);
             }

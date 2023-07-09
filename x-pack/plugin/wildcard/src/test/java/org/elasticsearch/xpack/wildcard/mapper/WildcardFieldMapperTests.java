@@ -45,11 +45,13 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -90,7 +92,7 @@ import static org.mockito.Mockito.when;
 
 public class WildcardFieldMapperTests extends MapperTestCase {
 
-    static SearchExecutionContext createMockSearchExecutionContext(boolean allowExpensiveQueries, Version version) {
+    static SearchExecutionContext createMockSearchExecutionContext(boolean allowExpensiveQueries, IndexVersion version) {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         when(searchExecutionContext.indexVersionCreated()).thenReturn(version);
@@ -99,7 +101,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     private static final String KEYWORD_FIELD_NAME = "keyword_field";
     private static final String WILDCARD_FIELD_NAME = "wildcard_field";
-    public static final SearchExecutionContext MOCK_CONTEXT = createMockSearchExecutionContext(true, Version.CURRENT);
+    public static final SearchExecutionContext MOCK_CONTEXT = createMockSearchExecutionContext(true, IndexVersion.current());
 
     static final int MAX_FIELD_LENGTH = 30;
     static WildcardFieldMapper wildcardFieldType;
@@ -121,16 +123,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     @Before
     public void setUp() throws Exception {
-        Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
+        Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.current());
         builder.ignoreAbove(MAX_FIELD_LENGTH);
         wildcardFieldType = builder.build(MapperBuilderContext.root(false));
 
-        Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.V_7_9_0);
+        Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.V_7_9_0);
         wildcardFieldType79 = builder79.build(MapperBuilderContext.root(false));
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(
             KEYWORD_FIELD_NAME,
-            Version.CURRENT
+            IndexVersion.current()
         );
         keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false));
 
@@ -259,7 +261,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         iw.close();
 
         // Test wildcard query
-        String queryString = randomABString((BooleanQuery.getMaxClauseCount() * 2) + 1);
+        String queryString = randomABString((IndexSearcher.getMaxClauseCount() * 2) + 1);
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(queryString, null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
@@ -898,7 +900,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         int numRewrites = 0;
         int maxNumRewrites = 100;
         for (; numRewrites < maxNumRewrites; numRewrites++) {
-            Query newApprox = approximationQuery.rewrite(rewriteReader);
+            Query newApprox = approximationQuery.rewrite(new IndexSearcher(rewriteReader));
             if (newApprox == approximationQuery) {
                 break;
             }
@@ -1093,6 +1095,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             0,
             0,
             idxSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             bitsetFilterCache,
             indexFieldDataLookup,
             null,

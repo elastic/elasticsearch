@@ -236,7 +236,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
-        int nbDocs = 0;
+        long nbDocs = 0;
         try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), MAX_DOCS)) {
             indexer.setFailureAssertion(t -> assertException(t, indexName));
 
@@ -463,7 +463,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                 for (int i = 0; i < moreDocs; i++) {
                     client.prepareIndex(indexName).setSource("num", i).get();
                 }
-                assertAcked(client.admin().indices().prepareClose(indexName));
+                assertAcked(indicesAdmin().prepareClose(indexName));
                 return super.onNodeStopped(nodeName);
             }
         });

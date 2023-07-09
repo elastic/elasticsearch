@@ -41,7 +41,7 @@ import org.elasticsearch.action.support.replication.TransportWriteActionTestHelp
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -150,13 +150,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected DiscoveryNode getDiscoveryNode(String id) {
-        return TestDiscoveryNode.create(
-            id,
-            id,
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE)
-        );
+        return DiscoveryNodeUtils.builder(id).name(id).roles(Collections.singleton(DiscoveryNodeRole.DATA_ROLE)).build();
     }
 
     protected class ReplicationGroup implements AutoCloseable, Iterable<IndexShard> {
@@ -195,15 +189,20 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             (_shardId, primaryAllocationId, primaryTerm, retentionLeases) -> syncRetentionLeases(
                 _shardId,
                 retentionLeases,
-                ActionListener.wrap(r -> {}, e -> {
-                    throw new AssertionError("failed to background sync retention lease", e);
-                })
+                ActionTestUtils.assertNoFailureListener(r -> {})
             )
         );
 
         protected ReplicationGroup(final IndexMetadata indexMetadata) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            primary = newShard(primaryRouting, indexMetadata, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
+            primary = newShard(
+                primaryRouting,
+                indexMetadata,
+                null,
+                getEngineFactory(primaryRouting),
+                NOOP_GCP_SYNCER,
+                retentionLeaseSyncer
+            );
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetadata = indexMetadata;
             updateAllocationIDsOnPrimary();
@@ -324,7 +323,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 indexMetadata,
                 null,
                 getEngineFactory(replicaRouting),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 retentionLeaseSyncer
             );
             addReplica(replica);
@@ -363,7 +362,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 null,
                 null,
                 getEngineFactory(shardRouting),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 retentionLeaseSyncer,
                 EMPTY_EVENT_LISTENER
             );
@@ -943,8 +942,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final Translog.Location location;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             location = TransportShardBulkAction.performOnReplica(request, replica);
+            TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
         }
-        TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
     }
 
     /**

@@ -57,7 +57,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
             .endObject()
             .endObject()
             .endObject();
-        client().admin().indices().prepareCreate(indexName).setMapping(xcb).setSettings(settings).get();
+        indicesAdmin().prepareCreate(indexName).setMapping(xcb).setSettings(settings).get();
     }
 
     @Override
@@ -81,7 +81,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
                 .endObject()
         );
 
-        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("geo_points_only").setMapping(mapping).get();
         ensureGreen();
 
         // MULTIPOINT
@@ -122,7 +122,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
                 .endObject()
         );
 
-        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("geo_points_only").setMapping(mapping).get();
         ensureGreen();
 
         Geometry geometry = GeometryTestUtils.randomGeometry(false);
@@ -162,7 +162,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
                 .endObject()
         );
 
-        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
+        indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);

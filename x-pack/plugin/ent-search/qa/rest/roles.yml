@@ -2,6 +2,7 @@ admin:
   cluster:
     - manage_search_application
     - manage_behavioral_analytics
+    - manage
     - monitor
   indices:
     - names: [
@@ -18,6 +19,7 @@ admin:
         "test-search-application",
         "test-search-application-1",
         "test-search-application-2",
+        "test-search-application-with-list",
         "another-test-search-application",
         "test-updated-search-application",
         "test-error-search-application",
@@ -31,9 +33,12 @@ admin:
 user:
   cluster:
     - post_behavioral_analytics_event
+    - manage_api_key
   indices:
     - names: [
-      "test-search-application"
+      "test-search-application",
+      "test-search-application-1",
+      "test-search-application-with-list"
     ]
       privileges: [ "read" ]
 

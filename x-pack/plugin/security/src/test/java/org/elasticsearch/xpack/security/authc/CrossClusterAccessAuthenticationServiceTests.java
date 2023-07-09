@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -58,7 +58,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
     public void init() throws Exception {
         this.apiKeyService = mock(ApiKeyService.class);
         this.authenticationService = mock(AuthenticationService.class);
-        this.clusterService = mockClusterServiceWithMinTransportVersion(TransportVersion.CURRENT);
+        this.clusterService = mockClusterServiceWithMinTransportVersion(TransportVersion.current());
     }
 
     public void testAuthenticateThrowsOnUnsupportedMinVersions() throws IOException {
@@ -155,20 +155,9 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
             CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
             new CrossClusterAccessSubjectInfo(
                 // Invalid internal user
-                AuthenticationTestHelper.builder().internal(XPackUser.INSTANCE).build(),
+                AuthenticationTestHelper.builder().internal(InternalUsers.XPACK_USER).build(),
                 new RoleDescriptorsIntersection(
-                    new RoleDescriptor(
-                        "invalid_role",
-                        new String[] { "all" },
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null
-
-                    )
+                    new RoleDescriptor("invalid_role", new String[] { "all" }, null, null, null, null, null, null, null, null)
                 )
             )
         );
@@ -205,7 +194,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         assertThat(actual.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(
             actual.getCause().getCause().getMessage(),
-            containsString("received cross cluster request from an unexpected internal user [" + XPackUser.NAME + "]")
+            containsString("received cross cluster request from an unexpected internal user [" + InternalUsers.XPACK_USER.principal() + "]")
         );
         verify(auditableRequest).exceptionProcessingRequest(
             any(Exception.class),

@@ -456,7 +456,7 @@ public final class MappingLookup {
      * @return {@code true} if contains a timestamp field of type date that is indexed and has doc values, {@code false} otherwise.
      */
     public boolean hasTimestampField() {
-        final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TIMESTAMP_FIELD_NAME);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
             return mappedFieldType.isIndexed() && mappedFieldType.hasDocValues();
         } else {

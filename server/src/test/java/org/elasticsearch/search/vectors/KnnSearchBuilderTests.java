@@ -200,7 +200,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         searchBuilder.boost(randomFloat());
         searchBuilder.addFilterQueries(List.of(new RewriteableQuery()));
 
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
         PlainActionFuture<KnnSearchBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(searchBuilder, context, future);
         KnnSearchBuilder rewritten = future.get();

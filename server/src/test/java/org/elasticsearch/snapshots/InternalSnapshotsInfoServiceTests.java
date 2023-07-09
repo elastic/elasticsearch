@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -34,6 +34,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.FilterRepository;
@@ -398,12 +399,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             final ThreadPoolStats threadPoolStats = clusterService.getClusterApplierService().threadPool().stats();
             ThreadPoolStats.Stats generic = null;
             for (ThreadPoolStats.Stats threadPoolStat : threadPoolStats) {
-                if (ThreadPool.Names.GENERIC.equals(threadPoolStat.getName())) {
+                if (ThreadPool.Names.GENERIC.equals(threadPoolStat.name())) {
                     generic = threadPoolStat;
                 }
             }
             assertThat(generic, notNullValue());
-            assertThat(generic.getActive(), equalTo(nbActive));
+            assertThat(generic.active(), equalTo(nbActive));
         }, 30L, TimeUnit.SECONDS);
     }
 
@@ -424,7 +425,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(random()),
             new Snapshot("_repo", new SnapshotId(randomAlphaOfLength(5), UUIDs.randomBase64UUID(random()))),
-            Version.CURRENT,
+            IndexVersion.current(),
             new IndexId(indexName, UUIDs.randomBase64UUID(random()))
         );
 
@@ -465,7 +466,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private ClusterState demoteMasterNode(final ClusterState currentState) {
-        final DiscoveryNode node = TestDiscoveryNode.create("other");
+        final DiscoveryNode node = DiscoveryNodeUtils.create("other");
         assertThat(currentState.nodes().get(node.getId()), nullValue());
 
         return ClusterState.builder(currentState)

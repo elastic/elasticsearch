@@ -385,7 +385,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         @Override
                         public void onResponse(Void v) {
                             assert context.requiresWaitingForMappingUpdate();
-                            context.resetForExecutionForRetry();
+                            context.resetForMappingUpdateRetry();
                         }
 
                         @Override
@@ -449,8 +449,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (isUpdate
             && isFailed
             && isConflictException(executionResult.getFailure().getCause())
-            && context.getRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
-            context.resetForExecutionForRetry();
+            && context.getUpdateRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
+            context.resetForUpdateRetry();
             return;
         }
         final BulkItemResponse response;

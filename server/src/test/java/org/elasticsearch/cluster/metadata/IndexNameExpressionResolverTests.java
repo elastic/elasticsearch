@@ -33,6 +33,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
@@ -1782,10 +1783,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
             }
 
-            @Override
-            public boolean includeDataStreams() {
-                return false;
-            }
         };
         Index writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
         assertThat(writeIndex.getName(), equalTo("test-0"));
@@ -1820,10 +1817,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
             }
 
-            @Override
-            public boolean includeDataStreams() {
-                return false;
-            }
         };
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -1872,10 +1865,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictExpandOpenAndForbidClosed();
             }
 
-            @Override
-            public boolean includeDataStreams() {
-                return false;
-            }
         };
 
         IllegalArgumentException exception = expectThrows(
@@ -2461,19 +2450,26 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new Feature(
                     "ml",
                     "ml indices",
-                    List.of(new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
+                    List.of(
+                        SystemIndexDescriptorUtils.createUnmanaged(".ml-meta*", "ml meta"),
+                        SystemIndexDescriptorUtils.createUnmanaged(".ml-stuff*", "other ml")
+                    )
                 ),
-                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches*", "watches index"))),
+                new Feature(
+                    "watcher",
+                    "watcher indices",
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(".watches*", "watches index"))
+                ),
                 new Feature(
                     "stack-component",
                     "stack component",
                     List.of(
-                        new SystemIndexDescriptor(
-                            ".external-sys-idx*",
-                            "external",
-                            Type.EXTERNAL_UNMANAGED,
-                            List.of("stack-component", "other")
-                        )
+                        SystemIndexDescriptor.builder()
+                            .setIndexPattern(".external-sys-idx*")
+                            .setDescription("external")
+                            .setType(Type.EXTERNAL_UNMANAGED)
+                            .setAllowedElasticProductOrigins(List.of("stack-component", "other"))
+                            .build()
                     )
                 )
             )
@@ -3268,9 +3264,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new Feature(
                     "ml",
                     "ml indices",
-                    List.of(new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
+                    List.of(
+                        SystemIndexDescriptorUtils.createUnmanaged(".ml-meta*", "ml meta"),
+                        SystemIndexDescriptorUtils.createUnmanaged(".ml-stuff*", "other ml")
+                    )
                 ),
-                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches*", "watches index")))
+                new Feature("watcher", "watcher indices", List.of(SystemIndexDescriptorUtils.createUnmanaged(".watches*", "watches index")))
             )
         );
         indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);

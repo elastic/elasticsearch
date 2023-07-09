@@ -1,0 +1,5 @@
+pr: 96550
+summary: "[Profiling] Allow to upgrade managed ILM policy"
+area: Application
+type: enhancement
+issues: []

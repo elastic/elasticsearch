@@ -69,7 +69,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
-        DataLifecycle lifecycle = null;
+        DataStreamLifecycle lifecycle = null;
         if (randomBoolean()) {
             settings = randomSettings();
         }
@@ -119,8 +119,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             .build();
     }
 
-    private static DataLifecycle randomLifecycle() {
-        return new DataLifecycle(randomMillisUpToYear9999());
+    private static DataStreamLifecycle randomLifecycle() {
+        return rarely() ? Template.NO_LIFECYCLE : DataStreamLifecycleTests.randomLifecycle();
     }
 
     private static Map<String, Object> randomMeta() {
@@ -260,7 +260,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        DataLifecycle lifecycle = randomLifecycle();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle(randomMillisUpToYear9999());
         ComponentTemplate template = new ComponentTemplate(
             new Template(settings, mappings, aliases, lifecycle),
             randomNonNegativeLong(),
@@ -273,7 +273,9 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getDataRetention()).getConditions().keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention())
+                .getConditions()
+                .keySet()) {
                 assertThat(serialized, containsString(label));
             }
         }

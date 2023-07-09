@@ -10,9 +10,7 @@ package org.elasticsearch.search.geo;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
@@ -23,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
@@ -40,6 +39,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.CoreMatchers;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -397,12 +397,17 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
 
         LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
 
-        // LinearRing extends Line implements Geometry: expose the build process
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client(), SearchAction.INSTANCE);
-        searchRequestBuilder.setQuery(queryBuilder().shapeQuery(defaultFieldName, linearRing));
-        searchRequestBuilder.setIndices(defaultIndexName);
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, searchRequestBuilder::get);
-        assertThat(e.getCause().getMessage(), containsString("LinearRing"));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> queryBuilder().shapeQuery(defaultFieldName, linearRing)
+        );
+        assertThat(ex.getMessage(), CoreMatchers.containsString("[LINEARRING] geometries are not supported"));
+
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> queryBuilder().shapeQuery(defaultFieldName, new GeometryCollection<>(List.of(linearRing)))
+        );
+        assertThat(ex.getMessage(), CoreMatchers.containsString("[LINEARRING] geometries are not supported"));
     }
 
     public void testQueryPoint() throws Exception {

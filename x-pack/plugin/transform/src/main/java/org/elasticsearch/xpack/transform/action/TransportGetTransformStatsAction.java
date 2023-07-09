@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -27,6 +28,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -101,14 +103,14 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         List<TransformStats> responses = tasks.stream()
             .flatMap(r -> r.getTransformsStats().stream())
             .sorted(Comparator.comparing(TransformStats::getId))
-            .collect(Collectors.toList());
+            .toList();
         List<ElasticsearchException> allFailedNodeExceptions = new ArrayList<>(failedNodeExceptions);
-        allFailedNodeExceptions.addAll(tasks.stream().flatMap(r -> r.getNodeFailures().stream()).collect(Collectors.toList()));
+        tasks.stream().map(BaseTasksResponse::getNodeFailures).forEach(allFailedNodeExceptions::addAll);
         return new Response(responses, responses.size(), taskOperationFailures, allFailedNodeExceptions);
     }
 
     @Override
-    protected void taskOperation(Task actionTask, Request request, TransformTask task, ActionListener<Response> listener) {
+    protected void taskOperation(CancellableTask actionTask, Request request, TransformTask task, ActionListener<Response> listener) {
         // Little extra insurance, make sure we only return transforms that aren't cancelled
         ClusterState state = clusterService.state();
         String nodeId = state.nodes().getLocalNode().getId();
@@ -264,7 +266,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             return;
         }
         Set<String> transformsWithoutTasks = new HashSet<>(request.getExpandedIds());
-        transformsWithoutTasks.removeAll(response.getTransformsStats().stream().map(TransformStats::getId).collect(Collectors.toList()));
+        response.getTransformsStats().stream().map(TransformStats::getId).forEach(transformsWithoutTasks::remove);
 
         // Small assurance that we are at least below the max. Terms search has a hard limit of 10k, we should at least be below that.
         assert transformsWithoutTasks.size() <= Request.MAX_SIZE_RETURN;

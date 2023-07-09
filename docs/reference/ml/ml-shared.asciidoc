@@ -891,7 +891,7 @@ For example:
    "ignore_throttled": true
 }
 ```
-For more information about these options, see <<multi-index>>.
+For more information about these options, see <<api-multi-index>>.
 --
 end::indices-options[]
 
@@ -944,12 +944,20 @@ values are
 * `bert`: Use for BERT-style models
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
+* experimental:[] `xlm_roberta`: Use for XLMRoBERTa-style models
+* experimental:[] `bert_ja`: Use for BERT-style models trained for the Japanese
+language.
 --
 end::inference-config-nlp-tokenization[]
 
 tag::inference-config-nlp-tokenization-bert[]
 BERT-style tokenization is to be performed with the enclosed settings.
 end::inference-config-nlp-tokenization-bert[]
+
+tag::inference-config-nlp-tokenization-bert-ja[]
+experimental:[] BERT-style tokenization for Japanese text is to be performed 
+with the enclosed settings.
+end::inference-config-nlp-tokenization-bert-ja[]
 
 tag::inference-config-nlp-tokenization-do-lower-case[]
 Specifies if the tokenization lower case the text sequence when building the
@@ -992,6 +1000,10 @@ Tokenize with special tokens. The tokens typically included in BERT-style tokeni
 --
 end::inference-config-nlp-tokenization-bert-with-special-tokens[]
 
+tag::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
+Tokenize with special tokens if `true`.
+end::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
+
 tag::inference-config-nlp-tokenization-max-sequence-length[]
 Specifies the maximum number of tokens allowed to be output by the tokenizer.
 end::inference-config-nlp-tokenization-max-sequence-length[]
@@ -1025,6 +1037,10 @@ Tokenize with special tokens. The tokens typically included in MPNet-style token
 * `</s>`: Indicates sequence separation.
 --
 end::inference-config-nlp-tokenization-mpnet-with-special-tokens[]
+
+tag::inference-config-nlp-tokenization-xlm-roberta[]
+experimental:[] XLMRoBERTa-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-xlm-roberta[]
 
 tag::inference-config-nlp-vocabulary[]
 The configuration for retrieving the vocabulary of the model. The vocabulary is

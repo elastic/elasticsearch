@@ -67,7 +67,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
     }
 
     protected final AsyncSearchResponse assertSerialization(AsyncSearchResponse testInstance) throws IOException {
-        return assertSerialization(testInstance, TransportVersion.CURRENT);
+        return assertSerialization(testInstance, TransportVersion.current());
     }
 
     protected final AsyncSearchResponse assertSerialization(AsyncSearchResponse testInstance, TransportVersion version) throws IOException {
@@ -77,7 +77,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
     }
 
     protected final AsyncSearchResponse copyInstance(AsyncSearchResponse instance) throws IOException {
-        return copyInstance(instance, TransportVersion.CURRENT);
+        return copyInstance(instance, TransportVersion.current());
     }
 
     protected AsyncSearchResponse copyInstance(AsyncSearchResponse instance, TransportVersion version) throws IOException {

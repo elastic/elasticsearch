@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TcpTransport;
@@ -462,6 +463,35 @@ public class PrivilegeTests extends ESTestCase {
                 "cluster:admin/whatever"
             );
 
+        }
+    }
+
+    public void testDataStreamLifecyclePrivileges() {
+        assumeTrue("feature flag required", DataStreamLifecycle.isEnabled());
+        {
+            Predicate<String> predicate = IndexPrivilege.MANAGE_DATA_STREAM_LIFECYCLE.predicate();
+            // check indices actions
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/explain"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/get"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/delete"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/put"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(true));
+            // check non data stream lifecycle action
+            assertThat(predicate.test("indices:admin/whatever"), is(false));
+        }
+
+        {
+            Predicate<String> predicate = IndexPrivilege.VIEW_METADATA.predicate();
+            // check indices actions
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/explain"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/get"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/delete"), is(false));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/put"), is(false));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(false));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(false));
+            // check non data stream lifecycle action
+            assertThat(predicate.test("indices:admin/whatever"), is(false));
         }
     }
 

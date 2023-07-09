@@ -2,13 +2,16 @@
 [[get-search-application]]
 === Get Search Application
 
-preview::[]
+beta::[]
 
 ++++
 <titleabbrev>Get Search Application</titleabbrev>
 ++++
 
-Retrieves information about a Search Application.
+Retrieves information about a search application.
+
+If the search application has an inconsistent state between its alias and configured indices, a warning header will be returned with the response.
+To resolve this inconsistent state, issue an updated <<put-search-application>> command.
 
 [[get-search-application-request]]
 ==== {api-request-title}

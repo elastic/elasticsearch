@@ -36,6 +36,11 @@ artifacts {
 dependencies {
   clusterModules project(":modules:mapper-extras")
   clusterModules project(":modules:rest-root")
+  clusterModules project(":modules:reindex")
+}
+
+testClusters.configureEach {
+  requiresFeature 'es.synonyms_feature_flag_enabled', Version.fromString("8.9.0")
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->

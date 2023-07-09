@@ -20,9 +20,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -88,7 +88,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             null,
             "index",
             0,
-            Version.CURRENT
+            IndexVersion.current()
         );
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
@@ -109,7 +109,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             null,
             "index",
             0,
-            Version.CURRENT
+            IndexVersion.current()
         );
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
@@ -134,7 +134,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             null,
             "index",
             0,
-            Version.CURRENT
+            IndexVersion.current()
         );
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
@@ -157,7 +157,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             null,
             "index",
             0,
-            Version.CURRENT
+            IndexVersion.current()
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, 1));
         assertTrue(e.getMessage().contains("Must be a non-negative score!"));

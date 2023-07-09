@@ -1,0 +1,5 @@
+pr: 96716
+summary: Feature/speed up binary vector decoding
+area: Search
+type: enhancement
+issues: []

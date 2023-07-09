@@ -20,8 +20,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Stream;
 
 public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clientStats) implements Writeable, ChunkedToXContent {
+
+    public static final HttpStats IDENTITY = new HttpStats(0, 0, List.of());
 
     public HttpStats(long serverOpen, long totalOpened) {
         this(serverOpen, totalOpened, List.of());
@@ -48,6 +51,14 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
 
     public List<ClientStats> getClientStats() {
         return this.clientStats;
+    }
+
+    public static HttpStats merge(HttpStats first, HttpStats second) {
+        return new HttpStats(
+            first.serverOpen + second.serverOpen,
+            first.totalOpen + second.totalOpen,
+            Stream.concat(first.clientStats.stream(), second.clientStats.stream()).toList()
+        );
     }
 
     static final class Fields {

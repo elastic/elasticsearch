@@ -4,13 +4,20 @@
       "index": {
         "number_of_replicas": 0,
         "auto_expand_replicas": "0-1",
-        "refresh_interval": "10s"
+        "refresh_interval": "10s",
+        "hidden": true,
+        "lifecycle.rollover_alias": "profiling-executables"
       }
     },
     "mappings": {
       "_source": {
         "mode": "synthetic"
       },
+      "_meta": {
+        "index-template-version": ${xpack.profiling.template.version},
+        "index-version": ${xpack.profiling.index.executables.version}
+      },
+      "dynamic": false,
       "properties": {
         "ecs.version": {
           "type": "keyword",
@@ -28,10 +35,10 @@
           "type": "date",
           "format": "epoch_second"
         },
-        "Symbolization.lastprocessed": {
+        "Symbolization.next_time": {
           "type": "date",
           "format": "epoch_second",
-          "index": false
+          "index": true
         }
       }
     }

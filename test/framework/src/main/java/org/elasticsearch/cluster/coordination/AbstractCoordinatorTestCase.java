@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
@@ -37,6 +36,7 @@ import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialS
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -1195,18 +1195,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 Function<Long, Long> adaptCurrentTerm,
                 Settings settings
             ) {
-                final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
-                final DiscoveryNode newLocalNode = new DiscoveryNode(
-                    localNode.getName(),
-                    localNode.getId(),
-                    UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
-                    address.address().getHostString(),
-                    address.getAddress(),
-                    address,
-                    Collections.emptyMap(),
-                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet(),
-                    Version.CURRENT
-                );
+                final DiscoveryNode newLocalNode = DiscoveryNodeUtils.builder(localNode.getId())
+                    .name(localNode.getName())
+                    .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
+                    .address(randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress())
+                    .roles(localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet())
+                    .build();
                 try {
                     return new ClusterNode(
                         nodeIndex,
@@ -1853,18 +1847,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         .collect(Collectors.toUnmodifiableSet());
 
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
-        final TransportAddress address = buildNewFakeTransportAddress();
-        return new DiscoveryNode(
-            "",
-            "node" + nodeIndex,
-            UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
-            address.address().getHostString(),
-            address.getAddress(),
-            address,
-            Collections.emptyMap(),
-            masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet(),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder("node" + nodeIndex)
+            .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
+            .roles(masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet())
+            .build();
     }
 
     /**
@@ -2101,7 +2087,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 } else {
                     nodeEnvironment = null;
                     BytesStreamOutput outStream = new BytesStreamOutput();
-                    outStream.setTransportVersion(TransportVersion.CURRENT);
+                    outStream.setTransportVersion(TransportVersion.current());
 
                     final long persistedCurrentTerm;
 

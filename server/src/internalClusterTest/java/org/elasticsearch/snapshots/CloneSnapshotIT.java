@@ -128,7 +128,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         indexRandomDocs(indexName, randomIntBetween(20, 100));
         if (randomBoolean()) {
-            assertAcked(admin().indices().prepareDelete(indexName));
+            assertAcked(indicesAdmin().prepareDelete(indexName));
         }
         final String targetSnapshot = "target-snapshot";
         assertAcked(startClone(repoName, sourceSnapshot, targetSnapshot, indexName).get());
@@ -306,7 +306,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
 
-        assertAcked(admin().indices().prepareDelete(indexBlocked).get());
+        assertAcked(indicesAdmin().prepareDelete(indexBlocked).get());
 
         final String targetSnapshot1 = "target-snapshot";
         blockMasterOnShardClone(repoName);
@@ -707,7 +707,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
-        assertAcked(admin().indices().prepareDelete(testIndex).get());
+        assertAcked(indicesAdmin().prepareDelete(testIndex).get());
 
         final MockRepository repo = getRepositoryOnMaster(repoName);
         repo.setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked();
@@ -780,8 +780,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> fullSnapshotFuture1 = startFullSnapshot(repoName, "full-snapshot-1");
         waitForBlock(dataNode, repoName);
         // make sure we don't have so many files in the shard that will get blocked to fully clog up the snapshot pool on the data node
-        final var files = admin().indices()
-            .prepareStats("test-index-3")
+        final var files = indicesAdmin().prepareStats("test-index-3")
             .setSegments(true)
             .setIncludeSegmentFileSizes(true)
             .get()

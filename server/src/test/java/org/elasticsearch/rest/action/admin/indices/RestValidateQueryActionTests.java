@@ -54,7 +54,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private UsageService usageService = new UsageService();
-    private RestController controller = new RestController(null, client, new NoneCircuitBreakerService(), usageService, Tracer.NOOP, false);
+    private RestController controller = new RestController(null, client, new NoneCircuitBreakerService(), usageService, Tracer.NOOP);
     private RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**

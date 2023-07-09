@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
@@ -45,7 +46,7 @@ public class IdFieldTypeTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
         IndexSettings mockSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
-        Mockito.when(context.indexVersionCreated()).thenReturn(Version.CURRENT);
+        Mockito.when(context.indexVersionCreated()).thenReturn(IndexVersion.current());
         MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType(() -> false);
         Query query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);

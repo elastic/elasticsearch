@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -29,6 +28,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
@@ -145,7 +145,6 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -190,7 +189,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
             LifecycleSettings.SLM_RETENTION_DURATION_SETTING,
             LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING,
-            LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING
+            LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING,
+            IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING,
+            IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING,
+            IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING
         );
     }
 
@@ -212,7 +214,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         final List<Object> components = new ArrayList<>();
         ILMHistoryTemplateRegistry ilmTemplateRegistry = new ILMHistoryTemplateRegistry(
@@ -273,16 +276,20 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         );
         snapshotRetentionService.get().init(clusterService);
         components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
-        ilmHealthIndicatorService.set(new IlmHealthIndicatorService(clusterService));
+        ilmHealthIndicatorService.set(
+            new IlmHealthIndicatorService(
+                clusterService,
+                new IlmHealthIndicatorService.StagnatingIndicesFinder(
+                    clusterService,
+                    IlmHealthIndicatorService.RULES_BY_ACTION_CONFIG.values(),
+                    System::currentTimeMillis
+                )
+            )
+        );
         slmHealthIndicatorService.set(new SlmHealthIndicatorService(clusterService));
         reservedLifecycleAction.set(new ReservedLifecycleAction(xContentRegistry, client, XPackPlugin.getSharedLicenseState()));
 
         return components;
-    }
-
-    @Override
-    public List<Entry> getNamedWriteables() {
-        return Collections.emptyList();
     }
 
     @Override

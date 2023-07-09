@@ -114,7 +114,7 @@ public class TransformConfigUpdate implements Writeable {
         description = in.readOptionalString();
         syncConfig = in.readOptionalNamedWriteable(SyncConfig.class);
         if (in.readBoolean()) {
-            setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
+            setHeaders(in.readMap(StreamInput::readString));
         }
         settings = in.readOptionalWriteable(SettingsConfig::new);
         metadata = in.readMap();

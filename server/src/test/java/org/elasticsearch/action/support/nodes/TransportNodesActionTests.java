@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -158,7 +158,10 @@ public class TransportNodesActionTests extends ESTestCase {
 
         final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
         final PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
-        action.execute(cancellableTask, new TestNodesRequest(), listener);
+        action.execute(cancellableTask, new TestNodesRequest(), listener.delegateResponse((l, e) -> {
+            assert Thread.currentThread().getName().contains("[" + ThreadPool.Names.GENERIC + "]");
+            l.onFailure(e);
+        }));
 
         final List<CapturingTransport.CapturedRequest> capturedRequests = new ArrayList<>(
             Arrays.asList(transport.getCapturedRequestsAndClear())
@@ -266,7 +269,7 @@ public class TransportNodesActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             TestNodesRequest::new,
             TestNodeRequest::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.GENERIC
         );
     }
 
@@ -278,13 +281,13 @@ public class TransportNodesActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             TestNodesRequest::new,
             TestNodeRequest::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.GENERIC
         );
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         String node = "node_" + nodeId;
-        return TestDiscoveryNode.create(node, node, buildNewFakeTransportAddress(), attributes, roles);
+        return DiscoveryNodeUtils.builder(node).name(node).attributes(attributes).roles(roles).build();
     }
 
     private static class TestTransportNodesAction extends TransportNodesAction<
@@ -302,17 +305,7 @@ public class TransportNodesActionTests extends ESTestCase {
             Writeable.Reader<TestNodeRequest> nodeRequest,
             String nodeExecutor
         ) {
-            super(
-                "indices:admin/test",
-                threadPool,
-                clusterService,
-                transportService,
-                actionFilters,
-                request,
-                nodeRequest,
-                nodeExecutor,
-                TestNodeResponse.class
-            );
+            super("indices:admin/test", threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
         }
 
         @Override

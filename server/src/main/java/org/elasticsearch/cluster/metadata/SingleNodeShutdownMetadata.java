@@ -459,17 +459,13 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         SIGTERM; // locally-initiated version of REMOVE
 
         public static Type parse(String type) {
-            if ("remove".equals(type.toLowerCase(Locale.ROOT))) {
-                return REMOVE;
-            } else if ("restart".equals(type.toLowerCase(Locale.ROOT))) {
-                return RESTART;
-            } else if ("replace".equals(type.toLowerCase(Locale.ROOT))) {
-                return REPLACE;
-            } else if ("sigterm".equals(type.toLowerCase(Locale.ROOT))) {
-                return SIGTERM;
-            } else {
-                throw new IllegalArgumentException("unknown shutdown type: " + type);
-            }
+            return switch (type.toLowerCase(Locale.ROOT)) {
+                case "remove" -> REMOVE;
+                case "restart" -> RESTART;
+                case "replace" -> REPLACE;
+                case "sigterm" -> SIGTERM;
+                default -> throw new IllegalArgumentException("unknown shutdown type: " + type);
+            };
         }
     }
 

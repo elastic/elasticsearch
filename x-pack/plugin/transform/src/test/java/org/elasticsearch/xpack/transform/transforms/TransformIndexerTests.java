@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -493,10 +494,10 @@ public class TransformIndexerTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
-        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(r -> {
             assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
             furtherTests.accept(r);
-        }, e -> { fail("got unexpected exception: " + e); }), latch);
+        }), latch);
 
         function.accept(listener);
         assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));

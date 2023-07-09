@@ -46,7 +46,7 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshotName = "snapshot";
         createFullSnapshot(repositoryName, snapshotName);
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         logger.info("--> blocking all data nodes for repository [{}]", repositoryName);
         blockAllDataNodes(repositoryName);
@@ -82,7 +82,7 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
         waitForMaxActiveSnapshotThreads(dataNode, equalTo(snapshotThreadPoolInfo.getMax()));
 
         logger.info("--> aborting restore by deleting the index");
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         logger.info("--> unblocking repository [{}]", repositoryName);
         unblockAllDataNodes(repositoryName);
@@ -97,6 +97,6 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void waitForMaxActiveSnapshotThreads(final String node, final Matcher<Integer> matcher) throws Exception {
-        assertBusy(() -> assertThat(snapshotThreadPoolStats(node).getActive(), matcher), 30L, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(snapshotThreadPoolStats(node).active(), matcher), 30L, TimeUnit.SECONDS);
     }
 }

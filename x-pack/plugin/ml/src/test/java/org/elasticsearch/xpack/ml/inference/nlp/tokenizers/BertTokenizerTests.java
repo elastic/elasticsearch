@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
@@ -22,6 +24,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class BertTokenizerTests extends ESTestCase {
 
@@ -64,6 +67,117 @@ public class BertTokenizerTests extends ESTestCase {
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("Elastic", "##search", "fun"));
             assertArrayEquals(new int[] { 0, 1, 3 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 0, 1 }, tokenization.tokenMap());
+        }
+    }
+
+    public void testTokenizeWithTokensThatAreRemovedByStripAccents() {
+
+        List<String> vocab = List.of(
+            "Arabic",
+            ":",
+            "##ق",
+            "و",
+            "3",
+            "##م",
+            "##ا",
+            "##ه",
+            "##د",
+            "##ز",
+            "##ا",
+            "##ل",
+            "ا",
+            ".",
+            "4",
+            "There",
+            "are",
+            "2",
+            "main",
+            "types",
+            "of",
+            "non",
+            "mel",
+            "##ano",
+            "##ma",
+            "skin",
+            "cancer",
+            "basel",
+            "cell",
+            "car",
+            "##cino",
+            "(",
+            ")",
+            "BCC",
+            "SCC",
+            "and",
+            "squamous",
+            BertTokenizer.CLASS_TOKEN,
+            BertTokenizer.SEPARATOR_TOKEN,
+            BertTokenizer.MASK_TOKEN,
+            BertTokenizer.UNKNOWN_TOKEN,
+            BertTokenizer.PAD_TOKEN
+        );
+
+        String inputWithAccentsToStrip1 = "  Arabic: وَقْ 3 ُ الِازْدِهَام.4  ";
+        String inputWithAccentsToStrip2 =
+            "There are 2 main types of non melanoma skin cancer ̶̶ basal cell carcinoma (BCC) and squamous cell carcinoma (SCC).";
+        String inputWithAccentToStripAtEndOfString = "There are 2 main types of non melanoma skin cancer ̶̶";
+        String onlyAccents = " ̶̶";
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(vocab, new BertTokenization(true, true, null, Tokenization.Truncate.NONE, -1))
+                .build()
+        ) {
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize(inputWithAccentsToStrip1, Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 37, 0, 1, 3, 2, 4, 12, 11, 10, 9, 8, 7, 10, 5, 13, 14, 38 }));
+
+            tokenization = tokenizer.tokenize(inputWithAccentsToStrip2, Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(
+                tokenization.tokenIds(),
+                equalTo(
+                    new int[] {
+                        37,
+                        15,
+                        16,
+                        17,
+                        18,
+                        19,
+                        20,
+                        21,
+                        22,
+                        23,
+                        24,
+                        25,
+                        26,
+                        40,
+                        28,
+                        29,
+                        30,
+                        24,
+                        31,
+                        33,
+                        32,
+                        35,
+                        36,
+                        28,
+                        29,
+                        30,
+                        24,
+                        31,
+                        34,
+                        32,
+                        13,
+                        38 }
+                )
+            );
+
+            tokenization = tokenizer.tokenize(inputWithAccentToStripAtEndOfString, Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 37, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 38 }));
+            // the last token is the separator, the one before that should
+            // correspond to the last word in the input _not_ the accent
+            assertEquals("cancer", vocab.get(26));
+
+            tokenization = tokenizer.tokenize(onlyAccents, Tokenization.Truncate.NONE, -1, 0).get(0);
+            // empty tokenization only contains ClASS and SEP tokens
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 37, 38 }));
         }
     }
 
@@ -645,6 +759,27 @@ public class BertTokenizerTests extends ESTestCase {
             assertEquals(BertTokenizer.UNKNOWN_TOKEN, TEST_CASED_VOCAB.get(tokenization.tokenIds()[0]));
             assertEquals("fun", TEST_CASED_VOCAB.get(tokenization.tokenIds()[1]));
             assertArrayEquals(new int[] { 0, 1 }, tokenization.tokenMap());
+        }
+    }
+
+    public void testCreateAnalyzer() {
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(
+                TEST_CASED_VOCAB,
+                new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1)
+            ).build()
+        ) {
+            WordPieceAnalyzer analyzer = tokenizer.createWordPieceAnalyzer(
+                TEST_CASED_VOCAB,
+                Collections.emptyList(),
+                false,
+                false,
+                false,
+                BertTokenizer.UNKNOWN_TOKEN
+            );
+            assertThat(analyzer, instanceOf(WordPieceAnalyzer.class));
+            Tokenizer preTokenizer = analyzer.createTokenizer();
+            assertThat(preTokenizer, instanceOf(WhitespaceTokenizer.class));
         }
     }
 }

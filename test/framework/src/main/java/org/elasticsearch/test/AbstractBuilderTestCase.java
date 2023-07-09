@@ -37,15 +37,22 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.CoordinatorRewriteContext;
+import org.elasticsearch.index.query.DataRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -69,6 +76,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.junit.After;
@@ -315,14 +323,26 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      * @return a new {@link SearchExecutionContext} with the provided searcher
      */
     protected static SearchExecutionContext createSearchExecutionContext(IndexSearcher searcher) {
-        return serviceHolder.createShardContext(searcher);
+        return serviceHolder.createShardContext(searcher, null);
+    }
+
+    protected static CoordinatorRewriteContext createCoordinatorRewriteContext(
+        DateFieldMapper.DateFieldType dateFieldType,
+        long min,
+        long max
+    ) {
+        return serviceHolder.createCoordinatorContext(dateFieldType, min, max);
+    }
+
+    protected static DataRewriteContext dataRewriteContext() {
+        return serviceHolder.createDataContext();
     }
 
     /**
      * @return a new {@link SearchExecutionContext} based on an index with no type registered
      */
     protected static SearchExecutionContext createShardContextWithNoType() {
-        return serviceHolderWithNoType.createShardContext(null);
+        return serviceHolderWithNoType.createShardContext(null, null);
     }
 
     /**
@@ -330,6 +350,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      */
     protected static SearchExecutionContext createSearchExecutionContext() {
         return createSearchExecutionContext(null);
+    }
+
+    protected static QueryRewriteContext createQueryRewriteContext() {
+        return serviceHolder.createQueryRewriteContext();
     }
 
     private static class ClientInvocationHandler implements InvocationHandler {
@@ -412,8 +436,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             SettingsModule settingsModule = new SettingsModule(
                 nodeSettings,
                 pluginsService.flatMap(Plugin::getSettings).toList(),
-                pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
-                Collections.emptySet()
+                pluginsService.flatMap(Plugin::getSettingsFilter).toList()
             );
             searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
@@ -433,7 +456,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 emptyList(),
                 new StablePluginsRegistry()
             );
-            IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
+            IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
             scriptService = new MockScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
@@ -444,7 +467,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 parserConfiguration,
                 similarityService,
                 mapperRegistry,
-                () -> createShardContext(null),
+                () -> createShardContext(null, clusterService.getClusterSettings()),
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
                 ScriptCompiler.NONE
             );
@@ -535,11 +558,12 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         @Override
         public void close() throws IOException {}
 
-        SearchExecutionContext createShardContext(IndexSearcher searcher) {
+        SearchExecutionContext createShardContext(IndexSearcher searcher, ClusterSettings clusterSettings) {
             return new SearchExecutionContext(
                 0,
                 0,
                 idxSettings,
+                clusterSettings == null ? ClusterSettings.createBuiltInClusterSettings() : clusterSettings,
                 bitsetFilterCache,
                 indexFieldDataService::getForField,
                 mapperService,
@@ -557,6 +581,42 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 null,
                 emptyMap()
             );
+        }
+
+        QueryRewriteContext createQueryRewriteContext() {
+            return new QueryRewriteContext(
+                parserConfiguration,
+                client,
+                () -> nowInMillis,
+                mapperService,
+                mapperService.mappingLookup(),
+                emptyMap(),
+                null,
+                idxSettings,
+                new Index(
+                    RemoteClusterAware.buildRemoteIndexName(null, idxSettings.getIndex().getName()),
+                    idxSettings.getIndex().getUUID()
+                ),
+                indexNameMatcher(),
+                namedWriteableRegistry,
+                null,
+                () -> true,
+                scriptService
+            );
+        }
+
+        CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max) {
+            return new CoordinatorRewriteContext(
+                parserConfiguration,
+                this.client,
+                () -> nowInMillis,
+                IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
+                dateFieldType
+            );
+        }
+
+        DataRewriteContext createDataContext() {
+            return new DataRewriteContext(parserConfiguration, this.client, () -> nowInMillis);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

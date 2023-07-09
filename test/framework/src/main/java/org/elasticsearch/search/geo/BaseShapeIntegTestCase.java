@@ -8,7 +8,6 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -30,6 +29,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
@@ -72,7 +72,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
     /**
      * Provides a supported version when the mapping was created.
      */
-    protected abstract Version randomSupportedVersion();
+    protected abstract IndexVersion randomSupportedVersion();
 
     /**
      * If this field is allowed to be executed when setting allow_expensive_queries us set to false.
@@ -230,14 +230,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         mapping.endObject().endObject().endObject();
 
         // create index
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(settings(randomSupportedVersion()).build())
-                .setMapping(mapping)
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(settings(randomSupportedVersion()).build()).setMapping(mapping).get());
         ensureGreen();
 
         String source = """
@@ -285,14 +278,12 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         getGeoShapeMapping(mapping);
         mapping.endObject().endObject().endObject();
 
-        final Version version = randomSupportedVersion();
-        CreateIndexRequestBuilder mappingRequest = client().admin()
-            .indices()
-            .prepareCreate("shapes")
+        final IndexVersion version = randomSupportedVersion();
+        CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("shapes")
             .setMapping(mapping)
             .setSettings(settings(version).build());
         mappingRequest.get();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         // Create a multipolygon with two polygons. The first is an rectangle of size 10x10
         // with a hole of size 5x5 equidistant from all sides. This hole in turn contains
@@ -432,8 +423,8 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
 
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
-        Version version = randomSupportedVersion();
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
+        IndexVersion version = randomSupportedVersion();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version.id()).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("_doc")
@@ -469,7 +460,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
     protected abstract void doDistanceAndBoundingBoxTest(String key);
 
     private String findNodeName(String index) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         IndexShardRoutingTable shard = state.getRoutingTable().index(index).shard(0);
         String nodeId = shard.assignedShards().get(0).currentNodeId();
         return state.getNodes().get(nodeId).getName();

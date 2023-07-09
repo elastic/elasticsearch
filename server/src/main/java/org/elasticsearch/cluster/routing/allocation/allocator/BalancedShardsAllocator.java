@@ -15,7 +15,6 @@ import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -57,6 +56,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
@@ -897,8 +897,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              */
             MoveDecision moveDecision = decideMove(shardRouting, sourceNode, canRemain, this::decideCanAllocate);
             if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
-                final SingleNodeShutdownMetadata shutdown = allocation.metadata().nodeShutdowns().get(shardRouting.currentNodeId());
-                final boolean shardsOnReplacedNode = shutdown != null && shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE);
+                final boolean shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
                 if (shardsOnReplacedNode) {
                     return decideMove(shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);
                 }

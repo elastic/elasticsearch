@@ -1,0 +1,82 @@
+setup:
+  - skip:
+      version: " - 8.8.99"
+      reason: Introduced in 8.9.0
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "test-id-1"
+            - synonyms: "bye => goodbye"
+              id: "test-id-2"
+            - synonyms: "test => check"
+              id: "test-id-3"
+
+
+---
+"Update a synonyms rule":
+  - do:
+      synonym_rule.put:
+        synonyms_set: "test-synonyms"
+        synonym_rule: "test-id-2"
+        body:
+          synonyms: "bye, goodbye, seeya"
+
+  - match: { result: "updated" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
+
+  - do:
+      synonyms.get:
+        synonyms_set: test-synonyms
+
+  - match:
+      synonyms_set:
+        - synonyms: "hello, hi"
+          id: "test-id-1"
+        - synonyms: "bye, goodbye, seeya"
+          id: "test-id-2"
+        - synonyms: "test => check"
+          id: "test-id-3"
+
+
+---
+"Create a new synonym rule":
+  - do:
+      synonym_rule.put:
+        synonyms_set: "test-synonyms"
+        synonym_rule: "test-id-0"
+        body:
+          synonyms: "i-phone, iphone"
+
+  - match: { result: "created" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
+
+  - do:
+      synonyms.get:
+        synonyms_set: test-synonyms
+
+  - match:
+      synonyms_set:
+        - synonyms: "i-phone, iphone"
+          id: "test-id-0"
+        - synonyms: "hello, hi"
+          id: "test-id-1"
+        - synonyms: "bye => goodbye"
+          id: "test-id-2"
+        - synonyms: "test => check"
+          id: "test-id-3"
+
+---
+"Update synonym rule for non existing synonym set":
+
+  - do:
+      catch: missing
+      synonym_rule.put:
+        synonyms_set: "test-synonyms-non-existent"
+        synonym_rule: "test-id-0"
+        body:
+          synonyms: "i-phone, iphone"

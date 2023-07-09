@@ -17,8 +17,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.VersionUtils;
@@ -393,7 +395,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             Settings nodeSettings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
             newNodeIds.add(nodeId);
             nodes.add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     Node.NODE_NAME_SETTING.get(nodeSettings),
                     nodeId,
                     new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
@@ -417,7 +419,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                     new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
                     Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
                     DiscoveryNode.getRolesFromSettings(nodeSettings),
-                    oldVersion
+                    new VersionInformation(oldVersion, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
                 )
             );
         }
@@ -462,7 +464,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 .build();
             newNodeIds.add(nodeId);
             nodes.add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     Node.NODE_NAME_SETTING.get(nodeSettings),
                     nodeId,
                     new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
@@ -489,7 +491,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                     new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
                     Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
                     DiscoveryNode.getRolesFromSettings(nodeSettings),
-                    oldVersion
+                    new VersionInformation(oldVersion, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
                 )
             );
         }
@@ -532,7 +534,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 .build();
             newNodeIds.add(nodeId);
             nodes.add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     Node.NODE_NAME_SETTING.get(nodeSettings),
                     nodeId,
                     new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
@@ -559,7 +561,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                     new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
                     Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
                     DiscoveryNode.getRolesFromSettings(nodeSettings),
-                    oldVersion
+                    new VersionInformation(oldVersion, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
                 )
             );
         }

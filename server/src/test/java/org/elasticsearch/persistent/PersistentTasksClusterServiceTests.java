@@ -10,6 +10,7 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,8 +22,8 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
@@ -55,7 +56,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
@@ -138,7 +138,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         EnableAssignmentDecider.Allocation allocation = randomFrom(EnableAssignmentDecider.Allocation.values());
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("_node"))
+            .add(DiscoveryNodeUtils.create("_node"))
             .localNodeId("_node")
             .masterNodeId("_node")
             .build();
@@ -319,7 +319,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     }
 
     public void testPersistentTasksChangedNoTasks() {
-        DiscoveryNodes nodes = DiscoveryNodes.builder().add(TestDiscoveryNode.create("_node_1")).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_1")).build();
 
         ClusterState previous = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
         ClusterState current = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
@@ -328,7 +328,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     }
 
     public void testPersistentTasksChangedTaskAdded() {
-        DiscoveryNodes nodes = DiscoveryNodes.builder().add(TestDiscoveryNode.create("_node_1")).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_1")).build();
 
         ClusterState previous = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
 
@@ -346,8 +346,8 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
     public void testPersistentTasksChangedTaskRemoved() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("_node_1"))
-            .add(TestDiscoveryNode.create("_node_2"))
+            .add(DiscoveryNodeUtils.create("_node_1"))
+            .add(DiscoveryNodeUtils.create("_node_2"))
             .build();
 
         PersistentTasksCustomMetadata previousTasks = PersistentTasksCustomMetadata.builder()
@@ -376,8 +376,8 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
     public void testPersistentTasksAssigned() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("_node_1"))
-            .add(TestDiscoveryNode.create("_node_2"))
+            .add(DiscoveryNodeUtils.create("_node_1"))
+            .add(DiscoveryNodeUtils.create("_node_2"))
             .build();
 
         PersistentTasksCustomMetadata previousTasks = PersistentTasksCustomMetadata.builder()
@@ -405,8 +405,8 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
     public void testNeedsReassignment() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("_node_1"))
-            .add(TestDiscoveryNode.create("_node_2"))
+            .add(DiscoveryNodeUtils.create("_node_1"))
+            .add(DiscoveryNodeUtils.create("_node_2"))
             .build();
 
         assertTrue(needsReassignment(new Assignment(null, "unassigned"), nodes));
@@ -532,10 +532,10 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
         );
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("_node_1"))
+            .add(DiscoveryNodeUtils.create("_node_1"))
             .localNodeId("_node_1")
             .masterNodeId("_node_1")
-            .add(TestDiscoveryNode.create("_node_2"));
+            .add(DiscoveryNodeUtils.create("_node_2"));
 
         String unassignedId = addTask(tasks, "unassign", "_node_2");
 
@@ -544,12 +544,17 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         setState(clusterService, clusterState);
         PersistentTasksClusterService service = createService((params, candidateNodes, currentState) -> new Assignment("_node_2", "test"));
         final var countDownLatch = new CountDownLatch(1);
-        service.unassignPersistentTask(unassignedId, tasks.getLastAllocationId(), "unassignment test", ActionListener.wrap(task -> {
-            assertThat(task.getAssignment().getExecutorNode(), is(nullValue()));
-            assertThat(task.getId(), equalTo(unassignedId));
-            assertThat(task.getAssignment().getExplanation(), equalTo("unassignment test"));
-            countDownLatch.countDown();
-        }, e -> fail()));
+        service.unassignPersistentTask(
+            unassignedId,
+            tasks.getLastAllocationId(),
+            "unassignment test",
+            ActionTestUtils.assertNoFailureListener(task -> {
+                assertThat(task.getAssignment().getExecutorNode(), is(nullValue()));
+                assertThat(task.getId(), equalTo(unassignedId));
+                assertThat(task.getAssignment().getExplanation(), equalTo("unassignment test"));
+                countDownLatch.countDown();
+            })
+        );
 
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
     }
@@ -561,10 +566,10 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
         );
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("_node_1"))
+            .add(DiscoveryNodeUtils.create("_node_1"))
             .localNodeId("_node_1")
             .masterNodeId("_node_1")
-            .add(TestDiscoveryNode.create("_node_2"));
+            .add(DiscoveryNodeUtils.create("_node_2"));
 
         Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
         clusterState = builder.metadata(metadata).nodes(nodes).build();
@@ -742,7 +747,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
     private void addTestNodes(DiscoveryNodes.Builder nodes, int nonLocalNodesCount) {
         for (int i = 0; i < nonLocalNodesCount; i++) {
-            nodes.add(TestDiscoveryNode.create("other_node_" + i));
+            nodes.add(DiscoveryNodeUtils.create("other_node_" + i));
         }
     }
 
@@ -1020,12 +1025,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return TestDiscoveryNode.create(
-            nodeId,
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-        );
+        return DiscoveryNodeUtils.builder(nodeId).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)).build();
     }
 
     private ClusterState initialState() {

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -23,18 +24,21 @@ class SecurityUsageServices {
     final NativeRoleMappingStore roleMappingStore;
     final IPFilter ipFilter;
     final ProfileService profileService;
+    final ApiKeyService apiKeyService;
 
     SecurityUsageServices(
         Realms realms,
         CompositeRolesStore rolesStore,
         NativeRoleMappingStore roleMappingStore,
         IPFilter ipFilter,
-        ProfileService profileService
+        ProfileService profileService,
+        ApiKeyService apiKeyService
     ) {
         this.realms = realms;
         this.rolesStore = rolesStore;
         this.roleMappingStore = roleMappingStore;
         this.ipFilter = ipFilter;
         this.profileService = profileService;
+        this.apiKeyService = apiKeyService;
     }
 }

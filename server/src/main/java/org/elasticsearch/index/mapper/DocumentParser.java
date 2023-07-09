@@ -11,10 +11,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -346,7 +346,7 @@ public final class DocumentParser {
         }
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
-        Version indexVersion = context.indexSettings().getIndexVersionCreated();
+        IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
         if (nested.isIncludeInParent()) {
             addFields(indexVersion, nestedDoc, parentDoc);
         }
@@ -359,7 +359,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void addFields(Version indexCreatedVersion, LuceneDocument nestedDoc, LuceneDocument rootDoc) {
+    private static void addFields(IndexVersion indexCreatedVersion, LuceneDocument nestedDoc, LuceneDocument rootDoc) {
         String nestedPathFieldName = NestedPathFieldMapper.name(indexCreatedVersion);
         for (IndexableField field : nestedDoc.getFields()) {
             if (field.name().equals(nestedPathFieldName) == false && field.name().equals(IdFieldMapper.NAME) == false) {

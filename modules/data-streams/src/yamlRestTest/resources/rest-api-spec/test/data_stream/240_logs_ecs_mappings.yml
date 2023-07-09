@@ -1,0 +1,403 @@
+setup:
+  - do:
+      ingest.put_pipeline:
+        # opting in to use the JSON parsing pipeline for message field
+        id: "logs@custom"
+        body:  >
+          {
+            "processors": [
+              {
+                "pipeline" : {
+                  "name": "logs@json-message",
+                  "description": "A pipeline that automatically parses JSON log events into top-level fields if they are such"
+                }
+              }
+            ]
+          }
+
+  - do:
+      indices.create_data_stream:
+        name: logs-generic-default
+
+---
+Test Elastic Agent log ECS mappings:
+  - do:
+      indices.get_data_stream:
+        name: logs-generic-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      index:
+        index: logs-generic-default
+        refresh: true
+        body: >
+          {
+            "@timestamp": "2023-05-16T13:49:40.377Z",
+            "test": "elastic-agent-log",
+            "container": {
+              "image": {
+                "name": "docker.elastic.co/beats/elastic-agent:8.9.0-SNAPSHOT"
+              },
+              "runtime": "containerd",
+              "id": "bdabf58305b2b537d06b85764c588ff659190d875cb5470214bc16ba50ea1a4d"
+            },
+            "kubernetes": {
+              "container": {
+                "name": "elastic-agent"
+              },
+              "node": {
+                "uid": "0f4dd3b8-0b29-418e-ad7a-ebc55bc279ff",
+                "hostname": "multi-v1.27.1-worker",
+                "name": "multi-v1.27.1-worker",
+                "labels": {
+                  "kubernetes_io/hostname": "multi-v1.27.1-worker",
+                  "beta_kubernetes_io/os": "linux",
+                  "kubernetes_io/arch": "arm64",
+                  "kubernetes_io/os": "linux",
+                  "beta_kubernetes_io/arch": "arm64"
+                }
+              },
+              "pod": {
+                "uid": "c91d1354-27cf-40f3-a2d6-e2b75aa96bf2",
+                "ip": "172.18.0.4",
+                "test_ip": "172.18.0.5",
+                "name": "elastic-agent-managed-daemonset-jwktj"
+              },
+              "namespace": "kube-system",
+              "namespace_uid": "63294aeb-b23f-429d-827c-e793ccf91024",
+              "daemonset": {
+                "name": "elastic-agent-managed-daemonset"
+              },
+              "namespace_labels": {
+                "kubernetes_io/metadata_name": "kube-system"
+              },
+              "labels": {
+                "controller-revision-hash": "7ff74fcd4b",
+                "pod-template-generation": "1",
+                "k8s-app": "elastic-agent"
+              }
+            },
+            "agent": {
+              "name": "multi-v1.27.1-worker",
+              "id": "230358e2-6c5d-4675-9069-04feaddad64b",
+              "ephemeral_id": "e0934bfb-7e35-4bcc-a935-803643841213",
+              "type": "filebeat",
+              "version": "8.9.0"
+            },
+            "log": {
+              "file": {
+                "path": "/var/log/containers/elastic-agent-managed-daemonset-jwktj_kube-system_elastic-agent-bdabf58305b2b537d06b85764c588ff659190d875cb5470214bc16ba50ea1a4d.log"
+              },
+              "offset": 635247
+            },
+            "elastic_agent": {
+              "id": "230358e2-6c5d-4675-9069-04feaddad64b",
+              "version": "8.9.0",
+              "snapshot": true
+            },
+            "message": "{\"log.level\":\"info\",\"@timestamp\":\"2023-05-16T13:49:40.374Z\",\"message\":\"Non-zero metrics in the last 30s\",\"component\":{\"binary\":\"metricbeat\",\"dataset\":\"elastic_agent.metricbeat\",\"id\":\"kubernetes/metrics-a92ab320-f3ed-11ed-9c8d-45656839f031\",\"type\":\"kubernetes/metrics\"},\"log\":{\"source\":\"kubernetes/metrics-a92ab320-f3ed-11ed-9c8d-45656839f031\"},\"log.logger\":\"monitoring\",\"log.origin\":{\"file.line\":187,\"file.name\":\"log/log.go\"},\"service.name\":\"metricbeat\",\"ecs.version\":\"1.6.0\"}",
+            "orchestrator": {
+              "cluster": {
+                "name": "multi-v1.27.1",
+                "url": "multi-v1.27.1-control-plane:6443"
+              }
+            },
+            "input": {
+              "type": "filestream"
+            },
+            "ecs": {
+              "version": "8.0.0"
+            },
+            "stream": "stderr",
+            "data_stream": {
+              "namespace": "default",
+              "dataset": "kubernetes.container_logs"
+            },
+            "host": {
+              "hostname": "multi-v1.27.1-worker",
+              "os": {
+                "kernel": "5.15.49-linuxkit",
+                "codename": "focal",
+                "name": "Ubuntu",
+                "type": "linux",
+                "family": "debian",
+                "version": "20.04.6 LTS (Focal Fossa)",
+                "platform": "ubuntu"
+              },
+              "ip": [
+                "10.244.2.1",
+                "10.244.2.1",
+                "172.18.0.4",
+                "fc00:f853:ccd:e793::4",
+                "fe80::42:acff:fe12:4",
+                "172.21.0.9"
+              ],
+              "containerized": false,
+              "name": "multi-v1.27.1-worker",
+              "id": "b2c527655d7746328f0686e25d3c413a",
+              "mac": [
+                "02-42-AC-12-00-04",
+                "02-42-AC-15-00-09",
+                "32-7E-AA-73-39-04",
+                "EA-F3-80-1D-88-E3"
+              ],
+              "architecture": "aarch64"
+            },
+            "event": {
+              "agent_id_status": "verified",
+              "ingested": "2023-05-16T13:49:47Z",
+              "dataset": "kubernetes.container_logs"
+            }
+          }
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              test:
+                value: 'elastic-agent-log'
+          fields:
+            - field: 'message'
+  - length: { hits.hits: 1 }
+  # timestamp from deserialized JSON message field should win
+  - match: { hits.hits.0._source.@timestamp: '2023-05-16T13:49:40.374Z' }
+  - match: { hits.hits.0._source.kubernetes.pod.name: 'elastic-agent-managed-daemonset-jwktj' }
+  # expecting the extracted message from within the original JSON-formatted message
+  - match: { hits.hits.0.fields.message.0: 'Non-zero metrics in the last 30s' }
+
+  - do:
+      indices.get_mapping:
+        index: logs-generic-default
+  - match: { .$idx0name.mappings.properties.@timestamp.type: "date" }
+  - match: { .$idx0name.mappings.properties.message.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.kubernetes.properties.pod.properties.name.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.kubernetes.properties.pod.properties.ip.type: "ip" }
+  - match: { .$idx0name.mappings.properties.kubernetes.properties.pod.properties.test_ip.type: "ip" }
+  - match: { .$idx0name.mappings.properties.kubernetes.properties.labels.properties.pod-template-generation.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.log.properties.file.properties.path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.log.properties.file.properties.path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.host.properties.os.properties.name.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.host.properties.os.properties.name.fields.text.type: "match_only_text" }
+
+---
+Test general mockup ECS mappings:
+  - do:
+      indices.get_data_stream:
+        name: logs-generic-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      index:
+        index: logs-generic-default
+        refresh: true
+        body: >
+          {
+            "start_timestamp": "not a date",
+            "start-timestamp": "not a date",
+            "timestamp.us": 1688550340718000,
+            "test": "mockup-ecs-log",
+            "registry": {
+              "data": {
+                "strings": ["C:\\rta\\red_ttp\\bin\\myapp.exe"]
+              }
+            },
+            "process": {
+              "title": "ssh",
+              "executable": "/usr/bin/ssh",
+              "name": "ssh",
+              "command_line": "/usr/bin/ssh -l user 10.0.0.16",
+              "working_directory": "/home/ekoren",
+              "io": {
+                "text": "test"
+              }
+            },
+            "url": {
+              "path": "/page",
+              "full": "https://mydomain.com/app/page",
+              "original": "https://mydomain.com/app/original"
+            },
+            "email": {
+              "message_id": "81ce15$8r2j59@mail01.example.com"
+            },
+            "parent": {
+              "url": {
+                "path": "/page",
+                "full": "https://mydomain.com/app/page",
+                "original": "https://mydomain.com/app/original"
+              },
+              "body": {
+                "content": "Some content"
+              },
+              "file": {
+                "path": "/path/to/my/file",
+                "target_path": "/path/to/my/file"
+              },
+              "code_signature.timestamp": "2023-07-05",
+              "registry.data.strings": ["C:\\rta\\red_ttp\\bin\\myapp.exe"]
+            },
+            "error": {
+              "stack_trace": "co.elastic.test.TestClass error:\n at co.elastic.test.BaseTestClass",
+              "message": "Error occurred"
+            },
+            "file": {
+              "path": "/path/to/my/file",
+              "target_path": "/path/to/my/file"
+            },
+            "os": {
+              "full": "Mac OS Mojave"
+            },
+            "user_agent": {
+              "original": "Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) AppleWebKit/605.1.15"
+            },
+            "user": {
+              "full_name": "John Doe"
+            },
+            "vulnerability": {
+              "score": {
+                "base": 5.5,
+                "temporal": 5.5,
+                "version": "2.0"
+              },
+              "textual_score": "bad"
+            },
+            "host": {
+              "cpu": {
+                "usage": 0.68
+              }
+            },
+            "geo": {
+              "location": {
+                "lon": -73.614830,
+                "lat": 45.505918
+              }
+            },
+            "data_stream": {
+              "dataset": "nginx.access",
+              "namespace": "production",
+              "custom": "whatever"
+            },
+            "structured_data": {
+              "key1": "value1",
+              "key2": ["value2", "value3"]
+            },
+            "exports": {
+              "key": "value"
+            },
+            "top_level_imports": {
+              "key": "value"
+            },
+            "nested": {
+              "imports": {
+                "key": "value"
+              }
+            },
+            "numeric_as_string": "42",
+            "socket": {
+              "ip": "127.0.0.1",
+              "remote_ip": "187.8.8.8"
+            }
+          }
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              test:
+                value: 'mockup-ecs-log'
+          fields:
+            - field: 'start_timestamp'
+            - field: 'start-timestamp'
+          script_fields:
+            data_stream_type:
+              script:
+                source: "doc['data_stream.type'].value"
+  - length: { hits.hits: 1 }
+  # the ECS date dynamic template enforces mapping of "*_timestamp" fields to a date type
+  - length: { hits.hits.0._ignored: 2 }
+  - match: { hits.hits.0._ignored.0: 'start_timestamp' }
+  - length: { hits.hits.0.ignored_field_values.start_timestamp: 1 }
+  - match: { hits.hits.0.ignored_field_values.start_timestamp.0: 'not a date' }
+  # "start-timestamp" doesn't match the ECS dynamic mapping pattern "*_timestamp"
+  - match: { hits.hits.0.fields.start-timestamp.0: 'not a date' }
+  # verify that data_stream.type has the correct constant_keyword value
+  - match: { hits.hits.0.fields.data_stream_type.0: 'logs' }
+  - match: { hits.hits.0._ignored.1: 'vulnerability.textual_score' }
+
+  - do:
+      indices.get_mapping:
+        index: logs-generic-default
+  - match: { .$idx0name.mappings.properties.error.properties.message.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.registry.properties.data.properties.strings.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent.properties.registry.properties.data.properties.strings.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.process.properties.io.properties.text.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.email.properties.message_id.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.url.properties.path.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent.properties.url.properties.path.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.url.properties.full.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.url.properties.full.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent.properties.url.properties.full.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent.properties.url.properties.full.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.url.properties.original.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.url.properties.original.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent.properties.url.properties.original.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent.properties.url.properties.original.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent.properties.body.properties.content.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent.properties.body.properties.content.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process.properties.command_line.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.process.properties.command_line.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.error.properties.stack_trace.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.error.properties.stack_trace.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.file.properties.path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.file.properties.path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent.properties.file.properties.path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.parent.properties.file.properties.path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.file.properties.target_path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.file.properties.target_path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent.properties.file.properties.target_path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.parent.properties.file.properties.target_path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.os.properties.full.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.os.properties.full.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.user_agent.properties.original.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.user_agent.properties.original.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process.properties.title.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.process.properties.title.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process.properties.executable.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.process.properties.executable.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process.properties.name.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.process.properties.name.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process.properties.working_directory.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.process.properties.working_directory.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.user.properties.full_name.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.user.properties.full_name.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.start_timestamp.type: "date" }
+  # testing the default mapping of string input fields to keyword if not matching any pattern
+  - match: { .$idx0name.mappings.properties.start-timestamp.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.timestamp.properties.us.type: "long" }
+  - match: { .$idx0name.mappings.properties.parent.properties.code_signature.properties.timestamp.type: "date" }
+  - match: { .$idx0name.mappings.properties.vulnerability.properties.score.properties.base.type: "float" }
+  - match: { .$idx0name.mappings.properties.vulnerability.properties.score.properties.temporal.type: "float" }
+  - match: { .$idx0name.mappings.properties.vulnerability.properties.score.properties.version.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.vulnerability.properties.textual_score.type: "float" }
+  - match: { .$idx0name.mappings.properties.host.properties.cpu.properties.usage.type: "scaled_float" }
+  - match: { .$idx0name.mappings.properties.host.properties.cpu.properties.usage.scaling_factor: 1000 }
+  - match: { .$idx0name.mappings.properties.geo.properties.location.type: "geo_point" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.dataset.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.type.type: "constant_keyword" }
+  # not one of the three data_stream fields that are explicitly mapped to constant_keyword
+  - match: { .$idx0name.mappings.properties.data_stream.properties.custom.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.structured_data.type: "flattened" }
+  - match: { .$idx0name.mappings.properties.exports.type: "flattened" }
+  - match: { .$idx0name.mappings.properties.top_level_imports.type: "flattened" }
+  - match: { .$idx0name.mappings.properties.nested.properties.imports.type: "flattened" }
+  # verifying the default mapping for strings into keyword, overriding the automatic numeric string detection
+  - match: { .$idx0name.mappings.properties.numeric_as_string.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.socket.properties.ip.type: "ip" }
+  - match: { .$idx0name.mappings.properties.socket.properties.remote_ip.type: "ip" }
+

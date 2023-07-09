@@ -52,7 +52,7 @@ final class FieldTypeLookup {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
             fullNameToFieldType.put(fieldType.name(), fieldType);
-            fieldMapper.forEach(mapper -> fullSubfieldNameToParentPath.put(mapper.name(), fieldName));
+            fieldMapper.sourcePathUsedBy().forEachRemaining(mapper -> fullSubfieldNameToParentPath.put(mapper.name(), fieldName));
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(fieldType.name(), (DynamicFieldType) fieldType);
             }

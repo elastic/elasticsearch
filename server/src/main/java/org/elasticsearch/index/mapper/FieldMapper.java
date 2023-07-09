@@ -288,6 +288,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return Iterators.forArray(multiFields.mappers);
     }
 
+    /**
+     * @return a mapper iterator of all fields that use this field's source path as their source path
+     */
+    public Iterator<Mapper> sourcePathUsedBy() {
+        return iterator();
+    }
+
     @Override
     public final void validate(MappingLookup mappers) {
         if (this.copyTo() != null && this.copyTo().copyToFields().isEmpty() == false) {

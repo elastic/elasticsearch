@@ -26,7 +26,9 @@ public class QueryRulesConfig {
      */
     public static final Setting<Integer> MAX_RULE_LIMIT_SETTING = Setting.intSetting(
         Strings.format("%s.%s", SETTING_ROOT_PATH, "max_rules_per_ruleset"),
-        DEFAULT_RULE_LIMIT, MIN_RULE_LIMIT, MAX_RULE_LIMIT,
+        DEFAULT_RULE_LIMIT,
+        MIN_RULE_LIMIT,
+        MAX_RULE_LIMIT,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -35,6 +37,6 @@ public class QueryRulesConfig {
         return List.of(MAX_RULE_LIMIT_SETTING);
     }
 
-    private QueryRulesConfig() { }
+    private QueryRulesConfig() {}
 
 }

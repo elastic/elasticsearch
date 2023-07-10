@@ -47,8 +47,12 @@ public class TransportPutQueryRulesetAction extends HandledTransportAction<PutQu
         int maxRuleLimit = clusterSettings.get(Objects.requireNonNull(maxRuleLimitSetting));
         if (queryRuleset.rules().size() > maxRuleLimit) {
             throw new IllegalArgumentException(
-                "The number of rules in a ruleset cannot exceed [" + maxRuleLimit + "]."
-                    + "This maximum can be set by changing the [" + QueryRulesConfig.MAX_RULE_LIMIT_SETTING.getKey() + "] setting."
+                "The number of rules in a ruleset cannot exceed ["
+                    + maxRuleLimit
+                    + "]."
+                    + "This maximum can be set by changing the ["
+                    + QueryRulesConfig.MAX_RULE_LIMIT_SETTING.getKey()
+                    + "] setting."
             );
         }
 

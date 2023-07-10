@@ -114,17 +114,16 @@ public class QueryRule implements Writeable, ToXContentObject {
 
     private void validate() {
         if (type == QueryRuleType.PINNED) {
-            if (actions.containsKey(IDS_FIELD.getPreferredName())
-                && actions.containsKey(DOCS_FIELD.getPreferredName())) {
+            if (actions.containsKey(IDS_FIELD.getPreferredName()) && actions.containsKey(DOCS_FIELD.getPreferredName())) {
                 throw new ElasticsearchParseException("pinned query rule actions must contain only one of either ids or docs");
             } else if (actions.containsKey(IDS_FIELD.getPreferredName()) == false
                 && actions.containsKey(DOCS_FIELD.getPreferredName()) == false) {
-                throw new ElasticsearchParseException("pinned query rule actions must contain either ids or docs");
-            } else if (actions.containsKey(IDS_FIELD.getPreferredName())) {
-                validateAction(actions.get(IDS_FIELD.getPreferredName()));
-            } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
-                validateAction(actions.get(DOCS_FIELD.getPreferredName()));
-            }
+                    throw new ElasticsearchParseException("pinned query rule actions must contain either ids or docs");
+                } else if (actions.containsKey(IDS_FIELD.getPreferredName())) {
+                    validateAction(actions.get(IDS_FIELD.getPreferredName()));
+                } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
+                    validateAction(actions.get(DOCS_FIELD.getPreferredName()));
+                }
         } else {
             throw new IllegalArgumentException("Unsupported QueryRuleType: " + type);
         }

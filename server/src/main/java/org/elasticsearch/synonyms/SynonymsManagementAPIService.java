@@ -40,8 +40,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -82,7 +80,6 @@ public class SynonymsManagementAPIService {
     public static final int MAX_SYNONYMS_SETS = 10_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
-    private static final String RULESET_FILTER_AGG_NAME = "ruleset_filter";
 
     private final Client client;
 
@@ -105,14 +102,15 @@ public class SynonymsManagementAPIService {
 
     /* The synonym index stores two object types:
     - Synonym rules:
+        - The id is calculated using internalSynonymRuleId method
         - SYNONYM_RULE_ID_FIELD contains the synonym rule ID
         - SYNONYMS_FIELD contains the synonyms
         - SYNONYMS_SET_FIELD contains the synonym set the rule belongs to
         - OBJECT_TYPE_FIELD contains SYNONYM_RULE_OBJECT_TYPE
-        - The id is calculated using internalSynonymRuleId method
     - Synonym sets:
-        - OBJECT_TYPE_FIELD contains SYNONYM_SET_OBJECT_TYPE
         - The id is the synonym set name
+        - SYNONYMS_SET_FIELD is null
+        - OBJECT_TYPE_FIELD contains SYNONYM_SET_OBJECT_TYPE
      */
     private static XContentBuilder mappings() {
         try {
@@ -403,14 +401,15 @@ public class SynonymsManagementAPIService {
                 }
 
                 // Deletes the synonym set doc
-                client.prepareDelete(SYNONYMS_ALIAS_NAME, synonymSetId).execute(deleteRulesListener.delegateFailure((deleteListener, deleteResponse) -> {
-                    if (deleteResponse.status() != RestStatus.OK) {
-                        deleteListener.onFailure(new ElasticsearchException("Error deleting synonym set [" + synonymSetId + "]"));
-                        return;
-                    }
+                client.prepareDelete(SYNONYMS_ALIAS_NAME, synonymSetId)
+                    .execute(deleteRulesListener.delegateFailure((deleteListener, deleteResponse) -> {
+                        if (deleteResponse.status() != RestStatus.OK) {
+                            deleteListener.onFailure(new ElasticsearchException("Error deleting synonym set [" + synonymSetId + "]"));
+                            return;
+                        }
 
-                    reloadAnalyzers(synonymSetId, deleteListener, AcknowledgedResponse.of(true));
-                }));
+                        reloadAnalyzers(synonymSetId, deleteListener, AcknowledgedResponse.of(true));
+                    }));
 
             }));
         }));

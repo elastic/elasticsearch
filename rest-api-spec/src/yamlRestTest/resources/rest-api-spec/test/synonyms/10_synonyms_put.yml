@@ -31,6 +31,9 @@ setup:
 
 ---
 "Create empty synonyms set":
+  - skip:
+      version: " - 8.9.99"
+      reason: Fixed in 8.10.0
   - do:
       synonyms.put:
         synonyms_set: test-empty-synonyms

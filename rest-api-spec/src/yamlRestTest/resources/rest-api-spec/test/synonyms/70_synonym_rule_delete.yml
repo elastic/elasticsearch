@@ -92,6 +92,9 @@ setup:
 
 ---
 "Delete synonym rules - delete all synonym rules leave an empty synonym set":
+  - skip:
+      version: " - 8.9.99"
+      reason: Fixed in 8.10.0
   - do:
       synonym_rule.delete:
         synonyms_set: test-synonyms

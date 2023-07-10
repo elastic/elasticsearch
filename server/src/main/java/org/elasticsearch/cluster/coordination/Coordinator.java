@@ -234,7 +234,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.joinValidationService = new JoinValidationService(
             settings,
             transportService,
-            this::getStateForMasterService,
+            this::getStateForMasterService, // TODO see https://github.com/elastic/elasticsearch/issues/97313
             this.onJoinValidators
         );
         this.persistedStateSupplier = persistedStateSupplier;
@@ -319,7 +319,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     public ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(
             settings,
-            getStateForMasterService(),
+            getLastAcceptedState(), // doesn't care about blocks or the current master node so no need for getStateForMasterService
             peerFinder.getLastResolvedAddresses(),
             Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)).toList(),
             getCurrentTerm(),
@@ -679,9 +679,20 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         // - if we're already master that it can make sense of the current cluster state.
         // - we have a healthy PING channel to the node
 
+        final ClusterState stateForJoinValidation;
+        synchronized (mutex) {
+            // similar to getStateForMasterService(), but don't rebuild the state if we're not the master since we don't use it in that case
+            final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
+            assert lastAcceptedState.nodes().getLocalNode() != null;
+            if (mode != Mode.LEADER || lastAcceptedState.term() != getCurrentTerm()) {
+                stateForJoinValidation = null;
+            } else {
+                stateForJoinValidation = lastAcceptedState;
+            }
+        }
+
         final ListenableActionFuture<Empty> validateStateListener = new ListenableActionFuture<>();
-        final ClusterState stateForJoinValidation = getStateForMasterService();
-        if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
+        if (stateForJoinValidation != null && stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
             onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
             if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                 // We do this in a couple of places including the cluster update thread. This one here is really just best effort to ensure
@@ -1111,6 +1122,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     public void invariant() {
         synchronized (mutex) {
             final Optional<DiscoveryNode> peerFinderLeader = peerFinder.getLeader();
+            final ClusterState lastAcceptedClusterState = getStateForMasterService();
+
             assert peerFinder.getCurrentTerm() == getCurrentTerm();
             assert followersChecker.getFastResponseState().term() == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode() == getMode() : followersChecker.getFastResponseState();
@@ -1124,7 +1137,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 : "Single node checker must exist iff there is a single-node cluster";
 
             if (mode == Mode.LEADER) {
-                final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
+                final boolean becomingMaster = lastAcceptedClusterState.term() != getCurrentTerm();
 
                 assert coordinationState.get().electionWon();
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
@@ -1132,7 +1145,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
-                assert becomingMaster || getStateForMasterService().nodes().getMasterNodeId() != null : getStateForMasterService();
+                assert becomingMaster || lastAcceptedClusterState.nodes().getMasterNodeId() != null : lastAcceptedClusterState;
                 assert leaderChecker.leader() == null : leaderChecker.leader();
                 assert getLocalNode().equals(applierState.nodes().getMasterNode())
                     || (applierState.nodes().getMasterNodeId() == null && applierState.term() < getCurrentTerm());
@@ -1174,7 +1187,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
-                assert getStateForMasterService().nodes().getMasterNodeId() == null : getStateForMasterService();
+                assert lastAcceptedClusterState.nodes().getMasterNodeId() == null : lastAcceptedClusterState;
                 assert leaderChecker.currentNodeIsMaster() == false;
                 assert lastKnownLeader.equals(Optional.of(leaderChecker.leader()));
                 assert followersChecker.getKnownFollowers().isEmpty();
@@ -1189,7 +1202,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
                 assert peerFinderLeader.isPresent() == false : peerFinderLeader;
                 assert prevotingRound == null || electionScheduler != null;
-                assert getStateForMasterService().nodes().getMasterNodeId() == null : getStateForMasterService();
+                assert lastAcceptedClusterState.nodes().getMasterNodeId() == null : lastAcceptedClusterState;
                 assert leaderChecker.currentNodeIsMaster() == false;
                 assert leaderChecker.leader() == null : leaderChecker.leader();
                 assert followersChecker.getKnownFollowers().isEmpty();
@@ -1202,7 +1215,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     public boolean isInitialConfigurationSet() {
-        return getStateForMasterService().getLastAcceptedConfiguration().isEmpty() == false;
+        return getLastAcceptedState().getLastAcceptedConfiguration().isEmpty() == false;
     }
 
     /**
@@ -1446,6 +1459,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return nodes;
     }
 
+    /**
+     * Get the last-accepted state, adding a no-master block and removing the master node ID if we are not currently the master. This is the
+     * state that the master service uses as input to the cluster state update computation. Note that it's quite expensive to adjust blocks
+     * in a large cluster state, so avoid using this where possible.
+     */
     ClusterState getStateForMasterService() {
         synchronized (mutex) {
             // expose last accepted cluster state as base state upon which the master service
@@ -1460,6 +1478,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
+    /**
+     * Add a no-master block and remove the master node ID from the given cluster state. Note that it's quite expensive to add blocks in a
+     * large cluster state, so avoid using this where possible.
+     */
     private ClusterState clusterStateWithNoMasterBlock(ClusterState clusterState) {
         if (clusterState.nodes().getMasterNodeId() != null) {
             // remove block if it already exists before adding new one

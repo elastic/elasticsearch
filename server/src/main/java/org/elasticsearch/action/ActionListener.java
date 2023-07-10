@@ -275,29 +275,7 @@ public interface ActionListener<Response> {
      * and {@link #onFailure(Exception)} of the provided listener will be called at most once.
      */
     static <Response> ActionListener<Response> notifyOnce(ActionListener<Response> delegate) {
-        final var delegateRef = new AtomicReference<>(delegate);
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(Response response) {
-                final var acquired = delegateRef.getAndSet(null);
-                if (acquired != null) {
-                    acquired.onResponse(response);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                final var acquired = delegateRef.getAndSet(null);
-                if (acquired != null) {
-                    safeOnFailure(acquired, e);
-                }
-            }
-
-            @Override
-            public String toString() {
-                return "notifyOnce[" + delegateRef.get() + "]";
-            }
-        };
+        return new ActionListenerImplementations.NotifyOnceActionListener<>(delegate);
     }
 
     /**

@@ -13,7 +13,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -86,7 +85,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
     @Override
     public SortedBinaryDocValues getBytesValues() {
-        return FieldData.toString(getOrdinalsValues());
+        return toString(getOrdinalsValues());
     }
 
     /**
@@ -251,5 +250,39 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             assert 0 <= ord && ord <= maxOrd - minOrd;
             return ord + minOrd;
         }
+    }
+
+    public static SortedBinaryDocValues toString(final SortedSetDocValues values) {
+        return new SortedBinaryDocValues() {
+            private int count = 0;
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                if (values.advanceExact(doc) == false) {
+                    return false;
+                }
+                for (int i = 0;; ++i) {
+                    if (values.nextOrd() == SortedSetDocValues.NO_MORE_ORDS) {
+                        count = i;
+                        break;
+                    }
+                }
+                // reset the iterator on the current doc
+                boolean advanced = values.advanceExact(doc);
+                assert advanced;
+                return true;
+            }
+
+            @Override
+            public int docValueCount() {
+                return count;
+            }
+
+            @Override
+            public BytesRef nextValue() throws IOException {
+                return values.lookupOrd(values.nextOrd());
+            }
+
+        };
     }
 }

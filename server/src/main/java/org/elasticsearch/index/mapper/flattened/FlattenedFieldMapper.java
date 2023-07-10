@@ -38,7 +38,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -412,7 +411,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
+            return new KeyedFlattenedFieldData.Builder(
+                name(),
+                key,
+                (dv, n) -> new FlattenedDocValuesField(KeyedFlattenedLeafFieldData.toString(dv), n)
+            );
         }
 
         @Override
@@ -716,7 +719,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n)
+                (dv, n) -> new FlattenedDocValuesField(KeyedFlattenedLeafFieldData.toString(dv), n)
             );
         }
 

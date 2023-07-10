@@ -33,6 +33,7 @@ Contains parameters for a query ruleset:
 The specific rules included in this query ruleset.
 
 Each rule must have the following information:
+
 - `rule_id` (Required, string)
   A unique identifier for this rule.
 - `type` (Required, string)
@@ -40,6 +41,7 @@ Each rule must have the following information:
 - `criteria` (Required, array of objects)
 
 Criteria must have the following information:
+
 - `type` (Required, string)
   The type of criteria. At this time only `exact` criteria types are allowed.
 - `metadata` (Required, string)

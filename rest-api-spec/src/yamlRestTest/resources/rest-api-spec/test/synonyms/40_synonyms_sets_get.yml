@@ -73,7 +73,9 @@ setup:
 
 ---
 "No synonym sets":
-
+  - skip:
+      version: " - 8.9.99"
+      reason: Fixed in 8.10.0
   - do:
       synonyms.delete:
         synonyms_set: test-synonyms-1

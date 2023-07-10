@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Experimental;
@@ -109,7 +110,10 @@ public class OperatorTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         int numThreads = randomBoolean() ? 1 : between(2, 16);
-        threadPool = new TestThreadPool("OperatorTests", new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", false));
+        threadPool = new TestThreadPool(
+            "OperatorTests",
+            new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+        );
     }
 
     @After

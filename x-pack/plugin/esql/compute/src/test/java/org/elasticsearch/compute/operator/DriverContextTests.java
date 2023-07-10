@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -264,7 +265,7 @@ public class DriverContextTests extends ESTestCase {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
         threadPool = new TestThreadPool(
             "test",
-            new FixedExecutorBuilder(Settings.EMPTY, "esql_test_executor", numThreads, 1024, "esql", false)
+            new FixedExecutorBuilder(Settings.EMPTY, "esql_test_executor", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
     }
 

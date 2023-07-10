@@ -169,7 +169,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors),
                 1000,
                 "esql",
-                true
+                EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
     }

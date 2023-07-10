@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -171,7 +172,14 @@ public class CsvTests extends ESTestCase {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
         threadPool = new TestThreadPool(
             "CsvTests",
-            new FixedExecutorBuilder(Settings.EMPTY, ESQL_THREAD_POOL_NAME, numThreads, 1024, "esql", false)
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                ESQL_THREAD_POOL_NAME,
+                numThreads,
+                1024,
+                "esql",
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
         );
         HeaderWarning.setThreadContext(threadPool.getThreadContext());
     }

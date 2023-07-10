@@ -58,6 +58,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
@@ -196,6 +197,7 @@ public final class TokenService {
     static final String TOKEN_DOC_TYPE = "token";
     private static final int HASHED_TOKEN_LENGTH = 43;
     private static final int RAW_TOKEN_BYTES_LENGTH = 16;
+    private static final int RAW_TOKEN_DOC_ID_BYTES_LENGTH = 8;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_LENGTH = 22;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
@@ -395,7 +397,10 @@ public final class TokenService {
             final String storedRefreshToken;
             final String storedAccessToken;
             if (tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
-
+//                byte[] docIdByte = getRandomBytes(RAW_TOKEN_DOC_ID_BYTES_LENGTH);
+//                MessageDigest md = MessageDigests.sha256();
+//                md.update(CharArrays.toUtf8Bytes(text.getChars()));
+//                return Base64.getUrlEncoder().withoutPadding().encodeToString(md.digest()).toCharArray();
             } else if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
                 userToken = new UserToken(hashTokenString(accessToken), tokenVersion, tokenAuth, getExpirationTime(), metadata);
                 storedRefreshToken = (null == refreshToken) ? null : hashTokenString(refreshToken);

@@ -36,6 +36,10 @@ teardown:
 
 ---
 "Index data on the remote cluster":
+  - skip:
+      version: "all"
+      reason: AwaitsFix https://github.com/elastic/elasticsearch/issues/97516
+
   - do:
       indices.create:
         index: remote_test_index

@@ -47,7 +47,7 @@ public class TransportGetProfilingActionTests extends ESTestCase {
     public void testRandomLengthListGreaterThanSliceCount() {
         int slices = randomIntBetween(1, 16);
         // To ensure that we can actually slice the list
-        List<String> input = randomList(slices, 20000, () -> "s");
+        List<String> input = randomList(slices + 1, 20000, () -> "s");
         List<List<String>> sliced = TransportGetProfilingAction.sliced(input, slices);
         assertEquals(slices, sliced.size());
     }

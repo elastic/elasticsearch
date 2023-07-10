@@ -16,8 +16,4 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
 testImplementation(testArtifact(project(xpackModule('core'))))}
 
-<<<<<<< HEAD
-addQaCheckDependencies()
-=======
 addQaCheckDependencies(project)
->>>>>>> b8627079b43 (Update Gradle Wrapper to 8.2 (#96686))

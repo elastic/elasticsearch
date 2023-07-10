@@ -8,6 +8,7 @@ esplugin {
   classname 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
   extendedPlugins = ['x-pack-core']
 }
+
 base {
   archivesName = 'x-pack-searchable-snapshots'
 }

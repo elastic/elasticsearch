@@ -8,9 +8,7 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSystemOperationsAware;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.services.internal.BuildServiceProvider;
-import org.gradle.api.provider.Provider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Internal;

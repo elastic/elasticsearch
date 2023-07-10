@@ -11,8 +11,10 @@ dependencies {
 }
 
 // We use updated APIs here and since this project is only used for REST testing it's ok to run with > Java 8
-sourceCompatibility = 17
-targetCompatibility = 17
+java {
+  sourceCompatibility = 17
+  targetCompatibility = 17
+}
 
 tasks.named("processResources").configure {
   from(new File(rootDir, "build-tools-internal/version.properties"))

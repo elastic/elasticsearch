@@ -115,18 +115,15 @@ public class FillMaskConfigTests extends InferenceConfigItemTestCase<FillMaskCon
         Integer numTopClasses = randomBoolean() ? null : randomInt();
 
         String resultsField = randomBoolean() ? null : randomAlphaOfLength(5);
-        try {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             FillMaskConfig fmc = new FillMaskConfig.Builder().setVocabularyConfig(vocabularyConfig)
                 .setTokenization(tokenization)
                 .setNumTopClasses(numTopClasses)
                 .setResultsField(resultsField)
                 .setMaskToken("not a real mask token")
                 .build();
+        });
 
-            throw new Exception("Test failed, fake mask token should have caused exception");
-        } catch (IllegalArgumentException ignored) {
-
-        }
     }
 
     public void testCreateBuilderWithNullMaskToken() {

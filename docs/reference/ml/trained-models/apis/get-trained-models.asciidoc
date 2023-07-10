@@ -41,8 +41,7 @@ Requires the `monitor_ml` cluster privilege. This privilege is included in the
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
 +
 You can get information for multiple trained models in a single API request by
-using a comma-separated list of model IDs or a wildca
-rd expression.
+using a comma-separated list of model IDs or a wildcard expression.
 
 [[ml-get-trained-models-query-params]]
 == {api-query-parms-title}
@@ -174,6 +173,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-fill-mask]
 .Properties of fill_mask inference
 [%collapsible%open]
 ======
+`mask_token`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-mask-token]
+
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
@@ -304,9 +307,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary
 (Required, string)
 The index where the vocabulary is stored.
 =======
-`mask_token`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-mask-token]
 ======
 
 `ner`::::

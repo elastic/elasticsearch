@@ -271,7 +271,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
-            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT
+            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT_6.version()
         );
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
         manager.prepareIndexIfNeededThenExecute(prepareException::set, () -> prepareRunnableCalled.set(true));
@@ -296,7 +296,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
-            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT,
+            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT_6.version(),
             IndexMetadata.State.OPEN,
             getMappings(previousVersion)
         );
@@ -329,7 +329,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
-            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT,
+            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT_6.version(),
             IndexMetadata.State.OPEN,
             getMappings(previousVersion)
         );
@@ -356,7 +356,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
-            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT
+            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT_6.version()
         );
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
         assertThat(manager.isStateRecovered(), is(true));
@@ -381,7 +381,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
-            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT - 1
+            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT_6.version() - 1
         );
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
         assertTrue(listenerCalled.get());
@@ -400,7 +400,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
-            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT
+            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT_6.version()
         );
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
         assertTrue(listenerCalled.get());
@@ -456,7 +456,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String aliasName, IndexMetadata.State state) {
-        return createClusterState(indexName, aliasName, SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT, state, getMappings());
+        return createClusterState(indexName, aliasName, SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT_6.version(), state, getMappings());
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String aliasName, int format) {

@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivilegesViolation;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -119,7 +120,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETT
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -457,7 +457,9 @@ public class SecurityTests extends ESTestCase {
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
         DiscoveryNode node = DiscoveryNodeUtils.create("foo");
-        int indexFormat = randomBoolean() ? INTERNAL_MAIN_INDEX_FORMAT : INTERNAL_MAIN_INDEX_FORMAT - 1;
+        int indexFormat = randomBoolean()
+            ? SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT_6.version()
+            : SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT_6.version() - 1;
         IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
             .settings(settings(VersionUtils.randomIndexCompatibleVersion(random())).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
             .numberOfShards(1)
@@ -479,7 +481,7 @@ public class SecurityTests extends ESTestCase {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         DiscoveryNode node = DiscoveryNodeUtils.create("foo");
         IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
-            .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT))
+            .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT_6.version()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();

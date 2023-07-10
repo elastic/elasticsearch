@@ -11,26 +11,31 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSerializingTestCase<DataLifecycleFeatureSetUsage> {
+public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSerializingTestCase<DataStreamLifecycleFeatureSetUsage> {
 
     @Override
-    protected DataLifecycleFeatureSetUsage createTestInstance() {
-        return new DataLifecycleFeatureSetUsage(
-            new DataLifecycleFeatureSetUsage.LifecycleStats(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomDouble(),
-                randomBoolean()
+    protected DataStreamLifecycleFeatureSetUsage createTestInstance() {
+        return randomBoolean()
+            ? new DataStreamLifecycleFeatureSetUsage(
+                new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomDouble(),
+                    randomBoolean()
+                )
             )
-        );
+            : DataStreamLifecycleFeatureSetUsage.DISABLED;
     }
 
     @Override
-    protected DataLifecycleFeatureSetUsage mutateInstance(DataLifecycleFeatureSetUsage instance) {
+    protected DataStreamLifecycleFeatureSetUsage mutateInstance(DataStreamLifecycleFeatureSetUsage instance) {
+        if (instance.equals(DataStreamLifecycleFeatureSetUsage.DISABLED)) {
+            return new DataStreamLifecycleFeatureSetUsage(DataStreamLifecycleFeatureSetUsage.LifecycleStats.INITIAL);
+        }
         return switch (randomInt(4)) {
-            case 0 -> new DataLifecycleFeatureSetUsage(
-                new DataLifecycleFeatureSetUsage.LifecycleStats(
+            case 0 -> new DataStreamLifecycleFeatureSetUsage(
+                new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
                     randomValueOtherThan(instance.lifecycleStats.dataStreamsWithLifecyclesCount, ESTestCase::randomLong),
                     instance.lifecycleStats.minRetentionMillis,
                     instance.lifecycleStats.maxRetentionMillis,
@@ -38,8 +43,8 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                     instance.lifecycleStats.defaultRolloverUsed
                 )
             );
-            case 1 -> new DataLifecycleFeatureSetUsage(
-                new DataLifecycleFeatureSetUsage.LifecycleStats(
+            case 1 -> new DataStreamLifecycleFeatureSetUsage(
+                new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
                     instance.lifecycleStats.dataStreamsWithLifecyclesCount,
                     randomValueOtherThan(instance.lifecycleStats.minRetentionMillis, ESTestCase::randomLong),
                     instance.lifecycleStats.maxRetentionMillis,
@@ -47,8 +52,8 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                     instance.lifecycleStats.defaultRolloverUsed
                 )
             );
-            case 2 -> new DataLifecycleFeatureSetUsage(
-                new DataLifecycleFeatureSetUsage.LifecycleStats(
+            case 2 -> new DataStreamLifecycleFeatureSetUsage(
+                new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
                     instance.lifecycleStats.dataStreamsWithLifecyclesCount,
                     instance.lifecycleStats.minRetentionMillis,
                     randomValueOtherThan(instance.lifecycleStats.maxRetentionMillis, ESTestCase::randomLong),
@@ -56,8 +61,8 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                     instance.lifecycleStats.defaultRolloverUsed
                 )
             );
-            case 3 -> new DataLifecycleFeatureSetUsage(
-                new DataLifecycleFeatureSetUsage.LifecycleStats(
+            case 3 -> new DataStreamLifecycleFeatureSetUsage(
+                new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
                     instance.lifecycleStats.dataStreamsWithLifecyclesCount,
                     instance.lifecycleStats.minRetentionMillis,
                     instance.lifecycleStats.maxRetentionMillis,
@@ -65,8 +70,8 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                     instance.lifecycleStats.defaultRolloverUsed
                 )
             );
-            case 4 -> new DataLifecycleFeatureSetUsage(
-                new DataLifecycleFeatureSetUsage.LifecycleStats(
+            case 4 -> new DataStreamLifecycleFeatureSetUsage(
+                new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
                     instance.lifecycleStats.dataStreamsWithLifecyclesCount,
                     instance.lifecycleStats.minRetentionMillis,
                     instance.lifecycleStats.maxRetentionMillis,
@@ -79,8 +84,8 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
     }
 
     @Override
-    protected Writeable.Reader<DataLifecycleFeatureSetUsage> instanceReader() {
-        return DataLifecycleFeatureSetUsage::new;
+    protected Writeable.Reader<DataStreamLifecycleFeatureSetUsage> instanceReader() {
+        return DataStreamLifecycleFeatureSetUsage::new;
     }
 
 }

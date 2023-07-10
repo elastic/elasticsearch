@@ -355,7 +355,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
 
-        assertThat(e.getMessage(), equalTo("Descriptor index format does not match index format in managed settings"));
+        assertThat(e.getMessage(), equalTo("Descriptor index format version does not match index format version in managed settings"));
     }
 
     private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder() {

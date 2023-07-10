@@ -1,0 +1,98 @@
+[role="xpack"]
+[[get-query-ruleset]]
+=== Get query ruleset
+
+preview::[]
+
+++++
+<titleabbrev>Get query ruleset</titleabbrev>
+++++
+
+Retrieves information about a query ruleset.
+
+[[get-query-ruleset-request]]
+==== {api-request-title}
+
+`GET _query_rules/<ruleset_id>`
+
+[[get-query-ruleset-prereq]]
+==== {api-prereq-title}
+
+Requires the `manage_cluster` privilege.
+
+[[get-query-ruleset-path-params]]
+==== {api-path-parms-title}
+
+`<ruleset_id>`::
+(Required, string)
+
+[[get-query-ruleset-response-codes]]
+==== {api-response-codes-title}
+
+`400`::
+The `ruleset_id` was not provided.
+
+`404` (Missing resources)::
+No query ruleset matching `ruleset_id` could be found.
+
+[[get-query-ruleset-example]]
+==== {api-examples-title}
+
+The following example gets the query ruleset named `my-ruleset`:
+
+[source,console]
+----
+GET _query_rules/my-ruleset/
+----
+// TEST[skip:TBD]
+
+A sample response:
+
+[source,console-result]
+----
+{
+    "ruleset_id": "my-ruleset",
+    "rules": [
+        {
+            "rule_id": "my-rule1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "value": "marvel"
+                }
+            ],
+            "actions": {
+                "ids": [
+                    "id1",
+                    "id2"
+                ]
+            }
+        },
+        {
+            "rule_id": "my-rule2",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "value": "dc"
+                }
+            ],
+            "actions": {
+                "docs": [
+                    {
+                        "_index": "index1",
+                        "_id": "id3"
+                    },
+                    {
+                        "_index": "index2",
+                        "_id": "id4"
+                    }
+                ]
+            }
+        }
+    ]
+}
+----

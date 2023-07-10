@@ -1,0 +1,111 @@
+[role="xpack"]
+[[put-query-ruleset]]
+=== Put query ruleset
+
+preview::[]
+
+++++
+<titleabbrev>Put query ruleset</titleabbrev>
+++++
+
+Creates or updates a query ruleset.
+
+[[put-query-ruleset-request]]
+==== {api-request-title}
+
+`PUT _query_rules/<ruleset_id>`
+
+[[put-query-ruleset-prereqs]]
+==== {api-prereq-title}
+
+Requires the `manage_cluster` privilege.
+
+[[put-query-ruleset-path-params]]
+==== {api-path-parms-title}
+
+`<body>`::
+(Required, object)
+Contains parameters for a query ruleset:
+
+====
+`rules`::
+(Required, array of objects)
+The specific rules included in this query ruleset.
+
+Each rule must have the following information:
+- `rule_id` (Required, string)
+  A unique identifier for this rule.
+- `type` (Required, string)
+  The type of rule. At this time only `pinned` query rule types are allowed.
+- `criteria` (Required, array of objects)
+
+Criteria must have the following information:
+- `type` (Required, string)
+  The type of criteria. At this time only `exact` criteria types are allowed.
+- `metadata` (Required, string)
+  The metadata field to match against. At this time only `query_string` metadata types are allowed.
+- `value` (Required, string)
+  The value to match against the metadata field.
+
+
+====
+
+[[put-query-ruleset-example]]
+==== {api-examples-title}
+
+The following example creates a new query ruleset called `my-ruleset`.
+
+Two rules are associated with `my-ruleset`:
+- `my-rule1` will pin documents with IDs `id1` and `id2` when the `query_string` exactly matches `marvel`.
+- `my-rule2` will pin documents from different, specified indices with IDs `id3` and `id4` when the `query_string` exactly matches `dc`.
+
+[source,console]
+----
+PUT _query_rules/my-ruleset
+{
+    "rules": [
+        {
+            "rule_id": "my-rule1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "value": "marvel"
+                }
+            ],
+            "actions": {
+                "ids": [
+                    "id1",
+                    "id2"
+                ]
+            }
+        },
+        {
+            "rule_id": "my-rule2",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "value": "dc"
+                }
+            ],
+            "actions": {
+                "docs": [
+                    {
+                        "_index": "index1",
+                        "_id": "id3"
+                    },
+                    {
+                        "_index": "index2",
+                        "_id": "id4"
+                    }
+                ]
+            }
+        }
+    ]
+}
+----
+// TEST[skip:TBD]
+

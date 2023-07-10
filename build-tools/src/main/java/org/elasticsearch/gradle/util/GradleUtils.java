@@ -127,7 +127,7 @@ public abstract class GradleUtils {
         Configuration runtimeClasspathConfiguration = project.getConfigurations().getByName(runtimeClasspathName);
         project.getPluginManager().withPlugin("idea", p -> {
             IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
-            idea.getModule().setTestSourceDirs(testSourceSet.getJava().getSrcDirs());
+            idea.getModule().getTestSources().from(testSourceSet.getJava().getSrcDirs());
             idea.getModule().getScopes().put(testSourceSet.getName(), Map.of("plus", List.of(runtimeClasspathConfiguration)));
         });
         project.getPluginManager().withPlugin("eclipse", p -> {

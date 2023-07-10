@@ -680,20 +680,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         // - if we're already master that it can make sense of the current cluster state.
         // - we have a healthy PING channel to the node
 
-        final ClusterState stateForJoinValidation;
-        synchronized (mutex) {
-            // similar to getStateForMasterService(), but don't rebuild the state if we're not the master since we don't use it in that case
-            final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
-            assert lastAcceptedState.nodes().getLocalNode() != null;
-            if (mode != Mode.LEADER || lastAcceptedState.term() != getCurrentTerm()) {
-                stateForJoinValidation = null;
-            } else {
-                stateForJoinValidation = lastAcceptedState;
-            }
-        }
-
+        final ClusterState stateForJoinValidation = getStateForJoinValidationService();
         final ListenableActionFuture<Empty> validateStateListener = new ListenableActionFuture<>();
-        if (stateForJoinValidation != null && stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
+        if (stateForJoinValidation != null) {
+            assert stateForJoinValidation.nodes().isLocalNodeElectedMaster();
             onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
             if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                 // We do this in a couple of places including the cluster update thread. This one here is really just best effort to ensure

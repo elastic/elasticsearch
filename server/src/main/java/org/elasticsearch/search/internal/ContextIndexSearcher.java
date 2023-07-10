@@ -68,7 +68,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
      */
     private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
-    private final boolean supportsConcurrency;
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
@@ -115,9 +114,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
+        this.queueSizeBasedExecutor = executor != null ? new QueueSizeBasedExecutor(executor) : null;
         this.leafSlices = executor == null ? null : slices(leafContexts);
-        this.supportsConcurrency = executor != null && this.leafSlices != null && this.leafSlices.length > 1;
-        this.queueSizeBasedExecutor = this.supportsConcurrency ? new QueueSizeBasedExecutor(executor) : null;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -208,7 +206,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * In that case, other exceptions will be ignored and the first exception is thrown after all threads are finished.
      * */
     private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
-        if (supportsConcurrency == false) {
+        if (queueSizeBasedExecutor == null || leafSlices.length <= 1) {
             search(leafContexts, weight, firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         } else {

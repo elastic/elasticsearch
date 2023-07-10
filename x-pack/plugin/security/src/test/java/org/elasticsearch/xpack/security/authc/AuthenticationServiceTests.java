@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
@@ -267,8 +268,22 @@ public class AuthenticationServiceTests extends ESTestCase {
         client = mock(Client.class);
         threadPool = new ThreadPool(
             settings,
-            new FixedExecutorBuilder(settings, THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool", false),
-            new FixedExecutorBuilder(Settings.EMPTY, SECURITY_CRYPTO_THREAD_POOL_NAME, 1, 1000, "xpack.security.crypto.thread_pool", false)
+            new FixedExecutorBuilder(
+                settings,
+                THREAD_POOL_NAME,
+                1,
+                1000,
+                "xpack.security.authc.token.thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            ),
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                SECURITY_CRYPTO_THREAD_POOL_NAME,
+                1,
+                1000,
+                "xpack.security.crypto.thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
         threadContext = threadPool.getThreadContext();
         when(client.threadPool()).thenReturn(threadPool);

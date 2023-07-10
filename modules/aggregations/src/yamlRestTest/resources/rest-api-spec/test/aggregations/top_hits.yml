@@ -720,3 +720,33 @@ synthetic _source:
                     buckets_path:
                       ts: top_salary_hits[salary]
                     script: "params.ts < 8000"
+
+---
+runtime fields:
+  - do:
+      search:
+        index: test
+        body:
+          runtime_mappings:
+            runtime_field:
+              type: keyword
+              script:
+                lang: painless
+                source: "emit(params['_source'].toString())"
+          fields: [runtime_field]
+          size: 0
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits: {}
+
+  - match:  { hits.total.value: 3 }
+  - length: { aggregations.page.buckets: 2 }
+  - match:  { aggregations.page.buckets.0.key: 1 }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.0.fields.runtime_field: ["{page=1, text=the quick brown fox}"] }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.1.fields.runtime_field: ["{page=1, text=jumped over the lazy dog}"] }
+  - match:  { aggregations.page.buckets.1.key: 2 }
+  - match:  { aggregations.page.buckets.1.top_hits.hits.hits.0.fields.runtime_field: ["{page=2, text=The vorpal blade went snicker-snack!}"] }

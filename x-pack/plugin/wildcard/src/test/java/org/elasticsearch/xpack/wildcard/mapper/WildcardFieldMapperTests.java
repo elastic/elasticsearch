@@ -678,10 +678,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
         Automaton caseSensitiveAutomaton = WildcardQuery.toAutomaton(new Term("field", pattern));
-        Automaton caseInSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(
-            new Term("field", pattern),
-            Integer.MAX_VALUE
-        );
+        Automaton caseInSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term("field", pattern));
         BinaryDvConfirmedAutomatonQuery csQ = new BinaryDvConfirmedAutomatonQuery(
             new MatchAllDocsQuery(),
             "field",

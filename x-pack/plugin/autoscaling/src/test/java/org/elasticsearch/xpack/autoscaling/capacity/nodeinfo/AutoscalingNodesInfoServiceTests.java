@@ -450,7 +450,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
             Version.CURRENT,
             TransportVersion.current(),
-            Build.CURRENT,
+            Build.current(),
             node,
             null,
             osInfo,

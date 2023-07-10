@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 
 import java.io.Reader;
 import java.util.HashSet;
@@ -136,7 +137,14 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         final Map<String, CharFilterFactory> charFilters,
         final Map<String, TokenFilterFactory> tokenFilters
     ) {
-        AnalyzerComponents components = AnalyzerComponents.createComponents(name, settings, tokenizers, charFilters, tokenFilters);
+        AnalyzerComponents components = AnalyzerComponents.createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            name,
+            settings,
+            tokenizers,
+            charFilters,
+            tokenFilters
+        );
         this.components = components;
     }
 

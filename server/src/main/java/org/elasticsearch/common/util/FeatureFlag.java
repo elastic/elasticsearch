@@ -44,7 +44,7 @@ public class FeatureFlag {
     private static final Function<String, String> GET_SYSTEM_PROPERTY = System::getProperty;
 
     public FeatureFlag(String name) {
-        this(name, "enabled", Build.CURRENT, GET_SYSTEM_PROPERTY);
+        this(name, "enabled", Build.current(), GET_SYSTEM_PROPERTY);
     }
 
     /**
@@ -56,7 +56,7 @@ public class FeatureFlag {
      */
     @Deprecated
     public static FeatureFlag legacyRegisteredFlag(String name) {
-        return new FeatureFlag(name, "registered", Build.CURRENT, GET_SYSTEM_PROPERTY);
+        return new FeatureFlag(name, "registered", Build.current(), GET_SYSTEM_PROPERTY);
     }
 
     /**

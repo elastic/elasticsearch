@@ -30,6 +30,12 @@ public interface ClusterHandle extends Closeable {
     void stop(boolean forcibly);
 
     /**
+     * Stops the node at a given index.
+     * @param index of the node to stop
+     */
+    void stopNode(int index);
+
+    /**
      * Restarts the cluster. Effectively the same as calling {@link #stop(boolean)} followed by {@link #start()}
      *
      * @param forcibly whether to ficibly terminate the cluster
@@ -59,6 +65,11 @@ public interface ClusterHandle extends Closeable {
      * @return cluster node HTTP transport addresses
      */
     String getHttpAddress(int index);
+
+    /**
+     * Get the name of the node for the given index.
+     */
+    String getName(int index);
 
     /**
      * Returns a comma-separated list of TCP transport endpoints for cluster. If this method is called on an unstarted cluster, the cluster

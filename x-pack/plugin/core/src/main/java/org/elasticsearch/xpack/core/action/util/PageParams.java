@@ -9,10 +9,7 @@ package org.elasticsearch.xpack.core.action.util;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.*;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -105,5 +102,7 @@ public class PageParams implements ToXContentObject, Writeable {
         PageParams other = (PageParams) obj;
         return Objects.equals(from, other.from) && Objects.equals(size, other.size);
     }
-
+        public static PageParams fromXContent( XContentParser contentParser) {
+        return PARSER.apply(contentParser,null);
+    }
 }

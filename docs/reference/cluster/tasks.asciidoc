@@ -254,7 +254,7 @@ stop as soon as possible. To troubleshoot why a cancelled task does not
 complete promptly, use the list tasks API with the `?detailed` parameter to
 identify the other tasks the system is running and also use the
 <<cluster-nodes-hot-threads>> API to obtain detailed information about the work
-the system is doing instead of processing the cancellation.
+the system is doing instead of completing the cancelled task.
 
 ===== Task Grouping
 

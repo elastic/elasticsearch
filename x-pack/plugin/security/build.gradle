@@ -11,7 +11,9 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-archivesBaseName = 'x-pack-security'
+base {
+  archivesName = 'x-pack-security'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
@@ -26,7 +28,6 @@ dependencies {
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:reindex')
   testImplementation project(':modules:data-streams')
-  testImplementation project(':modules:dlm')
   testImplementation project(':modules:rest-root')
   testImplementation project(":client:rest-high-level")
 

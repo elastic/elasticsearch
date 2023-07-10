@@ -283,7 +283,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_032)) {
             originalQuery = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.getTransportVersion().before(TransportVersion.V_8_500_013)) {
@@ -379,7 +379,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_032)) {
             out.writeOptionalNamedWriteable(originalQuery);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)

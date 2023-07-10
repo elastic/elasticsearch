@@ -156,6 +156,14 @@ public class LocalClusterHandle implements ClusterHandle {
         waitUntilReady();
     }
 
+    public String getName(int index) {
+        return nodes.get(index).getName();
+    }
+
+    public void stopNode(int index) {
+        nodes.get(index).stop(false);
+    }
+
     protected void waitUntilReady() {
         writeUnicastHostsFile();
         try {

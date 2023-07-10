@@ -9,7 +9,6 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
@@ -71,7 +70,7 @@ public class RepositoryDataTests extends ESTestCase {
     public void testXContent() throws IOException {
         RepositoryData repositoryData = generateRandomRepoData().withClusterUuid(UUIDs.randomBase64UUID(random()));
         XContentBuilder builder = JsonXContent.contentBuilder();
-        repositoryData.snapshotsToXContent(builder, Version.CURRENT);
+        repositoryData.snapshotsToXContent(builder, IndexVersion.current());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             long gen = (long) randomIntBetween(0, 500);
             RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen, randomBoolean());
@@ -111,7 +110,7 @@ public class RepositoryDataTests extends ESTestCase {
             newSnapshot,
             new RepositoryData.SnapshotDetails(
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
-                randomFrom(IndexVersion.current(), Version.CURRENT.minimumCompatibilityVersion().indexVersion),
+                randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -143,7 +142,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId.getUUID(),
                 new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.values()),
-                    randomFrom(IndexVersion.current(), Version.CURRENT.minimumCompatibilityVersion().indexVersion),
+                    randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)
@@ -211,7 +210,7 @@ public class RepositoryDataTests extends ESTestCase {
             snapshotId,
             new RepositoryData.SnapshotDetails(
                 state,
-                randomFrom(IndexVersion.current(), Version.CURRENT.minimumCompatibilityVersion().indexVersion),
+                randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -229,7 +228,7 @@ public class RepositoryDataTests extends ESTestCase {
         final RepositoryData repositoryData = generateRandomRepoData().withClusterUuid(UUIDs.randomBase64UUID(random()));
 
         XContentBuilder builder = XContentBuilder.builder(xContent);
-        repositoryData.snapshotsToXContent(builder, Version.CURRENT);
+        repositoryData.snapshotsToXContent(builder, IndexVersion.current());
         RepositoryData parsedRepositoryData;
         try (XContentParser xParser = createParser(builder)) {
             parsedRepositoryData = RepositoryData.snapshotsFromXContent(xParser, repositoryData.getGenId(), randomBoolean());
@@ -282,7 +281,7 @@ public class RepositoryDataTests extends ESTestCase {
         );
 
         final XContentBuilder corruptedBuilder = XContentBuilder.builder(xContent);
-        corruptedRepositoryData.snapshotsToXContent(corruptedBuilder, Version.CURRENT);
+        corruptedRepositoryData.snapshotsToXContent(corruptedBuilder, IndexVersion.current());
 
         try (XContentParser xParser = createParser(corruptedBuilder)) {
             ElasticsearchParseException e = expectThrows(
@@ -409,12 +408,12 @@ public class RepositoryDataTests extends ESTestCase {
     }
 
     public void testFailsIfMinVersionNotSatisfied() throws IOException {
-        final Version futureVersion = Version.fromString((Version.CURRENT.major + 1) + ".0.0");
+        final IndexVersion futureVersion = IndexVersion.fromId(IndexVersion.current().id() + 1_000_000);
 
         final XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON).xContent());
         builder.startObject();
         {
-            builder.field("min_version", futureVersion);
+            builder.field("min_version", futureVersion.id());
             builder.field("junk", "should not get this far");
         }
         builder.endObject();
@@ -456,7 +455,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId,
                 new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.values()),
-                    randomFrom(IndexVersion.current(), Version.CURRENT.minimumCompatibilityVersion().indexVersion),
+                    randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)

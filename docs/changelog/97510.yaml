@@ -1,0 +1,5 @@
+pr: 97510
+summary: "[Synthetics]Added privileges for synthetics API key generation"
+area: Authentication
+type: enhancement
+issues: []

@@ -1341,7 +1341,6 @@ public final class TokenService {
                                     response.getPrimaryTerm(),
                                     response.getSeqNo()
                                 );
-                                assert refreshTokenStatus.getTransportVersion().onOrAfter(VERSION_HASHED_TOKENS);
                                 listener.onResponse(
                                     new CreateTokenResult(
                                         prependVersionAndEncodeAccessToken(refreshTokenStatus.getTransportVersion(), decryptedTokens[0]),

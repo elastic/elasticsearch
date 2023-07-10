@@ -1,5 +1,6 @@
 pr: 97492
-summary: Adds unix nanoseconds date formatter
+summary: Add support unix nanoseconds to the date formatter
 area: Ingest Node
 type: feature
-issues: []
+issues:
+  - 86106

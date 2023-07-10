@@ -57,6 +57,10 @@ setup:
 
 ---
 "pre_filter_shard_size with shards that have no hit":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/97502"
+
   - do:
       index:
         index: index_1

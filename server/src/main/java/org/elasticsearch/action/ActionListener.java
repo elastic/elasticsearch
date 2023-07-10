@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListenerImplementations.runnableFromReleasable;
 import static org.elasticsearch.action.ActionListenerImplementations.safeAcceptException;
@@ -67,6 +68,13 @@ public interface ActionListener<Response> {
      */
     default <T> ActionListener<T> map(CheckedFunction<T, Response, Exception> fn) {
         return new ActionListenerImplementations.MappedActionListener<>(fn, this);
+    }
+
+    /**
+     * Same as {@link #map(CheckedFunction)} except that {@code fn} is expected to never throw.
+     */
+    default <T> ActionListener<T> safeMap(Function<T, Response> fn) {
+        return new ActionListenerImplementations.SafeMappedActionListener<>(fn, this);
     }
 
     /**

@@ -57,7 +57,12 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
             return;
         }
 
-        usersStore.setEnabled(username, request.enabled(), request.getRefreshPolicy(), listener.map(v -> ActionResponse.Empty.INSTANCE));
+        usersStore.setEnabled(
+            username,
+            request.enabled(),
+            request.getRefreshPolicy(),
+            listener.safeMap(v -> ActionResponse.Empty.INSTANCE)
+        );
     }
 
     private boolean isSameUserRequest(SetEnabledRequest request) {

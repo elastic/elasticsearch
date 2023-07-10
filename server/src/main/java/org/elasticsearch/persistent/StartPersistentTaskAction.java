@@ -220,7 +220,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
                 request.taskId,
                 request.taskName,
                 request.params,
-                listener.map(PersistentTaskResponse::new)
+                listener.safeMap(PersistentTaskResponse::new)
             );
         }
     }

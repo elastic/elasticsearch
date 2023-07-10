@@ -94,7 +94,7 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
 
                 // Delete the snapshot and any associated state files
                 JobDataDeleter deleter = new JobDataDeleter(client, request.getJobId());
-                deleter.deleteModelSnapshots(Collections.singletonList(deleteCandidate), delegate.map(bulkResponse -> {
+                deleter.deleteModelSnapshots(Collections.singletonList(deleteCandidate), delegate.safeMap(bulkResponse -> {
                     String msg = Messages.getMessage(
                         Messages.JOB_AUDIT_SNAPSHOT_DELETED,
                         deleteCandidate.getSnapshotId(),

@@ -137,7 +137,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
         request.setNodes(taskNodes.toArray(String[]::new));
         request.setExpandedIds(matchedIds);
 
-        ActionListener<GetDeploymentStatsAction.Response> addFailedListener = listener.map(response -> {
+        ActionListener<GetDeploymentStatsAction.Response> addFailedListener = listener.safeMap(response -> {
             var updatedResponse = addFailedRoutes(response, assignmentNonStartedRoutes, clusterState.nodes());
             // Set the allocation state and reason if we have it
             for (AssignmentStats stats : updatedResponse.getStats().results()) {

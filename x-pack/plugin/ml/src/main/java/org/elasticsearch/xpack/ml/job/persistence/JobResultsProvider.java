@@ -458,7 +458,7 @@ public class JobResultsProvider {
                 client.threadPool().getThreadContext(),
                 ML_ORIGIN,
                 request,
-                listener.map(AcknowledgedResponse::isAcknowledged),
+                listener.safeMap(AcknowledgedResponse::isAcknowledged),
                 client.admin().indices()::putMapping
             );
         } catch (IOException e) {

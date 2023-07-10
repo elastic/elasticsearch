@@ -302,7 +302,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                 // Because the model that changed is no longer in use as it has been rolled back to a time before those changes occurred
                 Annotation.Event.MODEL_CHANGE.toString()
             );
-            dataDeleter.deleteAnnotations(deleteAfter.getTime() + 1, null, eventsToDelete, listener.map(r -> response));
+            dataDeleter.deleteAnnotations(deleteAfter.getTime() + 1, null, eventsToDelete, listener.safeMap(r -> response));
         }, listener::onFailure);
     }
 
@@ -320,7 +320,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             logger.info("[{}] Removing intervening records after reverting model: deleting results after [{}]", jobId, deleteAfter);
 
             JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
-            dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, listener.map(r -> response));
+            dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, listener.safeMap(r -> response));
         }, listener::onFailure);
     }
 
@@ -331,7 +331,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     ) {
         return ActionListener.wrap(response -> jobResultsProvider.dataCounts(jobId, counts -> {
             counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
-            jobDataCountsPersister.persistDataCountsAsync(jobId, counts, listener.map(r -> response));
+            jobDataCountsPersister.persistDataCountsAsync(jobId, counts, listener.safeMap(r -> response));
         }, listener::onFailure), listener::onFailure);
     }
 

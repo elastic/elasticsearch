@@ -724,7 +724,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 .execute(snapshotsListener.delegateFailure((l, response) -> {
                     final SnapshotInfo snapshotInfoInResponse = response.getSnapshotInfo();
                     assertEquals(userMetadata, snapshotInfoInResponse.userMetadata());
-                    clusterAdmin().prepareGetSnapshots(repoName).setSnapshots(snapshot).execute(l.map(getResponse -> {
+                    clusterAdmin().prepareGetSnapshots(repoName).setSnapshots(snapshot).execute(l.safeMap(getResponse -> {
                         assertEquals(snapshotInfoInResponse, getResponse.getSnapshots().get(0));
                         return response;
                     }));

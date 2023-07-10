@@ -465,7 +465,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         } else {
             snapshotInfos = Collections.synchronizedList(new ArrayList<>());
         }
-        final ActionListener<Void> allDoneListener = listener.map(v -> {
+        final ActionListener<Void> allDoneListener = listener.safeMap(v -> {
             final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
             snapshotList.addAll(snapshotSet);
             return sortSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order);

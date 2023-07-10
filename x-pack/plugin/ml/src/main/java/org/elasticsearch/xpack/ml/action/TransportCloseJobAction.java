@@ -649,6 +649,6 @@ public class TransportCloseJobAction extends TransportTasksAction<
                 }
             }
             return true;
-        }, request.getCloseTimeout(), listener.map(r -> response));
+        }, request.getCloseTimeout(), listener.safeMap(r -> response));
     }
 }

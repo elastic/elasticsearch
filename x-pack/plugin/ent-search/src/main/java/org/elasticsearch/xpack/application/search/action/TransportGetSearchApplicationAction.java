@@ -48,7 +48,7 @@ public class TransportGetSearchApplicationAction extends HandledTransportAction<
         systemIndexService.getSearchApplication(
             request.getName(),
             listener.delegateFailure(
-                (l, searchApplication) -> systemIndexService.checkAliasConsistency(searchApplication, l.map(inconsistentIndices -> {
+                (l, searchApplication) -> systemIndexService.checkAliasConsistency(searchApplication, l.safeMap(inconsistentIndices -> {
                     for (String key : inconsistentIndices.keySet()) {
                         HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
                     }

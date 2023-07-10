@@ -608,7 +608,7 @@ public class EnrichPolicyRunner implements Runnable {
             aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().indices(indices).alias(enrichIndexBase));
         }
         aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(destinationIndexName).alias(enrichIndexBase));
-        enrichOriginClient().admin().indices().aliases(aliasToggleRequest, listener.map(r -> {
+        enrichOriginClient().admin().indices().aliases(aliasToggleRequest, listener.safeMap(r -> {
             logger.info("Policy [{}]: Policy execution complete", policyName);
             ExecuteEnrichPolicyStatus completeStatus = new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE);
             task.setStatus(completeStatus);

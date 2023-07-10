@@ -40,7 +40,7 @@ public class TransportDeleteRoleMappingAction extends ReservedStateAwareHandledT
 
     @Override
     protected void doExecuteProtected(Task task, DeleteRoleMappingRequest request, ActionListener<DeleteRoleMappingResponse> listener) {
-        roleMappingStore.deleteRoleMapping(request, listener.map(DeleteRoleMappingResponse::new));
+        roleMappingStore.deleteRoleMapping(request, listener.safeMap(DeleteRoleMappingResponse::new));
     }
 
     @Override

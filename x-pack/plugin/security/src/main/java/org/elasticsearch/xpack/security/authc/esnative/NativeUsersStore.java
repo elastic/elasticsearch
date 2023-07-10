@@ -177,7 +177,7 @@ public class NativeUsersStore {
                         .setSize(0)
                         .setTrackTotalHits(true)
                         .request(),
-                    listener.<SearchResponse>map(response -> response.getHits().getTotalHits().value),
+                    listener.<SearchResponse>safeMap(response -> response.getHits().getTotalHits().value),
                     client::search
                 )
             );

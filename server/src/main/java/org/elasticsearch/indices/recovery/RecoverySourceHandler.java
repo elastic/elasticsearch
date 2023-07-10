@@ -1221,7 +1221,7 @@ public class RecoverySourceHandler {
                 maxSeqNoOfUpdatesOrDeletes,
                 retentionLeases,
                 mappingVersion,
-                listener.map(newCheckpoint -> {
+                listener.safeMap(newCheckpoint -> {
                     targetLocalCheckpoint.accumulateAndGet(newCheckpoint, SequenceNumbers::max);
                     return null;
                 })

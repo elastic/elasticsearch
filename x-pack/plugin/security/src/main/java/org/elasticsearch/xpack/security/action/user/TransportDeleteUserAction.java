@@ -49,6 +49,6 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
             return;
         }
 
-        usersStore.deleteUser(request, listener.map(DeleteUserResponse::new));
+        usersStore.deleteUser(request, listener.safeMap(DeleteUserResponse::new));
     }
 }

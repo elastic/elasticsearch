@@ -49,7 +49,7 @@ public class RecoveryRequestTracker {
             checkpointTracker.markSeqNoAsProcessed(requestSeqNo);
             final ListenableFuture<Void> future = new ListenableFuture<>();
             ongoingRequests.put(requestSeqNo, future);
-            future.addListener(listener.map(v -> {
+            future.addListener(listener.safeMap(v -> {
                 ongoingRequests.remove(requestSeqNo);
                 return v;
             }));

@@ -262,6 +262,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final LeafSlice[] slices = new LeafSlice[queue.size()];
         int upto = 0;
         for (List<LeafReaderContext> currentLeaf : queue) {
+            // LeafSlice ctor reorders leaves so that leaves within a slice preserve the order they had within the IndexReader.
+            // This is important given how Elasticsearch sorts leaves by descending @timestamp to get better query performance.
             slices[upto++] = new LeafSlice(currentLeaf);
         }
 

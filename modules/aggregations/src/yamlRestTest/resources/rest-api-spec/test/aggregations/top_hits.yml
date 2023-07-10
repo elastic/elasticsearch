@@ -723,6 +723,9 @@ synthetic _source:
 
 ---
 runtime fields:
+  - skip:
+      version: " - 8.9.1"
+      reason:  "bugfix #97460 added in 8.9.1"
   - do:
       search:
         index: test

@@ -9,8 +9,8 @@ and <<shard-allocation-awareness, allocation awareness>>.
 Shard allocation filters can be based on custom node attributes or the built-in
 `_name`, `_host_ip`, `_publish_ip`, `_ip`, `_host`, `_id` and `_tier` attributes.
 
-The `cluster.routing.allocation` settings are <<dynamic-cluster-setting,dynamic>>, enabling live indices to
-be moved from one set of nodes to another. Shards are only relocated if it is
+The `cluster.routing.allocation` settings are <<dynamic-cluster-setting,dynamic>>, enabling existing indices to
+be moved immediately from one set of nodes to another. Shards are only relocated if it is
 possible to do so without breaking another routing constraint, such as never
 allocating a primary and replica shard on the same node.
 

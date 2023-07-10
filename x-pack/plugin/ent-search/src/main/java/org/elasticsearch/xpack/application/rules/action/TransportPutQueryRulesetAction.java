@@ -17,11 +17,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.QueryRuleset;
-import org.elasticsearch.xpack.application.rules.QueryRulesetConfig;
+import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 
 public class TransportPutQueryRulesetAction extends HandledTransportAction<PutQueryRulesetAction.Request, PutQueryRulesetAction.Response> {
     protected final QueryRulesIndexService systemIndexService;
-    private final QueryRulesetConfig config;
+    private final QueryRulesConfig config;
 
     @Inject
     public TransportPutQueryRulesetAction(
@@ -32,7 +32,7 @@ public class TransportPutQueryRulesetAction extends HandledTransportAction<PutQu
     ) {
         super(PutQueryRulesetAction.NAME, transportService, actionFilters, PutQueryRulesetAction.Request::new);
         this.systemIndexService = new QueryRulesIndexService(client);
-        this.config = new QueryRulesetConfig(settings);
+        this.config = new QueryRulesConfig(settings);
     }
 
     @Override
@@ -42,7 +42,7 @@ public class TransportPutQueryRulesetAction extends HandledTransportAction<PutQu
         if (queryRuleset.rules().size() > config.maxRulesPerRuleset()) {
             throw new IllegalArgumentException(
                 "The number of rules in a ruleset cannot exceed [" + config.maxRulesPerRuleset() + "]."
-                    + "This maximum can be set by changing the [" + QueryRulesetConfig.MAX_RULE_LIMIT_SETTING.getKey() + "] setting."
+                    + "This maximum can be set by changing the [" + QueryRulesConfig.MAX_RULE_LIMIT_SETTING.getKey() + "] setting."
             );
         }
 

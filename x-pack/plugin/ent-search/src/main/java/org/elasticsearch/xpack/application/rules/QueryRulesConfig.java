@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 
-public class QueryRulesetConfig {
+public class QueryRulesConfig {
 
     private static final String SETTING_ROOT_PATH = "xpack.applications.rules";
 
@@ -34,7 +34,7 @@ public class QueryRulesetConfig {
     private final int maxRulesPerRuleset;
 
     @Inject
-    public QueryRulesetConfig(Settings settings) {
+    public QueryRulesConfig(Settings settings) {
         this.maxRulesPerRuleset = MAX_RULE_LIMIT_SETTING.get(settings);
     }
 

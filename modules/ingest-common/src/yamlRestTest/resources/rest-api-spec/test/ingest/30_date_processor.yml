@@ -152,6 +152,13 @@ teardown:
                   "target_field" : "date_target_7",
                   "formats" : [ "ISO8601" ]
                 }
+              },
+              {
+                "date" : {
+                  "field" : "date_source_8",
+                  "target_field" : "date_target_8",
+                  "formats" : [ "UNIX_NS" ]
+                }
               }
             ]
           }
@@ -162,7 +169,16 @@ teardown:
         index: test
         id: "1"
         pipeline: "my_pipeline"
-        body: { date_source_1: "2018-02-05T13:44:56.657+0100", date_source_2: "2017-04-04 13:43:09 +0200", date_source_3: "10/Aug/2018:09:45:56 +0200", date_source_4: "1", date_source_5: "1", date_source_6: "4000000050d506482dbdf024", date_source_7: "2018-02-05T13:44:56.657+0100" }
+        body: {
+          date_source_1: "2018-02-05T13:44:56.657+0100",
+          date_source_2: "2017-04-04 13:43:09 +0200",
+          date_source_3: "10/Aug/2018:09:45:56 +0200",
+          date_source_4: "1",
+          date_source_5: "1",
+          date_source_6: "4000000050d506482dbdf024",
+          date_source_7: "2018-02-05T13:44:56.657+0100",
+          date_source_8: "1688548995.987654321"
+      }
 
   - do:
       get:
@@ -182,6 +198,7 @@ teardown:
   - match: { _source.date_target_6: "2012-12-22T01:00:46.767Z" }
   - match: { _source.date_source_7: "2018-02-05T13:44:56.657+0100" }
   - match: { _source.date_target_7: "2018-02-05T12:44:56.657Z" }
+  - match: { _source.date_target_8: "2023-07-05T09:23:15.987Z" }
 
 
 ---

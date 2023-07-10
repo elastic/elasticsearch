@@ -4,9 +4,9 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 esplugin {
-  name 'x-pack-sql'
+  name = 'x-pack-sql'
   description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
-  classname 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
+  classname = 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
   extendedPlugins = ['x-pack-ql', 'lang-painless']
 }
 
@@ -25,7 +25,9 @@ configurations {
   bin
 }
 
-archivesBaseName = 'x-pack-sql'
+base {
+  archivesName = 'x-pack-sql'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

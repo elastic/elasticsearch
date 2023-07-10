@@ -70,6 +70,117 @@ public class BertTokenizerTests extends ESTestCase {
         }
     }
 
+    public void testTokenizeWithTokensThatAreRemovedByStripAccents() {
+
+        List<String> vocab = List.of(
+            "Arabic",
+            ":",
+            "##ق",
+            "و",
+            "3",
+            "##م",
+            "##ا",
+            "##ه",
+            "##د",
+            "##ز",
+            "##ا",
+            "##ل",
+            "ا",
+            ".",
+            "4",
+            "There",
+            "are",
+            "2",
+            "main",
+            "types",
+            "of",
+            "non",
+            "mel",
+            "##ano",
+            "##ma",
+            "skin",
+            "cancer",
+            "basel",
+            "cell",
+            "car",
+            "##cino",
+            "(",
+            ")",
+            "BCC",
+            "SCC",
+            "and",
+            "squamous",
+            BertTokenizer.CLASS_TOKEN,
+            BertTokenizer.SEPARATOR_TOKEN,
+            BertTokenizer.MASK_TOKEN,
+            BertTokenizer.UNKNOWN_TOKEN,
+            BertTokenizer.PAD_TOKEN
+        );
+
+        String inputWithAccentsToStrip1 = "  Arabic: وَقْ 3 ُ الِازْدِهَام.4  ";
+        String inputWithAccentsToStrip2 =
+            "There are 2 main types of non melanoma skin cancer ̶̶ basal cell carcinoma (BCC) and squamous cell carcinoma (SCC).";
+        String inputWithAccentToStripAtEndOfString = "There are 2 main types of non melanoma skin cancer ̶̶";
+        String onlyAccents = " ̶̶";
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(vocab, new BertTokenization(true, true, null, Tokenization.Truncate.NONE, -1))
+                .build()
+        ) {
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize(inputWithAccentsToStrip1, Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 37, 0, 1, 3, 2, 4, 12, 11, 10, 9, 8, 7, 10, 5, 13, 14, 38 }));
+
+            tokenization = tokenizer.tokenize(inputWithAccentsToStrip2, Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(
+                tokenization.tokenIds(),
+                equalTo(
+                    new int[] {
+                        37,
+                        15,
+                        16,
+                        17,
+                        18,
+                        19,
+                        20,
+                        21,
+                        22,
+                        23,
+                        24,
+                        25,
+                        26,
+                        40,
+                        28,
+                        29,
+                        30,
+                        24,
+                        31,
+                        33,
+                        32,
+                        35,
+                        36,
+                        28,
+                        29,
+                        30,
+                        24,
+                        31,
+                        34,
+                        32,
+                        13,
+                        38 }
+                )
+            );
+
+            tokenization = tokenizer.tokenize(inputWithAccentToStripAtEndOfString, Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 37, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 38 }));
+            // the last token is the separator, the one before that should
+            // correspond to the last word in the input _not_ the accent
+            assertEquals("cancer", vocab.get(26));
+
+            tokenization = tokenizer.tokenize(onlyAccents, Tokenization.Truncate.NONE, -1, 0).get(0);
+            // empty tokenization only contains ClASS and SEP tokens
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 37, 38 }));
+        }
+    }
+
     public void testTokenizeFailureCaseAccentFilter() {
         List<String> testingVocab = List.of(
             "[CLS]",

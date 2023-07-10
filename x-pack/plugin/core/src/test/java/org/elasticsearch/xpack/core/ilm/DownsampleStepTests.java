@@ -28,6 +28,7 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.common.IndexNameGenerator.generateValidIndexName;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -163,7 +164,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
-        String downsampleIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
+        String downsampleIndex = generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
         lifecycleState.setDownsampleIndexName(downsampleIndex);
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
@@ -213,7 +214,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
-        String downsampleIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
+        String downsampleIndex = generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
         lifecycleState.setDownsampleIndexName(downsampleIndex);
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
@@ -255,7 +256,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
-        String downsampleIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
+        String downsampleIndex = generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
         lifecycleState.setDownsampleIndexName(downsampleIndex);
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)

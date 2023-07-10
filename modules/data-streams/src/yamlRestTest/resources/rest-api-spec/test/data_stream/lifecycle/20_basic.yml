@@ -2,7 +2,7 @@ setup:
   - skip:
       features: allowed_warnings
       version: " - 8.8.99"
-      reason: "data lifecycles only supported in 8.9+"
+      reason: "Data stream lifecycles only supported in 8.9+"
   - do:
       allowed_warnings:
         - "index template [my-lifecycle] has index patterns [data-stream-with-lifecycle] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"
@@ -39,7 +39,7 @@ setup:
         name: simple-data-stream1
 
 ---
-"Get data lifecycle":
+"Get data stream lifecycle":
 
   - do:
       indices.get_data_lifecycle:
@@ -49,7 +49,7 @@ setup:
   - match: { data_streams.0.lifecycle.data_retention: '10d' }
 
 ---
-"Put data lifecycle":
+"Put data stream lifecycle":
 
   - do:
       indices.put_data_lifecycle:
@@ -69,7 +69,7 @@ setup:
 
 
 ---
-"Get data lifecycle with defaults":
+"Get data stream lifecycle with defaults":
 
   - do:
       indices.get_data_lifecycle:
@@ -81,7 +81,7 @@ setup:
   - is_true: data_streams.0.lifecycle.rollover
 
 ---
-"Delete data lifecycle from the data streams":
+"Delete data stream lifecycle from the data streams":
   - do:
       indices.put_data_lifecycle:
         name: "simple-data-stream1"

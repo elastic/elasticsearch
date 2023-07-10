@@ -40,6 +40,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -1012,21 +1013,53 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(c1, null, 0, c2, null);
             queryPhaseCollector.getLeafCollector(ctx).setScorer(new MinCompetitiveScoreScorable());
         }
+        {
+            // both collectors need scores => caching, but one early terminates
+            Collector c1 = new TerminateAfterCollector(new MockCollector(ScoreMode.COMPLETE, MinCompetitiveScoreScorable.class), 0);
+            Collector c2 = new MockCollector(ScoreMode.COMPLETE, MinCompetitiveScoreScorable.class);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(c1, null, 0, c2, null);
+            queryPhaseCollector.getLeafCollector(ctx).setScorer(new MinCompetitiveScoreScorable());
+            queryPhaseCollector = new QueryPhaseCollector(c2, null, 0, c1, null);
+            queryPhaseCollector.getLeafCollector(ctx).setScorer(new MinCompetitiveScoreScorable());
+        }
     }
 
-    public void testCompetitiveIteratorTopDocsOnly() throws IOException {
+    public void testNoWrappingIfUnnecessaryTopDocsOnly() throws IOException {
         MockCollector mockCollector = new MockCollector(randomFrom(ScoreMode.values()));
         QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(mockCollector, null, 0, null, null);
+        LeafReaderContext context = searcher.getLeafContexts().get(0);
+        LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
+        assertThat(leafCollector, CoreMatchers.sameInstance(mockCollector));
+    }
+
+    public void testNoWrappingIfUnnecessaryTopDocsEarlyTerminated() throws IOException {
+        TerminateAfterCollector topDocsCollector = new TerminateAfterCollector(new MockCollector(randomFrom(ScoreMode.values())), 0);
+        MockCollector aggsCollector = new MockCollector(randomScoreModeExceptTopScores());
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsCollector, null, 0, aggsCollector, null);
+        LeafReaderContext context = searcher.getLeafContexts().get(0);
+        LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
+        assertThat(leafCollector, CoreMatchers.sameInstance(aggsCollector));
+    }
+
+    public void testCompetitiveIteratorNoAggs() throws IOException {
+        // use a post_filter so that we wrap the top docs leaf collector, as this test verifies that
+        // the wrapper calls competitiveIterator when appropriated
+        Weight postFilterWeight = searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        MockCollector mockCollector = new MockCollector(randomFrom(ScoreMode.values()));
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(mockCollector, postFilterWeight, 0, null, null);
         LeafReaderContext context = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
         leafCollector.competitiveIterator();
         assertTrue(mockCollector.competitiveIteratorCalled);
     }
 
-    public void testCompetitiveIteratorTopDocsOnlyCollectionTerminated() throws IOException {
+    public void testCompetitiveIteratorNoAggsCollectionTerminated() throws IOException {
+        // use a post_filter so that we wrap the top docs leaf collector, as this test verifies that
+        // the wrapper calls competitiveIterator when appropriated
+        Weight postFilterWeight = searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         MockCollector mockCollector = new MockCollector(randomFrom(ScoreMode.values()));
         TerminateAfterCollector terminateAfterCollector = new TerminateAfterCollector(mockCollector, 1);
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(terminateAfterCollector, null, 0, null, null);
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(terminateAfterCollector, postFilterWeight, 0, null, null);
         LeafReaderContext context = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
         leafCollector.competitiveIterator();

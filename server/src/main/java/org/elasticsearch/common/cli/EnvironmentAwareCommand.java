@@ -118,7 +118,7 @@ public abstract class EnvironmentAwareCommand extends Command {
 
     // protected to allow tests to override
     protected Build.Type getBuildType() {
-        return Build.CURRENT.type();
+        return Build.current().type();
     }
 
     @SuppressForbidden(reason = "need path to construct environment")

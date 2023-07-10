@@ -605,7 +605,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         forceEvict(cacheKey::equals);
     }
 
-    public void forceEvict(Predicate<KeyType> cacheKeyPredicate) {
+    /**
+     * Evicts entries from the cache that match the given predicate.
+     *
+     * @param cacheKeyPredicate
+     * @return The number of entries evicted from the keyMapping.
+     */
+    public int forceEvict(Predicate<KeyType> cacheKeyPredicate) {
         final List<Entry<CacheFileRegion>> matchingEntries = new ArrayList<>();
         keyMapping.forEach((key, value) -> {
             if (cacheKeyPredicate.test(key.file)) {
@@ -623,6 +629,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 }
             }
         }
+        return matchingEntries.size();
     }
 
     // used by tests

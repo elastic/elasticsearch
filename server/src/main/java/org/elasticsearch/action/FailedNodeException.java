@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class FailedNodeException extends ElasticsearchException {
 
@@ -43,4 +44,26 @@ public class FailedNodeException extends ElasticsearchException {
     protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("node_id", nodeId);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        FailedNodeException that = (FailedNodeException) o;
+        return Objects.equals(nodeId, that.nodeId)
+            && getMessage().equals(that.getMessage())
+            && getStackTrace().length == that.getStackTrace().length;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            nodeId,
+            getMessage(),
+            getClass().getName(), // subclasses should not have the same hash as their parent.
+            getStackTrace().length  // Could check uniqueness via mapping to list of strings, but there are different module path prefixes when serialized.
+        );
+    }
+
+
 }

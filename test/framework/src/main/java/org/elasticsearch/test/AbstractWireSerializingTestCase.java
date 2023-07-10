@@ -12,12 +12,15 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 
 /**
  * Standard test case for testing the wire serialization of subclasses of {@linkplain Writeable}.
  * See {@link AbstractNamedWriteableTestCase} for subclasses of {@link NamedWriteable}.
+ * See {@link AbstractSerializationTestCase} for subclasses of {@link ToXContent} or {@link ChunkedToXContent}
  */
 public abstract class AbstractWireSerializingTestCase<T extends Writeable> extends AbstractWireTestCase<T> {
     /**

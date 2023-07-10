@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -83,9 +84,8 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         try (InputStream stream = new BytesArray(getSchemaPropertiesAsString()).streamInput()) {
-            builder.rawValue(stream, builder.contentType());
+            builder.rawValue(stream, XContentType.JSON);
         }
-
         return builder;
     }
 

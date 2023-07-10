@@ -1570,6 +1570,16 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     lagDetector.setTrackedNodes(publishNodes);
                     publication.start(followersChecker.getFaultyNodes());
                 } catch (Exception e) {
+                    logger.warn(
+                        "publication of state version ["
+                            + clusterState.version()
+                            + "] in term ["
+                            + clusterState.term()
+                            + "] for ["
+                            + clusterStatePublicationEvent.getSummary()
+                            + "] failed to start",
+                        e
+                    );
                     assert currentPublication.isEmpty() : e; // should not fail after setting currentPublication
                     becomeCandidate("publish");
                 } finally {
@@ -1976,7 +1986,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                     final FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException(
                         Strings.format(
-                            "publication of cluster state version [%d] in term [%d] failed [committed={}]",
+                            "publication of cluster state version [%d] in term [%d] failed [committed=%s]",
                             publishRequest.getAcceptedState().version(),
                             publishRequest.getAcceptedState().term(),
                             committed

@@ -76,7 +76,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private final QueueSizeBasedExecutor queueSizeBasedExecutor;
     private final LeafSlice[] leafSlices;
-    private boolean allowConcurrent = false;
 
     /** constructor for non-concurrent search */
     public ContextIndexSearcher(

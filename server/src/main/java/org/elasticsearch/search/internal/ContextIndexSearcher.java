@@ -53,6 +53,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -70,8 +71,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
+    // don't create slices with less than 50k docs
     private static final int MINIMUM_DOCS_PER_SLICE = 50_000;
 
+    // make sure each slice has at least 10% of the documents as a way to limit memory usage and
+    // to keep the error margin of terms aggregation low
     private static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
 
     private AggregatedDfs aggregatedDfs;
@@ -223,40 +227,41 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int minDocsPerSlice) {
         // Make a copy so we can sort:
         List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
-
         // Sort by maxDoc, descending:
-        Collections.sort(sortedLeaves, Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().maxDoc())));
-
-        final List<List<LeafReaderContext>> groupedLeaves = new ArrayList<>();
+        final Comparator<LeafReaderContext> leafComparator = Comparator.comparingInt(l -> l.reader().maxDoc());
+        Collections.sort(sortedLeaves, leafComparator.reversed());
+        // we add the groups on a priority queue, so we can add orphan leafs to the smallest group
+        final Comparator<List<LeafReaderContext>> groupComparator = Comparator.comparingInt(
+            l -> l.stream().mapToInt(lr -> lr.reader().maxDoc()).sum()
+        );
+        final PriorityQueue<List<LeafReaderContext>> queue = new PriorityQueue<>(groupComparator);
         long docSum = 0;
         List<LeafReaderContext> group = new ArrayList<>();
         for (LeafReaderContext ctx : sortedLeaves) {
             group.add(ctx);
             docSum += ctx.reader().maxDoc();
             if (docSum > minDocsPerSlice) {
-                groupedLeaves.add(group);
+                queue.add(group);
                 group = new ArrayList<>();
                 docSum = 0;
             }
         }
 
         if (group.size() > 0) {
-            if (groupedLeaves.size() == 0) {
-                groupedLeaves.add(group);
+            if (queue.size() == 0) {
+                queue.add(group);
             } else {
-                // We need to distribute the last group between existing groups. We expect the first groups
-                // to contain more document that the last ones. Reverse the last group and distribute
-                // the leaf readers in a round robin fashion.
-                Collections.reverse(group);
-                for (int i = 0; i < group.size(); i++) {
-                    groupedLeaves.get(i % groupedLeaves.size()).add(group.get(i));
+                for (LeafReaderContext context : group) {
+                    final List<LeafReaderContext> head = queue.poll();
+                    head.add(context);
+                    queue.add(head);
                 }
             }
         }
 
-        LeafSlice[] slices = new LeafSlice[groupedLeaves.size()];
+        final LeafSlice[] slices = new LeafSlice[queue.size()];
         int upto = 0;
-        for (List<LeafReaderContext> currentLeaf : groupedLeaves) {
+        for (List<LeafReaderContext> currentLeaf : queue) {
             slices[upto++] = new LeafSlice(currentLeaf);
         }
 

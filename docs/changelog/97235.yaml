@@ -1,5 +1,0 @@
-pr: 97235
-summary: Add new Setting.Property `ServerlessPublic`
-area: Infra/Settings
-type: enhancement
-issues: []

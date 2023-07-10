@@ -75,8 +75,8 @@ setup:
 ---
 "kNN multi-field search only":
   - skip:
-      version: ' - 8.6.99'
-      reason: 'multi-field kNN search added to search endpoint in 8.7'
+      version: 'all, - 8.6.99'
+      reason: 'AwaitsFix https://github.com/elastic/elasticsearch/issues/i97525, multi-field kNN search added to search endpoint in 8.7'
   - do:
       search:
         index: test

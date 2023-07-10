@@ -19,6 +19,7 @@ class JavaRestTestPluginFuncTest extends AbstractGradleFuncTest {
         configurationCacheCompatible = false
     }
 
+    @Ignore('https://github.com/gradle/gradle/issues/21868')
     def "declares default dependencies"() {
         given:
         buildFile << """

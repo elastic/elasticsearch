@@ -49,6 +49,20 @@ The <<search-template,search template>> associated with this search application.
 - The template may be modified with subsequent <<put-search-application,put search application>> requests.
 - If no template is specified when creating a search application, or if a template is removed from a search application, we use the <<query-string-query-ex-request,query_string>> defined in the template examples as a default.
 - This template will be used by the <<search-application-search,search application search>> API to execute searches.
+- The template accepts an optional `dictionary` parameter which defines a JSON schema used for validating parameters sent to the <<search-application-search,search application search>> API
+
+.Properties of `<template>`
+[%collapsible%open]
+=====
+
+`script`::
+(Required, object)
+The associated mustache template.
+
+`dictionary`::
+(Optional, object)
+The dictionary used to validate the parameters used with the <<search-application-search, search application search>> API. The dictionary must be a valid JSON schema.
+=====
 ====
 
 
@@ -85,11 +99,35 @@ PUT _application/search_application/my-app?create
         "query_string": "*",
         "default_field": "*"
       }
+    },
+    "dictionary": {
+      "properties": {
+        "query_string": {
+          "type": "string"
+        },
+        "default_field": {
+          "type": "string",
+          "enum": [
+            "title",
+            "description"
+          ]
+        },
+        "additionalProperties": false
+      },
+      "required": [
+        "query_string"
+      ]
     }
   }
 }
 ----
 // TEST[skip:TBD]
+
+Given the value of the `dictionary` parameter, the <<search-application-search, search application search>> API will perform the following parameter validation:
+
+* It accepts only the `query_string` and `default_field` parameters
+* It verifies that `query_string` and `default_field` are both strings
+* It accepts `default_field` only if it takes the values `title` or `description`
 
 The following example creates or updates an existing Search Application called `my-app`:
 
@@ -112,6 +150,24 @@ PUT _application/search_application/my-app
         "query_string": "*",
         "default_field": "*"
       }
+    },
+    "dictionary": {
+      "properties": {
+        "query_string": {
+          "type": "string"
+        },
+        "default_field": {
+          "type": "string",
+          "enum": [
+            "title",
+            "description"
+          ]
+        },
+        "additionalProperties": false
+      },
+      "required": [
+        "query_string"
+      ]
     }
   }
 }

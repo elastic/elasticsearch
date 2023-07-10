@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.downsample.DownsampleConfig;
@@ -26,6 +25,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -1996,7 +1996,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
                     )
             )
             .build();
@@ -2025,7 +2025,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
             )
             .build();
@@ -2140,7 +2140,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
                     )
             )
             .build();
@@ -2169,7 +2169,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
             )
             .build();
@@ -2234,7 +2234,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
             )
             .build();

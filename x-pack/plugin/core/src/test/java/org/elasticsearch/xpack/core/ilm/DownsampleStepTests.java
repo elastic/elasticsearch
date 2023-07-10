@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
@@ -74,7 +74,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setDownsampleIndexName("downsample-index");
 
         return IndexMetadata.builder(index)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
@@ -110,7 +110,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
@@ -168,7 +168,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setDownsampleIndexName(downsampleIndex);
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -177,7 +177,10 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         // Create a successfully completed downsample index (index.downsample.status: success)
         IndexMetadata indexMetadata = IndexMetadata.builder(downsampleIndex)
             .settings(
-                settings(Version.CURRENT).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.SUCCESS)
+                settings(IndexVersion.current()).put(
+                    IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(),
+                    IndexMetadata.DownsampleTaskStatus.SUCCESS
+                )
             )
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -218,7 +221,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setDownsampleIndexName(downsampleIndex);
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -227,7 +230,10 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         // Create an in-progress downsample index (index.downsample.status: started)
         IndexMetadata indexMetadata = IndexMetadata.builder(downsampleIndex)
             .settings(
-                settings(Version.CURRENT).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.STARTED)
+                settings(IndexVersion.current()).put(
+                    IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(),
+                    IndexMetadata.DownsampleTaskStatus.STARTED
+                )
             )
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -260,7 +266,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setDownsampleIndexName(downsampleIndex);
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))

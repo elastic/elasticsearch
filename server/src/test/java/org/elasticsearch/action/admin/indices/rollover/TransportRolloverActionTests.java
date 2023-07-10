@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -216,7 +216,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             minPrimaryShardDocsCondition
         );
 
-        final Settings settings = indexSettings(Version.CURRENT, randomIntBetween(1, 1000), 10).put(
+        final Settings settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 1000), 10).put(
             IndexMetadata.SETTING_INDEX_UUID,
             UUIDs.randomBase64UUID()
         ).build();
@@ -283,7 +283,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             minPrimaryShardDocsCondition
         );
 
-        final Settings settings = indexSettings(Version.CURRENT, randomIntBetween(1, 1000), 10).put(
+        final Settings settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 1000), 10).put(
             IndexMetadata.SETTING_INDEX_UUID,
             UUIDs.randomBase64UUID()
         ).build();
@@ -332,12 +332,12 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("logs-index-000001")
             .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build())
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         final IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("logs-index-000002")
             .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build())
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
@@ -443,8 +443,10 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     private static IndexMetadata createMetadata(String indexName) {
-        final Settings settings = indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
+        final Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(
+            IndexMetadata.SETTING_INDEX_UUID,
+            UUIDs.randomBase64UUID()
+        ).build();
         return IndexMetadata.builder(indexName)
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)

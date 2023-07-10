@@ -248,7 +248,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
-        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 1).put(indexSettings)).build();
+        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1).put(indexSettings)).build();
     }
 
     public void testUpdateDurability() {
@@ -347,7 +347,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexMetadata metadata = IndexMetadata.builder("index")
             .system(true)
             .settings(
-                indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                     .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
                     .put(INDEX_FAST_REFRESH_SETTING.getKey(), true)
                     .build()

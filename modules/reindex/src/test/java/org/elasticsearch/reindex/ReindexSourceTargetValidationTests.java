@@ -8,7 +8,6 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -179,7 +179,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     }
 
     private static IndexMetadata index(String name, @Nullable Boolean writeIndex, String... aliases) {
-        IndexMetadata.Builder builder = IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 1));
+        IndexMetadata.Builder builder = IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1));
         for (String alias : aliases) {
             builder.putAlias(AliasMetadata.builder(alias).writeIndex(writeIndex).build());
         }

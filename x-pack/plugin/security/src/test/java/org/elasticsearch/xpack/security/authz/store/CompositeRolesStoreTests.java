@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.MockLicenseState;
@@ -2123,8 +2124,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         // Smoke-test for authorization
         final Metadata indexMetadata = Metadata.builder()
-            .put(IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 1)))
-            .put(IndexMetadata.builder("index2").settings(indexSettings(Version.CURRENT, 1, 1)))
+            .put(IndexMetadata.builder("index1").settings(indexSettings(IndexVersion.current(), 1, 1)))
+            .put(IndexMetadata.builder("index2").settings(indexSettings(IndexVersion.current(), 1, 1)))
             .build();
         final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
         assertThat(

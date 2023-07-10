@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -152,6 +152,6 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {
-        return IndexMetadata.builder(index).settings(indexSettings(Version.CURRENT, 1, 0));
+        return IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0));
     }
 }

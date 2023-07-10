@@ -11,7 +11,6 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1259,7 +1258,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService,
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup
     ) {
-        Settings settings = indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
+        Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         return new SearchExecutionContext(

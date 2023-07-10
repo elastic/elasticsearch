@@ -15,7 +15,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
@@ -78,7 +78,7 @@ public class DefaultSearchContextTests extends ESTestCase {
         int maxResultWindow = randomIntBetween(50, 100);
         int maxRescoreWindow = randomIntBetween(50, 100);
         int maxSlicesPerScroll = randomIntBetween(50, 100);
-        Settings settings = indexSettings(Version.CURRENT, 2, 1).put("index.max_result_window", maxResultWindow)
+        Settings settings = indexSettings(IndexVersion.current(), 2, 1).put("index.max_result_window", maxResultWindow)
             .put("index.max_slices_per_scroll", maxSlicesPerScroll)
             .put("index.max_rescore_window", maxRescoreWindow)
             .build();

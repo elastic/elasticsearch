@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -141,20 +141,20 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         lifecycleState.setAction("init");
         lifecycleState.setStep("init");
         indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         index = indexMetadata.getIndex();
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .put(IndexMetadata.builder(indexMetadata))
             .build();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+            NodeRoles.masterNode(settings(IndexVersion.current()).build()),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             nodeId
         );

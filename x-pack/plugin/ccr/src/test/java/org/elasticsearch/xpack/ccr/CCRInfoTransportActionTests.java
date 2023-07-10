@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -92,7 +92,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         int numFollowerIndices = randomIntBetween(0, 32);
         for (int i = 0; i < numFollowerIndices; i++) {
             IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index" + i)
-                .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+                .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(i)
@@ -102,7 +102,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
 
         // Add a regular index, to check that we do not take that one into account:
         IndexMetadata.Builder regularIndex = IndexMetadata.builder("my_index")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .creationDate(numFollowerIndices);

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.enrich;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -23,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.script.ScriptService;
@@ -328,7 +328,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     static Metadata createMetadata(String name, EnrichPolicy policy) {
         IndexMetadata.Builder builder = IndexMetadata.builder(EnrichPolicy.getBaseName(name) + "-1");
-        builder.settings(indexSettings(Version.CURRENT, 1, 0));
+        builder.settings(indexSettings(IndexVersion.current(), 1, 0));
         builder.putMapping(Strings.format("""
             {"_meta": {"enrich_match_field": "%s", "enrich_policy_type": "%s"}}
             """, policy.getMatchField(), policy.getType()));

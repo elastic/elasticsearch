@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -78,8 +78,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         builder.put(
             IndexMetadata.builder(dataStream.getWriteIndex().getName())
                 .settings(
-                    ESTestCase.settings(Version.CURRENT)
-                        .put("index.hidden", true)
+                    settings(IndexVersion.current()).put("index.hidden", true)
                         .put(SETTING_INDEX_UUID, dataStream.getWriteIndex().getUUID())
                         .put("index.mode", "time_series")
                         .put("index.routing_path", "uid")
@@ -181,8 +180,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
-        Settings.Builder indexSettings = ESTestCase.settings(Version.CURRENT)
-            .put("index.hidden", true)
+        Settings.Builder indexSettings = settings(IndexVersion.current()).put("index.hidden", true)
             .put(SETTING_INDEX_UUID, dataStream.getWriteIndex().getUUID());
         if (dsIndexMode != null) {
             indexSettings.put("index.mode", dsIndexMode.getName());
@@ -271,8 +269,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         builder.put(
             IndexMetadata.builder(dataStream.getWriteIndex().getName())
                 .settings(
-                    ESTestCase.settings(Version.CURRENT)
-                        .put("index.hidden", true)
+                    settings(IndexVersion.current()).put("index.hidden", true)
                         .put(SETTING_INDEX_UUID, dataStream.getWriteIndex().getUUID())
                         .put("index.mode", "time_series")
                         .put("index.routing_path", "uid")

@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -411,7 +412,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testIsHidden() {
-        Settings.Builder settings = indexSettings(Version.CURRENT, randomIntBetween(1, 8), 0);
+        Settings.Builder settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).build();
         assertFalse(indexMetadata.isHidden());
 
@@ -442,7 +443,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testLifeCyclePolicyName() {
-        Settings.Builder settings = indexSettings(Version.CURRENT, randomIntBetween(1, 8), 0);
+        Settings.Builder settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
         IndexMetadata idxMeta1 = IndexMetadata.builder("test").settings(settings).build();
 
         // null means no policy
@@ -493,7 +494,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     private static Settings indexSettingsWithDataTier(String dataTier) {
-        return indexSettings(Version.CURRENT, 1, 0).put(DataTier.TIER_PREFERENCE, dataTier).build();
+        return indexSettings(IndexVersion.current(), 1, 0).put(DataTier.TIER_PREFERENCE, dataTier).build();
     }
 
     private IndexMetadataStats randomIndexStats(int numberOfShards) {

@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -29,6 +28,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -2980,7 +2980,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         IndexMetadata index1 = createBackingIndex(dataStream1, 1, epochMillis).build();
         IndexMetadata index2 = createBackingIndex(dataStream1, 2, epochMillis).build();
         IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
-            .settings(ESTestCase.settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putAlias(new AliasMetadata.Builder("logs-foobarbaz"))
@@ -3010,7 +3010,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         IndexMetadata index1 = createBackingIndex(dataStream1, 1, epochMillis).build();
         IndexMetadata index2 = createBackingIndex(dataStream1, 2, epochMillis).build();
         IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
-            .settings(ESTestCase.settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
@@ -3050,7 +3050,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         IndexMetadata index1 = createBackingIndex(dataStream1, 1).build();
         IndexMetadata index2 = createBackingIndex(dataStream1, 2).build();
         IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
-            .settings(ESTestCase.settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putAlias(new AliasMetadata.Builder("logs-foobarbaz"))
@@ -3281,7 +3281,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
-        return IndexMetadata.builder(index).settings(indexSettings(Version.CURRENT, 1, 0).put(additionalSettings));
+        return IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0).put(additionalSettings));
     }
 
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.VersionUtils;
@@ -282,7 +283,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         {
             IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            builder.settings(indexSettings(Version.CURRENT, 1, 0));
+            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
 
             // Text fields are not stored by default, so an incoming update that is identical but
             // just has `stored:false` should not require an update
@@ -293,7 +294,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         {
             IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            builder.settings(indexSettings(Version.CURRENT, 1, 0));
+            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
 
             // However, an update that really does need a rebuild will throw an exception
             builder.putMapping("""

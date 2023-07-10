@@ -8,7 +8,6 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -37,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -122,7 +122,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < randomInt(8); i++) {
             String indexName = randomAlphaOfLength(8);
-            Settings.Builder settings = indexSettings(Version.CURRENT, 1, 0);
+            Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0);
             if (randomBoolean()) {
                 settings.put(DataTier.TIER_PREFERENCE_SETTING.getKey(), randomFrom("data_hot", "data_warm", "data_cold"));
             }

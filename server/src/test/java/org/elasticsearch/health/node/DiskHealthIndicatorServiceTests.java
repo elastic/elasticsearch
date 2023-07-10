@@ -8,7 +8,6 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -32,6 +31,7 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1069,7 +1069,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             int numberOfShards = indexNameToNodeIdsMap.get(index).size() == 0 ? 1 : indexNameToNodeIdsMap.get(index).size();
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
-                    indexSettings(Version.CURRENT, numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                    indexSettings(IndexVersion.current(), numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
                         .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), blockedIndices.contains(index))
                 )
                 .build();

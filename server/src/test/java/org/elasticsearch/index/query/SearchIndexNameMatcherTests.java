@@ -8,13 +8,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -42,7 +42,7 @@ public class SearchIndexNameMatcherTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {
-        return IndexMetadata.builder(index).settings(indexSettings(Version.CURRENT, 1, 0));
+        return IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0));
     }
 
     public void testLocalIndex() {

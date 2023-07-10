@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
@@ -106,7 +106,7 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
             currentMode,
             new SnapshotLifecycleStats()
         );
-        Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(Version.CURRENT).build());
+        Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(IndexVersion.current()).build());
         if (metadataInstalled) {
             metadata.customs(
                 Map.of(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata, SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
@@ -140,7 +140,7 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
             currentMode,
             new SnapshotLifecycleStats()
         );
-        Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(Version.CURRENT).build());
+        Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(IndexVersion.current()).build());
         if (metadataInstalled) {
             metadata.customs(
                 Map.of(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata, SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)

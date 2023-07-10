@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Collections;
@@ -53,7 +53,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build()
         );
 
-        final Settings.Builder indexSettings = settings(Version.CURRENT);
+        final Settings.Builder indexSettings = settings(IndexVersion.current());
         if (randomBoolean()) {
             indexSettings.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
         }
@@ -143,7 +143,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .build();
         AllocationService strategy = createAllocationService(sameHostSetting);
 
-        final Settings.Builder indexSettings = settings(Version.CURRENT);
+        final Settings.Builder indexSettings = settings(IndexVersion.current());
         if (randomBoolean()) {
             indexSettings.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
         }
@@ -252,7 +252,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         final Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(indexSettings(Version.CURRENT, 1, 99).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+                    .settings(indexSettings(IndexVersion.current(), 1, 99).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
             )
             .build();
 

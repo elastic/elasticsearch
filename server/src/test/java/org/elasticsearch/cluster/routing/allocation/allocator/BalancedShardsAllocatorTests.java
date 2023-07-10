@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -77,7 +77,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         // add new index
         String index = "idx_new";
         Metadata metadata = Metadata.builder(clusterState.metadata())
-            .put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .put(IndexMetadata.builder(index).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable initialRoutingTable = RoutingTable.builder(
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
@@ -335,7 +335,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         {
             final var indexDiskUsageInBytes = getIndexDiskUsageInBytes(
                 ClusterInfo.EMPTY,
-                IndexMetadata.builder("index").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build()
+                IndexMetadata.builder("index").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0).build()
             );
 
             // When no information is available we just return 0
@@ -352,7 +352,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             final var indexDiskUsageInBytes = getIndexDiskUsageInBytes(
                 randomBoolean() ? ClusterInfo.EMPTY : new ClusterInfo(Map.of(), Map.of(), shardSizes, Map.of(), Map.of(), Map.of()),
                 IndexMetadata.builder("index")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .shardSizeInBytesForecast(shardSize)
@@ -372,7 +372,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
             final var indexDiskUsageInBytes = getIndexDiskUsageInBytes(
                 new ClusterInfo(Map.of(), Map.of(), shardSizes, Map.of(), Map.of(), Map.of()),
-                IndexMetadata.builder("index").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build()
+                IndexMetadata.builder("index").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1).build()
             );
 
             // Fallback to clusterInfo when no forecast is available
@@ -391,7 +391,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             final var averageShardSize = shardSizes.values().stream().mapToLong(size -> size).sum() / shardSizes.size();
 
             final var indexMetadata = IndexMetadata.builder("index")
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(4)
                 .numberOfReplicas(1)
                 .build();
@@ -514,7 +514,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (var index : indices) {
-            var build = index.settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
+            var build = index.settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0).build();
             metadataBuilder.put(build, false);
             routingTableBuilder.addAsNew(build);
         }
@@ -535,7 +535,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var numberOfShards = assignments.entrySet().stream().mapToInt(Map.Entry::getValue).sum();
         var inSyncIds = randomList(numberOfShards, numberOfShards, () -> UUIDs.randomBase64UUID(random()));
         var indexMetadataBuilder = IndexMetadata.builder(name)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(0);
 

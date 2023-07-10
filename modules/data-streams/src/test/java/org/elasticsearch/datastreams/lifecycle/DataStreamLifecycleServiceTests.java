@@ -44,6 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -141,7 +142,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT),
+            settings(IndexVersion.current()),
             new DataStreamLifecycle(TimeValue.timeValueMillis(0)),
             now
         );
@@ -174,7 +175,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT),
+            settings(IndexVersion.current()),
             new DataStreamLifecycle((TimeValue) null),
             now
         );
@@ -194,7 +195,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT),
+            settings(IndexVersion.current()),
             new DataStreamLifecycle(TimeValue.timeValueDays(700)),
             now
         );
@@ -301,7 +302,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT),
+            settings(IndexVersion.current()),
             new DataStreamLifecycle(TimeValue.timeValueDays(700)),
             now
         );
@@ -346,7 +347,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+            settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
             new DataStreamLifecycle(TimeValue.MAX_VALUE),
             now
@@ -407,7 +408,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices + 1)
         )
             .settings(
-                settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+                settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
             )
             .numberOfShards(1)
@@ -457,7 +458,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+            settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
             new DataStreamLifecycle(TimeValue.MAX_VALUE),
             now
@@ -630,7 +631,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT),
+            settings(IndexVersion.current()),
             new DataStreamLifecycle(TimeValue.MAX_VALUE),
             now
         );
@@ -639,7 +640,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices + 1)
         )
             .settings(
-                settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+                settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
             )
             .numberOfShards(1)
@@ -818,7 +819,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT),
+            settings(IndexVersion.current()),
             new DataStreamLifecycle(TimeValue.MAX_VALUE),
             now
         );
@@ -864,7 +865,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices + 1)
         )
             .settings(
-                settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+                settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
             )
             .numberOfShards(1)

@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -861,7 +861,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 ShardLongFieldRange.of(minTimeStamp, maxTimestamp)
             );
 
-            Settings.Builder indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+            Settings.Builder indexSettings = settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
 
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
                 .settings(indexSettings)
@@ -881,7 +881,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
-            Settings.Builder indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            Settings.Builder indexSettings = settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "a_field")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(minTimestamp))
@@ -902,7 +902,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
-            Settings.Builder indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+            Settings.Builder indexSettings = settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
                 .settings(indexSettings)
                 .numberOfShards(1)

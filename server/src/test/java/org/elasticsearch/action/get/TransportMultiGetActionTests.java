@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RoutingMissingException;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
@@ -92,7 +92,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             .metadata(
                 new Metadata.Builder().put(
                     new IndexMetadata.Builder(index1.getName()).settings(
-                        indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                        indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                     )
                         .putMapping(
                             XContentHelper.convertToJson(
@@ -113,7 +113,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
                 )
                     .put(
                         new IndexMetadata.Builder(index2.getName()).settings(
-                            indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                            indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                         )
                             .putMapping(
                                 XContentHelper.convertToJson(

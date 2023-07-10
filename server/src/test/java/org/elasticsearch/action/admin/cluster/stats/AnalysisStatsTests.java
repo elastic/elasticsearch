@@ -8,11 +8,11 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -226,7 +226,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
     public void testAccountsRegularIndices() {
         String mapping = """
             {"properties":{"bar":{"type":"text","analyzer":"german"}}}""";
-        Settings settings = indexSettings(Version.CURRENT, 4, 1).build();
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).build();
         Metadata metadata = new Metadata.Builder().put(new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping)).build();
         {
             AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
@@ -265,7 +265,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
     public void testIgnoreSystemIndices() {
         String mapping = """
             {"properties":{"bar":{"type":"text","analyzer":"german"}}}""";
-        Settings settings = indexSettings(Version.CURRENT, 4, 1).build();
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).build();
         IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping).system(true);
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
@@ -273,7 +273,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
     }
 
     public void testChecksForCancellation() {
-        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(indexSettings(Version.CURRENT, 4, 1));
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(indexSettings(IndexVersion.current(), 4, 1));
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         expectThrows(
             TaskCancelledException.class,

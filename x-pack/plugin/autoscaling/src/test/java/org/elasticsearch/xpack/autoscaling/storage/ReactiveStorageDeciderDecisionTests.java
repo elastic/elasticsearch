@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -829,7 +829,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         while (shards > 0) {
             IndexMetadata indexMetadata = IndexMetadata.builder("test" + "-" + shards)
-                .settings(settings(Version.CURRENT).put(randomFrom(tierSettingNames), "data_hot"))
+                .settings(settings(IndexVersion.current()).put(randomFrom(tierSettingNames), "data_hot"))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, maxShardCopies - 1))
                 .build();

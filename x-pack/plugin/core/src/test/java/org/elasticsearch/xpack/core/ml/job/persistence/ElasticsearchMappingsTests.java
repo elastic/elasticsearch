@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -222,7 +223,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             Object version = entry.getValue();
 
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-            indexMetadata.settings(indexSettings(Version.CURRENT, 1, 0));
+            indexMetadata.settings(indexSettings(IndexVersion.current(), 1, 0));
 
             Map<String, Object> mapping = new HashMap<>();
             Map<String, Object> properties = new HashMap<>();

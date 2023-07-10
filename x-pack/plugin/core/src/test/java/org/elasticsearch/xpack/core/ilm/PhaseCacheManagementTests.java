@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -126,7 +126,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
     public void testEligibleForRefresh() {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -137,7 +137,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         LifecycleExecutionState state = LifecycleExecutionState.builder().build();
         meta = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -149,7 +149,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -161,7 +161,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhaseDefinition("{}").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -178,7 +178,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             .build();
         meta = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -190,7 +190,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").setPhaseDefinition("{}").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -520,7 +520,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
 
         meta = IndexMetadata.builder(index)
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     LifecycleSettings.LIFECYCLE_NAME,
                     "my-policy"
                 ).put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
@@ -565,7 +565,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
 
     private IndexMetadata buildIndexMetadata(String policy, LifecycleExecutionState.Builder lifecycleState) {
         return IndexMetadata.builder("index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policy))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policy))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
@@ -575,7 +575,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
     private static IndexMetadata.Builder mkMeta() {
         return IndexMetadata.builder(index)
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )

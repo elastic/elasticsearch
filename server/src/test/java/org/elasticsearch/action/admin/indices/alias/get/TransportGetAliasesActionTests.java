@@ -8,7 +8,6 @@
 package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -38,9 +38,9 @@ public class TransportGetAliasesActionTests extends ESTestCase {
 
     public void testPostProcess() {
         Metadata.Builder metadata = Metadata.builder();
-        metadata.put(IndexMetadata.builder("a").settings(ESTestCase.settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
-        metadata.put(IndexMetadata.builder("b").settings(ESTestCase.settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
-        metadata.put(IndexMetadata.builder("c").settings(ESTestCase.settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
+        metadata.put(IndexMetadata.builder("a").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0));
+        metadata.put(IndexMetadata.builder("b").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0));
+        metadata.put(IndexMetadata.builder("c").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0));
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
         GetAliasesRequest request = new GetAliasesRequest();
@@ -308,10 +308,10 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         return ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
                 Metadata.builder()
-                    .put(IndexMetadata.builder("a").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                    .put(IndexMetadata.builder("a").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
                     .put(
                         IndexMetadata.builder(".b")
-                            .settings(settings(Version.CURRENT))
+                            .settings(settings(IndexVersion.current()))
                             .numberOfShards(1)
                             .numberOfReplicas(0)
                             .system(true)
@@ -319,7 +319,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
                     )
                     .put(
                         IndexMetadata.builder("c")
-                            .settings(settings(Version.CURRENT))
+                            .settings(settings(IndexVersion.current()))
                             .numberOfShards(1)
                             .numberOfReplicas(0)
                             .putAlias(AliasMetadata.builder("d"))

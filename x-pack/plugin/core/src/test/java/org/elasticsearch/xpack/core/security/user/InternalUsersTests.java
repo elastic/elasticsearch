@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.security.user;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -30,6 +29,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -299,7 +299,7 @@ public class InternalUsersTests extends ESTestCase {
             is(expectedValue)
         );
 
-        final IndexMetadata metadata = IndexMetadata.builder(indexName).settings(indexSettings(Version.CURRENT, 1, 1)).build();
+        final IndexMetadata metadata = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
         final IndexAbstraction.ConcreteIndex index = new IndexAbstraction.ConcreteIndex(metadata);
         assertThat(
             "Role " + role + ", action " + action + " access to " + indexName,

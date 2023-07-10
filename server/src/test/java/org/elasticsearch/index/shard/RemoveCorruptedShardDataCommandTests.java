@@ -13,7 +13,6 @@ import joptsimple.OptionSet;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
@@ -44,6 +43,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -122,7 +122,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             Files.createDirectories(dataPath);
         }
 
-        final Settings settings = indexSettings(Version.CURRENT, 1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+        final Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .put(IndexMetadata.SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .build();
 

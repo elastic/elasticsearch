@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -14,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 
 import java.util.List;
 import java.util.UUID;
@@ -54,7 +54,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         IndexMetadata.Builder sourceIndexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
 
@@ -71,7 +71,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -93,14 +93,14 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -132,14 +132,14 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -148,7 +148,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String targetIndex = indexPrefix + indexName;
 
         IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -185,13 +185,13 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String indexName = writeIndexName;
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -200,7 +200,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String targetIndex = indexPrefix + indexName;
 
         IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();

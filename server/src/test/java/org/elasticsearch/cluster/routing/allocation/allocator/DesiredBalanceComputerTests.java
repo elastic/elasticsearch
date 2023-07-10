@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
 import org.elasticsearch.cluster.ClusterModule;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -605,7 +605,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             var inSyncIds = randomList(shards * (replicas + 1), shards * (replicas + 1), () -> UUIDs.randomBase64UUID(random()));
             var shardSize = randomLongBetween(10_000_000L, 10_000_000_000L);
 
-            var indexMetadataBuilder = IndexMetadata.builder(indexName).settings(indexSettings(Version.CURRENT, shards, replicas));
+            var indexMetadataBuilder = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), shards, replicas));
             if (randomBoolean()) {
                 indexMetadataBuilder.shardSizeInBytesForecast(smallShardSizeDeviation(shardSize));
             }
@@ -751,7 +751,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
             metadataBuilder.put(
                 IndexMetadata.builder(indexName)
-                    .settings(indexSettings(Version.CURRENT, 1, 1).put("index.routing.allocation.exclude._name", "node-2"))
+                    .settings(indexSettings(IndexVersion.current(), 1, 1).put("index.routing.allocation.exclude._name", "node-2"))
             );
 
             var indexId = metadataBuilder.get(indexName).getIndex();
@@ -784,7 +784,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
             metadataBuilder.put(
                 IndexMetadata.builder(indexName)
-                    .settings(indexSettings(Version.CURRENT, 1, 0).put("index.routing.allocation.exclude._name", "node-2"))
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put("index.routing.allocation.exclude._name", "node-2"))
             );
 
             var indexId = metadataBuilder.get(indexName).getIndex();
@@ -966,7 +966,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             discoveryNodes.add(createDiscoveryNode("node-" + i, Set.of(DiscoveryNodeRole.DATA_ROLE)));
         }
 
-        var indexMetadata = IndexMetadata.builder(TEST_INDEX).settings(indexSettings(Version.CURRENT, 2, 1)).build();
+        var indexMetadata = IndexMetadata.builder(TEST_INDEX).settings(indexSettings(IndexVersion.current(), 2, 1)).build();
 
         return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes.masterNodeId("master").localNodeId("master"))

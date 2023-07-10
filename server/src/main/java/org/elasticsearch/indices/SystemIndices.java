@@ -56,8 +56,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_DESCRIPTOR;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_FEATURE_NAME;
+import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYM_RULES_DESCRIPTOR;
+import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYM_SETS_DESCRIPTOR;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 
@@ -124,7 +125,9 @@ public class SystemIndices {
         Collection<Feature> indicesFeatures = new ArrayList<>();
         indicesFeatures.add(new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR)));
         if (SynonymsAPI.isEnabled()) {
-            indicesFeatures.add(new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR)));
+            indicesFeatures.add(
+                new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYM_RULES_DESCRIPTOR, SYNONYM_SETS_DESCRIPTOR))
+            );
         }
         SERVER_SYSTEM_FEATURE_DESCRIPTORS = indicesFeatures.stream()
             .collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));

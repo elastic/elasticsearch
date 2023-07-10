@@ -41,7 +41,7 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
 
         private final SynonymRule synonymRule;
 
-        public static final ParseField SYNONYMS_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYMS_FIELD);
+        public static final ParseField SYNONYMS_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYM_RULES_SYNONYMS_FIELD);
         private static final ConstructingObjectParser<SynonymRule, String> PARSER = new ConstructingObjectParser<>(
             "synonyms",
             false,

@@ -178,7 +178,7 @@ public class InternalUsers {
             UsernamesField.SYNONYMS_ROLE_NAME,
             null,
             new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*", ".synonym_sets*").privileges("all").allowRestrictedIndices(true).build() },
             null,
             null,
             null,

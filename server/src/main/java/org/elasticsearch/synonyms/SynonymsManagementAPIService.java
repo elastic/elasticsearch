@@ -61,21 +61,18 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  * Manages synonyms performing operations on the system index
  */
 public class SynonymsManagementAPIService {
-    private static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
-    private static final int SYNONYMS_INDEX_FORMAT = 2;
-    private static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
-    private static final String SYNONYMS_ALIAS_NAME = ".synonyms";
+    private static final int SYNONYMS_INDEX_FORMAT = 1;
+    private static final String SYNONYM_RULES_INDEX_NAME_PATTERN = ".synonyms-*";
+    private static final String SYNONYM_RULES_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
+    private static final String SYNONYM_RULES_ALIAS_NAME = ".synonyms";
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
     // Stores the synonym set the rule belongs to
-    public static final String SYNONYMS_SET_FIELD = "synonyms_set";
+    public static final String SYNONYM_RULES_SET_FIELD = "synonyms_set";
     // Stores the synonym rule
-    public static final String SYNONYMS_FIELD = SynonymRule.SYNONYMS_FIELD.getPreferredName();
-    // Field that stores either SYNONYM_RULE_OBJECT_TYPE or SYNONYM_SET_OBJECT_TYPE
-    private static final String OBJECT_TYPE_FIELD = "type";
-    // Identifies synonym rule objects stored in the index
-    private static final String SYNONYM_RULE_OBJECT_TYPE = "synonym_rule";
-    // Identifies synonym set objects stored in the index
-    private static final String SYNONYM_SET_OBJECT_TYPE = "synonym_set";
+    public static final String SYNONYM_RULES_SYNONYMS_FIELD = SynonymRule.SYNONYMS_FIELD.getPreferredName();
+    private static final String SYNONYM_SETS_INDEX_NAME_PATTERN = ".synonym_sets-*";
+    private static final String SYNONYM_SETS_INDEX_CONCRETE_NAME = ".synonym_sets-" + SYNONYMS_INDEX_FORMAT;
+    private static final String SYNONYM_SETS_ALIAS_NAME = ".synonym_sets";
     private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
     public static final int MAX_SYNONYMS_SETS = 10_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
@@ -84,13 +81,25 @@ public class SynonymsManagementAPIService {
     private final Client client;
 
     public static final String SYNONYMS_ORIGIN = "synonyms";
-    public static final SystemIndexDescriptor SYNONYMS_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(SYNONYMS_INDEX_NAME_PATTERN)
-        .setDescription("Synonyms index for synonyms managed through APIs")
-        .setPrimaryIndex(SYNONYMS_INDEX_CONCRETE_NAME)
-        .setAliasName(SYNONYMS_ALIAS_NAME)
+    public static final SystemIndexDescriptor SYNONYM_RULES_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(SYNONYM_RULES_INDEX_NAME_PATTERN)
+        .setDescription("Synonym rules index for synonyms managed through APIs")
+        .setPrimaryIndex(SYNONYM_RULES_INDEX_CONCRETE_NAME)
+        .setAliasName(SYNONYM_RULES_ALIAS_NAME)
         .setIndexFormat(SYNONYMS_INDEX_FORMAT)
-        .setMappings(mappings())
+        .setMappings(synonymRulesMapping())
+        .setSettings(settings())
+        .setVersionMetaKey("version")
+        .setOrigin(SYNONYMS_ORIGIN)
+        .build();
+
+    public static final SystemIndexDescriptor SYNONYM_SETS_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(SYNONYM_SETS_INDEX_NAME_PATTERN)
+        .setDescription("Synonym sets index for synonyms managed through APIs")
+        .setPrimaryIndex(SYNONYM_SETS_INDEX_CONCRETE_NAME)
+        .setAliasName(SYNONYM_SETS_ALIAS_NAME)
+        .setIndexFormat(SYNONYMS_INDEX_FORMAT)
+        .setMappings(synonymRulesMapping())
         .setSettings(settings())
         .setVersionMetaKey("version")
         .setOrigin(SYNONYMS_ORIGIN)
@@ -100,19 +109,7 @@ public class SynonymsManagementAPIService {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
     }
 
-    /* The synonym index stores two object types:
-    - Synonym rules:
-        - The id is calculated using internalSynonymRuleId method
-        - SYNONYM_RULE_ID_FIELD contains the synonym rule ID
-        - SYNONYMS_FIELD contains the synonyms
-        - SYNONYMS_SET_FIELD contains the synonym set the rule belongs to
-        - OBJECT_TYPE_FIELD contains SYNONYM_RULE_OBJECT_TYPE
-    - Synonym sets:
-        - The id is the synonym set name
-        - SYNONYMS_SET_FIELD is null
-        - OBJECT_TYPE_FIELD contains SYNONYM_SET_OBJECT_TYPE
-     */
-    private static XContentBuilder mappings() {
+    private static XContentBuilder synonymRulesMapping() {
         try {
             XContentBuilder builder = jsonBuilder();
             builder.startObject();
@@ -132,17 +129,12 @@ public class SynonymsManagementAPIService {
                             builder.field("type", "keyword");
                         }
                         builder.endObject();
-                        builder.startObject(SYNONYMS_FIELD);
+                        builder.startObject(SYNONYM_RULES_SYNONYMS_FIELD);
                         {
                             builder.field("type", "match_only_text");
                         }
                         builder.endObject();
-                        builder.startObject(SYNONYMS_SET_FIELD);
-                        {
-                            builder.field("type", "keyword");
-                        }
-                        builder.endObject();
-                        builder.startObject(OBJECT_TYPE_FIELD);
+                        builder.startObject(SYNONYM_RULES_SET_FIELD);
                         {
                             builder.field("type", "keyword");
                         }
@@ -155,15 +147,38 @@ public class SynonymsManagementAPIService {
             builder.endObject();
             return builder;
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build mappings for " + SYNONYMS_INDEX_CONCRETE_NAME, e);
+            throw new UncheckedIOException("Failed to build mappings for " + SYNONYM_RULES_INDEX_CONCRETE_NAME, e);
+        }
+    }
+
+    private static XContentBuilder synonymSetsMapping() {
+        try {
+            XContentBuilder builder = jsonBuilder();
+            builder.startObject();
+            {
+                builder.startObject(SINGLE_MAPPING_NAME);
+                {
+                    builder.startObject("_meta");
+                    {
+                        builder.field("version", Version.CURRENT.toString());
+                    }
+                    builder.endObject();
+                    builder.field("dynamic", "strict");
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build mappings for " + SYNONYM_RULES_INDEX_CONCRETE_NAME, e);
         }
     }
 
     public void getSynonymsSets(int from, int size, ActionListener<PagedResult<SynonymSetSummary>> listener) {
-        client.prepareSearch(SYNONYMS_ALIAS_NAME)
+        client.prepareSearch(SYNONYM_RULES_ALIAS_NAME)
             .setSize(0)
             .addAggregation(
-                new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD)
+                new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYM_RULES_SET_FIELD)
                     .order(BucketOrder.key(true))
                     .size(MAX_SYNONYMS_SETS)
             )
@@ -198,26 +213,41 @@ public class SynonymsManagementAPIService {
 
     public void getSynonymSetRules(String synonymSetId, int from, int size, ActionListener<PagedResult<SynonymRule>> listener) {
         checkSynonymSetExists(synonymSetId, listener.delegateFailure((existsListener, response) -> {
-            // Retrieves synonym rules, excluding the synonym set object type
-            client.prepareSearch(SYNONYMS_ALIAS_NAME)
-                .setQuery(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
+            client.prepareSearch(SYNONYM_RULES_ALIAS_NAME)
+                .setQuery(QueryBuilders.termQuery(SYNONYM_RULES_SET_FIELD, synonymSetId))
                 .setFrom(from)
                 .setSize(size)
                 .addSort("id", SortOrder.ASC)
                 .setPreference(Preference.LOCAL.type())
                 .setTrackTotalHits(true)
-                .execute(new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (l, searchResponse) -> {
-                    final long totalSynonymRules = searchResponse.getHits().getTotalHits().value;
-                    final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
-                        .map(hit -> sourceMapToSynonymRule(hit.getSourceAsMap()))
-                        .toArray(SynonymRule[]::new);
-                    l.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
-                }));
+                .execute(new ActionListener<SearchResponse>() {
+                    @Override
+                    public void onResponse(SearchResponse searchResponse) {
+                        final long totalSynonymRules = searchResponse.getHits().getTotalHits().value;
+                        final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
+                            .map(hit -> sourceMapToSynonymRule(hit.getSourceAsMap()))
+                            .toArray(SynonymRule[]::new);
+                        existsListener.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // If synonym rules index does not exist, that means no rules have been created
+                        if (e instanceof IndexNotFoundException) {
+                            existsListener.onResponse(new PagedResult<>(0, new SynonymRule[0]));
+                            return;
+                        }
+                        existsListener.onFailure(e);
+                    }
+                });
         }));
     }
 
     private static SynonymRule sourceMapToSynonymRule(Map<String, Object> docSourceAsMap) {
-        return new SynonymRule((String) docSourceAsMap.get(SYNONYM_RULE_ID_FIELD), (String) docSourceAsMap.get(SYNONYMS_FIELD));
+        return new SynonymRule(
+            (String) docSourceAsMap.get(SYNONYM_RULE_ID_FIELD),
+            (String) docSourceAsMap.get(SYNONYM_RULES_SYNONYMS_FIELD)
+        );
     }
 
     public void putSynonymsSet(
@@ -295,7 +325,7 @@ public class SynonymsManagementAPIService {
         checkSynonymSetExists(
             synonymSetId,
             listener.delegateFailure(
-                (l1, obj) -> client.prepareGet(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymSetId, synonymRuleId))
+                (l1, obj) -> client.prepareGet(SYNONYM_RULES_ALIAS_NAME, internalSynonymRuleId(synonymSetId, synonymRuleId))
                     .execute(l1.delegateFailure((l2, getResponse) -> {
                         if (getResponse.isExists() == false) {
                             l2.onFailure(new ResourceNotFoundException("synonym rule [" + synonymRuleId + "] not found"));
@@ -312,7 +342,7 @@ public class SynonymsManagementAPIService {
         String synonymRuleId,
         ActionListener<SynonymsReloadResult<AcknowledgedResponse>> listener
     ) {
-        client.prepareDelete(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymSetId, synonymRuleId))
+        client.prepareDelete(SYNONYM_RULES_ALIAS_NAME, internalSynonymRuleId(synonymSetId, synonymRuleId))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute(listener.delegateFailure((deleteListener, deleteResponse) -> {
                 if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
@@ -338,14 +368,13 @@ public class SynonymsManagementAPIService {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             {
-                builder.field(SYNONYMS_SET_FIELD, synonymsSetId);
+                builder.field(SYNONYM_RULES_SET_FIELD, synonymsSetId);
                 builder.field(SYNONYM_RULE_ID_FIELD, synonymRule.id());
-                builder.field(SYNONYMS_FIELD, synonymRule.synonyms());
-                builder.field(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE);
+                builder.field(SYNONYM_RULES_SYNONYMS_FIELD, synonymRule.synonyms());
             }
             builder.endObject();
 
-            return new IndexRequest(SYNONYMS_ALIAS_NAME).id(internalSynonymRuleId(synonymsSetId, synonymRule.id()))
+            return new IndexRequest(SYNONYM_RULES_ALIAS_NAME).id(internalSynonymRuleId(synonymsSetId, synonymRule.id()))
                 .opType(DocWriteRequest.OpType.INDEX)
                 .source(builder);
         }
@@ -354,18 +383,14 @@ public class SynonymsManagementAPIService {
     private static IndexRequest createSynonymSetIndexRequest(String synonymsSetId) throws IOException {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
-            {
-                builder.field(OBJECT_TYPE_FIELD, SYNONYM_SET_OBJECT_TYPE);
-            }
             builder.endObject();
-
-            return new IndexRequest(SYNONYMS_ALIAS_NAME).id(synonymsSetId).opType(DocWriteRequest.OpType.INDEX).source(builder);
+            return new IndexRequest(SYNONYM_SETS_ALIAS_NAME).id(synonymsSetId).opType(DocWriteRequest.OpType.INDEX).source(builder);
         }
     }
 
     private <T> void checkSynonymSetExists(String synonymsSetId, ActionListener<T> listener) {
         // Search for the synonym set ID
-        client.prepareGet(SYNONYMS_ALIAS_NAME, synonymsSetId)
+        client.prepareGet(SYNONYM_SETS_ALIAS_NAME, synonymsSetId)
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymsSetId, listener, (l, searchResponse) -> {
                 if (searchResponse.isExists() == false) {
                     l.onFailure(new ResourceNotFoundException("Synonym set [" + synonymsSetId + "] not found"));
@@ -377,8 +402,8 @@ public class SynonymsManagementAPIService {
 
     // Deletes a synonym set rules and the synonym set object, using the supplied listener
     private void deleteSynonymsSetRules(String synonymSetId, ActionListener<BulkByScrollResponse> listener) {
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_ALIAS_NAME).setQuery(
-            QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId)
+        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYM_RULES_ALIAS_NAME).setQuery(
+            QueryBuilders.termQuery(SYNONYM_RULES_SET_FIELD, synonymSetId)
         ).setRefresh(true).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
 
         client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener);
@@ -401,7 +426,7 @@ public class SynonymsManagementAPIService {
                 }
 
                 // Deletes the synonym set doc
-                client.prepareDelete(SYNONYMS_ALIAS_NAME, synonymSetId)
+                client.prepareDelete(SYNONYM_SETS_ALIAS_NAME, synonymSetId)
                     .execute(deleteRulesListener.delegateFailure((deleteListener, deleteResponse) -> {
                         if (deleteResponse.status() != RestStatus.OK) {
                             deleteListener.onFailure(new ElasticsearchException("Error deleting synonym set [" + synonymSetId + "]"));

@@ -78,7 +78,7 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
 
         @Override
         protected String resultFieldName() {
-            return SynonymsManagementAPIService.SYNONYMS_SET_FIELD;
+            return SynonymsManagementAPIService.SYNONYM_RULES_SET_FIELD;
         }
 
         @Override

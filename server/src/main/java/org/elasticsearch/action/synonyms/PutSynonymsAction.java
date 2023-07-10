@@ -42,7 +42,7 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
         private final String synonymsSetId;
         private final SynonymRule[] synonymRules;
 
-        public static final ParseField SYNONYMS_SET_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYMS_SET_FIELD);
+        public static final ParseField SYNONYMS_SET_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYM_RULES_SET_FIELD);
         private static final ConstructingObjectParser<SynonymRule[], Void> PARSER = new ConstructingObjectParser<>("synonyms_set", args -> {
             @SuppressWarnings("unchecked")
             final List<SynonymRule> synonyms = (List<SynonymRule>) args[0];

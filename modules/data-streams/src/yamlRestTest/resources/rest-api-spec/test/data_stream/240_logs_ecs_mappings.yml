@@ -197,6 +197,7 @@ Test general mockup ECS mappings:
           {
             "start_timestamp": "not a date",
             "start-timestamp": "not a date",
+            "timestamp.us": 1688550340718000,
             "test": "mockup-ecs-log",
             "registry": {
               "data": {
@@ -234,6 +235,7 @@ Test general mockup ECS mappings:
                 "path": "/path/to/my/file",
                 "target_path": "/path/to/my/file"
               },
+              "code_signature.timestamp": "2023-07-05",
               "registry.data.strings": ["C:\\rta\\red_ttp\\bin\\myapp.exe"]
             },
             "error": {
@@ -376,6 +378,8 @@ Test general mockup ECS mappings:
   - match: { .$idx0name.mappings.properties.start_timestamp.type: "date" }
   # testing the default mapping of string input fields to keyword if not matching any pattern
   - match: { .$idx0name.mappings.properties.start-timestamp.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.timestamp.properties.us.type: "long" }
+  - match: { .$idx0name.mappings.properties.parent.properties.code_signature.properties.timestamp.type: "date" }
   - match: { .$idx0name.mappings.properties.vulnerability.properties.score.properties.base.type: "float" }
   - match: { .$idx0name.mappings.properties.vulnerability.properties.score.properties.temporal.type: "float" }
   - match: { .$idx0name.mappings.properties.vulnerability.properties.score.properties.version.type: "keyword" }

@@ -256,7 +256,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 maybeExecuteRollover(state, dataStream);
             } catch (Exception e) {
                 logger.error(
-                    () -> String.format(Locale.ROOT, "Data stream lifecycle failed to rollver data stream [%s]", dataStream.getName()),
+                    () -> String.format(Locale.ROOT, "Data stream lifecycle failed to rollover data stream [%s]", dataStream.getName()),
                     e
                 );
                 DataStream latestDataStream = clusterService.state().metadata().dataStreams().get(dataStream.getName());

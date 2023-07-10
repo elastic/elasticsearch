@@ -35,7 +35,14 @@ public class ThrottledIteratorTests extends ESTestCase {
         final var constrainedQueue = between(3, 6);
         final var threadPool = new TestThreadPool(
             "test",
-            new FixedExecutorBuilder(Settings.EMPTY, CONSTRAINED, maxConstrainedThreads, constrainedQueue, CONSTRAINED, false),
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                CONSTRAINED,
+                maxConstrainedThreads,
+                constrainedQueue,
+                CONSTRAINED,
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            ),
             new ScalingExecutorBuilder(RELAXED, 1, maxRelaxedThreads, TimeValue.timeValueSeconds(30), true)
         );
         try {

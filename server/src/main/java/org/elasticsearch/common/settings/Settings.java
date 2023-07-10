@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -64,6 +63,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -523,13 +523,20 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     /**
      * Returns a parsed version.
      */
-    public Version getAsVersion(String setting, Version defaultVersion) throws SettingsException {
+    public <T extends VersionId> T getAsVersionId(String setting, IntFunction<T> parseVersion) throws SettingsException {
+        return getAsVersionId(setting, parseVersion, null);
+    }
+
+    /**
+     * Returns a parsed version.
+     */
+    public <T extends VersionId> T getAsVersionId(String setting, IntFunction<T> parseVersion, T defaultVersion) throws SettingsException {
         String sValue = get(setting);
         if (sValue == null) {
             return defaultVersion;
         }
         try {
-            return Version.fromId(Integer.parseInt(sValue));
+            return parseVersion.apply(Integer.parseInt(sValue));
         } catch (Exception e) {
             throw new SettingsException("Failed to parse version setting [" + setting + "] with value [" + sValue + "]", e);
         }

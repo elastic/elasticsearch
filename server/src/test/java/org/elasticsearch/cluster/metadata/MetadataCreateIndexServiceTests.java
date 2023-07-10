@@ -72,7 +72,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -375,10 +374,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testPrepareResizeIndexSettings() {
-        final List<Version> versions = Arrays.asList(VersionUtils.randomVersion(random()), VersionUtils.randomVersion(random()));
-        versions.sort(Comparator.comparingLong(l -> l.id));
-        final Version version = versions.get(0);
-        final Version upgraded = versions.get(1);
+        final List<IndexVersion> versions = Stream.of(IndexVersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion(random()))
+            .sorted()
+            .toList();
+        final IndexVersion version = versions.get(0);
+        final IndexVersion upgraded = versions.get(1);
         final Settings.Builder indexSettingsBuilder = Settings.builder()
             .put("index.version.created", version)
             .put("index.similarity.default.type", "BM25")
@@ -401,7 +401,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 );
                 assertThat(settings.get("index.routing.allocation.initial_recovery._id"), equalTo("node1"));
                 assertThat(settings.get("index.allocation.max_retries"), nullValue());
-                assertThat(settings.getAsVersion("index.version.created", null), equalTo(version));
+                assertThat(settings.getAsVersionId("index.version.created", IndexVersion::fromId), equalTo(version));
                 assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true"));
             }
         );

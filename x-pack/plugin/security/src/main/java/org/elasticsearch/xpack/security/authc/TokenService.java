@@ -195,7 +195,6 @@ public final class TokenService {
     );
 
     static final String TOKEN_DOC_TYPE = "token";
-    private static final int HASHED_TOKEN_LENGTH = 43;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_LENGTH = 22;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
@@ -720,6 +719,7 @@ public final class TokenService {
      * @param listener  the listener to notify upon completion
      */
     public void invalidateAllTokens(Collection<Tuple<UserToken, String>> tokenTuples, ActionListener<TokensInvalidationResult> listener) {
+        ensureEnabled();
         maybeStartTokenRemover();
 
         // Invalidate the refresh tokens first so that they cannot be used to get new

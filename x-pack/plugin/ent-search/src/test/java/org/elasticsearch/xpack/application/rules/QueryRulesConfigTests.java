@@ -29,7 +29,8 @@ public class QueryRulesConfigTests extends ESTestCase {
 
     public void testCustomQueryRulesConfigMaxRulesPerRulesetTooHigh() {
         int maxRules = randomIntBetween(1001, Integer.MAX_VALUE);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createCustomConfig("max_rules_per_ruleset", Integer.toString(maxRules)));
+        Exception e = 
+            expectThrows(IllegalArgumentException.class, () -> createCustomConfig("max_rules_per_ruleset", Integer.toString(maxRules)));
         assertThat(
             e.getMessage(),
             containsString("[xpack.applications.rules.max_rules_per_ruleset] must be <= 1000")
@@ -38,7 +39,8 @@ public class QueryRulesConfigTests extends ESTestCase {
 
     public void testCustomQueryRulesConfigMaxRulesPerRulesetTooLow() {
         int maxRules = randomIntBetween(Integer.MIN_VALUE, 0);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createCustomConfig("max_rules_per_ruleset", Integer.toString(maxRules)));
+        Exception e =
+            expectThrows(IllegalArgumentException.class, () -> createCustomConfig("max_rules_per_ruleset", Integer.toString(maxRules)));
         assertThat(
             e.getMessage(),
             containsString("[xpack.applications.rules.max_rules_per_ruleset] must be >= 1")

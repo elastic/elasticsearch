@@ -140,6 +140,7 @@ final class QueryPhaseCollector implements Collector {
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+        applyTerminateAfter();
         Bits postFilterBits = getPostFilterBits(context);
 
         if (aggsCollector == null) {

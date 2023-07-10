@@ -93,10 +93,12 @@ import java.util.List;
 import static org.elasticsearch.search.query.TopDocsCollectorManagerFactory.hasInfMaxScore;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -429,7 +431,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         {
             // track total hits is lower than terminate_after, hit count collection early terminates, terminate_after is not honored
-            int trackTotalHits = randomIntBetween(1, 9);
+            // we don't use 9 (terminate_after - 1) because it makes the test unpredictable depending on the number of segments and
+            // documents distribution: terminate_after may be honored at time due to the check before pulling each leaf collector.
+            int trackTotalHits = randomIntBetween(1, 8);
             TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, trackTotalHits), query);
             context.terminateAfter(10);
             context.setSize(0);
@@ -511,13 +515,13 @@ public class QueryPhaseTests extends IndexShardTestCase {
             int size = randomIntBetween(1, 6);
             TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, size), new MatchAllDocsQuery());
             context.terminateAfter(7);
-            // size is lower than terminate_after, track_total_hits does not matter: low scoring hits are skipped via
-            // setMinCompetitiveScore,
-            // terminate_after can't be honored as collection is entirely skipped after collecting the needed amount of hits
+            // size is lower than terminate_after, track_total_hits does not matter: depending on docs distribution we may or may not be
+            // able to honor terminate_after. low scoring hits are skipped via setMinCompetitiveScore, which bypasses terminate_after
+            // until the next leaf collector is pulled, when that happens.
             context.setSize(size);
             context.trackTotalHitsUpTo(randomIntBetween(1, Integer.MAX_VALUE));
             QueryPhase.executeQuery(context);
-            assertFalse(context.queryResult().terminatedEarly());
+            assertThat(context.queryResult().terminatedEarly(), either(is(true)).or(is(false)));
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(size));
@@ -531,11 +535,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
      */
     public void testTerminateAfterWithHitsNoHitCountShortcut() throws Exception {
         indexDocs();
-        BooleanQuery bq = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
-            .add(new TermQuery(new Term("foo", "baz")), Occur.SHOULD)
-            .build();
+        TermQuery query = new NonCountingTermQuery(new Term("foo", "bar"));
         {
-            TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 1), bq);
+            TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 1), query);
             context.terminateAfter(1);
             context.setSize(1);
             QueryPhase.addCollectorsAndSearch(context);
@@ -546,7 +548,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         // test interaction between trackTotalHits and terminateAfter
         {
-            TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 7), bq);
+            TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 7), query);
             context.terminateAfter(7);
             context.setSize(10);
             context.trackTotalHitsUpTo(-1);
@@ -557,7 +559,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(7));
         }
         {
-            TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 7), bq);
+            TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 7), query);
             context.terminateAfter(7);
             // size is greater than terminate_after
             context.setSize(10);
@@ -570,22 +572,22 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(7));
         }
         {
-            TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 7), bq);
+            TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 7), query);
             context.terminateAfter(7);
             // size is lower than terminate_after
             context.setSize(5);
             // track_total_hits is lower than terminate_after
             context.trackTotalHitsUpTo(randomIntBetween(1, 6));
             QueryPhase.executeQuery(context);
-            assertTrue(context.queryResult().terminatedEarly());
-            // MultiCollector ignores calls to setMinCompetitiveScore, because one collector is TOP_DOCS and the other TOP_SCORES,
-            // hence we effectively don't early terminate tracking total hits
+            // depending on docs distribution we may or may not be able to honor terminate_after: low scoring hits are skipped via
+            // setMinCompetitiveScore, which bypasses terminate_after until the next leaf collector is pulled, when that happens.
+            assertThat(context.queryResult().terminatedEarly(), either(is(true)).or(is(false)));
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(7L));
             assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(5));
         }
         {
-            TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 7), bq);
+            TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 7), query);
             context.terminateAfter(7);
             // size is greater than terminate_after
             context.setSize(10);

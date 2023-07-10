@@ -1124,6 +1124,22 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         assertFalse(aggsMockCollector.competitiveIteratorCalled);
     }
 
+    public void testLeafCollectorsAreNotPulledOnceTerminatedAfter() throws IOException {
+        {
+            MockCollector topDocsMockCollector = new MockCollector(randomFrom(ScoreMode.values()));
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsMockCollector, null, 1, null, null);
+            searcher.search(new NonCountingTermQuery(new Term("field1", "value")), queryPhaseCollector);
+            assertEquals(1, topDocsMockCollector.leafCollectorsPulled);
+        }
+        {
+            MockCollector topDocsMockCollector = new MockCollector(randomFrom(ScoreMode.values()));
+            MockCollector aggsMockCollector = new MockCollector(randomScoreModeExceptTopScores());
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsMockCollector, null, 1, aggsMockCollector, null);
+            searcher.search(new NonCountingTermQuery(new Term("field1", "value")), queryPhaseCollector);
+            assertEquals(1, topDocsMockCollector.leafCollectorsPulled);
+        }
+    }
+
     private static ScoreMode randomScoreModeExceptTopScores() {
         return randomFrom(Arrays.stream(ScoreMode.values()).filter(scoreMode -> scoreMode != ScoreMode.TOP_SCORES).toList());
     }
@@ -1192,7 +1208,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
 
         @Override
         public int docID() {
-            throw new UnsupportedOperationException();
+            return 0;
         }
 
         @Override
@@ -1207,6 +1223,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         private boolean setScorerCalled = false;
         private boolean setWeightCalled = false;
         private boolean competitiveIteratorCalled = false;
+        private int leafCollectorsPulled = 0;
 
         MockCollector(ScoreMode scoreMode) {
             this(scoreMode, null);
@@ -1215,6 +1232,11 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         MockCollector(ScoreMode scoreMode, Class<?> expectedScorable) {
             this.scoreMode = scoreMode;
             this.expectedScorable = expectedScorable;
+        }
+
+        @Override
+        protected void doSetNextReader(LeafReaderContext context) {
+            leafCollectorsPulled++;
         }
 
         @Override

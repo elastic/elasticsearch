@@ -989,7 +989,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                         // that's ok, we just ignore them
                         continue;
                     } else {
-                        fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
+                        fail(
+                            "expected lucene version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line
+                        );
                     }
                 }
                 assertNotEquals(

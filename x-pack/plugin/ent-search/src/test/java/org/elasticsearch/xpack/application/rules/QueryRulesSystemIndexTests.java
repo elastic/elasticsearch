@@ -13,7 +13,6 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import java.util.Collection;
 import java.util.List;
 
-
 public class QueryRulesSystemIndexTests extends AbstractSystemIndexFormatVersionTests {
 
     @Override

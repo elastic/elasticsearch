@@ -61,26 +61,10 @@ abstract class GeoLineAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoLine(
-            name,
-            new long[0],
-            new double[0],
-            metadata(),
-            true,
-            includeSorts,
-            sortOrder,
-            size,
-            nonOverlapping(),
-            false
-        );
+        return new InternalGeoLine(name, new long[0], new double[0], metadata(), true, includeSorts, sortOrder, size, true, false);
     }
 
-    protected abstract boolean nonOverlapping();
-
     static class Empty extends GeoLineAggregator {
-
-        private final boolean nonOverlapping;
-
         Empty(
             String name,
             AggregationContext context,
@@ -88,21 +72,14 @@ abstract class GeoLineAggregator extends MetricsAggregator {
             Map<String, Object> metaData,
             boolean includeSorts,
             SortOrder sortOrder,
-            int size,
-            boolean nonOverlapping
+            int size
         ) throws IOException {
             super(name, null, context, parent, metaData, includeSorts, sortOrder, size);
-            this.nonOverlapping = nonOverlapping;
         }
 
         @Override
         public ScoreMode scoreMode() {
             return ScoreMode.COMPLETE;
-        }
-
-        @Override
-        protected boolean nonOverlapping() {
-            return nonOverlapping;
         }
 
         @Override
@@ -137,11 +114,6 @@ abstract class GeoLineAggregator extends MetricsAggregator {
             this.extra = new GeoLineBucketedSort.Extra(bigArrays, valuesSources);
             this.sort = new GeoLineBucketedSort(bigArrays, sortOrder, null, size, valuesSources, extra);
             this.counts = bigArrays.newLongArray(1, true);
-        }
-
-        @Override
-        protected boolean nonOverlapping() {
-            return false;
         }
 
         @Override
@@ -189,11 +161,6 @@ abstract class GeoLineAggregator extends MetricsAggregator {
         ) throws IOException {
             super(name, valuesSources, context, parent, metaData, includeSorts, sortOrder, size);
             this.geolineBuckets = new TimeSeriesGeoLineBuckets(size, valuesSources, this::makeGeoline, this::addRequestCircuitBreakerBytes);
-        }
-
-        @Override
-        protected boolean nonOverlapping() {
-            return true;
         }
 
         @Override

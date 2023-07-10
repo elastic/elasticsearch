@@ -414,7 +414,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return new KeyedFlattenedFieldData.Builder(
                 name(),
                 key,
-                (dv, n) -> new FlattenedDocValuesField(KeyedFlattenedLeafFieldData.inefficient(dv), n)
+                (dv, n) -> new FlattenedDocValuesField(KeyedFlattenedLeafFieldData.preComputeDocValueCount(dv), n)
             );
         }
 
@@ -719,7 +719,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new FlattenedDocValuesField(KeyedFlattenedLeafFieldData.inefficient(dv), n)
+                (dv, n) -> new FlattenedDocValuesField(KeyedFlattenedLeafFieldData.preComputeDocValueCount(dv), n)
             );
         }
 

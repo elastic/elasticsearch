@@ -85,7 +85,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
     @Override
     public SortedBinaryDocValues getBytesValues() {
-        return inefficient(getOrdinalsValues());
+        return preComputeDocValueCount(getOrdinalsValues());
     }
 
     /**
@@ -262,7 +262,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
      * a count that is <b>not</b> equal to number of ordinals (via {@link SortedSetDocValues#nextOrd()}. This requires advancing the
      * provided {@link SortedSetDocValues} twice.
      */
-    static SortedBinaryDocValues inefficient(final SortedSetDocValues values) {
+    static SortedBinaryDocValues preComputeDocValueCount(final SortedSetDocValues values) {
         return new SortedBinaryDocValues() {
             private int count = 0;
 

@@ -23,9 +23,6 @@ import java.util.function.Function;
  */
 public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
-    // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
-    public static double EWMA_ALPHA = 0.3;
-
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
     private final LongAdder totalExecutionTime = new LongAdder();

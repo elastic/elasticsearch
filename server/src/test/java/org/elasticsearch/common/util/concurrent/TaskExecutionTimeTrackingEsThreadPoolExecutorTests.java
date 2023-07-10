@@ -36,7 +36,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            TaskExecutionTimeTrackingEsThreadPoolExecutor.EWMA_ALPHA
+            EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -88,7 +88,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            TaskExecutionTimeTrackingEsThreadPoolExecutor.EWMA_ALPHA
+            EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);

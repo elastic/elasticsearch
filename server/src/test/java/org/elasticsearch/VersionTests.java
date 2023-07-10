@@ -8,10 +8,8 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.hamcrest.Matchers;
 
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -87,17 +85,6 @@ public class VersionTests extends ESTestCase {
         assertEquals(Version.fromId(2000099), Version.fromId(5000099).minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099), Version.fromId(5010000).minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099), Version.fromId(5000001).minimumIndexCompatibilityVersion());
-    }
-
-    public void testVersionConstantPresent() {
-        assertThat(Version.CURRENT, sameInstance(Version.fromId(Version.CURRENT.id)));
-        assertThat(Version.CURRENT.luceneVersion(), equalTo(org.apache.lucene.util.Version.LATEST));
-        final int iters = scaledRandomIntBetween(20, 100);
-        for (int i = 0; i < iters; i++) {
-            Version version = randomVersion(random());
-            assertThat(version, sameInstance(Version.fromId(version.id)));
-            assertThat(version.luceneVersion(), sameInstance(Version.fromId(version.id).luceneVersion()));
-        }
     }
 
     public void testCURRENTIsLatest() {
@@ -178,7 +165,7 @@ public class VersionTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
             if (random().nextBoolean()) {
-                version = new Version(version.id, version.indexVersion);
+                version = new Version(version.id);
             }
             Version parsedVersion = Version.fromString(version.toString());
             assertEquals(version, parsedVersion);
@@ -190,15 +177,6 @@ public class VersionTests extends ESTestCase {
         assertEquals(Version.fromString("2.0.0-SNAPSHOT"), Version.fromId(2000099));
 
         expectThrows(IllegalArgumentException.class, () -> { Version.fromString("5.0.0-SNAPSHOT"); });
-    }
-
-    public void testParseLenient() {
-        // note this is just a silly sanity check, we test it in lucene
-        for (Version version : VersionUtils.allReleasedVersions()) {
-            org.apache.lucene.util.Version luceneVersion = version.luceneVersion();
-            String string = luceneVersion.toString().toUpperCase(Locale.ROOT).replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
-            assertThat(luceneVersion, Matchers.equalTo(Lucene.parseVersionLenient(string, null)));
-        }
     }
 
     public void testAllVersionsMatchId() throws Exception {
@@ -243,25 +221,6 @@ public class VersionTests extends ESTestCase {
                         VersionUtils.allUnreleasedVersions().contains(maxBranchVersion)
                     );
                     maxBranchVersions.put(branchName, v);
-                }
-            }
-        }
-    }
-
-    // this test ensures we never bump the lucene version in a bugfix release
-    public void testLuceneVersionIsSameOnMinorRelease() {
-        for (Version version : VersionUtils.allReleasedVersions()) {
-            for (Version other : VersionUtils.allReleasedVersions()) {
-                if (other.onOrAfter(version)) {
-                    assertTrue(
-                        "lucene versions must be " + other + " >= " + version,
-                        other.luceneVersion().onOrAfter(version.luceneVersion())
-                    );
-                }
-                if (other.major == version.major && other.minor == version.minor) {
-                    assertEquals(version + " vs. " + other, other.luceneVersion().major, version.luceneVersion().major);
-                    assertEquals(version + " vs. " + other, other.luceneVersion().minor, version.luceneVersion().minor);
-                    // should we also assert the lucene bugfix version?
                 }
             }
         }

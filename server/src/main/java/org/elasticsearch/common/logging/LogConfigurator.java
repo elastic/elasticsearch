@@ -98,6 +98,7 @@ public class LogConfigurator {
      */
     public static void configureWithoutConfig(final Settings settings) {
         Objects.requireNonNull(settings);
+        configureESLogging();
         // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
         configureStatusLogger();
         configureLoggerLevels(settings);

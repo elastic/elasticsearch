@@ -119,6 +119,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         List<InternalGeoLine> internalGeoLines = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoLine geoLine = (InternalGeoLine) aggregation;
+            assert geoLine.nonOverlapping == nonOverlapping;
             internalGeoLines.add(geoLine);
             mergedSize += geoLine.line.length;
             reducedComplete &= geoLine.complete;

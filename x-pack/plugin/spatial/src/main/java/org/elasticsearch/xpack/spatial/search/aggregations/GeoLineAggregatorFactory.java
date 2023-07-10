@@ -46,7 +46,16 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metaData) throws IOException {
-        return new GeoLineAggregator.Empty(name, context, parent, metaData, includeSort, sortOrder, size);
+        return new GeoLineAggregator.Empty(
+            name,
+            context,
+            parent,
+            metaData,
+            includeSort,
+            sortOrder,
+            size,
+            context.isInSortOrderExecutionRequired()
+        );
     }
 
     @Override

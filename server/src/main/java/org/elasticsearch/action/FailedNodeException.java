@@ -61,9 +61,8 @@ public class FailedNodeException extends ElasticsearchException {
             nodeId,
             getMessage(),
             getClass().getName(), // subclasses should not have the same hash as their parent.
-            getStackTrace().length  // Could check uniqueness via mapping to list of strings, but there are different module path prefixes when serialized.
+            getStackTrace().length  // Could check uniqueness via mapping to list of strings, but there are different module path prefixes
+                                    // when serialized.
         );
     }
-
-
 }

@@ -1571,13 +1571,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     publication.start(followersChecker.getFaultyNodes());
                 } catch (Exception e) {
                     logger.warn(
-                        "publication of state version ["
+                        "failed to start publication of state version ["
                             + clusterState.version()
                             + "] in term ["
                             + clusterState.term()
                             + "] for ["
                             + clusterStatePublicationEvent.getSummary()
-                            + "] failed to start",
+                            + "]",
                         e
                     );
                     assert currentPublication.isEmpty() : e; // should not fail after setting currentPublication

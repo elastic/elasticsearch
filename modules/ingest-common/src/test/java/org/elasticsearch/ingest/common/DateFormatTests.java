@@ -206,9 +206,53 @@ public class DateFormatTests extends ESTestCase {
         );
     }
 
+    public void testUnixNanoseconds() {
+        assertEquals(
+            DateFormat.UnixNs.getFunction(null, ZoneOffset.ofHours(2), null).apply("1688548995").toString(),
+            "2023-07-05T11:23:15+02:00"
+        );
+
+        assertEquals(
+            DateFormat.UnixNs.getFunction(null, ZoneOffset.ofHours(2), null).apply("1688548995.987654321").toString(),
+            "2023-07-05T11:23:15.987654321+02:00"
+        );
+        {
+            var invalidNs = randomAlphaOfLength(10) + "." + randomLongBetween(10000, 99999999);
+            assertEquals(
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> DateFormat.UnixNs.getFunction(null, ZoneOffset.ofHours(2), null).apply(invalidNs)
+                ).getMessage(),
+                "failed to parse date field [" + invalidNs + "] with format [UNIX_NS]"
+            );
+        }
+        {
+            var invalidNs = randomLongBetween(10000, 99999999) + "." + randomAlphaOfLength(10);
+            assertEquals(
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> DateFormat.UnixNs.getFunction(null, ZoneOffset.ofHours(2), null).apply(invalidNs)
+                ).getMessage(),
+                "failed to parse date field [" + invalidNs + "] with format [UNIX_NS]"
+            );
+        }
+        {
+            var invalidNs = randomIntBetween(1000, 50000) + "." + randomIntBetween(1000, 50000) + "." + randomIntBetween(1000, 50000);
+            assertEquals(
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> DateFormat.UnixNs.getFunction(null, ZoneOffset.ofHours(2), null).apply(invalidNs)
+                ).getMessage(),
+                "failed to parse date field [" + invalidNs + "] with format [UNIX_NS]"
+            );
+        }
+    }
+
     public void testFromString() {
         assertThat(DateFormat.fromString("UNIX_MS"), equalTo(DateFormat.UnixMs));
         assertThat(DateFormat.fromString("unix_ms"), equalTo(DateFormat.Java));
+        assertThat(DateFormat.fromString("UNIX_NS"), equalTo(DateFormat.UnixNs));
+        assertThat(DateFormat.fromString("unix_ns"), equalTo(DateFormat.Java));
         assertThat(DateFormat.fromString("UNIX"), equalTo(DateFormat.Unix));
         assertThat(DateFormat.fromString("unix"), equalTo(DateFormat.Java));
         assertThat(DateFormat.fromString("ISO8601"), equalTo(DateFormat.Iso8601));

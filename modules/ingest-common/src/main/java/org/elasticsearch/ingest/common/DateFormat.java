@@ -54,6 +54,24 @@ enum DateFormat {
             return date -> Instant.ofEpochMilli(Long.parseLong(date)).atZone(timezone);
         }
     },
+    UnixNs {
+        @Override
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            return date -> {
+                var parts = date.split("\\.");
+                if (parts.length > 2) {
+                    throw new IllegalArgumentException("failed to parse date field [" + date + "] with format [UNIX_NS]");
+                }
+                try {
+                    var seconds = Long.parseLong(parts[0]);
+                    var nanoseconds = parts.length == 2 ? Long.parseLong(parts[1]) : 0;
+                    return Instant.ofEpochSecond(seconds, nanoseconds).atZone(timezone);
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("failed to parse date field [" + date + "] with format [UNIX_NS]");
+                }
+            };
+        }
+    },
     Tai64n {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
@@ -130,6 +148,7 @@ enum DateFormat {
             case "ISO8601" -> Iso8601;
             case "UNIX" -> Unix;
             case "UNIX_MS" -> UnixMs;
+            case "UNIX_NS" -> UnixNs;
             case "TAI64N" -> Tai64n;
             default -> Java;
         };

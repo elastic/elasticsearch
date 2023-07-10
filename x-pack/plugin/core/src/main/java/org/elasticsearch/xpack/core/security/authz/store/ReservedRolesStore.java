@@ -805,7 +805,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm-*").privileges("read", "read_cross_cluster").build(),
 
                 // Synthetics API key for synthetics saas service
-                RoleDescriptor.IndicesPrivileges.builder().indices("synthetics-*").privileges("auto_configure", "read", "write").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("synthetics-http-*", "synthetics-icmp-*", "synthetics-tcp-*", "synthetics-browser*")
+                    .privileges("auto_configure", "read", "write")
+                    .build(),
 
                 // Data telemetry reads mappings, metadata and stats of indices
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),

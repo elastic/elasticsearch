@@ -17,7 +17,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.search.SearchApplication;
 
@@ -25,6 +29,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class PutSearchApplicationAction extends ActionType<PutSearchApplicationAction.Response> {
 
@@ -35,10 +40,13 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
         super(NAME, PutSearchApplicationAction.Response::new);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements ToXContentObject {
 
         private final SearchApplication searchApp;
+        public static ParseField SEARCH_APPLICATION = new ParseField("searchApp");
+
         private final boolean create;
+        public static ParseField CREATE = new ParseField("create");
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -97,6 +105,33 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
         @Override
         public int hashCode() {
             return Objects.hash(searchApp, create);
+        }
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
+            "put_search_application",
+            false,
+            (params, searchAppName) -> {
+                return new Request((SearchApplication) params[0], (boolean) params[1]);
+            }
+        );
+        static {
+            PARSER.declareObject(constructorArg(), (p, c) -> SearchApplication.fromXContent(c, p), SEARCH_APPLICATION);
+            PARSER.declareBoolean(constructorArg(), CREATE);
+        }
+
+        public static Request parse(XContentParser parser, String resourceName) {
+            return PARSER.apply(parser, resourceName);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(SEARCH_APPLICATION.getPreferredName(), searchApp);
+            builder.field(CREATE.getPreferredName(), create);
+            builder.endObject();
+            return builder;
+
         }
     }
 

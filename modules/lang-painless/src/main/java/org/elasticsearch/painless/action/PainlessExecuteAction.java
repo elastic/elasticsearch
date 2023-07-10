@@ -214,6 +214,14 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 query = in.readOptionalNamedWriteable(QueryBuilder.class);
             }
 
+            /**
+             * @param indexExpression should be of the form "index" or "cluster:index". Wildcards are OK.
+             * @return Tuple where first entry is clusterAlias, which will be null if not in the indexExpression
+             *         and second entry is the index name
+             *         Tuple(null, null) will be returned if indexExpression is null
+             * @throws IllegalArgumentException if the indexExpression starts or ends with the REMOTE_CLUSTER_INDEX_SEPARATOR (":")
+             *         (ignoring whitespace)
+             */
             static Tuple<String, String> parseClusterAliasAndIndex(String indexExpression) {
                 if (indexExpression == null) {
                     return new Tuple<>(null, null);
@@ -225,7 +233,12 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     );
                 }
 
-                // TODO: we are directly parsing and accepting user input here - any security sanitization/checking-of-input required here?
+                // The parser here needs to ensure that the indexExpression is not of the form "remote1:blogs,remote2:blogs"
+                // because (1) only a single index is allowed for Painless Execute and
+                // (2) if this method returns Tuple("remote1", "blogs,remote2:blogs") that will not fail with "index not found".
+                // Instead, it will fail with the inaccurate and confusing error message:
+                // "Cross-cluster calls are not supported in this context but remote indices were requested: [blogs,remote1:blogs]"
+                // which comes later out of the IndexNameExpressionResolver pathway this code uses.
                 String[] parts = indexExpression.split(":", 2);
                 if (parts.length == 1) {
                     return new Tuple<>(null, parts[0]);

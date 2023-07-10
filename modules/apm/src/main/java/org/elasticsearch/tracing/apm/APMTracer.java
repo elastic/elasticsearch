@@ -188,7 +188,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 spanBuilder.setParent(parentContext);
             }
 
-            setSpanAttributes(threadContext, attributes, spanBuilder);
+            setSpanAttributes(spanName, threadContext, attributes, spanBuilder);
 
             Instant startTime = threadContext.getTransient(Task.TRACE_START_TIME);
             if (startTime != null) {
@@ -218,7 +218,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
 
         SpanBuilder spanBuilder = services.tracer.spanBuilder(name);
-        setSpanAttributes(attributes, spanBuilder);
+        setSpanAttributes(name, attributes, spanBuilder);
         spanBuilder.startSpan();
     }
 
@@ -290,7 +290,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return () -> {};
     }
 
-    private void setSpanAttributes(@Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
+    private void setSpanAttributes(String spanName, @Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
         if (spanAttributes != null) {
             for (Map.Entry<String, Object> entry : spanAttributes.entrySet()) {
                 final String key = entry.getKey();
@@ -319,7 +319,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             }
 
             final boolean isHttpSpan = spanAttributes.keySet().stream().anyMatch(key -> key.startsWith("http."));
-            spanBuilder.setSpanKind(isHttpSpan ? SpanKind.SERVER : SpanKind.INTERNAL);
+            final boolean isWatcher = spanName.startsWith("watcher-");
+            spanBuilder.setSpanKind(isHttpSpan || isWatcher ? SpanKind.SERVER : SpanKind.INTERNAL);
         } else {
             spanBuilder.setSpanKind(SpanKind.INTERNAL);
         }
@@ -328,8 +329,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.CLUSTER_NAME, clusterName);
     }
 
-    private void setSpanAttributes(ThreadContext threadContext, @Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
-        setSpanAttributes(spanAttributes, spanBuilder);
+    private void setSpanAttributes(String spanName, ThreadContext threadContext, @Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
+        setSpanAttributes(spanName, spanAttributes, spanBuilder);
 
         final String xOpaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
         if (xOpaqueId != null) {

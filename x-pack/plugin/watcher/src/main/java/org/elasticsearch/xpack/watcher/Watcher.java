@@ -506,7 +506,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser, bulkProcessor);
 
         final WatcherSearchTemplateService watcherSearchTemplateService = new WatcherSearchTemplateService(scriptService, xContentRegistry);
-        final WatchExecutor watchExecutor = getWatchExecutor(threadPool);
+        final WatchExecutor watchExecutor = getWatchExecutor(threadPool, tracer);
         final WatchParser watchParser = new WatchParser(triggerService, registry, inputRegistry, cryptoService, getClock());
 
         final ExecutionService executionService = new ExecutionService(
@@ -518,7 +518,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             watchParser,
             clusterService,
             client,
-            threadPool.generic()
+            threadPool.generic(),
+            tracer
         );
 
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
@@ -563,8 +564,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         return new TickerScheduleTriggerEngine(settings, scheduleRegistry, clock);
     }
 
-    protected WatchExecutor getWatchExecutor(ThreadPool threadPool) {
-        return new InternalWatchExecutor(threadPool);
+    protected WatchExecutor getWatchExecutor(ThreadPool threadPool, Tracer tracer) {
+        return new InternalWatchExecutor(threadPool, tracer);
     }
 
     protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService) {

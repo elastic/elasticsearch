@@ -12,8 +12,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -65,7 +67,7 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin implements
             }
 
             @Override
-            protected WatchExecutor getWatchExecutor(ThreadPool threadPool) {
+            protected WatchExecutor getWatchExecutor(ThreadPool threadPool, Tracer tracer) {
                 return new SameThreadExecutor();
             }
 
@@ -102,6 +104,16 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin implements
         @Override
         public void execute(Runnable runnable) {
             runnable.run();
+        }
+
+        @Override
+        public void startTrace(Wid id) {
+            // noop
+        }
+
+        @Override
+        public void stopTrace(Wid id) {
+            // noop
         }
     }
 }

@@ -13,15 +13,15 @@ import java.util.UUID;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 
 /**
- * A representation class of a watch id, its execution time and a random UUID
+ * A representation class of a watch id, its execution time and a random UUID.
  * This class exists to be able to store several events from the same possible execution time and the same watch
- * in the triggered store index or the history store
- *
+ * in the triggered store index or the history store.
+ * <p>
  * One 'specialty' of this class is the handling of the underscore in the value. Nothing except the watchId should contain an
- * underscore, otherwise this class will not be able to extract the proper watch id, when a a single string is handed over in its ctor
- *
- * This is also the reason why UUID.randomUUID() is used instead of UUIDs.base64UUID(), as the latter one contains underscores. Also this
- * is not dependant on having time based uuids here, as the time is already included in the value
+ * underscore, otherwise this class will not be able to extract the proper watch id, when a single string is handed over in its ctor.
+ * <p>
+ * This is also the reason why UUID.randomUUID() is used instead of UUIDs.base64UUID(), as the latter one contains underscores. Also, this
+ * is not dependent on having time based uuids here, as the time is already included in the value.
  */
 public class Wid {
 
@@ -32,7 +32,7 @@ public class Wid {
 
     public Wid(String watchId, ZonedDateTime executionTime) {
         this.watchId = watchId;
-        this.value = watchId + "_" + UUID.randomUUID().toString() + "-" + formatter.format(executionTime);
+        this.value = watchId + "_" + UUID.randomUUID() + "-" + formatter.format(executionTime);
     }
 
     public Wid(String value) {

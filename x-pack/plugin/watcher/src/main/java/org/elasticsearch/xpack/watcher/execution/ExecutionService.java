@@ -32,6 +32,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.tracing.SpanId;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -108,6 +110,7 @@ public class ExecutionService {
     private final Client client;
     private final WatchExecutor executor;
     private final ExecutorService genericExecutor;
+    private final Tracer tracer;
 
     private AtomicReference<CurrentExecutions> currentExecutions = new AtomicReference<>();
     private final AtomicBoolean paused = new AtomicBoolean(false);
@@ -121,7 +124,8 @@ public class ExecutionService {
         WatchParser parser,
         ClusterService clusterService,
         Client client,
-        ExecutorService genericExecutor
+        ExecutorService genericExecutor,
+        Tracer tracer
     ) {
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
@@ -135,6 +139,7 @@ public class ExecutionService {
         this.genericExecutor = genericExecutor;
         this.indexDefaultTimeout = settings.getAsTime("xpack.watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(30));
         this.currentExecutions.set(new CurrentExecutions());
+        this.tracer = tracer;
     }
 
     public void unPause() {
@@ -427,7 +432,7 @@ public class ExecutionService {
     }
 
     /*
-       The execution of an watch is split into two phases:
+       The execution of a watch is split into two phases:
        1. the trigger part which just makes sure to store the associated watch record in the history
        2. the actual processing of the watch
        The reason this split is that we don't want to lose the fact watch was triggered. This way, even if the
@@ -435,8 +440,15 @@ public class ExecutionService {
        triggered (it'll have its history record)
     */
     private void executeAsync(WatchExecutionContext ctx, final TriggeredWatch triggeredWatch) {
+        final ThreadContext threadContext = clusterService.threadPool().getThreadContext();
+        this.tracer.startTrace(threadContext, SpanId.forBareString(""), "", Map.of());
+
         try {
-            executor.execute(new WatchExecutionTask(ctx, () -> execute(ctx)));
+            executor.startTrace(ctx.id());
+            executor.execute(new WatchExecutionTask(ctx, () -> {
+                execute(ctx);
+                executor.stopTrace(ctx.id());
+            }));
         } catch (EsRejectedExecutionException e) {
             // Using the generic pool here since this can happen from a write thread and we don't want to block a write
             // thread to kick off these additional write/delete requests.
@@ -465,6 +477,7 @@ public class ExecutionService {
                         exc
                     );
                 }
+                executor.stopTrace(ctx.id());
             }));
         }
     }

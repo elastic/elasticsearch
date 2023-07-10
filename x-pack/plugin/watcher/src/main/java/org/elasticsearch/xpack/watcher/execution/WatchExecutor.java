@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.elasticsearch.xpack.core.watcher.execution.Wid;
+
 import java.util.concurrent.BlockingQueue;
 import java.util.stream.Stream;
 
@@ -19,4 +21,7 @@ public interface WatchExecutor {
 
     void execute(Runnable runnable);
 
+    void startTrace(Wid id);
+
+    void stopTrace(Wid id);
 }

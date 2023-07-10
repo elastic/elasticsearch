@@ -84,7 +84,7 @@ public class SynonymsManagementAPIService {
         .setMappings(mappings())
         .setSettings(settings())
         .setVersionMetaKey("version")
-        .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
+        .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "-1941604381"))
         .setOrigin(SYNONYMS_ORIGIN)
         .build();
 

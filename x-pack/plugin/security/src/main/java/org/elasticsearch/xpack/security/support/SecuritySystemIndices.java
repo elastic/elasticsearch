@@ -35,18 +35,24 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  */
 public class SecuritySystemIndices {
 
-    public static final SystemIndexDescriptor.IndexFormat INTERNAL_MAIN_INDEX_FORMAT_6 = new SystemIndexDescriptor.IndexFormat(6, "1234");
-    public static final SystemIndexDescriptor.IndexFormat INTERNAL_TOKENS_INDEX_FORMAT_7 = new SystemIndexDescriptor.IndexFormat(7, "1234");
+    public static final SystemIndexDescriptor.IndexFormat INTERNAL_MAIN_INDEX_FORMAT_6 = new SystemIndexDescriptor.IndexFormat(
+        6,
+        "-2060563194"
+    );
+    public static final SystemIndexDescriptor.IndexFormat INTERNAL_TOKENS_INDEX_FORMAT_7 = new SystemIndexDescriptor.IndexFormat(
+        7,
+        "-2130894359"
+    );
 
     // 9 - change of origin, and requiring index formats for prior descriptors
     public static final SystemIndexDescriptor.IndexFormat INTERNAL_PROFILE_INDEX_FORMAT_9 = new SystemIndexDescriptor.IndexFormat(
         9,
-        "1234"
+        "-1639937422"
     );
     // 8 - original version
     public static final SystemIndexDescriptor.IndexFormat INTERNAL_PROFILE_INDEX_FORMAT_8 = new SystemIndexDescriptor.IndexFormat(
         8,
-        "1234"
+        "-1639937421"
     );
 
     public static final String SECURITY_MAIN_ALIAS = ".security";

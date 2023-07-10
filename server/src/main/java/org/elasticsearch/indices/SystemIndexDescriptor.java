@@ -264,6 +264,16 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         if (type.isManaged()) {
             Objects.requireNonNull(settings, "Must supply settings for a managed system index");
             Strings.requireNonEmpty(mappings, "Must supply mappings for a managed system index");
+
+            Objects.requireNonNull(indexFormat.hash, "Must supply index format hash for a managed system index");
+
+            assert indexFormat.hash.equals(Integer.toString(getDescriptorHash(mappings, settings)))
+                : "Expected descriptor hash ["
+                    + indexFormat.hash
+                    + "] but runtime hash was ["
+                    + getDescriptorHash(mappings, settings)
+                    + "]";
+
             Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex for a managed system index");
             Objects.requireNonNull(this.indexFormat.hash, "Must supply index format hash for a managed system index");
             Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey for a managed system index");

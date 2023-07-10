@@ -164,7 +164,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         SystemIndexDescriptor prior = priorSystemIndexDescriptorBuilder().build();
         SystemIndexDescriptor.IndexFormat incrementedIndexFormat = new SystemIndexDescriptor.IndexFormat(
             prior.getIndexFormat().version() + 1,
-            "1234"
+            "932155049"
         );
 
         // same minimum node version
@@ -185,7 +185,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
 
         SystemIndexDescriptor.IndexFormat outerIndexFormat = new SystemIndexDescriptor.IndexFormat(
             incrementedIndexFormat.version() + 1,
-            "1234"
+            "932155048"
         );
         // prior has another prior!
         iae = expectThrows(
@@ -275,12 +275,12 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setVersionMetaKey("version")
             .setOrigin("system")
             .setMinimumNodeVersion(Version.V_7_0_0)
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1114786311"))
             .build();
         assert prior.isAutomaticallyManaged() : "Do not request index format for unmanaged system indices";
         SystemIndexDescriptor.IndexFormat incrementedIndexFormat = new SystemIndexDescriptor.IndexFormat(
             prior.getIndexFormat().version() + 1,
-            "1234"
+            "932155049"
         );
         final SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
@@ -323,7 +323,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setType(Type.INTERNAL_MANAGED)
             .setMappings(MAPPINGS)
             .setVersionMetaKey("version")
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1079197036"))
             .setOrigin("system");
 
         builder.setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
@@ -362,7 +362,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setType(Type.INTERNAL_MANAGED)
             .setMappings(MAPPINGS)
             .setSettings(Settings.builder().put("index.format", 5).build())
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "932155053"))
             .setVersionMetaKey("version")
             .setOrigin("system");
 
@@ -382,7 +382,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setMappings(MAPPINGS)
             .setVersionMetaKey("version")
             .setOrigin("system")
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1114786311"))
             .setMinimumNodeVersion(Version.V_7_0_0);
     }
 

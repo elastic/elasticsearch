@@ -790,7 +790,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setSettings(getWatchesIndexSettings())
                 .setVersionMetaKey("version")
                 .setOrigin(WATCHER_ORIGIN)
-                .setIndexFormat(new SystemIndexDescriptor.IndexFormat(6, "1234"))
+                .setIndexFormat(new SystemIndexDescriptor.IndexFormat(6, "909320774"))
                 .build(),
             SystemIndexDescriptor.builder()
                 .setIndexPattern(TriggeredWatchStoreField.INDEX_NAME + "*")
@@ -800,7 +800,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setSettings(getTriggeredWatchesIndexSettings())
                 .setVersionMetaKey("version")
                 .setOrigin(WATCHER_ORIGIN)
-                .setIndexFormat(new SystemIndexDescriptor.IndexFormat(6, "1234"))
+                .setIndexFormat(new SystemIndexDescriptor.IndexFormat(6, "1897162193"))
                 .build()
         );
     }

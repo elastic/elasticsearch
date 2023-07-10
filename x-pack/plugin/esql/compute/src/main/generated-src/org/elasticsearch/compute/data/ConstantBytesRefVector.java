@@ -23,11 +23,8 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
     }
 
     @Override
-    public BytesRef getBytesRef(int position, BytesRef scratch) {
-        scratch.offset = value.offset;
-        scratch.length = value.length;
-        scratch.bytes = value.bytes;
-        return scratch;
+    public BytesRef getBytesRef(int position, BytesRef ignore) {
+        return value;
     }
 
     @Override

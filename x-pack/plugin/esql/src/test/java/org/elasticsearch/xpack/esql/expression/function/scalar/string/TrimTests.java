@@ -47,7 +47,7 @@ public class TrimTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "TrimEvaluator[val=Attribute[channel=0]]";
+        return "TrimEvaluator[scratch=[], val=Attribute[channel=0]]";
     }
 
     @Override
@@ -73,7 +73,7 @@ public class TrimTests extends AbstractScalarFunctionTestCase {
     public void testTrim() {
         for (int i = 0; i < 64; i++) {
             String expected = randomUnicodeOfLength(8).trim();
-            BytesRef result = Trim.process(addRandomLeadingOrTrailingWhitespaces(expected));
+            BytesRef result = Trim.process(new BytesRef(), addRandomLeadingOrTrailingWhitespaces(expected));
             assertThat(result.utf8ToString(), equalTo(expected));
         }
     }

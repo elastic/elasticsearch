@@ -35,6 +35,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         .setAliasName(SYSTEM_ALIAS_NAME)
         .setSettings(getSettingsBuilder().build())
         .setMappings(MAPPINGS)
+        .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "198588435"))
         .setVersionMetaKey("version")
         .setOrigin("FAKE_ORIGIN")
         .build();

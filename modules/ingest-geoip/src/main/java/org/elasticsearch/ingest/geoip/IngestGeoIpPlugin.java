@@ -201,6 +201,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                     .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                     .build()
             )
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "-776058359"))
             .setOrigin(INGEST_ORIGIN)
             .setVersionMetaKey("version")
             .setPrimaryIndex(DATABASES_INDEX)

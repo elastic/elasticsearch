@@ -276,6 +276,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .setDescription(this.getTestName())
             .setMappings("{\"_meta\":  {\"version\":  \"1.0.0\"}}")
             .setSettings(Settings.EMPTY)
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1456284760"))
             .setVersionMetaKey("version")
             .setOrigin(this.getTestName())
             .setNetNew()

@@ -513,6 +513,7 @@ public class ResolveIndexTests extends ESTestCase {
                             .setNetNew()
                             .setSettings(Settings.EMPTY)
                             .setMappings("{ \"_doc\": { \"_meta\": { \"version\": \"8.0.0\" } } }")
+                            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1094029672"))
                             .setPrimaryIndex(".test-net-new-system-1")
                             .setVersionMetaKey("version")
                             .setOrigin("system")

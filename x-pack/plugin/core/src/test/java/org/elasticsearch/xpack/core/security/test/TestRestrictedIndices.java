@@ -185,6 +185,7 @@ public class TestRestrictedIndices {
         return SystemIndexDescriptor.builder()
             .setMappings(mockMappings())
             .setSettings(Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), indexFormat).build())
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
             .setVersionMetaKey("version");
     }
 
@@ -195,7 +196,7 @@ public class TestRestrictedIndices {
             .setPrimaryIndex(INTERNAL_SECURITY_MAIN_INDEX_7)
             .setDescription("Contains Security configuration")
             .setAliasName(SECURITY_MAIN_ALIAS)
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(7, "1234"))
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(7, "526016472"))
             .setOrigin(SECURITY_ORIGIN)
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
             .build();
@@ -206,7 +207,7 @@ public class TestRestrictedIndices {
             .setPrimaryIndex(INTERNAL_SECURITY_TOKENS_INDEX_7)
             .setDescription("Contains auth token data")
             .setAliasName(SECURITY_TOKENS_ALIAS)
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(7, "1234"))
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(7, "526016472"))
             .setOrigin(SECURITY_ORIGIN)
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
             .build();
@@ -216,7 +217,7 @@ public class TestRestrictedIndices {
         return getInitializedDescriptorBuilder(0).setIndexPattern(XPackPlugin.ASYNC_RESULTS_INDEX + "*")
             .setDescription("Async search results")
             .setPrimaryIndex(XPackPlugin.ASYNC_RESULTS_INDEX)
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "526016471"))
             .setOrigin(ASYNC_SEARCH_ORIGIN)
             .build();
     }

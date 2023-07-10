@@ -77,6 +77,7 @@ public class QueryRulesIndexService {
             .setDescription("Contains query ruleset configuration for query rules")
             .setMappings(getIndexMappings())
             .setSettings(getIndexSettings())
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1633883718"))
             .setAliasName(QUERY_RULES_ALIAS_NAME)
             .setVersionMetaKey("version")
             .setOrigin(ENT_SEARCH_ORIGIN)

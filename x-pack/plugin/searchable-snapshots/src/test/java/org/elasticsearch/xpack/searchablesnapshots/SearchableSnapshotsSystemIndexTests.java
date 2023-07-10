@@ -5,27 +5,20 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logstash;
+package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.AbstractSystemIndexFormatVersionTests;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 
 import java.util.Collection;
 
-import static org.hamcrest.Matchers.contains;
-
-public class LogstashPluginTests extends AbstractSystemIndexFormatVersionTests {
+public class SearchableSnapshotsSystemIndexTests extends AbstractSystemIndexFormatVersionTests {
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return new Logstash().getSystemIndexDescriptors(Settings.EMPTY);
-    }
-
-    public void testSystemIndices() {
-        assertThat(
-            new Logstash().getSystemIndexDescriptors(Settings.EMPTY).stream().map(SystemIndexDescriptor::getIndexPattern).toList(),
-            contains(".logstash*")
-        );
+        SystemIndexPlugin plugin = new SearchableSnapshots(Settings.EMPTY);
+        return plugin.getSystemIndexDescriptors(Settings.EMPTY);
     }
 }

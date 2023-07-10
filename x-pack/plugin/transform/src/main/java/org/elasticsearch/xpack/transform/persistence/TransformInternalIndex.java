@@ -95,6 +95,7 @@ public final class TransformInternalIndex {
             .setDescription("Contains Transform configuration data")
             .setMappings(mappings())
             .setSettings(settings(transformInternalIndexAdditionalSettings))
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "2004671506"))
             .setVersionMetaKey("version")
             .setOrigin(TRANSFORM_ORIGIN)
             .build();

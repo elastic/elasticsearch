@@ -63,6 +63,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
                         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
                         .setSettings(SystemIndexDescriptor.DEFAULT_SETTINGS)
                         .setMappings("{\"_meta\":  {\"version\":  \"1.0.0\"}}")
+                        .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1324008480"))
                         .setVersionMetaKey("version")
                         .setOrigin("origin")
                         .build()

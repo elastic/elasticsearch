@@ -90,6 +90,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                         .setVersionMetaKey("version")
                         .setMappings(builder)
                         .setSettings(SETTINGS)
+                        .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
                         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
                         .setNetNew()
                         .build()

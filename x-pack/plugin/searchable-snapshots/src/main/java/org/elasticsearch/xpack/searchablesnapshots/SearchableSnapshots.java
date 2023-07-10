@@ -415,6 +415,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 .setPrimaryIndex(SNAPSHOT_BLOB_CACHE_INDEX)
                 .setMappings(getIndexMappings())
                 .setSettings(getIndexSettings())
+                .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "684073953"))
                 .setOrigin(SEARCHABLE_SNAPSHOTS_ORIGIN)
                 .setVersionMetaKey("version")
                 .build()

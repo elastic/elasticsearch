@@ -265,6 +265,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
         .setSettings(createSettings(Version.V_7_0_0, 0))
         .setMappings(createMapping(true, true))
+        .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "2124809971"))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())

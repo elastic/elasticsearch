@@ -33,14 +33,17 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.indices.AbstractSystemIndexFormatVersionTests;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -54,7 +57,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class TransformInternalIndexTests extends ESTestCase {
+public class TransformInternalIndexTests extends AbstractSystemIndexFormatVersionTests {
 
     private ClusterState stateWithLatestVersionedIndex;
 
@@ -335,5 +338,14 @@ public class TransformInternalIndexTests extends ESTestCase {
 
         settings = TransformInternalIndex.settings(Settings.builder().put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
         assertThat(settings.getAsBoolean(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), false), is(true));
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        try {
+            return List.of(TransformInternalIndex.getSystemIndexDescriptor(Settings.EMPTY));
+        } catch (IOException e) {
+            throw new RuntimeException("failed to create system index");
+        }
     }
 }

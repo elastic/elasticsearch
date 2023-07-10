@@ -461,9 +461,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return aliasName;
     }
 
-    public int getIndexFormat() {
+    public IndexFormat getIndexFormat() {
         assert isAutomaticallyManaged() : "Do not request index format for unmanaged system indices";
-        return this.indexFormat.version;
+        return this.indexFormat;
     }
 
     public String getVersionMetaKey() {

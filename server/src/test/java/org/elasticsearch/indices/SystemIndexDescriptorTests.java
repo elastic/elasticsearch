@@ -163,7 +163,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
     public void testPriorSystemIndexDescriptorValidation() {
         SystemIndexDescriptor prior = priorSystemIndexDescriptorBuilder().build();
         SystemIndexDescriptor.IndexFormat incrementedIndexFormat = new SystemIndexDescriptor.IndexFormat(
-            prior.getIndexFormat() + 1,
+            prior.getIndexFormat().version() + 1,
             "1234"
         );
 
@@ -277,8 +277,9 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setMinimumNodeVersion(Version.V_7_0_0)
             .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
             .build();
+        assert prior.isAutomaticallyManaged() : "Do not request index format for unmanaged system indices";
         SystemIndexDescriptor.IndexFormat incrementedIndexFormat = new SystemIndexDescriptor.IndexFormat(
-            prior.getIndexFormat() + 1,
+            prior.getIndexFormat().version() + 1,
             "1234"
         );
         final SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder()

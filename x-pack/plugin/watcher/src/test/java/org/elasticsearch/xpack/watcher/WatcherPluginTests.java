@@ -121,7 +121,7 @@ public class WatcherPluginTests extends ESTestCase {
 
         Collection<SystemIndexDescriptor> descriptors = watcher.getSystemIndexDescriptors(settings);
         for (SystemIndexDescriptor descriptor : descriptors) {
-            assertThat(descriptor.getIndexFormat(), equalTo(6));
+            assertThat(descriptor.getIndexFormat().version(), equalTo(6));
         }
     }
 

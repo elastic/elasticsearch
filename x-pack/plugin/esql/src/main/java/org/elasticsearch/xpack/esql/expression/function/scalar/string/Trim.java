@@ -77,7 +77,8 @@ public final class Trim extends UnaryScalarFunction implements Mappable {
         }
         scratch.bytes = val.bytes;
         scratch.offset = offset;
-        scratch.length = length - offset;
+        scratch.length = length - (offset - val.offset);
+        assert scratch.isValid();
         return scratch;
     }
 }

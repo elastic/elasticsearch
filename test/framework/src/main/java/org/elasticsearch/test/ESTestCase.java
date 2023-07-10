@@ -1301,7 +1301,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(IndexVersion version) {
-        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version.id());
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
     /** Return consistent index settings for the provided index version, shard- and replica-count. */

@@ -539,7 +539,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     private Settings indexSettings(IndexVersion version) {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 100))
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")

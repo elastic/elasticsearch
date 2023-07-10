@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -1028,8 +1029,15 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
             return this;
         }
 
-        public Builder put(String setting, Version version) {
-            put(setting, version.id);
+        /**
+         * Sets the setting with the provided setting key and the {@code VersionId} value.
+         *
+         * @param setting The setting key
+         * @param version The version value
+         * @return The builder
+         */
+        public Builder put(String setting, VersionId version) {
+            put(setting, version.id());
             return this;
         }
 

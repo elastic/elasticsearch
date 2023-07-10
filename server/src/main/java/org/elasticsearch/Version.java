@@ -9,6 +9,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
@@ -32,7 +33,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
 
-public class Version implements Comparable<Version>, ToXContentFragment {
+public class Version implements VersionId, Comparable<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
      * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99
@@ -308,6 +309,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.indexVersion = Objects.requireNonNull(indexVersion);
         this.toString = major + "." + minor + "." + revision;
         this.previousMajorId = major > 0 ? (major - 1) * 1000000 + 99 : major;
+    }
+
+    @Override
+    public int id() {
+        return id;
     }
 
     public boolean after(Version version) {

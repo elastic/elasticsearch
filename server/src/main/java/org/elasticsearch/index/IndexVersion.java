@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
@@ -61,7 +62,7 @@ import java.util.TreeMap;
  * representing the reverted change. <em>Do not</em> let the index version go backwards, it must <em>always</em> be incremented.
  */
 @SuppressWarnings({"checkstyle:linelength", "deprecation"})
-public record IndexVersion(int id, Version luceneVersion) implements Comparable<IndexVersion>, ToXContentFragment {
+public record IndexVersion(int id, Version luceneVersion) implements VersionId, Comparable<IndexVersion>, ToXContentFragment {
 
     /*
      * NOTE: IntelliJ lies!

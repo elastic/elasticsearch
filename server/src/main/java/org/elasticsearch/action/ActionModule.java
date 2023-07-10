@@ -251,12 +251,14 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.synonyms.DeleteSynonymRuleAction;
 import org.elasticsearch.action.synonyms.DeleteSynonymsAction;
 import org.elasticsearch.action.synonyms.GetSynonymRuleAction;
 import org.elasticsearch.action.synonyms.GetSynonymsAction;
 import org.elasticsearch.action.synonyms.GetSynonymsSetsAction;
 import org.elasticsearch.action.synonyms.PutSynonymRuleAction;
 import org.elasticsearch.action.synonyms.PutSynonymsAction;
+import org.elasticsearch.action.synonyms.TransportDeleteSynonymRuleAction;
 import org.elasticsearch.action.synonyms.TransportDeleteSynonymsAction;
 import org.elasticsearch.action.synonyms.TransportGetSynonymRuleAction;
 import org.elasticsearch.action.synonyms.TransportGetSynonymsAction;
@@ -447,6 +449,7 @@ import org.elasticsearch.rest.action.search.RestKnnSearchAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
+import org.elasticsearch.rest.action.synonyms.RestDeleteSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestDeleteSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
@@ -803,6 +806,7 @@ public class ActionModule extends AbstractModule {
             actions.register(GetSynonymsSetsAction.INSTANCE, TransportGetSynonymsSetsAction.class);
             actions.register(PutSynonymRuleAction.INSTANCE, TransportPutSynonymRuleAction.class);
             actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
+            actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
@@ -1022,6 +1026,7 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestGetSynonymsSetsAction());
             registerHandler.accept(new RestPutSynonymRuleAction());
             registerHandler.accept(new RestGetSynonymRuleAction());
+            registerHandler.accept(new RestDeleteSynonymRuleAction());
         }
     }
 

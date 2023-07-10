@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -132,7 +133,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
         AnalysisRegistry registry = setupRegistry();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        return registry.build(idxSettings);
+        return registry.build(IndexCreationContext.CREATE_INDEX, idxSettings);
     }
 
     private AnalysisRegistry setupRegistry() throws IOException {

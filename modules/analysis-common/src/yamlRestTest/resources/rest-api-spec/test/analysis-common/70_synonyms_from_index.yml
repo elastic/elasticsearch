@@ -141,6 +141,25 @@ setup:
                 query: bye
   - match: { hits.total.value: 1 }
 
+  - do:
+      indices.close:
+        index: my_index
+
+  - do:
+      indices.open:
+        index: my_index
+
+  # Confirm that the index analyzers are reloaded
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: hola
+  - match: { hits.total.value: 1 }
+
 ---
 "Delete the synonyms set and confirm failed reload analyzers details":
   - do:

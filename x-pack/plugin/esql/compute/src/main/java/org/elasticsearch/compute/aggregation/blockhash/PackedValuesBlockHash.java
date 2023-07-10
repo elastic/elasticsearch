@@ -14,10 +14,12 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BatchEncoder;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -27,9 +29,26 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * {@link BlockHash} implementation that can operate on any number of columns.
- * Works by concatenating the values of each column into a byte array and hashing
- * that.
+ * Maps any number of columns to a group ids with every unique combination resulting
+ * in a unique group id. Works by uniqing the values of each column and concatenating
+ * the combinatorial explosion of all values into a byte array and then hashing each
+ * byte array. If the values are
+ * <pre>{@code
+ *     a=(1, 2, 3) b=(2, 3) c=(4, 5, 5)
+ * }</pre>
+ * Then you get these grouping keys:
+ * <pre>{@code
+ *     1, 2, 4
+ *     1, 2, 5
+ *     1, 3, 4
+ *     1, 3, 5
+ *     2, 2, 4
+ *     2, 2, 5
+ *     2, 3, 4
+ *     2, 3, 5
+ *     3, 2, 4
+ *     3, 3, 5
+ * }</pre>
  */
 final class PackedValuesBlockHash extends BlockHash {
     private static final Logger logger = LogManager.getLogger(PackedValuesBlockHash.class);
@@ -46,12 +65,12 @@ final class PackedValuesBlockHash extends BlockHash {
     }
 
     @Override
-    public LongBlock add(Page page) {
-        return add(page, DEFAULT_BATCH_SIZE);
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+        add(page, addInput, DEFAULT_BATCH_SIZE);
     }
 
-    LongBlock add(Page page, int batchSize) {
-        return new AddWork(page, batchSize).add();
+    void add(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
+        new AddWork(page, addInput, batchSize).add();
     }
 
     class AddWork {
@@ -61,18 +80,20 @@ final class PackedValuesBlockHash extends BlockHash {
         final BytesRef[] scratches = new BytesRef[groups.size()];
         final BytesRefBuilder bytes = new BytesRefBuilder();
         final int positionCount;
+        final GroupingAggregatorFunction.AddInput addInput;
         final LongBlock.Builder builder;
 
         int count;
         long bufferedGroup;
 
-        AddWork(Page page, int batchSize) {
+        AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
             for (int g = 0; g < groups.size(); g++) {
                 encoders[g] = MultivalueDedupe.batchEncoder(page.getBlock(groups.get(g).channel()), batchSize);
                 scratches[g] = new BytesRef();
             }
             bytes.grow(nullTrackingBytes);
             this.positionCount = page.getPositionCount();
+            this.addInput = addInput;
             builder = LongBlock.newBlockBuilder(positionCount);
         }
 
@@ -81,7 +102,7 @@ final class PackedValuesBlockHash extends BlockHash {
          * mostly provided by {@link BatchEncoder} with nulls living in a bit mask at the
          * front of the bytes.
          */
-        LongBlock add() {
+        void add() {
             for (int position = 0; position < positionCount; position++) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("position {}", position);
@@ -112,7 +133,13 @@ final class PackedValuesBlockHash extends BlockHash {
                     valueOffsets[g] += encoders[g].valueCount(positionOffsets[g]);
                 }
             }
-            return builder.build();
+            LongBlock groupIdsBlock = builder.build();  // TODO exploit for a crash and then call incrementally
+            LongVector groupIdsVector = groupIdsBlock.asVector();
+            if (groupIdsVector == null) {
+                addInput.add(0, groupIdsBlock);
+            } else {
+                addInput.add(0, groupIdsVector);
+            }
         }
 
         private void addPosition(int g) {

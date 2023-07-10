@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -26,6 +27,9 @@ import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
 
 import java.io.IOException;
 
+/**
+ * Maps a {@link BytesRefBlock} column to group ids.
+ */
 final class BytesRefBlockHash extends BlockHash {
     private final BytesRef bytes = new BytesRef();
     private final int channel;
@@ -37,13 +41,14 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     @Override
-    public LongBlock add(Page page) {
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         BytesRefBlock block = page.getBlock(channel);
         BytesRefVector vector = block.asVector();
         if (vector == null) {
-            return add(block);
+            addInput.add(0, add(block));
+        } else {
+            addInput.add(0, add(vector));
         }
-        return add(vector).asBlock();
     }
 
     private LongVector add(BytesRefVector vector) {

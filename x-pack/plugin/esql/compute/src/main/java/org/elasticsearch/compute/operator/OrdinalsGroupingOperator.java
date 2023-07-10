@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.BlockOrdinalsReader;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.GroupSpec;
@@ -333,7 +334,7 @@ public class OrdinalsGroupingOperator implements Operator {
                     }
                 }
                 for (GroupingAggregator aggregator : aggregators) {
-                    aggregator.processPage(ordinals, page);
+                    aggregator.prepareProcessPage(page).add(0, ordinals);
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -396,7 +397,11 @@ public class OrdinalsGroupingOperator implements Operator {
             this.extractor = new ValuesSourceReaderOperator(sources, docChannel, groupingField);
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
-                () -> BlockHash.build(List.of(new GroupSpec(channelIndex, sources.get(0).elementType())), bigArrays),
+                () -> BlockHash.build(
+                    List.of(new GroupSpec(channelIndex, sources.get(0).elementType())),
+                    bigArrays,
+                    LuceneSourceOperator.PAGE_SIZE
+                ),
                 driverContext
             );
         }

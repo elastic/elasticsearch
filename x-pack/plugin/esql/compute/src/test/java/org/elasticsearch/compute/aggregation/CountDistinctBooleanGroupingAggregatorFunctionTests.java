@@ -35,7 +35,7 @@ public class CountDistinctBooleanGroupingAggregatorFunctionTests extends Groupin
     @Override
     protected SourceOperator simpleInput(int size) {
         return new LongBooleanTupleBlockSourceOperator(
-            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomBoolean()))
+            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomGroupId(size), randomBoolean()))
         );
     }
 

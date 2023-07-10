@@ -10,13 +10,16 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
@@ -43,7 +46,11 @@ public class HashAggregationOperator implements Operator {
             OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new HashAggregationOperator(aggregators, () -> BlockHash.build(groups, bigArrays), driverContext);
+            return new HashAggregationOperator(
+                aggregators,
+                () -> BlockHash.build(groups, bigArrays, LuceneSourceOperator.PAGE_SIZE),
+                driverContext
+            );
         }
 
         @Override
@@ -94,11 +101,26 @@ public class HashAggregationOperator implements Operator {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
 
-        LongBlock groupIdBlock = blockHash.add(wrapPage(page));
-
-        for (GroupingAggregator aggregator : aggregators) {
-            aggregator.processPage(groupIdBlock, page);
+        GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
+        for (int i = 0; i < prepared.length; i++) {
+            prepared[i] = aggregators.get(i).prepareProcessPage(page);
         }
+
+        blockHash.add(wrapPage(page), new GroupingAggregatorFunction.AddInput() {
+            @Override
+            public void add(int positionOffset, LongBlock groupIds) {
+                for (GroupingAggregatorFunction.AddInput p : prepared) {
+                    p.add(positionOffset, groupIds);
+                }
+            }
+
+            @Override
+            public void add(int positionOffset, LongVector groupIds) {
+                for (GroupingAggregatorFunction.AddInput p : prepared) {
+                    p.add(positionOffset, groupIds);
+                }
+            }
+        });
     }
 
     @Override

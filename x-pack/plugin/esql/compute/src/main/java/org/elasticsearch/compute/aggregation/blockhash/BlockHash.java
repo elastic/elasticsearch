@@ -10,10 +10,10 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasable;
@@ -30,11 +30,12 @@ import java.util.List;
 public abstract sealed class BlockHash implements Releasable //
     permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash,//
     PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash {
+
     /**
-     * Add all values for the "group by" columns in the page to the hash and return
-     * their ordinal in a LongBlock.
+     * Add all values for the "group by" columns in the page to the hash and
+     * pass the ordinals to the provided {@link GroupingAggregatorFunction.AddInput}.
      */
-    public abstract LongBlock add(Page page);
+    public abstract void add(Page page, GroupingAggregatorFunction.AddInput addInput);
 
     /**
      * Returns a {@link Block} that contains all the keys that are inserted by {@link #add}.
@@ -52,8 +53,10 @@ public abstract sealed class BlockHash implements Releasable //
 
     /**
      * Creates a specialized hash table that maps one or more {@link Block}s to ids.
+     * @param emitBatchSize maximum batch size to be emitted when handling combinatorial
+     *                      explosion of groups caused by multivalued fields
      */
-    public static BlockHash build(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays) {
+    public static BlockHash build(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays, int emitBatchSize) {
         if (groups.size() == 1) {
             return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), bigArrays);
         }
@@ -61,7 +64,7 @@ public abstract sealed class BlockHash implements Releasable //
             var g1 = groups.get(0);
             var g2 = groups.get(1);
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {
-                return new LongLongBlockHash(bigArrays, g1.channel(), g2.channel());
+                return new LongLongBlockHash(bigArrays, g1.channel(), g2.channel(), emitBatchSize);
             }
             if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
                 return new BytesRefLongBlockHash(bigArrays, g1.channel(), g2.channel(), false);

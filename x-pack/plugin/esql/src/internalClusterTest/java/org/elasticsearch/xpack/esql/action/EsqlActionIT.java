@@ -39,8 +39,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
@@ -614,6 +617,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testRefreshSearchIdleShards() throws Exception {
         String indexName = "test_refresh";
+        int numShards = between(1, 2);
         assertAcked(
             client().admin()
                 .indices()
@@ -621,37 +625,63 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .setSettings(
                     Settings.builder()
                         .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), 0)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.routing.rebalance.enable", "none")
                 )
                 .get()
         );
         ensureYellow(indexName);
-        Index index = resolveIndex(indexName);
-        for (int i = 0; i < 10; i++) {
-            client().prepareBulk()
-                .add(new IndexRequest(indexName).id("1" + i).source("data", 1, "count", 42))
-                .add(new IndexRequest(indexName).id("2" + i).source("data", 2, "count", 44))
-                .get();
-        }
-        logger.info("--> waiting for shards to have pending refresh");
-        assertBusy(() -> {
-            int pendingRefreshes = 0;
-            for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-                IndexService indexService = indicesService.indexService(index);
-                if (indexService != null) {
-                    for (IndexShard shard : indexService) {
-                        if (shard.hasRefreshPending()) {
-                            pendingRefreshes++;
+        AtomicLong totalValues = new AtomicLong();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean stopped = new AtomicBoolean();
+        Thread indexingThread = new Thread(() -> {
+            try {
+                assertTrue(latch.await(30, TimeUnit.SECONDS));
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+            int numDocs = randomIntBetween(10, 20);
+            while (stopped.get() == false) {
+                if (rarely()) {
+                    numDocs++;
+                }
+                logger.info("--> indexing {} docs", numDocs);
+                long sum = 0;
+                for (int i = 0; i < numDocs; i++) {
+                    long value = randomLongBetween(1, 1000);
+                    client().prepareBulk().add(new IndexRequest(indexName).id("doc-" + i).source("data", 1, "value", value)).get();
+                    sum += value;
+                }
+                totalValues.set(sum);
+            }
+        });
+        indexingThread.start();
+        try {
+            logger.info("--> waiting for shards to have pending refresh");
+            Index index = resolveIndex(indexName);
+            latch.countDown();
+            assertBusy(() -> {
+                int pendingRefreshes = 0;
+                for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
+                    IndexService indexService = indicesService.indexService(index);
+                    if (indexService != null) {
+                        for (IndexShard shard : indexService) {
+                            if (shard.hasRefreshPending()) {
+                                pendingRefreshes++;
+                            }
                         }
                     }
                 }
-            }
-            assertThat("shards don't have any pending refresh", pendingRefreshes, greaterThan(0));
-        }, 30, TimeUnit.SECONDS);
-        EsqlQueryResponse results = run("from test_refresh");
+                assertThat("shards don't have any pending refresh", pendingRefreshes, equalTo(numShards));
+            }, 30, TimeUnit.SECONDS);
+        } finally {
+            stopped.set(true);
+            indexingThread.join();
+        }
+        EsqlQueryResponse results = run("from test_refresh | stats s = sum(value)");
         logger.info(results);
-        Assert.assertEquals(20, results.values().size());
+        assertThat(results.values().get(0), equalTo(List.of(totalValues.get())));
     }
 
     public void testESFilter() throws Exception {

@@ -22,6 +22,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -45,6 +46,7 @@ import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
+import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
@@ -160,11 +162,10 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(ctor());
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
-        builder.addMethod(addRawInputStartup(LONG_VECTOR));
+        builder.addMethod(prepareProcessPage());
         builder.addMethod(addRawInputLoop(LONG_VECTOR, valueBlockType(init, combine)));
         builder.addMethod(addRawInputLoop(LONG_VECTOR, valueVectorType(init, combine)));
         builder.addMethod(addRawInputLoop(LONG_VECTOR, BLOCK));
-        builder.addMethod(addRawInputStartup(LONG_BLOCK));
         builder.addMethod(addRawInputLoop(LONG_BLOCK, valueBlockType(init, combine)));
         builder.addMethod(addRawInputLoop(LONG_BLOCK, valueVectorType(init, combine)));
         builder.addMethod(addRawInputLoop(LONG_BLOCK, BLOCK));
@@ -247,28 +248,59 @@ public class GroupingAggregatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec addRawInputStartup(TypeName groupsType) {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
-        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        builder.addParameter(groupsType, "groups").addParameter(PAGE, "page");
-        builder.addStatement("assert groups.getPositionCount() == page.getPositionCount()");
+    /**
+     * Prepare to process a single page of results.
+     */
+    private MethodSpec prepareProcessPage() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareProcessPage");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
+        builder.addParameter(PAGE, "page");
+
         builder.addStatement("$T uncastValuesBlock = page.getBlock(channels.get(0))", BLOCK);
         builder.beginControlFlow("if (uncastValuesBlock.areAllValuesNull())");
         {
-            builder.addStatement("addRawInputAllNulls(groups, uncastValuesBlock)");
-            builder.addStatement("return");
+            builder.addStatement(
+                "return $L",
+                addInput(b -> b.addStatement("addRawInputAllNulls(positionOffset, groupIds, uncastValuesBlock)"))
+            );
         }
         builder.endControlFlow();
         builder.addStatement("$T valuesBlock = ($T) uncastValuesBlock", valueBlockType(init, combine), valueBlockType(init, combine));
         builder.addStatement("$T valuesVector = valuesBlock.asVector()", valueVectorType(init, combine));
         builder.beginControlFlow("if (valuesVector == null)");
-        builder.addStatement("addRawInput(groups, valuesBlock)");
-        builder.nextControlFlow("else");
-        builder.addStatement("addRawInput(groups, valuesVector)");
+        {
+            builder.addStatement("return $L", addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesBlock)")));
+        }
         builder.endControlFlow();
+        builder.addStatement("return $L", addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesVector)")));
         return builder.build();
     }
 
+    /**
+     * Generate an {@code AddInput} implementation. That's a collection path optimized for the input data.
+     */
+    private TypeSpec addInput(Consumer<MethodSpec.Builder> addBlock) {
+        TypeSpec.Builder builder = TypeSpec.anonymousClassBuilder("");
+        builder.addSuperinterface(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
+
+        MethodSpec.Builder block = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        block.addParameter(TypeName.INT, "positionOffset").addParameter(LONG_BLOCK, "groupIds");
+        addBlock.accept(block);
+        builder.addMethod(block.build());
+
+        MethodSpec.Builder vector = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        vector.addParameter(TypeName.INT, "positionOffset").addParameter(LONG_VECTOR, "groupIds");
+        addBlock.accept(vector);
+        builder.addMethod(vector.build());
+
+        return builder.build();
+    }
+
+    /**
+     * Generate an {@code addRawInput} method to perform the actual aggregation.
+     * @param groupsType The type of the group key, always {@code LongBlock} or {@code LongVector}
+     * @param valuesType The type of the values to consume, always a subclass of {@code Block} or a subclass of {@code Vector}
+     */
     private MethodSpec addRawInputLoop(TypeName groupsType, TypeName valuesType) {
         boolean groupsIsBlock = groupsType.toString().endsWith("Block");
         enum ValueType {
@@ -285,41 +317,42 @@ public class GroupingAggregatorImplementer {
         }
         MethodSpec.Builder builder = MethodSpec.methodBuilder(methodName);
         builder.addModifiers(Modifier.PRIVATE);
-        builder.addParameter(groupsType, "groups").addParameter(valuesType, "values");
+        builder.addParameter(TypeName.INT, "positionOffset").addParameter(groupsType, "groups").addParameter(valuesType, "values");
         if (valuesIsBytesRef) {
             // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
             builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
         }
-        builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
+
+        builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
             if (groupsIsBlock) {
-                builder.beginControlFlow("if (groups.isNull(position))");
+                builder.beginControlFlow("if (groups.isNull(groupPosition))");
                 builder.addStatement("continue");
                 builder.endControlFlow();
-                builder.addStatement("int groupStart = groups.getFirstValueIndex(position)");
-                builder.addStatement("int groupEnd = groupStart + groups.getValueCount(position)");
+                builder.addStatement("int groupStart = groups.getFirstValueIndex(groupPosition)");
+                builder.addStatement("int groupEnd = groupStart + groups.getValueCount(groupPosition)");
                 builder.beginControlFlow("for (int g = groupStart; g < groupEnd; g++)");
                 builder.addStatement("int groupId = Math.toIntExact(groups.getLong(g))");
             } else {
-                builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
+                builder.addStatement("int groupId = Math.toIntExact(groups.getLong(groupPosition))");
             }
 
             switch (valueType) {
-                case VECTOR -> combineRawInput(builder, "values", "position");
+                case VECTOR -> combineRawInput(builder, "values", "groupPosition + positionOffset");
                 case TYPED_BLOCK -> {
-                    builder.beginControlFlow("if (values.isNull(position))");
+                    builder.beginControlFlow("if (values.isNull(groupPosition + positionOffset))");
                     builder.addStatement("state.putNull(groupId)");
                     builder.addStatement("continue");
                     builder.endControlFlow();
-                    builder.addStatement("int valuesStart = values.getFirstValueIndex(position)");
-                    builder.addStatement("int valuesEnd = valuesStart + values.getValueCount(position)");
+                    builder.addStatement("int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset)");
+                    builder.addStatement("int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset)");
                     builder.beginControlFlow("for (int v = valuesStart; v < valuesEnd; v++)");
                     combineRawInput(builder, "values", "v");
                     builder.endControlFlow();
                 }
                 case NULL_ONLY_BLOCK -> {
-                    builder.addStatement("assert values.isNull(position)");
-                    builder.addStatement("state.putNull(groupId)");
+                    builder.addStatement("assert values.isNull(groupPosition + positionOffset)");
+                    builder.addStatement("state.putNull(groupPosition + positionOffset)");
                 }
             }
 

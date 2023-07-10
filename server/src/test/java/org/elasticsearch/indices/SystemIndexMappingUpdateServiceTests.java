@@ -68,7 +68,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
         .setIndexPattern(".myindex-*")
         .setPrimaryIndex(SYSTEM_INDEX_NAME)
         .setAliasName(".myindex")
-        .setIndexFormat(6)
+        .setIndexFormat(new SystemIndexDescriptor.IndexFormat(6, null))
         .setSettings(getSettings())
         .setMappings(getMappings())
         .setVersionMetaKey("version")
@@ -99,7 +99,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .setPrimaryIndex(".bar-1")
             .setMappings(getMappings())
             .setSettings(getSettings())
-            .setIndexFormat(6)
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(6, null))
             .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
@@ -133,7 +133,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .setPrimaryIndex(".foo-1")
             .setMappings(getMappings())
             .setSettings(getSettings())
-            .setIndexFormat(6)
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(6, null))
             .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
@@ -142,7 +142,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .setPrimaryIndex(".bar-1")
             .setMappings(getMappings())
             .setSettings(getSettings())
-            .setIndexFormat(6)
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(6, null))
             .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();

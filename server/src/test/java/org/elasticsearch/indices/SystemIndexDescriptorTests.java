@@ -162,7 +162,10 @@ public class SystemIndexDescriptorTests extends ESTestCase {
 
     public void testPriorSystemIndexDescriptorValidation() {
         SystemIndexDescriptor prior = priorSystemIndexDescriptorBuilder().build();
-        int incrementedIndexFormat = prior.getIndexFormat() + 1;
+        SystemIndexDescriptor.IndexFormat incrementedIndexFormat = new SystemIndexDescriptor.IndexFormat(
+            prior.getIndexFormat() + 1,
+            "1234"
+        );
 
         // same minimum node version
         IllegalArgumentException iae = expectThrows(
@@ -180,12 +183,16 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         );
         assertThat(iae.getMessage(), containsString("has minimum node version [7.0.0] which is after [6.8.0]"));
 
+        SystemIndexDescriptor.IndexFormat outerIndexFormat = new SystemIndexDescriptor.IndexFormat(
+            incrementedIndexFormat.version() + 1,
+            "1234"
+        );
         // prior has another prior!
         iae = expectThrows(
             IllegalArgumentException.class,
             () -> priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.V_7_5_0)
-                .setIndexFormat(incrementedIndexFormat + 1)
-                .setSettings(buildIndexFormatSettings(incrementedIndexFormat + 1))
+                .setIndexFormat(outerIndexFormat)
+                .setSettings(buildIndexFormatSettings(outerIndexFormat))
                 .setPriorSystemIndexDescriptors(
                     List.of(
                         SystemIndexDescriptor.builder()
@@ -268,15 +275,19 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setVersionMetaKey("version")
             .setOrigin("system")
             .setMinimumNodeVersion(Version.V_7_0_0)
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
             .build();
-        int incrementedIndexFormat = prior.getIndexFormat() + 1;
+        SystemIndexDescriptor.IndexFormat incrementedIndexFormat = new SystemIndexDescriptor.IndexFormat(
+            prior.getIndexFormat() + 1,
+            "1234"
+        );
         final SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
             .setDescription("system stuff")
             .setPrimaryIndex(".system-1")
             .setAliasName(".system")
             .setType(Type.INTERNAL_MANAGED)
-            .setSettings(buildIndexFormatSettings(1))
+            .setSettings(buildIndexFormatSettings(incrementedIndexFormat))
             .setMappings(mappings)
             .setVersionMetaKey("version")
             .setOrigin("system")
@@ -311,6 +322,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setType(Type.INTERNAL_MANAGED)
             .setMappings(MAPPINGS)
             .setVersionMetaKey("version")
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
             .setOrigin("system");
 
         builder.setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
@@ -349,7 +361,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setType(Type.INTERNAL_MANAGED)
             .setMappings(MAPPINGS)
             .setSettings(Settings.builder().put("index.format", 5).build())
-            .setIndexFormat(0)
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
             .setVersionMetaKey("version")
             .setOrigin("system");
 
@@ -369,11 +381,12 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setMappings(MAPPINGS)
             .setVersionMetaKey("version")
             .setOrigin("system")
+            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
             .setMinimumNodeVersion(Version.V_7_0_0);
     }
 
-    private static Settings buildIndexFormatSettings(int indexFormat) {
-        return Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), indexFormat).build();
+    private static Settings buildIndexFormatSettings(SystemIndexDescriptor.IndexFormat indexFormat) {
+        return Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), indexFormat.version()).build();
     }
 
 }

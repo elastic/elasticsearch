@@ -643,7 +643,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         private String mappings = null;
         private Settings settings = null;
         private String aliasName = null;
-        private int indexFormat = 0;
+        private IndexFormat indexFormat = new IndexFormat(0, null);
         private String versionMetaKey = null;
         private String origin = null;
         private Version minimumNodeVersion = Version.CURRENT.minimumCompatibilityVersion();
@@ -695,7 +695,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         // * security system indices
         // * watcher
         // * tests
-        public Builder setIndexFormat(int indexFormat) {
+        public Builder setIndexFormat(IndexFormat indexFormat) {
             this.indexFormat = indexFormat;
             return this;
         }
@@ -765,7 +765,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 mappings,
                 settings,
                 aliasName,
-                new IndexFormat(indexFormat, "1234"),
+                indexFormat,
                 versionMetaKey,
                 origin,
                 minimumNodeVersion,

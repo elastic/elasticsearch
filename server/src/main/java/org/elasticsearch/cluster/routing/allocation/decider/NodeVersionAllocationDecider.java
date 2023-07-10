@@ -123,7 +123,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "max index version [%s] is the same or newer than snapshot version [%s]",
+                "max supported index version [%s] is the same or newer than snapshot version [%s]",
                 target.node().getMaxIndexVersion(),
                 recoverySource.version()
             );
@@ -131,7 +131,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "max index version [%s] is older than the snapshot version [%s]",
+                "max supported index version [%s] is older than the snapshot version [%s]",
                 target.node().getMaxIndexVersion(),
                 recoverySource.version()
             );

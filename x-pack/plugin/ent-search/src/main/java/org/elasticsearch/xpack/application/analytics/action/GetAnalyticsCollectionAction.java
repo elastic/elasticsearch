@@ -13,16 +13,20 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollectionAction.Response> {
 
@@ -33,11 +37,13 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
         super(NAME, GetAnalyticsCollectionAction.Response::new);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends MasterNodeReadRequest<Request> implements ToXContentObject {
         private final String[] names;
 
+        public static ParseField NAMES_FIELD = new ParseField("names");
+
         public Request(String[] names) {
-            this.names = Objects.requireNonNull(names);
+            this.names = Objects.requireNonNull(names, "Collection names cannot be null");
         }
 
         public Request(StreamInput in) throws IOException {
@@ -71,6 +77,27 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Arrays.equals(this.names, request.names);
+        }
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
+            "get_analytics_collection_request",
+            p -> new Request(((List<String>) p[0]).toArray(String[]::new))
+        );
+        static {
+            PARSER.declareStringArray(constructorArg(), NAMES_FIELD);
+        }
+
+        public static Request parse(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(NAMES_FIELD.getPreferredName(), names);
+            builder.endObject();
+            return builder;
         }
     }
 

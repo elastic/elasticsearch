@@ -6,7 +6,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.graph.Graph'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-graph'
+base {
+  archivesName = 'x-pack-graph'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

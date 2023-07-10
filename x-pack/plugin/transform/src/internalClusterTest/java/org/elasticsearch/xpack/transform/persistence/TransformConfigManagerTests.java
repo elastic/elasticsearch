@@ -752,7 +752,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         for (String index : indexes) {
             IndexMetadata.Builder builder = new IndexMetadata.Builder(index).settings(
                 Settings.builder()
-                    .put(TransformInternalIndex.settings())
+                    .put(TransformInternalIndex.settings(Settings.EMPTY))
                     .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
                     .build()
             ).numberOfReplicas(0).numberOfShards(1).putMapping(Strings.toString(TransformInternalIndex.mappings()));

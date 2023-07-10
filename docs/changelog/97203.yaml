@@ -1,0 +1,5 @@
+pr: 97203
+summary: Fix possible NPE when transportversion is null in `MainResponse`
+area: Infra/REST API
+type: bug
+issues: []

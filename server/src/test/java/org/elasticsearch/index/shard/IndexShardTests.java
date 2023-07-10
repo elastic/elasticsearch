@@ -61,6 +61,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
@@ -70,6 +71,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -155,6 +157,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -2612,7 +2615,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 snapshot,
-                Version.CURRENT,
+                IndexVersion.current(),
                 new IndexId("test", UUIDs.randomBase64UUID(random()))
             )
         );
@@ -4043,6 +4046,68 @@ public class IndexShardTests extends IndexShardTestCase {
             Loggers.removeAppender(LogManager.getLogger(Engine.class), mockLogAppender);
             mockLogAppender.stop();
         }
+    }
+
+    public void testFlushOnIdleAfterOp() throws Exception {
+        // Holding the write lock makes the index/delete op to halt before being processed by the engine
+        final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
+        final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
+        final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, new IndexingOperationListener() {
+            @Override
+            public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
+                try (ReleasableLock lock = readLock.acquire()) {
+                    return operation;
+                }
+            }
+
+            @Override
+            public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
+                try (ReleasableLock lock = readLock.acquire()) {
+                    return delete;
+                }
+            }
+        });
+
+        indexDoc(shard, "_doc", "0");
+        indexDoc(shard, "_doc", "1");
+
+        // Do a flush on idle
+        long flushesBefore = shard.flushStats().getPeriodic();
+        shard.flushOnIdle(0);
+        assertBusy(() -> assertThat(shard.flushStats().getPeriodic(), equalTo(flushesBefore + 1)));
+        assertFalse(shard.isActive());
+
+        // Index or delete a doc and halt it before being processed by the engine
+        boolean indexElseDelete = randomBoolean();
+        Thread t = new Thread(() -> {
+            try {
+                if (indexElseDelete) {
+                    indexDoc(shard, "_doc", "2");
+                } else {
+                    deleteDoc(shard, "0");
+                }
+            } catch (IOException e) {
+                throw new AssertionError("failed while processing op [" + e.getMessage() + "]");
+            }
+        });
+        try (ReleasableLock lock = writeLock.acquire()) {
+            t.start();
+            assertBusy(() -> assertThat(rwl.getQueueLength(), equalTo(1)));
+            assertFalse(shard.isActive());
+        } // Allow op to complete
+
+        t.join();
+
+        assertTrue(shard.isActive()); // should become active after the op has completed
+
+        // Do a flush on idle
+        shard.flushOnIdle(0);
+        assertBusy(() -> assertThat(shard.flushStats().getPeriodic(), equalTo(flushesBefore + 2)));
+        assertThat(shard.translogStats().getUncommittedOperations(), equalTo(0));
+        assertFalse(shard.isActive());
+
+        closeShards(shard);
     }
 
     public void testOnCloseStats() throws IOException {

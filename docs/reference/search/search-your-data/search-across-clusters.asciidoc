@@ -32,6 +32,9 @@ run {es} on your own hardware, see <<remote-clusters>>.
 To ensure your remote cluster configuration supports {ccs}, see
 <<ccs-supported-configurations>>.
 
+* For full {ccs} capabilities, the local and remote cluster must be on the same
+{subscriptions}[subscription level].
+
 * The local coordinating node must have the
 <<remote-node,`remote_cluster_client`>> node role.
 

@@ -923,8 +923,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                             .entry(
                                 "filters",
                                 matchesList().item(
-                                    matchesMap().entry("query", "MatchNoDocsQuery(\"User requested \"match_none\" query.\")")
-                                        .entry("segments_counted_in_constant_time", greaterThan(0))
+                                    matchesMap().entry(
+                                        "query",
+                                        "MatchNoDocsQuery(\"The \"range\" query was rewritten to a \"match_none\" query.\")"
+                                    ).entry("segments_counted_in_constant_time", greaterThan(0))
                                 )
                             )
                     )
@@ -960,8 +962,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                             .entry(
                                 "filters",
                                 matchesList().item(
-                                    matchesMap().entry("query", "MatchNoDocsQuery(\"User requested \"match_none\" query.\")")
-                                        .entry("segments_counted_in_constant_time", greaterThan(0))
+                                    matchesMap().entry(
+                                        "query",
+                                        "MatchNoDocsQuery(\"The \"range\" query was rewritten to a \"match_none\" query.\")"
+                                    ).entry("segments_counted_in_constant_time", greaterThan(0))
                                 )
                             )
                     )

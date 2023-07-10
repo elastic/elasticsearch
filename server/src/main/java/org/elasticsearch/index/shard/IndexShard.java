@@ -1031,58 +1031,61 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine.IndexResult index(Engine engine, Engine.Index index) throws IOException {
-        active.set(true);
-        final Engine.IndexResult result;
-        final Engine.Index preIndex = indexingOperationListeners.preIndex(shardId, index);
         try {
-            if (logger.isTraceEnabled()) {
-                // don't use index.source().utf8ToString() here source might not be valid UTF-8
-                logger.trace(
-                    "index [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
-                    preIndex.id(),
-                    preIndex.seqNo(),
-                    routingEntry().allocationId(),
-                    preIndex.primaryTerm(),
-                    getOperationPrimaryTerm(),
-                    preIndex.origin()
-                );
-            }
-            result = engine.index(preIndex);
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] "
-                        + "result-seq# [{}] result-term [{}] failure [{}]",
-                    preIndex.id(),
-                    preIndex.seqNo(),
-                    routingEntry().allocationId(),
-                    preIndex.primaryTerm(),
-                    getOperationPrimaryTerm(),
-                    preIndex.origin(),
-                    result.getSeqNo(),
-                    result.getTerm(),
-                    result.getFailure()
-                );
-            }
-        } catch (Exception e) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    () -> format(
-                        "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s]",
+            final Engine.IndexResult result;
+            final Engine.Index preIndex = indexingOperationListeners.preIndex(shardId, index);
+            try {
+                if (logger.isTraceEnabled()) {
+                    // don't use index.source().utf8ToString() here source might not be valid UTF-8
+                    logger.trace(
+                        "index [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
                         preIndex.id(),
                         preIndex.seqNo(),
                         routingEntry().allocationId(),
                         preIndex.primaryTerm(),
                         getOperationPrimaryTerm(),
                         preIndex.origin()
-                    ),
-                    e
-                );
+                    );
+                }
+                result = engine.index(preIndex);
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] "
+                            + "result-seq# [{}] result-term [{}] failure [{}]",
+                        preIndex.id(),
+                        preIndex.seqNo(),
+                        routingEntry().allocationId(),
+                        preIndex.primaryTerm(),
+                        getOperationPrimaryTerm(),
+                        preIndex.origin(),
+                        result.getSeqNo(),
+                        result.getTerm(),
+                        result.getFailure()
+                    );
+                }
+            } catch (Exception e) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        () -> format(
+                            "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s]",
+                            preIndex.id(),
+                            preIndex.seqNo(),
+                            routingEntry().allocationId(),
+                            preIndex.primaryTerm(),
+                            getOperationPrimaryTerm(),
+                            preIndex.origin()
+                        ),
+                        e
+                    );
+                }
+                indexingOperationListeners.postIndex(shardId, preIndex, e);
+                throw e;
             }
-            indexingOperationListeners.postIndex(shardId, preIndex, e);
-            throw e;
+            indexingOperationListeners.postIndex(shardId, preIndex, result);
+            return result;
+        } finally {
+            active.set(true);
         }
-        indexingOperationListeners.postIndex(shardId, preIndex, result);
-        return result;
     }
 
     public Engine.NoOpResult markSeqNoAsNoop(long seqNo, long opPrimaryTerm, String reason) throws IOException {
@@ -1100,11 +1103,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine.NoOpResult noOp(Engine engine, Engine.NoOp noOp) throws IOException {
-        active.set(true);
-        if (logger.isTraceEnabled()) {
-            logger.trace("noop (seq# [{}])", noOp.seqNo());
+        try {
+            if (logger.isTraceEnabled()) {
+                logger.trace("noop (seq# [{}])", noOp.seqNo());
+            }
+            return engine.noOp(noOp);
+        } finally {
+            active.set(true);
         }
-        return engine.noOp(noOp);
     }
 
     public Engine.IndexResult getFailedIndexResult(Exception e, long version, String id) {
@@ -1164,23 +1170,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert opPrimaryTerm <= getOperationPrimaryTerm()
             : "op term [ " + opPrimaryTerm + " ] > shard term [" + getOperationPrimaryTerm() + "]";
         ensureWriteAllowed(origin);
-        active.set(true);
-        Engine.Delete delete = indexingOperationListeners.preDelete(
-            shardId,
-            prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm)
-        );
-        final Engine.DeleteResult result;
         try {
-            if (logger.isTraceEnabled()) {
-                logger.trace("delete [{}] (seq no [{}])", delete.uid().text(), delete.seqNo());
+            Engine.Delete delete = indexingOperationListeners.preDelete(
+                shardId,
+                prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm)
+            );
+            final Engine.DeleteResult result;
+            try {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("delete [{}] (seq no [{}])", delete.uid().text(), delete.seqNo());
+                }
+                result = engine.delete(delete);
+            } catch (Exception e) {
+                indexingOperationListeners.postDelete(shardId, delete, e);
+                throw e;
             }
-            result = engine.delete(delete);
-        } catch (Exception e) {
-            indexingOperationListeners.postDelete(shardId, delete, e);
-            throw e;
+            indexingOperationListeners.postDelete(shardId, delete, result);
+            return result;
+        } finally {
+            active.set(true);
         }
-        indexingOperationListeners.postDelete(shardId, delete, result);
-        return result;
     }
 
     public static Engine.Delete prepareDelete(
@@ -2068,7 +2077,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mapperService() == null) {
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
-        final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TIMESTAMP_FIELD_NAME);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
             return ShardLongFieldRange.UNKNOWN; // field missing or not a date
         }
@@ -2078,7 +2087,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         final ShardLongFieldRange rawTimestampFieldRange;
         try {
-            rawTimestampFieldRange = getEngine().getRawFieldRange(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            rawTimestampFieldRange = getEngine().getRawFieldRange(DataStream.TIMESTAMP_FIELD_NAME);
             assert rawTimestampFieldRange != null;
         } catch (IOException | AlreadyClosedException e) {
             logger.debug("exception obtaining range for timestamp field", e);
@@ -2228,6 +2237,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     @Override
                     public void onFailure(Exception e) {
                         if (state != IndexShardState.CLOSED) {
+                            active.set(true);
                             logger.warn("failed to flush shard on inactive", e);
                         }
                     }
@@ -3627,7 +3637,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * listener handles all exception cases internally.
      */
     public final void syncAfterWrite(Translog.Location location, Consumer<Exception> syncListener) {
-        assert indexShardOperationPermits.getActiveOperationsCount() != 0;
+        // TODO AwaitsFix https://github.com/elastic/elasticsearch/issues/97183
+        // assert indexShardOperationPermits.getActiveOperationsCount() != 0;
         verifyNotClosed();
         getEngine().asyncEnsureTranslogSynced(location, syncListener);
     }

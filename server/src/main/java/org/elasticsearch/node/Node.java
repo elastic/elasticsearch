@@ -108,6 +108,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.DiskHealthIndicatorService;
@@ -359,11 +360,11 @@ public class Node implements Closeable {
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                Build.CURRENT.qualifiedVersion(),
+                Build.current().qualifiedVersion(),
                 jvmInfo.pid(),
-                Build.CURRENT.type().displayName(),
-                Build.CURRENT.hash(),
-                Build.CURRENT.date(),
+                Build.current().type().displayName(),
+                Build.current().hash(),
+                Build.current().date(),
                 Constants.OS_NAME,
                 Constants.OS_VERSION,
                 Constants.OS_ARCH,
@@ -374,10 +375,10 @@ public class Node implements Closeable {
             );
             logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
-            if (Build.CURRENT.isProductionRelease() == false) {
+            if (Build.current().isProductionRelease() == false) {
                 logger.warn(
                     "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                    Build.CURRENT.qualifiedVersion()
+                    Build.current().qualifiedVersion()
                 );
             }
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
@@ -1029,7 +1030,9 @@ public class Node implements Closeable {
                 threadPool,
                 systemIndices
             );
-            HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService);
+            HealthPeriodicLogger healthPeriodicLogger = createHealthPeriodicLogger(clusterService, settings, client, healthService);
+            healthPeriodicLogger.init();
+            HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
             HealthApiStats healthApiStats = new HealthApiStats();
@@ -1088,6 +1091,7 @@ public class Node implements Closeable {
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(
                             new PeerRecoveryTargetService(
+                                client,
                                 threadPool,
                                 transportService,
                                 recoverySettings,
@@ -1135,6 +1139,7 @@ public class Node implements Closeable {
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
+                b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1282,6 +1287,15 @@ public class Node implements Closeable {
             concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
             threadPool
         );
+    }
+
+    private HealthPeriodicLogger createHealthPeriodicLogger(
+        ClusterService clusterService,
+        Settings settings,
+        NodeClient client,
+        HealthService healthService
+    ) {
+        return new HealthPeriodicLogger(settings, clusterService, client, healthService);
     }
 
     private RecoveryPlannerService getRecoveryPlannerService(
@@ -1658,6 +1672,7 @@ public class Node implements Closeable {
             toClose.add(injector.getInstance(ReadinessService.class));
         }
         toClose.add(injector.getInstance(FileSettingsService.class));
+        toClose.add(injector.getInstance(HealthPeriodicLogger.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

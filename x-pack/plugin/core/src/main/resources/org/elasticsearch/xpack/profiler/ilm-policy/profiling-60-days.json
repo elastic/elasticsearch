@@ -18,9 +18,6 @@
       "actions": {
         "set_priority": {
           "priority": 50
-        },
-        "forcemerge": {
-          "max_num_segments": 1
         }
       }
     },

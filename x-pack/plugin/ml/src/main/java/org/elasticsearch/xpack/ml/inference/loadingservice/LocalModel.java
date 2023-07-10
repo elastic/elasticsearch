@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -59,6 +60,7 @@ public class LocalModel implements Closeable {
     private final CircuitBreaker trainedModelCircuitBreaker;
     private final AtomicLong referenceCount;
     private final long cachedRamBytesUsed;
+    private final TrainedModelType trainedModelType;
 
     LocalModel(
         String modelId,
@@ -68,6 +70,7 @@ public class LocalModel implements Closeable {
         Map<String, String> defaultFieldMap,
         InferenceConfig modelInferenceConfig,
         License.OperationMode licenseLevel,
+        TrainedModelType trainedModelType,
         TrainedModelStatsService trainedModelStatsService,
         CircuitBreaker trainedModelCircuitBreaker
     ) {
@@ -85,6 +88,7 @@ public class LocalModel implements Closeable {
         this.licenseLevel = licenseLevel;
         this.trainedModelCircuitBreaker = trainedModelCircuitBreaker;
         this.referenceCount = new AtomicLong(1);
+        this.trainedModelType = trainedModelType;
     }
 
     long ramBytesUsed() {
@@ -92,6 +96,14 @@ public class LocalModel implements Closeable {
         // This is because the caching system calls this method on every promotion call that changes the LRU head
         // Consequently, recalculating can cause serious throughput issues due to LRU changes in the cache
         return cachedRamBytesUsed;
+    }
+
+    public InferenceConfig getInferenceConfig() {
+        return inferenceConfig;
+    }
+
+    TrainedModelType getTrainedModelType() {
+        return trainedModelType;
     }
 
     public String getModelId() {

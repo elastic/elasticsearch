@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -77,10 +79,11 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
+import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.rollup.Rollup;
@@ -583,12 +586,15 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         IndexService indexService = indexServices.indexServiceSafe(srcIndex);
         int shardNum = randomIntBetween(0, numOfShards - 1);
         IndexShard shard = indexService.getShard(shardNum);
+
         RollupShardTask task = new RollupShardTask(
             randomLong(),
             "rollup",
             "action",
             TaskId.EMPTY_TASK_ID,
             rollupIndex,
+            indexService.getIndexSettings().getTimestampBounds().startTime(),
+            indexService.getIndexSettings().getTimestampBounds().endTime(),
             config,
             emptyMap(),
             shard.shardId()
@@ -658,6 +664,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             "action",
             TaskId.EMPTY_TASK_ID,
             rollupIndex,
+            indexService.getIndexSettings().getTimestampBounds().startTime(),
+            indexService.getIndexSettings().getTimestampBounds().endTime(),
             config,
             emptyMap(),
             shard.shardId()
@@ -681,6 +689,83 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         indexer.rollupMaxBytesInFlight = ByteSizeValue.ofBytes(1024);
         indexer.rollupBulkSize = ByteSizeValue.ofBytes(512);
         indexer.execute();
+    }
+
+    public void testRollupStats() throws IOException {
+        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        final SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
+            .endObject();
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+
+        final IndicesService indexServices = getInstanceFromNode(IndicesService.class);
+        final Index resolvedSourceIndex = resolveIndex(sourceIndex);
+        final IndexService indexService = indexServices.indexServiceSafe(resolvedSourceIndex);
+        for (int shardNum = 0; shardNum < numOfShards; shardNum++) {
+            final IndexShard shard = indexService.getShard(shardNum);
+            final RollupShardTask task = new RollupShardTask(
+                randomLong(),
+                "rollup",
+                "action",
+                TaskId.EMPTY_TASK_ID,
+                rollupIndex,
+                indexService.getIndexSettings().getTimestampBounds().startTime(),
+                indexService.getIndexSettings().getTimestampBounds().endTime(),
+                config,
+                emptyMap(),
+                shard.shardId()
+            );
+
+            final RollupShardIndexer indexer = new RollupShardIndexer(
+                task,
+                client(),
+                indexService,
+                shard.shardId(),
+                rollupIndex,
+                config,
+                new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
+                new String[] {}
+            );
+
+            assertEquals(0.0F, task.getDocsProcessedPercentage(), 0.001);
+            assertEquals(0L, task.getRollupBulkInfo().totalBulkCount());
+            assertEquals(0L, task.getRollupBulkInfo().bulkTookSumMillis());
+            assertEquals(0L, task.getRollupBulkInfo().bulkIngestSumMillis());
+            assertEquals(RollupShardIndexerStatus.INITIALIZED, task.getRollupShardIndexerStatus());
+
+            final DownsampleIndexerAction.ShardDownsampleResponse executeResponse = indexer.execute();
+
+            assertEquals(executeResponse.getNumIndexed(), task.getNumIndexed());
+            assertEquals(task.getNumReceived(), task.getTotalShardDocCount());
+            assertEquals(indexService.getShard(shardNum).docStats().getCount(), task.getTotalShardDocCount());
+            assertEquals(100.0F, task.getDocsProcessedPercentage(), 0.001);
+            assertTrue(task.getRollupBulkInfo().bulkTookSumMillis() >= 0);
+            assertEquals(task.getRollupBulkInfo().bulkIngestSumMillis(), task.getRollupBulkInfo().maxBulkIngestMillis());
+            assertEquals(task.getRollupBulkInfo().bulkIngestSumMillis(), task.getRollupBulkInfo().minBulkIngestMillis());
+            assertTrue(task.getRollupBulkInfo().bulkTookSumMillis() >= 0);
+            assertEquals(task.getRollupBulkInfo().bulkTookSumMillis(), task.getRollupBulkInfo().maxBulkTookMillis());
+            assertEquals(task.getRollupBulkInfo().bulkTookSumMillis(), task.getRollupBulkInfo().minBulkTookMillis());
+            assertEquals(1L, task.getRollupBulkInfo().totalBulkCount());
+            assertEquals(indexService.getIndexSettings().getTimestampBounds().startTime(), task.getIndexStartTimeMillis());
+            assertEquals(indexService.getIndexSettings().getTimestampBounds().endTime(), task.getIndexEndTimeMillis());
+            assertEquals(RollupShardIndexerStatus.COMPLETED, task.getRollupShardIndexerStatus());
+            assertEquals(task.getNumSent(), task.getNumIndexed());
+            assertEquals(task.getNumIndexed(), task.getLastBeforeBulkInfo().numberOfActions());
+            assertTrue(task.getLastBeforeBulkInfo().estimatedSizeInBytes() > 0);
+            assertFalse(task.getLastAfterBulkInfo().hasFailures());
+            assertEquals(RestStatus.OK.getStatus(), task.getLastAfterBulkInfo().restStatusCode());
+            assertTrue(task.getLastAfterBulkInfo().lastTookInMillis() >= 0);
+            assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastIndexingTimestamp());
+            assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastSourceTimestamp());
+            assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastTargetTimestamp());
+            assertTrue(indexService.getIndexSettings().getTimestampBounds().endTime() >= task.getLastIndexingTimestamp());
+            assertTrue(indexService.getIndexSettings().getTimestampBounds().endTime() >= task.getLastSourceTimestamp());
+            assertTrue(indexService.getIndexSettings().getTimestampBounds().endTime() >= task.getLastTargetTimestamp());
+        }
     }
 
     private DateHistogramInterval randomInterval() {

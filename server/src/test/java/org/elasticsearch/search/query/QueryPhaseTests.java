@@ -232,6 +232,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertEquals(TotalHits.Relation.EQUAL_TO, context.queryResult().topDocs().topDocs.totalHits.relation);
         }
         {
+            // shortcutTotalHitCount makes us not track total hits as part of the top docs collection, hence size is the threshold
             TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 10), new MatchAllDocsQuery());
             context.setSize(10);
             QueryPhase.addCollectorsAndSearch(context);
@@ -239,7 +240,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertEquals(TotalHits.Relation.EQUAL_TO, context.queryResult().topDocs().topDocs.totalHits.relation);
         }
         {
-            // FilteredCollector does not propagate Weight#count, hence it forces collection despite
+            // QueryPhaseCollector does not propagate Weight#count when a post_filter is provided, hence it forces collection despite
             // the inner TotalHitCountCollector can shortcut
             TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
             context.setSize(0);
@@ -281,6 +282,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertEquals(TotalHits.Relation.EQUAL_TO, context.queryResult().topDocs().topDocs.totalHits.relation);
         }
         {
+            // shortcutTotalHitCount makes us not track total hits as part of the top docs collection, hence size is the threshold
             TestSearchContext context = createContext(earlyTerminationContextSearcher(reader, 10), new MatchAllDocsQuery());
             context.setSize(10);
             QueryPhase.addCollectorsAndSearch(context);
@@ -288,7 +290,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertEquals(TotalHits.Relation.EQUAL_TO, context.queryResult().topDocs().topDocs.totalHits.relation);
         }
         {
-            // MinimumScoreCollector does not propagate Weight#count, hence it forces collection despite
+            // QueryPhaseCollector does not propagate Weight#count when min_score is provided, hence it forces collection despite
             // the inner TotalHitCountCollector can shortcut
             TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
             context.setSize(0);
@@ -432,11 +434,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
      */
     public void testTerminateAfterSize0NoHitCountShortcut() throws Exception {
         indexDocs();
-        BooleanQuery bq = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
-            .add(new TermQuery(new Term("foo", "baz")), Occur.SHOULD)
-            .build();
+        Query query = new NonCountingTermQuery(new Term("foo", "bar"));
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), bq);
+            TestSearchContext context = createContext(newContextSearcher(reader), query);
             context.terminateAfter(1);
             context.setSize(0);
             QueryPhase.executeQuery(context);
@@ -447,7 +447,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         // test interaction between trackTotalHits and terminateAfter
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), bq);
+            TestSearchContext context = createContext(newContextSearcher(reader), query);
             context.terminateAfter(10);
             context.setSize(0);
             context.trackTotalHitsUpTo(-1);
@@ -458,7 +458,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), bq);
+            TestSearchContext context = createContext(newContextSearcher(reader), query);
             context.terminateAfter(10);
             context.setSize(0);
             // track total hits is lower than terminate_after
@@ -471,7 +471,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), bq);
+            TestSearchContext context = createContext(newContextSearcher(reader), query);
             context.terminateAfter(10);
             context.setSize(0);
             // track total hits is higher than terminate_after

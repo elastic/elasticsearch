@@ -135,6 +135,7 @@ import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobModelSnapshotsUpgradeStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
@@ -190,6 +191,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNam
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -236,6 +238,7 @@ import org.elasticsearch.xpack.ml.action.TransportGetInfluencersAction;
 import org.elasticsearch.xpack.ml.action.TransportGetJobModelSnapshotsUpgradeStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetJobsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetJobsStatsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetMlAutoscalingStats;
 import org.elasticsearch.xpack.ml.action.TransportGetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetRecordsAction;
@@ -1414,6 +1417,7 @@ public class MachineLearning extends Plugin
         actionHandlers.add(new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetResetModeAction.class));
         // Included in this section as it's used by MlMemoryAction
         actionHandlers.add(new ActionHandler<>(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class));
+        actionHandlers.add(new ActionHandler<>(GetMlAutoscalingStats.INSTANCE, TransportGetMlAutoscalingStats.class));
         if (machineLearningExtension.get().isAnomalyDetectionEnabled()) {
             actionHandlers.add(new ActionHandler<>(GetJobsAction.INSTANCE, TransportGetJobsAction.class));
             actionHandlers.add(new ActionHandler<>(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class));
@@ -1755,6 +1759,10 @@ public class MachineLearning extends Plugin
             )
         );
         namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
+        // LTR Combine with Inference named content provider when feature flag is removed
+        if (InferenceRescorerFeature.isEnabled()) {
+            namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
+        }
         return namedXContent;
     }
 
@@ -1839,7 +1847,10 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
-
+        // LTR Combine with Inference named content provider when feature flag is removed
+        if (InferenceRescorerFeature.isEnabled()) {
+            namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
+        }
         return namedWriteables;
     }
 

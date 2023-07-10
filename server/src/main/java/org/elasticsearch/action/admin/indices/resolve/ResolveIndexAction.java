@@ -636,9 +636,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     case DATA_STREAM -> {
                         DataStream dataStream = (DataStream) ia;
                         String[] backingIndices = dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new);
-                        dataStreams.add(
-                            new ResolvedDataStream(dataStream.getName(), backingIndices, dataStream.getTimeStampField().getName())
-                        );
+                        dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
                     }
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
                 }

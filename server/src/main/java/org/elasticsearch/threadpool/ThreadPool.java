@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
@@ -188,19 +189,40 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.GENERIC,
             new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
         );
-        builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, true));
-        builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, searchOrGetThreadPoolSize(allocatedProcessors), 1000, false));
-        builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16, false));
+        builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, new TaskTrackingConfig(0.1)));
+        builders.put(
+            Names.GET,
+            new FixedExecutorBuilder(
+                settings,
+                Names.GET,
+                searchOrGetThreadPoolSize(allocatedProcessors),
+                1000,
+                TaskTrackingConfig.DO_NOT_TRACK
+            )
+        );
+        builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16, TaskTrackingConfig.DO_NOT_TRACK));
         builders.put(
             Names.SEARCH,
-            new FixedExecutorBuilder(settings, Names.SEARCH, searchOrGetThreadPoolSize(allocatedProcessors), 1000, true)
+            new FixedExecutorBuilder(
+                settings,
+                Names.SEARCH,
+                searchOrGetThreadPoolSize(allocatedProcessors),
+                1000,
+                TaskTrackingConfig.DEFAULT
+            )
         );
-        builders.put(Names.SEARCH_COORDINATION, new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProcMaxAt5, 1000, true));
+        builders.put(
+            Names.SEARCH_COORDINATION,
+            new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProcMaxAt5, 1000, TaskTrackingConfig.DEFAULT)
+        );
         builders.put(
             Names.AUTO_COMPLETE,
-            new FixedExecutorBuilder(settings, Names.AUTO_COMPLETE, Math.max(allocatedProcessors / 4, 1), 100, true)
+            new FixedExecutorBuilder(settings, Names.AUTO_COMPLETE, Math.max(allocatedProcessors / 4, 1), 100, TaskTrackingConfig.DEFAULT)
         );
-        builders.put(Names.SEARCH_THROTTLED, new FixedExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, true));
+        builders.put(
+            Names.SEARCH_THROTTLED,
+            new FixedExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, TaskTrackingConfig.DEFAULT)
+        );
         builders.put(
             Names.MANAGEMENT,
             new ScalingExecutorBuilder(Names.MANAGEMENT, 1, boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5), false)
@@ -226,22 +248,37 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.FORCE_MERGE,
-            new FixedExecutorBuilder(settings, Names.FORCE_MERGE, oneEighthAllocatedProcessors(allocatedProcessors), -1, false)
+            new FixedExecutorBuilder(
+                settings,
+                Names.FORCE_MERGE,
+                oneEighthAllocatedProcessors(allocatedProcessors),
+                -1,
+                TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
-        builders.put(Names.CLUSTER_COORDINATION, new FixedExecutorBuilder(settings, Names.CLUSTER_COORDINATION, 1, -1, false));
+        builders.put(
+            Names.CLUSTER_COORDINATION,
+            new FixedExecutorBuilder(settings, Names.CLUSTER_COORDINATION, 1, -1, TaskTrackingConfig.DO_NOT_TRACK)
+        );
         builders.put(
             Names.FETCH_SHARD_STORE,
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
         );
-        builders.put(Names.SYSTEM_READ, new FixedExecutorBuilder(settings, Names.SYSTEM_READ, halfProcMaxAt5, 2000, false));
-        builders.put(Names.SYSTEM_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, true));
+        builders.put(
+            Names.SYSTEM_READ,
+            new FixedExecutorBuilder(settings, Names.SYSTEM_READ, halfProcMaxAt5, 2000, TaskTrackingConfig.DO_NOT_TRACK)
+        );
+        builders.put(
+            Names.SYSTEM_WRITE,
+            new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, new TaskTrackingConfig(0.1))
+        );
         builders.put(
             Names.SYSTEM_CRITICAL_READ,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_READ, halfProcMaxAt5, 2000, false)
+            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_READ, halfProcMaxAt5, 2000, TaskTrackingConfig.DO_NOT_TRACK)
         );
         builders.put(
             Names.SYSTEM_CRITICAL_WRITE,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, true)
+            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, new TaskTrackingConfig(0.1))
         );
 
         for (final ExecutorBuilder<?> builder : customBuilders) {

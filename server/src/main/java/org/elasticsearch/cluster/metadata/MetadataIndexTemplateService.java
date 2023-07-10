@@ -1433,10 +1433,10 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Resolve the given v2 template into a {@link DataLifecycle} object
+     * Resolve the given v2 template into a {@link DataStreamLifecycle} object
      */
     @Nullable
-    public static DataLifecycle resolveLifecycle(final Metadata metadata, final String templateName) {
+    public static DataStreamLifecycle resolveLifecycle(final Metadata metadata, final String templateName) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
@@ -1447,21 +1447,24 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Resolve the provided v2 template and component templates into a {@link DataLifecycle} object
+     * Resolve the provided v2 template and component templates into a {@link DataStreamLifecycle} object
      */
     @Nullable
-    public static DataLifecycle resolveLifecycle(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
+    public static DataStreamLifecycle resolveLifecycle(
+        ComposableIndexTemplate template,
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
         Objects.requireNonNull(template, "attempted to resolve lifecycle for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve lifecycle with null component templates");
 
-        List<DataLifecycle> lifecycles = new ArrayList<>();
+        List<DataStreamLifecycle> lifecycles = new ArrayList<>();
         for (String componentTemplateName : template.composedOf()) {
             if (componentTemplates.containsKey(componentTemplateName) == false) {
                 continue;
             }
-            DataLifecycle dataLifecycle = componentTemplates.get(componentTemplateName).template().lifecycle();
-            if (dataLifecycle != null) {
-                lifecycles.add(dataLifecycle);
+            DataStreamLifecycle lifecycle = componentTemplates.get(componentTemplateName).template().lifecycle();
+            if (lifecycle != null) {
+                lifecycles.add(lifecycle);
             }
         }
         // The actual index template's lifecycle has the highest precedence.
@@ -1505,13 +1508,13 @@ public class MetadataIndexTemplateService {
      * @return the final lifecycle
      */
     @Nullable
-    public static DataLifecycle composeDataLifecycles(List<DataLifecycle> lifecycles) {
-        DataLifecycle.Builder builder = null;
-        for (DataLifecycle current : lifecycles) {
+    public static DataStreamLifecycle composeDataLifecycles(List<DataStreamLifecycle> lifecycles) {
+        DataStreamLifecycle.Builder builder = null;
+        for (DataStreamLifecycle current : lifecycles) {
             if (current == Template.NO_LIFECYCLE) {
                 builder = null;
             } else if (builder == null) {
-                builder = DataLifecycle.Builder.newBuilder(current);
+                builder = DataStreamLifecycle.Builder.newBuilder(current);
             } else {
                 if (current.getDataRetention() != null) {
                     builder.dataRetention(current.getDataRetention());

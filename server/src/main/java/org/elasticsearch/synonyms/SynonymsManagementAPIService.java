@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
@@ -29,7 +30,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -278,6 +278,33 @@ public class SynonymsManagementAPIService {
         );
     }
 
+    public void deleteSynonymRule(
+        String synonymSetId,
+        String synonymRuleId,
+        ActionListener<SynonymsReloadResult<AcknowledgedResponse>> listener
+    ) {
+        client.prepareDelete(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymSetId, synonymRuleId))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute(listener.delegateFailure((deleteListener, deleteResponse) -> {
+                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                    // When not found, check whether it's the synonym set not existing
+                    checkSynonymSetExists(
+                        synonymSetId,
+                        deleteListener.delegateFailure(
+                            (checkListener, obj) -> checkListener.onFailure(
+                                new ResourceNotFoundException(
+                                    "synonym rule [" + synonymRuleId + "] not found on synonym set [" + synonymSetId + "]"
+                                )
+                            )
+                        )
+                    );
+                    return;
+                }
+
+                reloadAnalyzers(synonymSetId, listener, AcknowledgedResponse.of(true));
+            }));
+    }
+
     private static IndexRequest createSynonymRuleIndexRequest(String synonymsSetId, SynonymRule synonymRule) throws IOException {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
@@ -354,11 +381,7 @@ public class SynonymsManagementAPIService {
     // Retrieves the internal synonym rule ID to store it in the index. As the same synonym rule ID
     // can be used in different synonym sets, we prefix the ID with the synonym set to avoid collisions
     private static String internalSynonymRuleId(String synonymsSetId, String synonymRuleId) {
-        if (synonymRuleId == null) {
-            synonymRuleId = UUIDs.base64UUID();
-        }
-        final String id = synonymsSetId + SYNONYM_RULE_ID_SEPARATOR + synonymRuleId;
-        return id;
+        return synonymsSetId + SYNONYM_RULE_ID_SEPARATOR + synonymRuleId;
     }
 
     static Settings settings() {

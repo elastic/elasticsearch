@@ -339,10 +339,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_VERSION_CREATED = "index.version.created";
 
-    public static final Setting<IndexVersion> SETTING_INDEX_VERSION_CREATED = new Setting<>(
+    public static final Setting<IndexVersion> SETTING_INDEX_VERSION_CREATED = Setting.versionIdSetting(
         SETTING_VERSION_CREATED,
-        Integer.toString(IndexVersion.ZERO.id()),
-        s -> IndexVersion.fromId(Integer.parseInt(s)),
+        IndexVersion.ZERO,
+        IndexVersion::fromId,
         Property.IndexScope,
         Property.PrivateIndex
     );
@@ -364,12 +364,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * See {@link #getCompatibilityVersion()}
      */
-    public static final Setting<IndexVersion> SETTING_INDEX_VERSION_COMPATIBILITY = new Setting<>(
+    public static final Setting<IndexVersion> SETTING_INDEX_VERSION_COMPATIBILITY = Setting.versionIdSetting(
         SETTING_VERSION_COMPATIBILITY,
         SETTING_INDEX_VERSION_CREATED, // fall back to index.version.created
-        s -> IndexVersion.fromId(Integer.parseInt(s)),
         new Setting.Validator<>() {
-
             @Override
             public void validate(final IndexVersion compatibilityVersion) {
 

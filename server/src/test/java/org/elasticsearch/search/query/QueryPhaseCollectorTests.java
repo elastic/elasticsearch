@@ -948,8 +948,22 @@ public class QueryPhaseCollectorTests extends ESTestCase {
 
     public void testSetMinCompetitiveScoreIsEnabledTopDocsOnly() throws IOException {
         // without aggs no need to disable set min competitive score
+        Weight filterWeight = null;
+        int terminateAfter = 0;
+        Float minScore = null;
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                filterWeight = new MatchAllDocsQuery().createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+            }
+            if (randomBoolean()) {
+                terminateAfter = randomIntBetween(1, Integer.MAX_VALUE);
+            }
+            if (randomBoolean()) {
+                minScore = 0f;
+            }
+        }
         TopScoresCollector topDocs = new TopScoresCollector();
-        Collector queryPhaseCollector = new QueryPhaseCollector(topDocs, null, 0, null, null);
+        Collector queryPhaseCollector = new QueryPhaseCollector(topDocs, filterWeight, terminateAfter, null, minScore);
         LeafReaderContext leafReaderContext = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(leafReaderContext);
         MinCompetitiveScoreScorable scorer = new MinCompetitiveScoreScorable();
@@ -959,9 +973,24 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     public void testSetMinCompetitiveScoreIsDisabledWithAggs() throws IOException {
+        Weight filterWeight = null;
+        int terminateAfter = 0;
+        Float minScore = null;
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                TermQuery termQuery = new TermQuery(new Term("field2", "value"));
+                filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+            }
+            if (randomBoolean()) {
+                terminateAfter = randomIntBetween(1, Integer.MAX_VALUE);
+            }
+            if (randomBoolean()) {
+                minScore = randomFloat();
+            }
+        }
         TopScoresCollector topDocs = new TopScoresCollector();
         Collector aggs = new MockCollector(randomBoolean() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES);
-        Collector queryPhaseCollector = new QueryPhaseCollector(topDocs, null, 0, aggs, null);
+        Collector queryPhaseCollector = new QueryPhaseCollector(topDocs, filterWeight, terminateAfter, aggs, minScore);
         LeafReaderContext leafReaderContext = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(leafReaderContext);
         MinCompetitiveScoreScorable scorer = new MinCompetitiveScoreScorable();
@@ -1051,24 +1080,6 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
         leafCollector.competitiveIterator();
         assertTrue(mockCollector.competitiveIteratorCalled);
-    }
-
-    public void testCompetitiveIteratorNoAggsCollectionTerminated() throws IOException {
-        // use a post_filter so that we wrap the top docs leaf collector, as this test verifies that
-        // the wrapper calls competitiveIterator when appropriated
-        Weight postFilterWeight = searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-        MockCollector mockCollector = new MockCollector(randomFrom(ScoreMode.values()));
-        TerminateAfterCollector terminateAfterCollector = new TerminateAfterCollector(mockCollector, 1);
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(terminateAfterCollector, postFilterWeight, 0, null, null);
-        LeafReaderContext context = searcher.getLeafContexts().get(0);
-        LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
-        leafCollector.competitiveIterator();
-        assertTrue(mockCollector.competitiveIteratorCalled);
-        mockCollector.competitiveIteratorCalled = false;
-        leafCollector.collect(0);
-        expectThrows(CollectionTerminatedException.class, () -> leafCollector.collect(1));
-        leafCollector.competitiveIterator();
-        assertFalse(mockCollector.competitiveIteratorCalled);
     }
 
     public void testCompetitiveIteratorWithAggs() throws IOException {

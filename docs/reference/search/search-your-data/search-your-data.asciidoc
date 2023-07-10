@@ -478,7 +478,10 @@ The response will not contain any hits as the `size` was set to `0`. The
 matching documents, or greater than `0` meaning that there were at least
 as many documents matching the query when it was early terminated.
 Also if the query was terminated early, the `terminated_early` flag will
-be set to `true` in the response.
+be set to `true` in the response. There are queries for which total hits
+counting can be retrieved directly from the index statistics, which is much
+faster as it does not require executing the query. In those situations,
+`terminate_after` is not honored as no collection is performed.
 
 [source,console-result]
 --------------------------------------------------

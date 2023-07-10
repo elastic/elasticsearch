@@ -58,6 +58,7 @@ public class TaskResultsService {
         .setSettings(getTaskResultIndexSettings())
         .setMappings(getTaskResultIndexMappings())
         .setVersionMetaKey(TASK_RESULT_MAPPING_VERSION_META_FIELD)
+        .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
         .setOrigin(TASKS_ORIGIN)
         .build();
 

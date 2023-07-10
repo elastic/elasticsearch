@@ -78,8 +78,6 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
-    // same as searcher, with the difference that it has a set executor to support parallel collection
-    private final ContextIndexSearcher parallelSearcher;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
     private FetchSearchResult fetchResult;
@@ -141,7 +139,8 @@ final class DefaultSearchContext extends SearchContext {
         LongSupplier relativeTimeSupplier,
         TimeValue timeout,
         FetchPhase fetchPhase,
-        boolean lowLevelCancellation
+        boolean lowLevelCancellation,
+        boolean parallelize
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -157,16 +156,9 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
-            lowLevelCancellation
-        );
-        this.parallelSearcher = new ContextIndexSearcher(
-            engineSearcher.getIndexReader(),
-            engineSearcher.getSimilarity(),
-            engineSearcher.getQueryCache(),
-            engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation,
             // use the search threadpool for now, TODO maybe we will change to a separate one
-            (EsThreadPoolExecutor) this.indexService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+            parallelize ? (EsThreadPoolExecutor) this.indexService.getThreadPool().executor(ThreadPool.Names.SEARCH) : null
         );
         releasables.addAll(List.of(engineSearcher, searcher));
 
@@ -502,11 +494,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public ContextIndexSearcher searcher() {
         return this.searcher;
-    }
-
-    @Override
-    public ContextIndexSearcher parallelSearcher() {
-        return this.parallelSearcher;
     }
 
     @Override

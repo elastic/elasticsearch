@@ -517,7 +517,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 requestWithDefaultTimeout,
                 mock(SearchShardTask.class),
                 SearchService.ResultsType.NONE,
-                randomBoolean()
+                randomBoolean(),
+                false
             )
         ) {
             // the search context should inherit the default timeout
@@ -544,7 +545,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 requestWithCustomTimeout,
                 mock(SearchShardTask.class),
                 SearchService.ResultsType.NONE,
-                randomBoolean()
+                randomBoolean(),
+                false
             )
         ) {
             // the search context should inherit the query timeout
@@ -588,7 +590,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 request,
                 mock(SearchShardTask.class),
                 SearchService.ResultsType.NONE,
-                randomBoolean()
+                randomBoolean(),
+                false
             )
         ) {
             assertNotNull(context);
@@ -602,7 +605,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 request,
                 mock(SearchShardTask.class),
                 SearchService.ResultsType.NONE,
-                randomBoolean()
+                randomBoolean(),
+                false
             )
         ) {
             assertNotNull(context);
@@ -612,7 +616,14 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         try (ReaderContext reader = createReaderContext(indexService, indexShard)) {
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> service.createContext(reader, request, mock(SearchShardTask.class), SearchService.ResultsType.NONE, randomBoolean())
+                () -> service.createContext(
+                    reader,
+                    request,
+                    mock(SearchShardTask.class),
+                    SearchService.ResultsType.NONE,
+                    randomBoolean(),
+                    false
+                )
             );
             assertEquals(
                 "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [1] but was [2]. "
@@ -662,7 +673,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     request,
                     mock(SearchShardTask.class),
                     SearchService.ResultsType.NONE,
-                    randomBoolean()
+                    randomBoolean(),
+                    false
                 )
             ) {
                 Collection<FieldAndFormat> fields = context.docValuesContext().fields();
@@ -711,7 +723,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     request,
                     mock(SearchShardTask.class),
                     SearchService.ResultsType.NONE,
-                    randomBoolean()
+                    randomBoolean(),
+                    false
                 )
             ) {
                 assertNotNull(context);
@@ -722,7 +735,14 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             );
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> service.createContext(reader, request, mock(SearchShardTask.class), SearchService.ResultsType.NONE, randomBoolean())
+                () -> service.createContext(
+                    reader,
+                    request,
+                    mock(SearchShardTask.class),
+                    SearchService.ResultsType.NONE,
+                    randomBoolean(),
+                    false
+                )
             );
             assertEquals(
                 "Trying to retrieve too many script_fields. Must be less than or equal to: ["
@@ -768,7 +788,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 request,
                 mock(SearchShardTask.class),
                 SearchService.ResultsType.NONE,
-                randomBoolean()
+                randomBoolean(),
+                false
             )
         ) {
             assertEquals(0, context.scriptFields().fields().size());
@@ -1195,7 +1216,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     shardRequest,
                     mock(SearchShardTask.class),
                     SearchService.ResultsType.QUERY,
-                    true
+                    true,
+                    false
                 )
             ) {
                 check.accept(context.aggregations().factories().context());
@@ -1314,7 +1336,14 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         try (ReaderContext reader = createReaderContext(indexService, indexService.getShard(shardId.id()))) {
             NullPointerException e = expectThrows(
                 NullPointerException.class,
-                () -> service.createContext(reader, request, mock(SearchShardTask.class), SearchService.ResultsType.NONE, randomBoolean())
+                () -> service.createContext(
+                    reader,
+                    request,
+                    mock(SearchShardTask.class),
+                    SearchService.ResultsType.NONE,
+                    randomBoolean(),
+                    false
+                )
             );
             assertEquals("expected", e.getMessage());
         }

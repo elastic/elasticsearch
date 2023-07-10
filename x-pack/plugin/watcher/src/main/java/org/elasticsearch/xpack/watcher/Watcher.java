@@ -518,8 +518,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             watchParser,
             clusterService,
             client,
-            threadPool.generic(),
-            tracer
+            threadPool.generic()
         );
 
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);

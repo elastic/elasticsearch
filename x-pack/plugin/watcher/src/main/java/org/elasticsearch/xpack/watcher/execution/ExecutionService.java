@@ -32,8 +32,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.tracing.SpanId;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -110,7 +108,6 @@ public class ExecutionService {
     private final Client client;
     private final WatchExecutor executor;
     private final ExecutorService genericExecutor;
-    private final Tracer tracer;
 
     private AtomicReference<CurrentExecutions> currentExecutions = new AtomicReference<>();
     private final AtomicBoolean paused = new AtomicBoolean(false);
@@ -124,8 +121,7 @@ public class ExecutionService {
         WatchParser parser,
         ClusterService clusterService,
         Client client,
-        ExecutorService genericExecutor,
-        Tracer tracer
+        ExecutorService genericExecutor
     ) {
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
@@ -139,7 +135,6 @@ public class ExecutionService {
         this.genericExecutor = genericExecutor;
         this.indexDefaultTimeout = settings.getAsTime("xpack.watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(30));
         this.currentExecutions.set(new CurrentExecutions());
-        this.tracer = tracer;
     }
 
     public void unPause() {
@@ -440,9 +435,6 @@ public class ExecutionService {
        triggered (it'll have its history record)
     */
     private void executeAsync(WatchExecutionContext ctx, final TriggeredWatch triggeredWatch) {
-        final ThreadContext threadContext = clusterService.threadPool().getThreadContext();
-        this.tracer.startTrace(threadContext, SpanId.forBareString(""), "", Map.of());
-
         try {
             executor.startTrace(ctx.id());
             executor.execute(new WatchExecutionTask(ctx, () -> {

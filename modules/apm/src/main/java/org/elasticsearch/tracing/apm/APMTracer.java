@@ -329,7 +329,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.CLUSTER_NAME, clusterName);
     }
 
-    private void setSpanAttributes(String spanName, ThreadContext threadContext, @Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
+    private void setSpanAttributes(
+        String spanName,
+        ThreadContext threadContext,
+        @Nullable Map<String, Object> spanAttributes,
+        SpanBuilder spanBuilder
+    ) {
         setSpanAttributes(spanName, spanAttributes, spanBuilder);
 
         final String xOpaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);

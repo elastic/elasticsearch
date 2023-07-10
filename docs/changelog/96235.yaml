@@ -1,5 +1,5 @@
 pr: 96235
-summary: Add setting to ignore dynamic fields when field limit is reached
+summary: Add `until_limit` option to `dynamic` mapping parameter to ignore dynamic fields when field limit is reached
 area: Mapping
 type: enhancement
 issues: []

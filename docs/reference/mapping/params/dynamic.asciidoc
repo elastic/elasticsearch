@@ -83,16 +83,18 @@ accepts the following parameters:
 
 [horizontal]
 `true`::    New fields are added to the mapping (default).
+            If the field limit (<<mapping-settings-limit,`index.mapping.total_fields.limit`>>) is exceeded as a result of adding a dynamic
+            field to the mapping, the corresponding index request fails with the message `Limit of total fields [X] has been exceeded`.
 `runtime`:: New fields are added to the mapping as <<runtime,runtime fields>>.
             These fields are not indexed, and are loaded from `_source` at query time.
+            If the field limit (<<mapping-settings-limit,`index.mapping.total_fields.limit`>>) is exceeded as a result of adding a dynamic
+            field to the mapping, the corresponding index request fails with the message `Limit of total fields [X] has been exceeded`.
 `false`::   New fields are ignored. These fields will not be indexed
             or searchable, but will still appear in the `_source` field of returned hits. These fields will not be added
             to the mapping, and new fields must be added explicitly.
 `strict`::  If new fields are detected, an exception is thrown and the document
             is rejected. New fields must be explicitly added to the mapping.
-
-[[dynamic-field-limit]]
-==== Behavior when reaching the field limit
-Setting `dynamic` to either `true` or `runtime` will only add dynamic fields until <<mapping-settings-limit,`index.mapping.total_fields.limit`>> is reached.
-By default, index requests for documents that would exceed the field limit will fail,
-unless <<mapping-settings-limit,`index.mapping.total_fields.ignore_dynamic_beyond_limit`>> is set to `true`.
+`until_limit`:: New fields are added to the mapping as long as the field limit
+                (<<mapping-settings-limit,`index.mapping.total_fields.limit`>>) is not exceeded.
+                Fields that would exceed the limit are not added to the mapping, similar to `dynamic: false`.
+                Ignored fields are added to the <<mapping-ignored-field, `_ignored` metadata field>>.

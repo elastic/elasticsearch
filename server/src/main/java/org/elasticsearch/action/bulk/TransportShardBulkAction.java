@@ -424,7 +424,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             // retry all mapping update errors once
             // the errors may be a result of a concurrent modification of the mapping
             // for example, when adding a dynamic field under the premise that the field limit has not been reached, yet
-            // (see index.mapping.total_fields.ignore_dynamic_beyond_limit)
+            // (see Dynamic.UNTIL_LIMIT)
             // but the field limit has been reached by a another concurrent operation
             // retrying once is enough to prevent the issue from happening again and avoids the risk of infinite retry loops
             context.markOperationAsExecuted(r);

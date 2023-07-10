@@ -48,8 +48,8 @@ by mapping totals would usually have strong performance implications.
 If your index mapped fields expect to contain a large, arbitrary set of 
 keys, you may instead consider: 
 
-* Setting <<mapping-settings-limit,`index.mapping.total_fields.ignore_dynamic_beyond_limit`>> to `true`.
-Instead of rejecting documents that exceed the field limit, this will avoid adding dynamic fields once the limit is reached.
+* Setting the mapping parameter <<dynamic-parameters, `dynamic: until_limit`>>.
+Instead of rejecting documents that add dynamic fields when the field limit is reached, this will ignore dynamic fields beyond the limit.
 
 * Using the <<flattened,flattened>> data type. Please note, 
 however, that flattened objects is link:https://github.com/elastic/kibana/issues/25820[not fully supported in {kib}] yet. For example, this could apply to sub-mappings like { `host.name` , 

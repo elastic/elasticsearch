@@ -7,8 +7,7 @@ be the case when the field was malformed and <<ignore-malformed,`ignore_malforme
 was turned on, when a `keyword` field's value exceeds its optional
 <<ignore-above,`ignore_above`>> setting, or when
 <<mapping-settings-limit,`index.mapping.total_fields.limit`>> has been reached and
-<<mapping-settings-limit,`index.mapping.total_fields.ignore_dynamic_beyond_limit`>>
-is set to `true`.
+the mapping parameter <<dynamic-parameters, `dynamic: until_limit`>> is set.
 
 This field is searchable with <<query-dsl-term-query,`term`>>,
 <<query-dsl-terms-query,`terms`>> and <<query-dsl-exists-query,`exists`>>

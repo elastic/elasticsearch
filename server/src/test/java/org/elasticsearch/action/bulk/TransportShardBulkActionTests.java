@@ -323,28 +323,36 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         RuntimeException err = new RuntimeException("some kind of exception");
 
         boolean errorOnWait = randomBoolean();
+        boolean errorOnMappingUpdate = errorOnWait == false;
+        // failed mapping updates are retried
+        // see TransportShardBulkAction.onMappingUpdateFailure
+        int expectedMappingUpdateRetries = errorOnMappingUpdate ? 1 : 0;
 
         randomlySetIgnoredPrimaryResponse(items[0]);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        final CountDownLatch latch = new CountDownLatch(1);
-        TransportShardBulkAction.executeBulkItemRequest(
-            context,
-            null,
-            threadPool::absoluteTimeInMillis,
-            errorOnWait == false ? new ThrowingMappingUpdatePerformer(err) : new NoopMappingUpdatePerformer(),
-            errorOnWait ? listener -> listener.onFailure(err) : listener -> listener.onResponse(null),
-            new LatchedActionListener<>(new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void aVoid) {}
 
-                @Override
-                public void onFailure(final Exception e) {
-                    assertEquals(err, e);
-                }
-            }, latch)
-        );
-        latch.await();
+        for (int i = 0; i < expectedMappingUpdateRetries + 1; i++) {
+            assertTrue(context.hasMoreOperationsToExecute());
+            final CountDownLatch latch = new CountDownLatch(1);
+            TransportShardBulkAction.executeBulkItemRequest(
+                context,
+                null,
+                threadPool::absoluteTimeInMillis,
+                errorOnWait == false ? new ThrowingMappingUpdatePerformer(err) : new NoopMappingUpdatePerformer(),
+                errorOnWait ? listener -> listener.onFailure(err) : listener -> listener.onResponse(null),
+                new LatchedActionListener<>(new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void aVoid) {}
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        assertEquals(err, e);
+                    }
+                }, latch)
+            );
+            latch.await();
+        }
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog shouldn't be synced, as there were conflicting mappings

@@ -195,6 +195,7 @@ public final class TokenService {
 
     static final String TOKEN_DOC_TYPE = "token";
     private static final int HASHED_TOKEN_LENGTH = 43;
+    private static final int RAW_TOKEN_BYTES_LENGTH = 16;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_LENGTH = 22;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
@@ -284,12 +285,10 @@ public final class TokenService {
         // tokens moved to a separate index in newer versions
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
         // the id of the created tokens ought be unguessable
-        final byte[] accessTokenBytes = new byte[16];
-        secureRandom.nextBytes(accessTokenBytes);
+        final byte[] accessTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_LENGTH);
         final byte[] refreshTokenBytes;
         if (includeRefreshToken) {
-            refreshTokenBytes = new byte[16];
-            secureRandom.nextBytes(refreshTokenBytes);
+            refreshTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_LENGTH);
         } else {
             refreshTokenBytes = null;
         }
@@ -1171,10 +1170,8 @@ public final class TokenService {
             Authentication authentication = parsedTokens.v1().getAuthentication();
             decryptAndReturnSupersedingTokens(refreshToken, refreshTokenStatus, refreshedTokenIndex, authentication, listener);
         } else {
-            final byte[] newAccessTokenBytes = new byte[16];
-            secureRandom.nextBytes(newAccessTokenBytes);
-            final byte[] newRefreshTokenBytes = new byte[16];
-            secureRandom.nextBytes(newRefreshTokenBytes);
+            final byte[] newAccessTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_LENGTH);
+            final byte[] newRefreshTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_LENGTH);
             final TransportVersion newTokenVersion = getTokenVersionCompatibility();
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);

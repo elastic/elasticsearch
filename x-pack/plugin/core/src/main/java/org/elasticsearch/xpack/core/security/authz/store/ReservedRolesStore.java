@@ -807,7 +807,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Synthetics API key for synthetics saas service
                 RoleDescriptor.IndicesPrivileges.builder().indices("synthetics-*").privileges("auto_configure", "read", "write").build(),
 
-
                 // Data telemetry reads mappings, metadata and stats of indices
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry

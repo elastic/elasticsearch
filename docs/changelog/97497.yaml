@@ -1,0 +1,5 @@
+pr: 97497
+summary: Add APM tracing for Watcher executions
+area: Watcher
+type: enhancement
+issues: []

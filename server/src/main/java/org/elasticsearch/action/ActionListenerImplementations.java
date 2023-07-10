@@ -252,6 +252,7 @@ class ActionListenerImplementations {
         }
     }
 
+    // Extend AtomicReference directly for minimum memory overhead and indirection.
     static final class NotifyOnceActionListener<Response> extends AtomicReference<ActionListener<Response>>
         implements
             ActionListener<Response> {

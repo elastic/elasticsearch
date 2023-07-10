@@ -1,0 +1,10 @@
+pr: 87674
+summary: Mark `apm_user` for removal in a future major release
+area: Authorization
+type: deprecation
+issues: []
+deprecation:
+  title: Mark `apm_user` for removal in a future major release
+  area: Authorization
+  details: The `apm_user` role has been deprecated and will be removed in a future major release. Users should migrate to `editor` and `viewer` roles
+  impact: Users will have to migrate to `editor` and `viewer` roles

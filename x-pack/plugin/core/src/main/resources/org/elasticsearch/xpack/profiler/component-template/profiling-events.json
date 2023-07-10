@@ -24,6 +24,10 @@
       "_source": {
         "enabled": false
       },
+      "_meta": {
+        "index-template-version": ${xpack.profiling.template.version},
+        "index-version": ${xpack.profiling.index.events.version}
+      },
       "dynamic": false,
       "properties": {
         "ecs.version": {

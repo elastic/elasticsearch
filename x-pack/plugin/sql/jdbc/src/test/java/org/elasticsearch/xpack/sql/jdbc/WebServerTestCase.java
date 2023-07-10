@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.root.MainResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
@@ -24,7 +25,7 @@ import java.util.Date;
  */
 public abstract class WebServerTestCase extends ESTestCase {
 
-    private MockWebServer webServer = new MockWebServer();
+    private final MockWebServer webServer = new MockWebServer();
 
     @Before
     public void init() throws Exception {
@@ -45,13 +46,16 @@ public abstract class WebServerTestCase extends ESTestCase {
     }
 
     MainResponse createMainResponse(Version version) {
+        // the SQL client only cares about node version,
+        // so ignore index & transport versions here (just set them to current)
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
         Build build = new Build(Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(), version.toString());
+        IndexVersion indexVersion = IndexVersion.current();
         TransportVersion transportVersion = TransportVersion.current();
-        return new MainResponse(nodeName, version, transportVersion, clusterName, clusterUuid, build);
+        return new MainResponse(nodeName, version, indexVersion, transportVersion, clusterName, clusterUuid, build);
     }
 
     String webServerAddress() {

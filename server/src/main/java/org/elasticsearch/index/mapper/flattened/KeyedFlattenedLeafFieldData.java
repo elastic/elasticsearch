@@ -85,7 +85,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
     @Override
     public SortedBinaryDocValues getBytesValues() {
-        return toString(getOrdinalsValues());
+        return inefficient(getOrdinalsValues());
     }
 
     /**
@@ -252,7 +252,17 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
         }
     }
 
-    public static SortedBinaryDocValues toString(final SortedSetDocValues values) {
+    /**
+     * Note: If {@link SortedSetDocValues#docValueCount()} is equal to the number of ordinals returned by
+     * {@link SortedSetDocValues#nextOrd()} then use {@link org.elasticsearch.index.fielddata.FieldData#toString(SortedSetDocValues)}
+     * instead of this implementation.
+     *
+     * @return a {@link SortedBinaryDocValues} instance that wraps a {@link SortedSetDocValues} instance that pre-computes doc count
+     * when advancing to a docId that matches. This is needed in some cases when the {@link SortedSetDocValues#docValueCount()} returns
+     * a count that is <b>not</b> equal to number of ordinals (via {@link SortedSetDocValues#nextOrd()}. This requires advancing the
+     * provided {@link SortedSetDocValues} twice.
+     */
+    static SortedBinaryDocValues inefficient(final SortedSetDocValues values) {
         return new SortedBinaryDocValues() {
             private int count = 0;
 

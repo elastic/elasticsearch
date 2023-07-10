@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.application.rules;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+
+import java.util.List;
 
 public class QueryRulesConfig {
 
-    private static final String SETTING_ROOT_PATH = "xpack.applications.rules";
+    static final String SETTING_ROOT_PATH = "xpack.applications.rules";
 
     private static final int DEFAULT_RULE_LIMIT = 100;
     private static final int MIN_RULE_LIMIT = 1;
@@ -31,15 +31,10 @@ public class QueryRulesConfig {
         Setting.Property.NodeScope
     );
 
-    private final int maxRulesPerRuleset;
-
-    @Inject
-    public QueryRulesConfig(Settings settings) {
-        this.maxRulesPerRuleset = MAX_RULE_LIMIT_SETTING.get(settings);
+    public static List<Setting<?>> getSettings() {
+        return List.of(MAX_RULE_LIMIT_SETTING);
     }
 
-    public int maxRulesPerRuleset() {
-        return maxRulesPerRuleset;
-    }
+    private QueryRulesConfig() { }
 
 }

@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
 public class BlockHashRandomizedTests extends ESTestCase {
@@ -38,7 +39,22 @@ public class BlockHashRandomizedTests extends ESTestCase {
             for (int groups : new int[] { 1, 2, 3, 4, 5, 10 }) {
                 for (int maxValuesPerPosition : new int[] { 1, 3 }) {
                     for (int dups : new int[] { 0, 2 }) {
-                        params.add(new Object[] { forcePackedHash, groups, maxValuesPerPosition, dups });
+                        for (List<ElementType> allowedTypes : List.of(
+                            /*
+                             * Run with only `LONG` elements because we have some
+                             * optimizations that hit if you only have those.
+                             */
+                            List.of(ElementType.LONG),
+                            /*
+                             * Run with only `LONG` and `BYTES_REF` elements because
+                             * we have some optimizations that hit if you only have
+                             * those.
+                             */
+                            List.of(ElementType.LONG, ElementType.BYTES_REF),
+                            MultivalueDedupeTests.supportedTypes()
+                        )) {
+                            params.add(new Object[] { forcePackedHash, groups, maxValuesPerPosition, dups, allowedTypes });
+                        }
                     }
                 }
             }
@@ -50,29 +66,59 @@ public class BlockHashRandomizedTests extends ESTestCase {
     private final int groups;
     private final int maxValuesPerPosition;
     private final int dups;
+    private final List<ElementType> allowedTypes;
 
-    public BlockHashRandomizedTests(boolean forcePackedHash, int groups, int maxValuesPerPosition, int dups) {
+    public BlockHashRandomizedTests(
+        boolean forcePackedHash,
+        int groups,
+        int maxValuesPerPosition,
+        int dups,
+        List<ElementType> allowedTypes
+    ) {
         this.forcePackedHash = forcePackedHash;
         this.groups = groups;
         this.maxValuesPerPosition = maxValuesPerPosition;
         this.dups = dups;
+        this.allowedTypes = allowedTypes;
     }
 
     public void test() {
-        List<ElementType> types = randomList(groups, groups, () -> randomFrom(MultivalueDedupeTests.supportedTypes()));
+        List<ElementType> types = randomList(groups, groups, () -> randomFrom(allowedTypes));
         BasicBlockTests.RandomBlock[] randomBlocks = new BasicBlockTests.RandomBlock[types.size()];
         Block[] blocks = new Block[types.size()];
         int pageCount = between(1, 10);
-        try (BlockHash blockHash = newBlockHash(types)) {
+        int positionCount = 100;
+        int emitBatchSize = 100;
+        try (BlockHash blockHash = newBlockHash(emitBatchSize, types)) {
             Oracle oracle = new Oracle();
 
             for (int p = 0; p < pageCount; p++) {
                 for (int g = 0; g < blocks.length; g++) {
-                    randomBlocks[g] = BasicBlockTests.randomBlock(types.get(g), 100, randomBoolean(), 1, maxValuesPerPosition, 0, dups);
+                    randomBlocks[g] = BasicBlockTests.randomBlock(
+                        types.get(g),
+                        positionCount,
+                        randomBoolean(),
+                        1,
+                        maxValuesPerPosition,
+                        0,
+                        dups
+                    );
                     blocks[g] = randomBlocks[g].block();
                 }
                 oracle.add(randomBlocks);
-                BlockHashTests.hash(blockHash, blocks);
+                int[] batchCount = new int[1];
+                BlockHashTests.hash(blockHash, ordsAndKeys -> {
+                    if (forcePackedHash == false) {
+                        if (types.equals(List.of(ElementType.LONG, ElementType.LONG))) {
+                            // For now we only have defense against big blocks in the long/long hash
+                            assertThat(ordsAndKeys.ords().getTotalValueCount(), lessThanOrEqualTo(emitBatchSize));
+                        }
+                    }
+                    batchCount[0]++;
+                }, blocks);
+                if (types.size() == 1) {
+                    assertThat(batchCount[0], equalTo(1));
+                }
             }
 
             Block[] keyBlocks = blockHash.getKeys();
@@ -95,13 +141,13 @@ public class BlockHashRandomizedTests extends ESTestCase {
         }
     }
 
-    private BlockHash newBlockHash(List<ElementType> types) {
+    private BlockHash newBlockHash(int emitBatchSize, List<ElementType> types) {
         List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(types.size());
         for (int c = 0; c < types.size(); c++) {
             specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
         }
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
-        return forcePackedHash ? new PackedValuesBlockHash(specs, bigArrays) : BlockHash.build(specs, bigArrays);
+        return forcePackedHash ? new PackedValuesBlockHash(specs, bigArrays) : BlockHash.build(specs, bigArrays, emitBatchSize);
     }
 
     private static class KeyComparator implements Comparator<List<?>> {

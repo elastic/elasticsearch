@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -250,7 +251,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         public Operator get(DriverContext driverContext) {
             return new TestHashAggregationOperator(
                 aggregators,
-                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(groupByChannel, groupElementType)), bigArrays),
+                () -> BlockHash.build(
+                    List.of(new HashAggregationOperator.GroupSpec(groupByChannel, groupElementType)),
+                    bigArrays,
+                    LuceneSourceOperator.PAGE_SIZE
+                ),
                 columnName,
                 driverContext
             );

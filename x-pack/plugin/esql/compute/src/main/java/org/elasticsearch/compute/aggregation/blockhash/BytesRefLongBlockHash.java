@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -25,7 +26,7 @@ import org.elasticsearch.core.Releasables;
 import static org.elasticsearch.compute.aggregation.blockhash.LongLongBlockHash.add;
 
 /**
- * A specialized {@link BlockHash} for a {@link BytesRef} and a long.
+ * Maps a {@link LongBlock} column paired with a {@link BytesRefBlock} column to group ids.
  */
 final class BytesRefLongBlockHash extends BlockHash {
     private final int channel1;
@@ -61,15 +62,16 @@ final class BytesRefLongBlockHash extends BlockHash {
     }
 
     @Override
-    public LongBlock add(Page page) {
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         BytesRefBlock block1 = page.getBlock(channel1);
         LongBlock block2 = page.getBlock(channel2);
         BytesRefVector vector1 = block1.asVector();
         LongVector vector2 = block2.asVector();
         if (vector1 != null && vector2 != null) {
-            return add(vector1, vector2).asBlock();
+            addInput.add(0, add(vector1, vector2));
+        } else {
+            add(block1, block2, addInput);
         }
-        return add(block1, block2);
     }
 
     public LongVector add(BytesRefVector vector1, LongVector vector2) {
@@ -85,7 +87,7 @@ final class BytesRefLongBlockHash extends BlockHash {
 
     private static final long[] EMPTY = new long[0];
 
-    public LongBlock add(BytesRefBlock block1, LongBlock block2) {
+    public void add(BytesRefBlock block1, LongBlock block2, GroupingAggregatorFunction.AddInput addInput) {
         BytesRef scratch = new BytesRef();
         int positions = block1.getPositionCount();
         LongBlock.Builder ords = LongBlock.newBlockBuilder(positions);
@@ -96,6 +98,7 @@ final class BytesRefLongBlockHash extends BlockHash {
                 ords.appendNull();
                 continue;
             }
+            // TODO use MultivalueDedupe
             int start1 = block1.getFirstValueIndex(p);
             int start2 = block2.getFirstValueIndex(p);
             int count1 = block1.getValueCount(p);
@@ -138,7 +141,7 @@ final class BytesRefLongBlockHash extends BlockHash {
             }
             ords.endPositionEntry();
         }
-        return ords.build();
+        addInput.add(0, ords.build()); // TODO exploit for a crash and then call incrementally
     }
 
     @Override

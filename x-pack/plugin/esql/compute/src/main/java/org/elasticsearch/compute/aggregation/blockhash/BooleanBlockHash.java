@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntVector;
@@ -17,8 +18,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
 
 /**
- * Assigns group {@code 0} to the first of {@code true} or{@code false}
- * that it sees and {@code 1} to the second.
+ * Maps a {@link BooleanBlock} column to group ids. Assigns group
+ * {@code 0} to {@code false} and group {@code 1} to {@code true}.
  */
 final class BooleanBlockHash extends BlockHash {
     private final int channel;
@@ -29,13 +30,14 @@ final class BooleanBlockHash extends BlockHash {
     }
 
     @Override
-    public LongBlock add(Page page) {
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         BooleanBlock block = page.getBlock(channel);
         BooleanVector vector = block.asVector();
         if (vector == null) {
-            return add(block);
+            addInput.add(0, add(block));
+        } else {
+            addInput.add(0, add(vector));
         }
-        return add(vector).asBlock();
     }
 
     private LongVector add(BooleanVector vector) {

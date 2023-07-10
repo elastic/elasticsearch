@@ -36,7 +36,7 @@ public class CountDistinctDoubleGroupingAggregatorFunctionTests extends Grouping
     @Override
     protected SourceOperator simpleInput(int size) {
         return new LongDoubleTupleBlockSourceOperator(
-            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomDouble()))
+            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomGroupId(size), randomDoubleBetween(0, 100, true)))
         );
     }
 

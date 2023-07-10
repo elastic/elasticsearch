@@ -16,6 +16,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -57,11 +59,17 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     protected abstract void assertSimpleGroup(List<Page> input, Block result, int position, long group);
 
     @Override
-    protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+    protected final Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
         List<Integer> channels = mode.isInputPartial() ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList() : List.of(1);
+        int emitChunkSize = between(100, 200);
+
+        AggregatorFunctionSupplier supplier = aggregatorFunction(bigArrays, channels);
+        if (randomBoolean()) {
+            supplier = chunkGroups(emitChunkSize, supplier);
+        }
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
-            List.of(aggregatorFunction(bigArrays, channels).groupingAggregatorFactory(mode)),
+            List.of(supplier.groupingAggregatorFactory(mode)),
             bigArrays
         );
     }
@@ -95,6 +103,11 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             }
         }
         return seenGroups;
+    }
+
+    protected long randomGroupId(int pageSize) {
+        int maxGroupId = pageSize < 10 && randomBoolean() ? 4 : 100;
+        return randomIntBetween(0, maxGroupId);
     }
 
     @Override
@@ -374,6 +387,97 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     protected static LongStream allLongs(Page page, long group) {
         LongBlock b = page.getBlock(1);
         return allValueOffsets(page, group).mapToLong(i -> b.getLong(i));
+    }
+
+    /**
+     * Forcibly chunk groups on the way into the aggregator to make sure it can handle chunked
+     * groups. This is needed because our chunking logic for groups doesn't bother chunking
+     * in non-combinatorial explosion cases. We figure if the could fit into memory then the
+     * groups should too. But for testing we'd sometimes like to force chunking just so we
+     * run the aggregation with funny chunked inputs.
+     */
+    private AggregatorFunctionSupplier chunkGroups(int emitChunkSize, AggregatorFunctionSupplier supplier) {
+        return new AggregatorFunctionSupplier() {
+            @Override
+            public AggregatorFunction aggregator() {
+                return supplier.aggregator();
+            }
+
+            @Override
+            public GroupingAggregatorFunction groupingAggregator() {
+                return new GroupingAggregatorFunction() {
+                    GroupingAggregatorFunction delegate = supplier.groupingAggregator();
+
+                    @Override
+                    public AddInput prepareProcessPage(Page page) {
+                        return new AddInput() {
+                            AddInput delegateAddInput = delegate.prepareProcessPage(page);
+
+                            @Override
+                            public void add(int positionOffset, LongBlock groupIds) {
+                                for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
+                                    LongBlock.Builder builder = LongBlock.newBlockBuilder(emitChunkSize);
+                                    builder.copyFrom(groupIds, offset, Math.min(groupIds.getPositionCount(), offset + emitChunkSize));
+                                    delegateAddInput.add(offset, builder.build());
+                                }
+                            }
+
+                            @Override
+                            public void add(int positionOffset, LongVector groupIds) {
+                                long[] chunk = new long[emitChunkSize];
+                                for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
+                                    int count = 0;
+                                    for (int i = offset; i < Math.min(groupIds.getPositionCount(), offset + emitChunkSize); i++) {
+                                        chunk[count++] = groupIds.getLong(i);
+                                    }
+                                    delegateAddInput.add(offset, new LongArrayVector(chunk, count));
+                                }
+                            }
+                        };
+                    }
+
+                    @Override
+                    public void addIntermediateInput(LongVector groupIdVector, Page page) {
+                        delegate.addIntermediateInput(groupIdVector, page);
+                    }
+
+                    @Override
+                    public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
+                        delegate.addIntermediateRowInput(groupId, input, position);
+                    }
+
+                    @Override
+                    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
+                        delegate.evaluateIntermediate(blocks, offset, selected);
+                    }
+
+                    @Override
+                    public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
+                        delegate.evaluateFinal(blocks, offset, selected);
+                    }
+
+                    @Override
+                    public int intermediateBlockCount() {
+                        return delegate.intermediateBlockCount();
+                    }
+
+                    @Override
+                    public void close() {
+                        delegate.close();
+                    }
+
+                    @Override
+                    public String toString() {
+                        return delegate.toString();
+                    }
+                };
+            }
+
+            @Override
+            public String describe() {
+                return supplier.describe();
+            }
+        };
     }
 
 }

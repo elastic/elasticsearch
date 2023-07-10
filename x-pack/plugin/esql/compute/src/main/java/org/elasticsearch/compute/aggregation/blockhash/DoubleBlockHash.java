@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -19,6 +20,9 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.MultivalueDedupeDouble;
 
+/**
+ * Maps a {@link DoubleBlock} column to group ids.
+ */
 final class DoubleBlockHash extends BlockHash {
     private final int channel;
     private final LongHash longHash;
@@ -29,13 +33,14 @@ final class DoubleBlockHash extends BlockHash {
     }
 
     @Override
-    public LongBlock add(Page page) {
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         DoubleBlock block = page.getBlock(channel);
         DoubleVector vector = block.asVector();
         if (vector == null) {
-            return add(block);
+            addInput.add(0, add(block));
+        } else {
+            addInput.add(0, add(vector));
         }
-        return add(vector).asBlock();
     }
 
     private LongVector add(DoubleVector vector) {

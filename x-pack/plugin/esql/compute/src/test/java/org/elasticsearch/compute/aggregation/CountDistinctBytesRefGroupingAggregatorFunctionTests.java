@@ -36,9 +36,8 @@ public class CountDistinctBytesRefGroupingAggregatorFunctionTests extends Groupi
 
     @Override
     protected SourceOperator simpleInput(int size) {
-        int max = between(1, Math.min(1, Integer.MAX_VALUE / size));
         return new LongBytesRefTupleBlockSourceOperator(
-            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), new BytesRef(String.valueOf(between(-max, max)))))
+            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomGroupId(size), new BytesRef(String.valueOf(between(1, 10000)))))
         );
     }
 

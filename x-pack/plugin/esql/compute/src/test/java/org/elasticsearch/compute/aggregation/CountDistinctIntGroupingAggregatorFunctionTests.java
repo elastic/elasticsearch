@@ -35,10 +35,7 @@ public class CountDistinctIntGroupingAggregatorFunctionTests extends GroupingAgg
 
     @Override
     protected SourceOperator simpleInput(int size) {
-        int max = between(1, Math.min(1, Integer.MAX_VALUE / size));
-        return new LongIntBlockSourceOperator(
-            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), between(-max, max)))
-        );
+        return new LongIntBlockSourceOperator(LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomGroupId(size), between(0, 10000))));
     }
 
     @Override

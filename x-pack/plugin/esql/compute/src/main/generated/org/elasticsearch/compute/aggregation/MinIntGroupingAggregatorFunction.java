@@ -53,84 +53,94 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public void addRawInput(LongVector groups, Page page) {
-    assert groups.getPositionCount() == page.getPositionCount();
+  public GroupingAggregatorFunction.AddInput prepareProcessPage(Page page) {
     Block uncastValuesBlock = page.getBlock(channels.get(0));
     if (uncastValuesBlock.areAllValuesNull()) {
-      addRawInputAllNulls(groups, uncastValuesBlock);
-      return;
+      return new GroupingAggregatorFunction.AddInput() {
+        @Override
+        public void add(int positionOffset, LongBlock groupIds) {
+          addRawInputAllNulls(positionOffset, groupIds, uncastValuesBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, LongVector groupIds) {
+          addRawInputAllNulls(positionOffset, groupIds, uncastValuesBlock);
+        }
+      };
     }
     IntBlock valuesBlock = (IntBlock) uncastValuesBlock;
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
-      addRawInput(groups, valuesBlock);
-    } else {
-      addRawInput(groups, valuesVector);
+      return new GroupingAggregatorFunction.AddInput() {
+        @Override
+        public void add(int positionOffset, LongBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, LongVector groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock);
+        }
+      };
     }
+    return new GroupingAggregatorFunction.AddInput() {
+      @Override
+      public void add(int positionOffset, LongBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
+      public void add(int positionOffset, LongVector groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector);
+      }
+    };
   }
 
-  private void addRawInput(LongVector groups, IntBlock values) {
-    for (int position = 0; position < groups.getPositionCount(); position++) {
-      int groupId = Math.toIntExact(groups.getLong(position));
-      if (values.isNull(position)) {
+  private void addRawInput(int positionOffset, LongVector groups, IntBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      if (values.isNull(groupPosition + positionOffset)) {
         state.putNull(groupId);
         continue;
       }
-      int valuesStart = values.getFirstValueIndex(position);
-      int valuesEnd = valuesStart + values.getValueCount(position);
+      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
         state.set(MinIntAggregator.combine(state.getOrDefault(groupId), values.getInt(v)), groupId);
       }
     }
   }
 
-  private void addRawInput(LongVector groups, IntVector values) {
-    for (int position = 0; position < groups.getPositionCount(); position++) {
-      int groupId = Math.toIntExact(groups.getLong(position));
-      state.set(MinIntAggregator.combine(state.getOrDefault(groupId), values.getInt(position)), groupId);
+  private void addRawInput(int positionOffset, LongVector groups, IntVector values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      state.set(MinIntAggregator.combine(state.getOrDefault(groupId), values.getInt(groupPosition + positionOffset)), groupId);
     }
   }
 
-  private void addRawInputAllNulls(LongVector groups, Block values) {
-    for (int position = 0; position < groups.getPositionCount(); position++) {
-      int groupId = Math.toIntExact(groups.getLong(position));
-      assert values.isNull(position);
-      state.putNull(groupId);
+  private void addRawInputAllNulls(int positionOffset, LongVector groups, Block values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      assert values.isNull(groupPosition + positionOffset);
+      state.putNull(groupPosition + positionOffset);
     }
   }
 
-  @Override
-  public void addRawInput(LongBlock groups, Page page) {
-    assert groups.getPositionCount() == page.getPositionCount();
-    Block uncastValuesBlock = page.getBlock(channels.get(0));
-    if (uncastValuesBlock.areAllValuesNull()) {
-      addRawInputAllNulls(groups, uncastValuesBlock);
-      return;
-    }
-    IntBlock valuesBlock = (IntBlock) uncastValuesBlock;
-    IntVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      addRawInput(groups, valuesBlock);
-    } else {
-      addRawInput(groups, valuesVector);
-    }
-  }
-
-  private void addRawInput(LongBlock groups, IntBlock values) {
-    for (int position = 0; position < groups.getPositionCount(); position++) {
-      if (groups.isNull(position)) {
+  private void addRawInput(int positionOffset, LongBlock groups, IntBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
         continue;
       }
-      int groupStart = groups.getFirstValueIndex(position);
-      int groupEnd = groupStart + groups.getValueCount(position);
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getLong(g));
-        if (values.isNull(position)) {
+        if (values.isNull(groupPosition + positionOffset)) {
           state.putNull(groupId);
           continue;
         }
-        int valuesStart = values.getFirstValueIndex(position);
-        int valuesEnd = valuesStart + values.getValueCount(position);
+        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
           state.set(MinIntAggregator.combine(state.getOrDefault(groupId), values.getInt(v)), groupId);
         }
@@ -138,31 +148,31 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
     }
   }
 
-  private void addRawInput(LongBlock groups, IntVector values) {
-    for (int position = 0; position < groups.getPositionCount(); position++) {
-      if (groups.isNull(position)) {
+  private void addRawInput(int positionOffset, LongBlock groups, IntVector values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
         continue;
       }
-      int groupStart = groups.getFirstValueIndex(position);
-      int groupEnd = groupStart + groups.getValueCount(position);
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getLong(g));
-        state.set(MinIntAggregator.combine(state.getOrDefault(groupId), values.getInt(position)), groupId);
+        state.set(MinIntAggregator.combine(state.getOrDefault(groupId), values.getInt(groupPosition + positionOffset)), groupId);
       }
     }
   }
 
-  private void addRawInputAllNulls(LongBlock groups, Block values) {
-    for (int position = 0; position < groups.getPositionCount(); position++) {
-      if (groups.isNull(position)) {
+  private void addRawInputAllNulls(int positionOffset, LongBlock groups, Block values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
         continue;
       }
-      int groupStart = groups.getFirstValueIndex(position);
-      int groupEnd = groupStart + groups.getValueCount(position);
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getLong(g));
-        assert values.isNull(position);
-        state.putNull(groupId);
+        assert values.isNull(groupPosition + positionOffset);
+        state.putNull(groupPosition + positionOffset);
       }
     }
   }

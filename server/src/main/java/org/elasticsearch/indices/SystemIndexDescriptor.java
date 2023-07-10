@@ -126,7 +126,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     private final String aliasName;
 
     /** For internally-managed indices, an optional {@link IndexMetadata#INDEX_FORMAT_SETTING} value to expect */
-    private final int indexFormat;
+    private final IndexFormat indexFormat;
 
     /**
      * For internally-managed indices, specifies a key name under <code>_meta</code> in the index mappings
@@ -258,10 +258,15 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         Strings.requireNonEmpty(indexPattern, "indexPattern must be supplied");
 
         Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(indexFormat);
+
         if (type.isManaged()) {
             Objects.requireNonNull(settings, "Must supply settings for a managed system index");
             Strings.requireNonEmpty(mappings, "Must supply mappings for a managed system index");
             Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex for a managed system index");
+            // todo: index formats as static constants?
+            this.indexFormat = new IndexFormat(indexFormat, Integer.toString(getDescriptorHash(mappings, settings)));
+            Objects.requireNonNull(this.indexFormat.hash, "Must supply index format hash for a managed system index");
             Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey for a managed system index");
             Strings.requireNonEmpty(origin, "Must supply origin for a managed system index");
             if (settings.getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0) != indexFormat) {
@@ -274,6 +279,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             assert Objects.isNull(primaryIndex) : "Unmanaged index descriptors should not have a primary index";
             assert Objects.isNull(versionMetaKey) : "Unmanaged index descriptors should not have a version meta key";
             this.mappingVersion = null;
+            this.indexFormat = new IndexFormat(indexFormat, null);
         }
 
         Objects.requireNonNull(allowedElasticProductOrigins, "allowedProductOrigins must not be null");
@@ -306,10 +312,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                         prior + " has minimum node version [" + prior.minimumNodeVersion + "] which is after [" + minimumNodeVersion + "]"
                     );
                 }
-                if (indexFormatVersions.add(prior.indexFormat) == false) {
+                if (indexFormatVersions.add(prior.indexFormat.indexFormat) == false) {
                     throw new IllegalArgumentException(prior + " has the same index format version as another descriptor");
                 }
-                if (prior.indexFormat > indexFormat) {
+                if (prior.indexFormat.indexFormat > indexFormat) {
                     throw new IllegalArgumentException(
                         prior + " has index format [" + prior.indexFormat + "] which is after [" + indexFormat + "]"
                     );
@@ -365,7 +371,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         } else {
             throw new IllegalArgumentException("System indices must have " + IndexMetadata.SETTING_INDEX_HIDDEN + " set to true.");
         }
-        this.indexFormat = indexFormat;
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;
         this.minimumNodeVersion = minimumNodeVersion;
@@ -458,7 +463,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
     public int getIndexFormat() {
         assert isAutomaticallyManaged() : "Do not request index format for unmanaged system indices";
-        return this.indexFormat;
+        return this.indexFormat.indexFormat;
     }
 
     public String getVersionMetaKey() {
@@ -563,6 +568,11 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             }
         }
         return null;
+    }
+
+    public static int getDescriptorHash(String mappings, Settings settings) {
+        Map<String, Object> convertedMappings = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings, false);
+        return Objects.hash(convertedMappings, settings);
     }
 
     /**
@@ -768,6 +778,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             );
         }
     }
+
+    public record IndexFormat(int indexFormat, String hash) {}
 
     /**
      * Builds an automaton for matching index names against this descriptor's index pattern.

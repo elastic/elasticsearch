@@ -52,7 +52,7 @@ public final class Trim extends UnaryScalarFunction implements Mappable {
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
         Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
-        return () -> new TrimEvaluator(new BytesRef(), field.get());
+        return () -> new TrimEvaluator(field.get());
     }
 
     @Override
@@ -66,7 +66,7 @@ public final class Trim extends UnaryScalarFunction implements Mappable {
     }
 
     @Evaluator
-    static BytesRef process(@Fixed BytesRef scratch, BytesRef val) {
+    static BytesRef process(BytesRef val) {
         int offset = val.offset;
         int length = val.length;
         while ((offset < length) && ((val.bytes[offset] & 0xff) <= 0x20)) {
@@ -75,9 +75,8 @@ public final class Trim extends UnaryScalarFunction implements Mappable {
         while ((offset < length) && ((val.bytes[length - 1] & 0xff) <= 0x20)) {
             length--;
         }
-        scratch.bytes = val.bytes;
-        scratch.offset = offset;
-        scratch.length = length - offset;
-        return scratch;
+        val.offset = offset;
+        val.length = length - offset;
+        return val;
     }
 }

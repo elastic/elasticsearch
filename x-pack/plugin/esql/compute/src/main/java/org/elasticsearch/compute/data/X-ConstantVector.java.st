@@ -26,11 +26,15 @@ public final class Constant$Type$Vector extends AbstractVector implements $Type$
 
     @Override
 $if(BytesRef)$
-    public BytesRef getBytesRef(int position, BytesRef ignore) {
+    public BytesRef getBytesRef(int position, BytesRef scratch) {
+        scratch.offset = value.offset;
+        scratch.length = value.length;
+        scratch.bytes = value.bytes;
+        return scratch;
 $else$
     public $type$ get$Type$(int position) {
-$endif$
         return value;
+$endif$
     }
 
     @Override

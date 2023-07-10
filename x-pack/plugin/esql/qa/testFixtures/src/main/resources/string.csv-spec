@@ -165,6 +165,34 @@ emp_no:integer | last_name:keyword | x:keyword | z:keyword
 10010 | Piveteau  | P | a
 ;
 
+trim
+from employees | sort emp_no | limit 10 | eval name = concat("      ", first_name) | eval name = trim(first_name) | keep emp_no, name;
+
+emp_no:integer | name:keyword
+10001 | Georgi
+10002 | Bezalel
+10003 | Parto
+10004 | Chirstian
+10005 | Kyoichi
+10006 | Anneke
+10007 | Tzvetan
+10008 | Saniya
+10009 | Sumant
+10010 | Duangkaew
+;
+
+trimRow
+// tag::trim[]
+ROW message = "   some text  ",  color = " red "| EVAL message = TRIM(message)| EVAL color = TRIM(color)
+// end::trim[]
+;
+
+// tag::trim-result[]
+message:s | color:s
+some text | red
+// end::trim-result[]
+;
+
 concat
 from employees | sort emp_no | limit 10 | eval name = concat(first_name, " ", last_name) | keep emp_no, name;
 

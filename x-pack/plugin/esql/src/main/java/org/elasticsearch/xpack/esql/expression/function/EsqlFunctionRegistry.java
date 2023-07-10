@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
@@ -103,6 +104,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Length.class, Length::new, "length"),
                 def(Substring.class, Substring::new, "substring"),
                 def(Concat.class, Concat::new, "concat"),
+                def(Trim.class, Trim::new, "trim"),
                 def(StartsWith.class, StartsWith::new, "starts_with") },
             // date
             new FunctionDefinition[] {

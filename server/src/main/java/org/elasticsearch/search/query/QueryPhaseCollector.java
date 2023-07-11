@@ -362,7 +362,7 @@ final class QueryPhaseCollector implements Collector {
         return terminateAfter == 0 ? NO_OP_TERMINATE_AFTER_CHECKER : new GlobalTerminateAfterChecker(terminateAfter);
     }
 
-    abstract static class TerminateAfterChecker {
+    private abstract static class TerminateAfterChecker {
         abstract boolean isThresholdReached();
 
         abstract boolean incrementHitCountAndCheckThreshold();
@@ -464,7 +464,7 @@ final class QueryPhaseCollector implements Collector {
             return null;
         }
 
-        public boolean isTerminatedEarly() {
+        boolean isTerminatedEarly() {
             return terminatedEarly;
         }
     }

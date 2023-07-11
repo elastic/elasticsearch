@@ -40,7 +40,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
             doc.add(new StringField("string", "a" + i, Field.Store.NO));
-            if (i < 3) {
+            if (i < 100) {
                 doc.add(new StringField("string", "foo", Field.Store.NO));
             }
             writer.addDocument(doc);
@@ -52,6 +52,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
         IndexReader reader = writer.getReader();
         writer.close();
         searcher = newSearcher(reader);
+        assumeTrue("going sequential", searcher.getSlices() != null && searcher.getSlices().length > 0 && searcher.getExecutor() != null);
     }
 
     @Override
@@ -121,8 +122,8 @@ public class PartialHitCountCollectorTests extends ESTestCase {
 
     public void testCollectedHitCountEarlyTerminated() throws Exception {
         Query query = new NonCountingTermQuery(new Term("string", "foo"));
-        // there's three docs matching the query: any totalHitsThreshold lower than 3 will trigger early termination
-        int totalHitsThreshold = randomInt(2);
+        // there's 100 docs matching the query: any totalHitsThreshold lower than 100 will trigger early termination
+        int totalHitsThreshold = randomInt(99);
         PartialHitCountCollector.CollectorManager collectorManager = new PartialHitCountCollector.CollectorManager(totalHitsThreshold);
         searcher.search(query, collectorManager);
         assertEquals(totalHitsThreshold, collectorManager.getTotalHits());

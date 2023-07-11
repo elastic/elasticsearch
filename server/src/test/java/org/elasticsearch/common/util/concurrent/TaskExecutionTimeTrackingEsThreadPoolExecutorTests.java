@@ -35,7 +35,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             settableWrapper(TimeUnit.NANOSECONDS.toNanos(100)),
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
-            context
+            context,
+            EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -86,7 +87,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             exceptionalWrapper(),
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
-            context
+            context,
+            EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);

@@ -45,13 +45,16 @@ public class TransportGetSearchApplicationAction extends HandledTransportAction<
         GetSearchApplicationAction.Request request,
         ActionListener<GetSearchApplicationAction.Response> listener
     ) {
-        systemIndexService.getSearchApplication(request.getName(), listener.delegateFailure((l, searchApplication) -> {
-            systemIndexService.checkAliasConsistency(searchApplication, listener.delegateFailure((l2, inconsistentIndices) -> {
-                for (String key : inconsistentIndices.keySet()) {
-                    HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
-                }
-                listener.onResponse(new GetSearchApplicationAction.Response(searchApplication));
-            }));
-        }));
+        systemIndexService.getSearchApplication(
+            request.getName(),
+            listener.delegateFailure(
+                (l, searchApplication) -> systemIndexService.checkAliasConsistency(searchApplication, l.safeMap(inconsistentIndices -> {
+                    for (String key : inconsistentIndices.keySet()) {
+                        HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
+                    }
+                    return new GetSearchApplicationAction.Response(searchApplication);
+                }))
+            )
+        );
     }
 }

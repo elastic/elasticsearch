@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerComponents;
@@ -212,6 +213,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     ) throws IOException {
         if (request.tokenizer() != null) {
             return analysisRegistry.buildCustomAnalyzer(
+                IndexCreationContext.RELOAD_ANALYZERS,
                 indexSettings,
                 false,
                 request.tokenizer(),
@@ -221,6 +223,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         } else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
             || (request.charFilters() != null && request.charFilters().size() > 0))) {
                 return analysisRegistry.buildCustomAnalyzer(
+                    IndexCreationContext.RELOAD_ANALYZERS,
                     indexSettings,
                     true,
                     new NameOrDefinition("keyword"),

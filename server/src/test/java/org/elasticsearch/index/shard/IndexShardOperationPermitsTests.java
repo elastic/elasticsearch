@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -65,7 +66,14 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 .put("thread_pool." + ThreadPool.Names.WRITE + ".size", writeThreadPoolSize)
                 .put("thread_pool." + ThreadPool.Names.WRITE + ".queue_size", writeThreadPoolQueueSize)
                 .build(),
-            new FixedExecutorBuilder(Settings.EMPTY, REJECTING_EXECUTOR, 1, 0, REJECTING_EXECUTOR, false)
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                REJECTING_EXECUTOR,
+                1,
+                0,
+                REJECTING_EXECUTOR,
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
         assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(EsThreadPoolExecutor.class));
         assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getCorePoolSize(), equalTo(writeThreadPoolSize));

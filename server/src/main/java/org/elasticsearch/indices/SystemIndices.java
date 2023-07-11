@@ -177,7 +177,7 @@ public class SystemIndices {
         this.executorSelector = new ExecutorSelector(this);
         this.systemNameAutomaton = MinimizationOperations.minimize(
             Operations.union(List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(featureDescriptors))),
-            Integer.MAX_VALUE
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
         this.systemNameRunAutomaton = new CharacterRunAutomaton(systemNameAutomaton);
     }
@@ -261,7 +261,9 @@ public class SystemIndices {
             .collect(
                 Collectors.toUnmodifiableMap(
                     Entry::getKey,
-                    entry -> new CharacterRunAutomaton(MinimizationOperations.minimize(entry.getValue(), Integer.MAX_VALUE))
+                    entry -> new CharacterRunAutomaton(
+                        MinimizationOperations.minimize(entry.getValue(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+                    )
                 )
             );
     }
@@ -421,7 +423,7 @@ public class SystemIndices {
             .stream()
             .map(SystemIndices::featureToIndexAutomaton)
             .reduce(Operations::union);
-        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);
+        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> featureDescriptors) {
@@ -432,7 +434,9 @@ public class SystemIndices {
             .filter(SystemIndexDescriptor::isNetNew)
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
             .reduce(Operations::union);
-        return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE));
+        return new CharacterRunAutomaton(
+            MinimizationOperations.minimize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+        );
     }
 
     private static Automaton featureToIndexAutomaton(Feature feature) {
@@ -452,7 +456,7 @@ public class SystemIndices {
             .map(dsName -> SystemIndexDescriptor.buildAutomaton(dsName, null))
             .reduce(Operations::union);
 
-        return automaton.isPresent() ? MinimizationOperations.minimize(automaton.get(), Integer.MAX_VALUE) : EMPTY;
+        return automaton.isPresent() ? MinimizationOperations.minimize(automaton.get(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT) : EMPTY;
     }
 
     private static Predicate<String> buildDataStreamNamePredicate(Map<String, Feature> featureDescriptors) {
@@ -465,7 +469,7 @@ public class SystemIndices {
             .stream()
             .map(SystemIndices::featureToDataStreamBackingIndicesAutomaton)
             .reduce(Operations::union);
-        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);
+        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     private static Automaton featureToDataStreamBackingIndicesAutomaton(Feature feature) {

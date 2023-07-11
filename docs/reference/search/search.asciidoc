@@ -717,6 +717,7 @@ aggregation for its associated searches. You can retrieve these stats using the
 
 [[request-body-sub-searches]]
 `sub_searches`::
+preview::[]
 (Optional, array of objects)
 An array of `sub_search` objects where each `sub_search` is evaluated
 independently, and their result sets are later combined as part of

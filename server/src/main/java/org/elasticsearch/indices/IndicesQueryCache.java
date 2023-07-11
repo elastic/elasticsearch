@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
@@ -87,32 +88,27 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     /** Get usage statistics for the given shard. */
     public QueryCacheStats getStats(ShardId shard) {
-        final Map<ShardId, QueryCacheStats> stats = new HashMap<>();
-        for (Map.Entry<ShardId, Stats> entry : shardStats.entrySet()) {
-            stats.put(entry.getKey(), entry.getValue().toQueryCacheStats());
-        }
-        QueryCacheStats shardStats = new QueryCacheStats();
-        QueryCacheStats info = stats.get(shard);
-        if (info == null) {
-            info = new QueryCacheStats();
-        }
-        shardStats.add(info);
+        return Objects.requireNonNullElseGet(getGeneralStats().get(shard), QueryCacheStats::new);
+    }
 
-        // We also have some shared ram usage that we try to distribute
-        // proportionally to their number of cache entries of each shard.
-        // Sometimes it's not possible to do this when there are no shard entries at all,
-        // which can happen as the shared ram usage can extend beyond the closing of all shards.
-        if (stats.isEmpty() == false) {
-            long totalSize = 0;
-            for (QueryCacheStats s : stats.values()) {
-                totalSize += s.getCacheSize();
-            }
-            final double weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
-            final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
+    public Map<ShardId, QueryCacheStats> getGeneralStats() {
+        final var stats = new HashMap<ShardId, QueryCacheStats>();
+        var totalSize = 0L;
+        for (var entry : shardStats.entrySet()) {
+            var stat = entry.getValue().toQueryCacheStats();
+            totalSize += stat.getCacheSize();
+            stats.put(entry.getKey(), stat);
+        }
+
+        for (var entry: stats.entrySet()) {
+            final var shardStats = entry.getValue();
+            final var weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
+            final var additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
             assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;
             shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
         }
-        return shardStats;
+
+        return stats;
     }
 
     @Override

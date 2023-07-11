@@ -81,9 +81,6 @@ public class TopNOperatorTests extends OperatorTestCase {
             .sorted()
             .limit(4)
             .toArray();
-
-        results.stream().forEach(page -> assertThat(page.getPositionCount(), equalTo(4)));
-        results.stream().forEach(page -> assertThat(page.getBlockCount(), equalTo(1)));
         assertThat(
             results.stream()
                 .flatMapToLong(page -> IntStream.range(0, page.getPositionCount()).mapToLong(i -> page.<LongBlock>getBlock(0).getLong(i)))

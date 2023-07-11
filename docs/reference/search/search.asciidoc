@@ -555,8 +555,11 @@ Period of time used to extend the life of the PIT.
 
 [[request-body-rank]]
 `rank`::
-preview::[]
-(Optional, object) Defines a method for combining and ranking result sets from
+preview:[]
+This param is in technical preview and may change in the future.
++
+(Optional, object)
+Defines a method for combining and ranking result sets from
 a combination of <<request-body-search-query, query>>,
 <<request-body-sub-searches, sub searches>>, and/or
 <<search-api-knn, knn searches>>. Requires a minimum of 2 results sets for
@@ -718,7 +721,9 @@ aggregation for its associated searches. You can retrieve these stats using the
 
 [[request-body-sub-searches]]
 `sub_searches`::
-preview::[]
+preview:[]
+This param is in technical preview and may change in the future.
++
 (Optional, array of objects)
 An array of `sub_search` objects where each `sub_search` is evaluated
 independently, and their result sets are later combined as part of

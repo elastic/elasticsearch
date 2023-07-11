@@ -37,6 +37,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.BreakIterator;
@@ -139,6 +140,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 builder.withFieldMatcher(name -> "text".equals(name));
                 builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()));
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
+                    Settings.EMPTY,
                     builder,
                     offsetSource,
                     locale,

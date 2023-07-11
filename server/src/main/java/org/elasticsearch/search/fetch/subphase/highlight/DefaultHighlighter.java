@@ -21,6 +21,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -36,10 +37,8 @@ import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -52,15 +51,7 @@ public class DefaultHighlighter implements Highlighter {
 
     @Override
     public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
-        @SuppressWarnings("unchecked")
-        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.cache.computeIfAbsent(
-            DefaultHighlighter.class.getName(),
-            k -> new HashMap<>()
-        );
-        if (cache.containsKey(fieldContext.fieldName) == false) {
-            cache.put(fieldContext.fieldName, buildHighlighter(fieldContext));
-        }
-        CustomUnifiedHighlighter highlighter = cache.get(fieldContext.fieldName);
+        CustomUnifiedHighlighter highlighter = buildHighlighter(fieldContext);
         MappedFieldType fieldType = fieldContext.fieldType;
         SearchHighlightContext.Field field = fieldContext.field;
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
@@ -105,12 +96,13 @@ public class DefaultHighlighter implements Highlighter {
         return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));
     }
 
-    CustomUnifiedHighlighter buildHighlighter(FieldHighlightContext fieldContext) throws IOException {
+    CustomUnifiedHighlighter buildHighlighter(FieldHighlightContext fieldContext) {
+        IndexSettings indexSettings = fieldContext.context.getSearchExecutionContext().getIndexSettings();
         Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
 
-        int maxAnalyzedOffset = fieldContext.context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
+        int maxAnalyzedOffset = indexSettings.getHighlightMaxAnalyzedOffset();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
         Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
         Analyzer analyzer = wrapAnalyzer(
@@ -143,6 +135,7 @@ public class DefaultHighlighter implements Highlighter {
         builder.withFieldMatcher(fieldMatcher(fieldContext));
         builder.withFormatter(passageFormatter);
         return new CustomUnifiedHighlighter(
+            indexSettings.getSettings(),
             builder,
             offsetSource,
             fieldContext.field.fieldOptions().boundaryScannerLocale(),

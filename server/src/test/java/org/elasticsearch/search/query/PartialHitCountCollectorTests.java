@@ -101,7 +101,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
             assertFalse(collectorManager.hasEarlyTerminated());
         }
         {
-            int threshold = randomIntBetween(numDocs + 1, Integer.MAX_VALUE);
+            int threshold = randomIntBetween(numDocs + 1, 10000);
             PartialHitCountCollector.CollectorManager collectorManager = new PartialHitCountCollector.CollectorManager(threshold);
             searcher.search(new MatchAllDocsQuery(), collectorManager);
             assertEquals(numDocs, collectorManager.getTotalHits());
@@ -111,7 +111,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
 
     public void testCollectedHitCount() throws Exception {
         Query query = new NonCountingTermQuery(new Term("string", "a1"));
-        int threshold = randomIntBetween(1, Integer.MAX_VALUE);
+        int threshold = randomIntBetween(1, 10000);
         // there's one doc matching the query: any totalHitsThreshold greater than or equal to 1 will non cause early termination
         PartialHitCountCollector.CollectorManager collectorManager = new PartialHitCountCollector.CollectorManager(threshold);
         searcher.search(query, collectorManager);

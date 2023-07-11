@@ -36,6 +36,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.INTERNAL)
 public class RestAllocationAction extends AbstractCatAction {
 
+    private static final String UNASSIGNED = "UNASSIGNED";
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_cat/allocation"), new Route(GET, "/_cat/allocation/{nodes}"));
@@ -67,7 +69,7 @@ public class RestAllocationAction extends AbstractCatAction {
                     .addMetric(NodesStatsRequest.Metric.FS.metricName())
                     .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
 
-                client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
+                client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(NodesStatsResponse stats) throws Exception {
                         Table tab = buildTable(request, state, stats);
@@ -84,6 +86,11 @@ public class RestAllocationAction extends AbstractCatAction {
         final Table table = new Table();
         table.startHeaders();
         table.addCell("shards", "alias:s;text-align:right;desc:number of shards on node");
+        table.addCell(
+            "forecast.write_load",
+            "default:false;alias:fwl,forecastWriteLoad;text-align:right;desc:sum of index write load forecasts"
+        );
+        table.addCell("forecast.shard_size", "default:false;alias:fd,forecastShardSize;text-align:right;desc:sum of shard size forecasts");
         table.addCell("disk.indices", "alias:di,diskIndices;text-align:right;desc:disk used by ES indices");
         table.addCell("disk.used", "alias:du,diskUsed;text-align:right;desc:disk used (total, not just ES)");
         table.addCell("disk.avail", "alias:da,diskAvail;text-align:right;desc:disk available");
@@ -98,21 +105,27 @@ public class RestAllocationAction extends AbstractCatAction {
     }
 
     private Table buildTable(RestRequest request, final ClusterStateResponse state, final NodesStatsResponse stats) {
-        final Map<String, Integer> allocs = new HashMap<>();
 
-        for (ShardRouting shard : state.getState().routingTable().allShardsIterator()) {
-            String nodeId = "UNASSIGNED";
-            if (shard.assignedToNode()) {
-                nodeId = shard.currentNodeId();
+        var clusterState = state.getState();
+
+        final Map<String, Integer> shardCounts = new HashMap<>();
+        final Map<String, Double> forecastedWriteLoads = new HashMap<>();
+        final Map<String, Long> forecastedShardSizes = new HashMap<>();
+
+        for (ShardRouting shard : clusterState.routingTable().allShardsIterator()) {
+            String nodeId = shard.assignedToNode() ? shard.currentNodeId() : UNASSIGNED;
+            shardCounts.merge(nodeId, 1, Integer::sum);
+            var metadata = clusterState.metadata().index(shard.index());
+            if (metadata != null) {
+                metadata.getForecastedWriteLoad().ifPresent(value -> forecastedWriteLoads.merge(nodeId, value, Double::sum));
+                metadata.getForecastedShardSizeInBytes().ifPresent(value -> forecastedShardSizes.merge(nodeId, value, Long::sum));
             }
-            allocs.merge(nodeId, 1, Integer::sum);
         }
+
         Table table = getTableWithHeader(request);
 
         for (NodeStats nodeStats : stats.getNodes()) {
             DiscoveryNode node = nodeStats.getNode();
-
-            int shardCount = allocs.getOrDefault(node.getId(), 0);
 
             ByteSizeValue total = nodeStats.getFs().getTotal().getTotal();
             ByteSizeValue avail = nodeStats.getFs().getTotal().getAvailable();
@@ -127,7 +140,9 @@ public class RestAllocationAction extends AbstractCatAction {
             }
 
             table.startRow();
-            table.addCell(shardCount);
+            table.addCell(shardCounts.getOrDefault(node.getId(), 0));
+            table.addCell(forecastedWriteLoads.getOrDefault(node.getId(), 0.0));
+            table.addCell(ByteSizeValue.ofBytes(forecastedShardSizes.getOrDefault(node.getId(), 0L)));
             table.addCell(nodeStats.getIndices().getStore().getSize());
             table.addCell(used < 0 ? null : ByteSizeValue.ofBytes(used));
             table.addCell(avail.getBytes() < 0 ? null : avail);
@@ -140,10 +155,14 @@ public class RestAllocationAction extends AbstractCatAction {
             table.endRow();
         }
 
-        final String UNASSIGNED = "UNASSIGNED";
-        if (allocs.containsKey(UNASSIGNED)) {
+        var unassignedShardCount = shardCounts.get(UNASSIGNED);
+        var unassignedForecastedWriteLoad = forecastedWriteLoads.get(UNASSIGNED);
+        var unassignedForecastedShardSize = forecastedShardSizes.get(UNASSIGNED);
+        if (unassignedShardCount != null || unassignedForecastedWriteLoad != null || unassignedForecastedShardSize != null) {
             table.startRow();
-            table.addCell(allocs.get(UNASSIGNED));
+            table.addCell(unassignedShardCount);
+            table.addCell(unassignedForecastedWriteLoad);
+            table.addCell(unassignedForecastedShardSize != null ? ByteSizeValue.ofBytes(unassignedForecastedShardSize) : null);
             table.addCell(null);
             table.addCell(null);
             table.addCell(null);
@@ -158,5 +177,4 @@ public class RestAllocationAction extends AbstractCatAction {
 
         return table;
     }
-
 }

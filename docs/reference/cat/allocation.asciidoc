@@ -6,7 +6,7 @@
 
 [IMPORTANT]
 ====
-cat APIs are only intended for human consumption using the command line or {kib} 
+cat APIs are only intended for human consumption using the command line or {kib}
 console. They are _not_ intended for use by applications.
 ====
 
@@ -57,6 +57,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 `shards`::
 Number of primary and replica shards assigned to the node.
 
+`forecast.write_load`, `fwl`, `forecastWriteLoad`::
+Sum of index write load forecasts
+
+`forecast.shard_size`, `fd`, `forecastShardSize`::
+Sum of shard size forecasts
+
 `disk.indices`::
 Disk space used by the node's shards. Does not include disk space for the
 <<index-modules-translog,translog>> or unassigned shards.
@@ -99,6 +105,8 @@ IP address and port for the node.
 `node`::
 Name for the node. Set using <<node-name,`node.name`>>.
 
+`node.role`, `r`, `role`, `nodeRole`::
+Node roles
 
 [[cat-allocation-api-example]]
 ==== {api-examples-title}

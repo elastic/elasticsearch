@@ -3,7 +3,7 @@
 
   - skip:
       version: " - 8.9.99"
-      reason:  "node.role column added in 8.10.0"
+      reason:  "node.role, forecast.write_load and forecast.shard_size columns are added in 8.10.0"
 
   - do:
       cat.allocation:
@@ -11,16 +11,18 @@
 
   - match:
       $body: |
-               /^  shards            .+   \n
-                   disk.indices      .+   \n
-                   disk.used         .+   \n
-                   disk.avail        .+   \n
-                   disk.total        .+   \n
-                   disk.percent      .+   \n
-                   host              .+   \n
-                   ip                .+   \n
-                   node              .+   \n
-                   node.role         .+   \n
+               /^  shards              .+   \n
+                   forecast.write_load .+   \n
+                   forecast.shard_size .+   \n
+                   disk.indices        .+   \n
+                   disk.used           .+   \n
+                   disk.avail          .+   \n
+                   disk.total          .+   \n
+                   disk.percent        .+   \n
+                   host                .+   \n
+                   ip                  .+   \n
+                   node                .+   \n
+                   node.role           .+   \n
                $/
 
 ---
@@ -229,6 +231,26 @@
       $body: |
         /^
           ( [-\w.]+                \s+
+            [\w]+
+            \n
+          )+
+        $/
+
+"Node forecasts":
+
+  - skip:
+      version: " - 8.9.99"
+      reason:  "forecast.write_load and forecast.shard_size columns added in 8.10.0"
+
+  - do:
+      cat.allocation:
+        h: [node, forecast.write_load, forecast.shard_size]
+
+  - match:
+      $body: |
+        /^
+          ( [-\w.]+                \s+
+            [-\w.]+                \s+
             [\w]+
             \n
           )+

@@ -389,8 +389,8 @@ final class QueryPhaseCollector implements Collector {
 
     /**
      * {@link org.apache.lucene.search.CollectorManager} implementation based on {@link QueryPhaseCollector}.
-     * Wraps two {@link org.apache.lucene.search.CollectorManager}: one required for top docs collection, and one optional for aggs collection.
-     * Applies terminate_after consistently across the different collectors by sharing an atomic counter of collected docs.
+     * Wraps two {@link org.apache.lucene.search.CollectorManager}s: one required for top docs collection, and another one optional for
+     * aggs collection. Applies terminate_after consistently across the different collectors by sharing an atomic counter of collected docs.
      */
     static class CollectorManager implements org.apache.lucene.search.CollectorManager<QueryPhaseCollector, Void> {
         private final Weight postFilterWeight;

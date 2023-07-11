@@ -53,6 +53,8 @@ public class SharedBytes extends AbstractRefCounted {
         StandardOpenOption.WRITE,
         StandardOpenOption.CREATE };
 
+    private static final long MAX_BYTES_PER_MAP = ByteSizeValue.ofGb(1).getBytes();
+
     final int numRegions;
 
     private final IO[] ios;
@@ -89,19 +91,31 @@ public class SharedBytes extends AbstractRefCounted {
         this.path = cacheFile;
         this.mmap = mmap;
         this.ios = new IO[numRegions];
-        if (mmap) {
-            int regionsPerMmap = Math.toIntExact(ByteSizeValue.ofGb(1).getBytes() / regionSize);
+        if (mmap && fileSize > 0) {
+            int regionsPerMmap = Math.toIntExact(MAX_BYTES_PER_MAP / regionSize);
             int mapSize = Math.toIntExact(regionsPerMmap * regionSize);
-            for (int i = 0; i < ; i++) {
-
+            int lastMapSize = Math.toIntExact(fileSize % mapSize);
+            int mapCount = Math.toIntExact(fileSize / mapSize) + (lastMapSize == 0 ? 0 : 1);
+            MappedByteBuffer[] mmaps = new MappedByteBuffer[mapCount];
+            for (int i = 0; i < mapCount - 1; i++) {
+                mmaps[i] = fileChannel.map(FileChannel.MapMode.READ_WRITE, (long) mapSize * i, mapSize);
             }
-            fileChannel.map(FileChannel.MapMode.READ_WRITE, pageStart, regionSize)
-        }
-        for (int i = 0; i < numRegions; i++) {
-            ios[i] = new IO(i, null);
-        }
-        if (mmap) {
+            mmaps[mapCount - 1] = fileChannel.map(
+                FileChannel.MapMode.READ_WRITE,
+                (long) mapSize * (mapCount - 1),
+                lastMapSize == 0 ? mapSize : lastMapSize
+            );
+            for (int i = 0; i < numRegions; i++) {
+                ios[i] = new IO(
+                    i,
+                    mmaps[i / regionsPerMmap].slice(Math.toIntExact((i % regionsPerMmap) * regionSize), Math.toIntExact(regionSize))
+                );
+            }
             fileChannel.close();
+        } else {
+            for (int i = 0; i < numRegions; i++) {
+                ios[i] = new IO(i, null);
+            }
         }
         this.writeBytes = writeBytes;
         this.readBytes = readBytes;

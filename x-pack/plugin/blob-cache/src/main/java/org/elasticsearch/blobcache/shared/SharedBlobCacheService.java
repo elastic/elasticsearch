@@ -637,7 +637,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      *
      * @return The number of entries evicted from the keyMapping.
      */
-    public int forceEvictAll(){
+    public int forceEvictAll() {
         return forceEvict(entry -> true);
     }
 

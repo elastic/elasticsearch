@@ -121,15 +121,11 @@ final class QueryPhaseCollector implements Collector {
     }
 
     private boolean shouldCollectTopDocs(int doc, Scorable scorer, Bits postFilterBits) throws IOException {
-        return isDocWithinMinScore(scorer) && doesDocMatchPostFilter(doc, postFilterBits);
+        return isDocWithinMinScore(scorer) && (postFilterBits == null || postFilterBits.get(doc));
     }
 
     private boolean isDocWithinMinScore(Scorable scorer) throws IOException {
         return minScore == null || scorer.score() >= minScore;
-    }
-
-    private static boolean doesDocMatchPostFilter(int doc, Bits postFilterBits) {
-        return postFilterBits == null || postFilterBits.get(doc);
     }
 
     private void earlyTerminate() {
@@ -364,7 +360,6 @@ final class QueryPhaseCollector implements Collector {
 
     private abstract static class TerminateAfterChecker {
         abstract boolean isThresholdReached();
-
         abstract boolean incrementHitCountAndCheckThreshold();
     }
 
@@ -386,6 +381,7 @@ final class QueryPhaseCollector implements Collector {
         }
     }
 
+    //no needless counting when terminate_after is not set
     private static final TerminateAfterChecker NO_OP_TERMINATE_AFTER_CHECKER = new TerminateAfterChecker() {
         @Override
         boolean isThresholdReached() {

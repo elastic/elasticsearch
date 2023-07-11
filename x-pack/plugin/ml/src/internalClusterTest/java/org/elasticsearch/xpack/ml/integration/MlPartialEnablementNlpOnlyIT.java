@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.action.MlMemoryAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearningNlpOnly;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.util.Collection;
 
@@ -34,8 +35,9 @@ public class MlPartialEnablementNlpOnlyIT extends MlSingleNodeTestCase {
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
-            // Needed for scaled_float
-            MapperExtrasPlugin.class
+            // Needed for scaled_float and wildcard fields
+            MapperExtrasPlugin.class,
+            Wildcard.class
         );
     }
 

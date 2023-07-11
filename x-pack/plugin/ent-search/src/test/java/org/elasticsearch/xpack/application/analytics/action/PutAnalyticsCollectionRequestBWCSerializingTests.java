@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.application.analytics.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
-public class PutAnalyticsCollectionRequestSerializingTests extends AbstractWireSerializingTestCase<PutAnalyticsCollectionAction.Request> {
+public class PutAnalyticsCollectionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<
+    PutAnalyticsCollectionAction.Request> {
 
     @Override
     protected Writeable.Reader<PutAnalyticsCollectionAction.Request> instanceReader() {
@@ -27,5 +30,18 @@ public class PutAnalyticsCollectionRequestSerializingTests extends AbstractWireS
     @Override
     protected PutAnalyticsCollectionAction.Request mutateInstance(PutAnalyticsCollectionAction.Request instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    @Override
+    protected PutAnalyticsCollectionAction.Request doParseInstance(XContentParser parser) throws IOException {
+        return PutAnalyticsCollectionAction.Request.parse(parser);
+    }
+
+    @Override
+    protected PutAnalyticsCollectionAction.Request mutateInstanceForVersion(
+        PutAnalyticsCollectionAction.Request instance,
+        TransportVersion version
+    ) {
+        return new PutAnalyticsCollectionAction.Request(instance.getName());
     }
 }

@@ -15,13 +15,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollectionAction.Response> {
 
@@ -32,8 +36,10 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         super(NAME, PutAnalyticsCollectionAction.Response::new);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
         private final String name;
+
+        public static final ParseField NAME_FIELD = new ParseField("name");
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -76,6 +82,29 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         @Override
         public int hashCode() {
             return Objects.hash(name);
+        }
+
+        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
+            "put_analytics_request",
+            false,
+            (p) -> {
+                return new Request((String) p[0]);
+            }
+        );
+        static {
+            PARSER.declareString(constructorArg(), NAME_FIELD);
+        }
+
+        public static Request parse(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(NAME_FIELD.getPreferredName(), name);
+            builder.endObject();
+            return builder;
         }
     }
 
@@ -127,5 +156,21 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
             builder.field(COLLECTION_NAME_FIELD.getPreferredName(), name);
         }
+
+        private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
+            "put_analytics_request",
+            false,
+            (p) -> {
+                return new Response((boolean) p[0], (String) p[1]);
+            }
+        );
+        static {
+            PARSER.declareString(constructorArg(), COLLECTION_NAME_FIELD);
+        }
+
+        public static Response fromXContent(String resourceName, XContentParser parser) throws IOException {
+            return new Response(AcknowledgedResponse.fromXContent(parser).isAcknowledged(), resourceName);
+        }
+
     }
 }

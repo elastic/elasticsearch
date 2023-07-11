@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
 
@@ -18,6 +20,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.sql.action.Protocol.ID_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.SQL_ASYNC_STATUS_REST_ENDPOINT;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestSqlAsyncGetStatusAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {

@@ -144,7 +144,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topScoreDocManager);
             QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(topScoreDocAdapter, null, 0, null, null);
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numDocs, topScoreDocAdapter.getResult().totalHits.value);
         }
         {
@@ -152,7 +152,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topScoreDocManager);
             QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(topScoreDocAdapter, null, 0, null, null);
             searcher.search(new TermQuery(new Term("field2", "value")), manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
         }
     }
@@ -171,7 +171,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numDocs, topScoreDocAdapter.getResult().totalHits.value);
             assertEquals(numDocs, aggsAdapter.getResult().intValue());
         }
@@ -188,7 +188,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new TermQuery(new Term("field2", "value")), manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
             assertEquals(numField2Docs, aggsAdapter.getResult().intValue());
         }
@@ -208,7 +208,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
         }
         {
@@ -224,7 +224,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numDocs, topScoreDocAdapter.getResult().totalHits.value);
         }
     }
@@ -245,7 +245,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numDocs, topScoreDocAdapter.getResult().totalHits.value);
             assertEquals(numDocs, aggsAdapter.getResult().intValue());
         }
@@ -264,7 +264,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
             // post_filter is not applied to aggs
             assertEquals(reader.maxDoc(), aggsAdapter.getResult().intValue());
@@ -294,7 +294,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(topScoreDocAdapter, null, 0, null, maxScore);
             searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
         }
         {
@@ -308,7 +308,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 thresholdScore
             );
             searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numDocs, topScoreDocAdapter.getResult().totalHits.value);
         }
         {
@@ -322,7 +322,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 maxScore + 100f
             );
             searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(0, topScoreDocAdapter.getResult().totalHits.value);
         }
     }
@@ -358,7 +358,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 maxScore
             );
             searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
             // min_score is applied to aggs as well as top docs
             assertEquals(numField2Docs, aggsAdapter.getResult().intValue());
@@ -376,7 +376,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 thresholdScore
             );
             searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numDocs, topScoreDocAdapter.getResult().totalHits.value);
             assertEquals(numDocs, aggsAdapter.getResult().intValue());
         }
@@ -393,7 +393,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 maxScore + 100f
             );
             searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(0, topScoreDocAdapter.getResult().totalHits.value);
             assertEquals(0, aggsAdapter.getResult().intValue());
         }
@@ -430,7 +430,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 maxScore
             );
             searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numField2AndField3Docs, topScoreDocAdapter.getResult().totalHits.value);
         }
         {
@@ -444,7 +444,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 thresholdScore
             );
             searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
         }
         {
@@ -458,7 +458,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 maxScore + 100f
             );
             searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(0, topScoreDocAdapter.getResult().totalHits.value);
         }
     }
@@ -496,7 +496,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 maxScore
             );
             searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numField2AndField3Docs, topScoreDocAdapter.getResult().totalHits.value);
             assertEquals(numField3Docs, aggsAdapter.getResult().intValue());
         }
@@ -513,7 +513,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 thresholdScore
             );
             searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
             assertEquals(numDocs, aggsAdapter.getResult().intValue());
         }
@@ -530,7 +530,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 maxScore + 100f
             );
             searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(0, topScoreDocAdapter.getResult().totalHits.value);
             assertEquals(0, aggsAdapter.getResult().intValue());
         }
@@ -549,7 +549,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertTrue(manager.isTerminatedEarly());
+            assertTrue(manager.isTerminatedAfter());
             assertEquals(terminateAfter, topDocsAdapter.getResult().intValue());
         }
         {
@@ -557,7 +557,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
             QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(topDocsAdapter, null, numDocs, null, null);
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numDocs, topDocsAdapter.getResult().intValue());
         }
     }
@@ -577,7 +577,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertTrue(manager.isTerminatedEarly());
+            assertTrue(manager.isTerminatedAfter());
             assertEquals(terminateAfter, topDocsAdapter.getResult().intValue());
             assertEquals(terminateAfter, aggsAdapter.getResult().intValue());
         }
@@ -594,7 +594,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numDocs, topDocsAdapter.getResult().intValue());
             assertEquals(numDocs, aggsAdapter.getResult().intValue());
         }
@@ -615,7 +615,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertTrue(manager.isTerminatedEarly());
+            assertTrue(manager.isTerminatedAfter());
             assertEquals(terminateAfter, topDocsAdapter.getResult().intValue());
         }
         {
@@ -630,7 +630,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numField2Docs, topDocsAdapter.getResult().intValue());
         }
     }
@@ -652,7 +652,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertTrue(manager.isTerminatedEarly());
+            assertTrue(manager.isTerminatedAfter());
             assertEquals(terminateAfter, topDocsAdapter.getResult().intValue());
             // aggs see more docs because they are not filtered
             assertThat(aggsAdapter.getResult(), Matchers.greaterThanOrEqualTo(terminateAfter));
@@ -671,7 +671,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null
             );
             searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedEarly());
+            assertFalse(manager.isTerminatedAfter());
             assertEquals(numField2Docs, topDocsAdapter.getResult().intValue());
             // aggs see more docs because they are not filtered
             assertThat(aggsAdapter.getResult(), Matchers.greaterThanOrEqualTo(numField2Docs));
@@ -706,7 +706,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 maxScore
             );
             searcher.search(booleanQuery, manager);
-            assertTrue(manager.isTerminatedEarly());
+            assertTrue(manager.isTerminatedAfter());
             assertEquals(terminateAfter, topDocsAdapter.getResult().totalHits.value);
         }
     }
@@ -741,7 +741,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 maxScore
             );
             searcher.search(booleanQuery, manager);
-            assertTrue(manager.isTerminatedEarly());
+            assertTrue(manager.isTerminatedAfter());
             assertEquals(terminateAfter, topDocsAdapter.getResult().totalHits.value);
             assertEquals(terminateAfter, aggsAdapter.getResult().intValue());
         }
@@ -777,7 +777,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 maxScore
             );
             searcher.search(booleanQuery, manager);
-            assertTrue(manager.isTerminatedEarly());
+            assertTrue(manager.isTerminatedAfter());
             assertEquals(terminateAfter, topDocsAdapter.getResult().totalHits.value);
         }
     }
@@ -814,7 +814,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 maxScore
             );
             searcher.search(booleanQuery, manager);
-            assertTrue(manager.isTerminatedEarly());
+            assertTrue(manager.isTerminatedAfter());
             assertEquals(terminateAfter, topDocsAdapter.getResult().totalHits.value);
             // aggs see more documents because the filter is not applied to them
             assertThat(aggsAdapter.getResult(), Matchers.greaterThanOrEqualTo(terminateAfter));

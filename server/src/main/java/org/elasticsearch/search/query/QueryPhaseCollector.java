@@ -69,14 +69,6 @@ final class QueryPhaseCollector implements Collector {
         this.cacheScores = aggsCollector != null && topDocsCollector.scoreMode().needsScores() && aggsCollector.scoreMode().needsScores();
     }
 
-    Collector getTopDocsCollector() {
-        return topDocsCollector;
-    }
-
-    Collector getAggsCollector() {
-        return aggsCollector;
-    }
-
     @Override
     public void setWeight(Weight weight) {
         if (postFilterWeight == null && minScore == null) {
@@ -360,6 +352,7 @@ final class QueryPhaseCollector implements Collector {
 
     private abstract static class TerminateAfterChecker {
         abstract boolean isThresholdReached();
+
         abstract boolean incrementHitCountAndCheckThreshold();
     }
 
@@ -381,7 +374,7 @@ final class QueryPhaseCollector implements Collector {
         }
     }
 
-    //no needless counting when terminate_after is not set
+    // no needless counting when terminate_after is not set
     private static final TerminateAfterChecker NO_OP_TERMINATE_AFTER_CHECKER = new TerminateAfterChecker() {
         @Override
         boolean isThresholdReached() {
@@ -406,7 +399,7 @@ final class QueryPhaseCollector implements Collector {
         private final org.apache.lucene.search.CollectorManager<? extends Collector, Void> topDocsCollectorManager;
         private final org.apache.lucene.search.CollectorManager<? extends Collector, Void> aggsCollectorManager;
 
-        private boolean terminatedEarly;
+        private boolean terminatedAfter;
 
         CollectorManager(
             org.apache.lucene.search.CollectorManager<? extends Collector, Void> topDocsCollectorManager,
@@ -439,10 +432,10 @@ final class QueryPhaseCollector implements Collector {
             List<Collector> topDocsCollectors = new ArrayList<>();
             List<Collector> aggsCollectors = new ArrayList<>();
             for (QueryPhaseCollector collector : collectors) {
-                topDocsCollectors.add(collector.getTopDocsCollector());
-                aggsCollectors.add(collector.getAggsCollector());
+                topDocsCollectors.add(collector.topDocsCollector);
+                aggsCollectors.add(collector.aggsCollector);
                 if (collector.isTerminatedAfter()) {
-                    terminatedEarly = true;
+                    terminatedAfter = true;
                 }
             }
             @SuppressWarnings("unchecked")
@@ -460,8 +453,8 @@ final class QueryPhaseCollector implements Collector {
             return null;
         }
 
-        boolean isTerminatedEarly() {
-            return terminatedEarly;
+        boolean isTerminatedAfter() {
+            return terminatedAfter;
         }
     }
 }

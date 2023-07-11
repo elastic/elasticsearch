@@ -77,5 +77,5 @@ sudo -E env \
   --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
   SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
-  ./gradlew -g $HOME/.gradle --parallel --continue $@
+  ./gradlew -g $HOME/.gradle --scan --parallel --continue $@
 

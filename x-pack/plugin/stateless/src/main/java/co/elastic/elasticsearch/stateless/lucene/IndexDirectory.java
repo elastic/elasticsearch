@@ -341,20 +341,19 @@ public class IndexDirectory extends FilterDirectory {
         private final long sliceOffset;
         private final long sliceLength;
 
-        private IndexInput input;
-        private boolean reopened;
+        private volatile Delegate delegate;
         private boolean clone;
         private long position;
 
         ReopeningIndexInput(String name, IOContext context, IndexInput delegate, LocalFileRef localFile) {
-            this(name, delegate.length(), context, delegate, localFile, null, 0L, 0L);
+            this(name, delegate.length(), context, new Delegate(name, false, delegate), localFile, null, 0L, 0L);
         }
 
-        ReopeningIndexInput(
+        private ReopeningIndexInput(
             String name,
             long length,
             IOContext context,
-            IndexInput delegate,
+            Delegate delegate,
             LocalFileRef localFile,
             String sliceDescription,
             long sliceOffset,
@@ -364,18 +363,37 @@ public class IndexDirectory extends FilterDirectory {
             this.name = name;
             this.length = length;
             this.context = context;
-            this.input = delegate;
             this.localFile = localFile;
             this.sliceDescription = sliceDescription;
             this.sliceOffset = sliceOffset;
             this.sliceLength = sliceLength;
-            this.reopened = false;
-            this.clone = false;
+            this.delegate = delegate;
+        }
+
+        private static class Delegate extends FilterIndexInput {
+
+            private final boolean isReopened;
+
+            private Delegate(String name, boolean isReopened, IndexInput input) {
+                super("delegate(" + name + ')', input);
+                this.isReopened = isReopened;
+            }
+
+            public boolean isReopened() {
+                return isReopened;
+            }
+
+            @Override
+            public String toString() {
+                return "Delegate [isReopened=" + isReopened + ", input=" + in.getClass() + ']';
+            }
         }
 
         @Override
         public void close() throws IOException {
-            closeInput(input);
+            if (clone == false) {
+                delegate.close();
+            }
         }
 
         @Override
@@ -385,14 +403,15 @@ public class IndexDirectory extends FilterDirectory {
 
         @Override
         protected void seekInternal(long pos) throws IOException {
-            if (reopened) {
-                input.seek(pos);
+            var currentDelegate = this.delegate;
+            if (currentDelegate.isReopened()) {
+                currentDelegate.seek(pos);
                 position = pos;
                 return;
             }
             if (localFile.tryIncRef()) {
                 try {
-                    input.seek(pos);
+                    currentDelegate.seek(pos);
                     position = pos;
                     return;
                 } finally {
@@ -400,22 +419,24 @@ public class IndexDirectory extends FilterDirectory {
                 }
             }
             ensureSeek(pos, this);
-            reopenInputFromCache();
-            input.seek(pos);
+            reopenInputFromCache().seek(pos);
             position = pos;
         }
 
         @Override
         public BufferedIndexInput clone() {
             // Note: Lucene can clone a slice or a clone
-            if (reopened) {
-                assert input instanceof SearchIndexInput : input;
-                return ((BufferedIndexInput) input).clone();
+            var currentDelegate = this.delegate;
+            // We clone the actual delegate input. No need to clone our wrapper with the isReopened marker.
+            IndexInput inputToClone = currentDelegate.getDelegate();
+            if (currentDelegate.isReopened()) {
+                assert inputToClone instanceof SearchIndexInput : toString();
+                return ((BufferedIndexInput) inputToClone).clone();
             }
             if (localFile.tryIncRef()) {
                 try {
                     final var clone = (ReopeningIndexInput) super.clone();
-                    clone.input = input.clone();
+                    clone.delegate = new Delegate(name, false, inputToClone.clone());
                     clone.clone = true;
                     return clone;
                 } finally {
@@ -424,8 +445,8 @@ public class IndexDirectory extends FilterDirectory {
             }
 
             try {
-                reopenInputFromCache();
-                return (BufferedIndexInput) input.clone();
+                // We clone the actual delegate input. No need to clone our wrapper with the isReopened marker.
+                return (BufferedIndexInput) reopenInputFromCache().getDelegate().clone();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -435,9 +456,10 @@ public class IndexDirectory extends FilterDirectory {
         public IndexInput slice(String sliceDescription, long sliceOffset, long sliceLength) throws IOException {
             assert sliceDescription != null;
             // Note: Lucene can slice a clone or a slice
-            if (reopened) {
-                assert input instanceof SearchIndexInput : input;
-                return input.slice(sliceDescription, sliceOffset, sliceLength);
+            var currentDelegate = this.delegate;
+            if (currentDelegate.isReopened()) {
+                assert currentDelegate.getDelegate() instanceof SearchIndexInput : toString();
+                return currentDelegate.slice(sliceDescription, sliceOffset, sliceLength);
             }
             if (localFile.tryIncRef()) {
                 try {
@@ -446,7 +468,7 @@ public class IndexDirectory extends FilterDirectory {
                         name,
                         sliceLength,
                         context,
-                        input.slice(sliceDescription, sliceOffset, sliceLength),
+                        new Delegate(name, false, currentDelegate.slice(sliceDescription, sliceOffset, sliceLength)),
                         localFile,
                         sliceDescription,
                         this.sliceOffset + sliceOffset,
@@ -457,39 +479,38 @@ public class IndexDirectory extends FilterDirectory {
                 }
             }
             ensureSlice(sliceDescription, sliceOffset, sliceLength, this);
-            reopenInputFromCache();
-            return input.slice(sliceDescription, sliceOffset, sliceLength);
+            return reopenInputFromCache().slice(sliceDescription, sliceOffset, sliceLength);
         }
 
         @Override
         protected void readInternal(ByteBuffer b) throws IOException {
-            if (reopened) {
-                readBytes(b);
+            var currentDelegate = this.delegate;
+            if (currentDelegate.isReopened()) {
+                readBytes(currentDelegate, b);
                 return;
             }
             if (localFile.tryIncRef()) {
                 try {
-                    readBytes(b);
+                    readBytes(currentDelegate, b);
                     return;
                 } finally {
                     localFile.decRef();
                 }
             }
-            reopenInputFromCache();
-            readBytes(b);
+            readBytes(reopenInputFromCache(), b);
         }
 
-        private void readBytes(ByteBuffer b) throws IOException {
-            assert assertPositionMatchesFilePointer();
+        private void readBytes(IndexInput in, ByteBuffer b) throws IOException {
+            assert assertPositionMatchesFilePointer(in);
             var len = b.remaining();
             var offset = b.position();
-            input.readBytes(b.array(), offset, len);
+            in.readBytes(b.array(), offset, len);
             b.position(offset + len);
             position += len;
         }
 
-        private synchronized void reopenInputFromCache() throws IOException {
-            if (reopened == false) {
+        private synchronized Delegate reopenInputFromCache() throws IOException {
+            if (delegate.isReopened() == false) {
                 try {
                     var next = cacheDirectory.openInput(name, context);
                     assert next instanceof SearchIndexInput : next;
@@ -499,19 +520,17 @@ public class IndexDirectory extends FilterDirectory {
                     if (position > 0L) {
                         next.seek(position);
                     }
-                    closeInput(input);
-                    this.reopened = true;
-                    this.input = next;
+                    delegate.close();
+                    Delegate nextDelegate = new Delegate(name, true, next);
+                    this.delegate = nextDelegate;
+                    return nextDelegate;
                 } catch (Exception e) {
                     logger.error(() -> "Failed to reopen " + this, e);
                     throw e;
                 }
-            }
-        }
-
-        private void closeInput(IndexInput in) throws IOException {
-            if (clone == false) {
-                in.close();
+            } else {
+                assert delegate.isReopened() : toString();
+                return delegate;
             }
         }
 
@@ -522,19 +541,16 @@ public class IndexDirectory extends FilterDirectory {
                 + "]["
                 + ", context="
                 + context
-                + ", input="
-                + input.getClass()
                 + ", localFile="
                 + localFile
-                + ", reopened="
-                + reopened
+                + ", delegate="
+                + delegate
                 + ", clone="
                 + clone
                 + ", position="
                 + position
                 + ", sliceDescription='"
                 + sliceDescription
-                + '\''
                 + ", sliceOffset="
                 + sliceOffset
                 + ", sliceLength="
@@ -542,8 +558,8 @@ public class IndexDirectory extends FilterDirectory {
                 + '}';
         }
 
-        private boolean assertPositionMatchesFilePointer() {
-            var filePointer = input.getFilePointer();
+        private boolean assertPositionMatchesFilePointer(IndexInput in) {
+            var filePointer = in.getFilePointer();
             assert position == filePointer
                 : "Expect position [" + position + "] to be equal to file pointer [" + filePointer + "] of IndexInput " + in;
             return true;

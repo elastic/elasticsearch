@@ -3,9 +3,11 @@
 Returns a boolean that indicates whether a keyword string starts with another
 string:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
-FROM employees
-| KEEP first_name, last_name, height
-| EVAL ln_S = STARTS_WITH(last_name, "S")
+include::{esql-specs}/docs.csv-spec[tag=startsWith]
 ----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=startsWith-result]
+|===

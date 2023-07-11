@@ -3,8 +3,11 @@
 Returns the the value of a base (first argument) raised to a power (second
 argument).
 
-[source,esql]
+[source.merge.styled,esql]
 ----
-ROW base = 2.0, exponent = 2.0
-| EVAL s = POW(base, exponent)
+include::{esql-specs}/math.csv-spec[tag=pow]
 ----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=pow-result]
+|===

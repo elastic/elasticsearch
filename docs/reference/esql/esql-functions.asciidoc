@@ -1,11 +1,9 @@
 [[esql-functions]]
-== ESQL functions
+== {esql} functions
 
 ++++
 <titleabbrev>Functions</titleabbrev>
 ++++
-:keywords: {es}, ESQL, {es} query language, functions
-:description: ESQL supports various functions for calculating values.
 
 <<esql-row,`ROW`>>, <<esql-eval,`EVAL`>> and <<esql-where,`WHERE`>> support
 these functions:

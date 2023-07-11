@@ -1,11 +1,11 @@
 [[esql-multivalued-fields]]
-== ESQL multivalued fields
+== {esql} multivalued fields
 
 ++++
 <titleabbrev>Multivalued fields</titleabbrev>
 ++++
 
-ESQL is fine reading from multivalued fields:
+{esql} is fine reading from multivalued fields:
 
 [source,console,id=esql-multivalued-fields-reorders]
 ----
@@ -69,7 +69,7 @@ POST /_esql
 }
 ----
 
-And ESQL sees that removal:
+And {esql} sees that removal:
 
 [source,console-result]
 ----
@@ -110,7 +110,7 @@ POST /_esql
 }
 ----
 
-And ESQL also sees that:
+And {esql} also sees that:
 
 [source,console-result]
 ----

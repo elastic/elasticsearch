@@ -1,18 +1,15 @@
 [[esql]]
-= ESQL
-
-:keywords: {es}, ESQL, {es} query language
-:description: ESQL is a query language that enables the iterative exploration of data.
+= {esql}
 
 :esql-tests: {xes-repo-dir}/../../plugin/esql/qa
 :esql-specs: {esql-tests}/testFixtures/src/main/resources
 
 [partintro]
 --
-The {es} Query Language (ESQL) is a query language that enables the iterative
+The {es} Query Language ({esql}) is a query language that enables the iterative
 exploration of data.
 
-An ESQL query consists of a series of commands, separated by pipes. Each query
+An {esql} query consists of a series of commands, separated by pipes. Each query
 starts with a <<esql-source-commands,source command>>. A source command produces
 a table, typically with data from {es}.
 
@@ -33,12 +30,12 @@ The result of a query is the table produced by the final processing command.
 
 [discrete]
 [[esql-console]]
-=== Run an ESQL query
+=== Run an {esql} query
 
 [discrete]
-==== The ESQL API
+==== The {esql} API
 
-Use the `_esql` endpoint to run an ESQL query:
+Use the `_esql` endpoint to run an {esql} query:
 
 [source,console]
 ----
@@ -95,18 +92,18 @@ POST /_esql?format=txt
 [discrete]
 ==== {kib}
 
-ESQL can be used in Discover to explore a data set, and in Lens to visualize it.
+{esql} can be used in Discover to explore a data set, and in Lens to visualize it.
 First, enable the `enableTextBased` setting in *Advanced Settings*. Next, in
-Discover or Lens, from the data view dropdown, select *ESQL*.
+Discover or Lens, from the data view dropdown, select *{esql}*.
 
-NOTE: ESQL queries in Discover and Lens are subject to the time range selected
+NOTE: {esql} queries in Discover and Lens are subject to the time range selected
 with the time filter.
 
 [discrete]
 [[esql-limitations]]
 === Limitations
 
-ESQL currently supports the following <<mapping-types,field types>>:
+{esql} currently supports the following <<mapping-types,field types>>:
 
 - `alias`
 - `boolean`

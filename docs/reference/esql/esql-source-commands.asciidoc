@@ -1,17 +1,15 @@
 [[esql-source-commands]]
-== ESQL source commands
+== {esql} source commands
 
 ++++
 <titleabbrev>Source commands</titleabbrev>
 ++++
-:keywords: {es}, ESQL, {es} query language, source commands
-:description: An ESQL source command produces a table, typically with data from {es}.
 
-An ESQL source command produces a table, typically with data from {es}.
+An {esql} source command produces a table, typically with data from {es}.
 
 image::images/esql/source-command.svg[A source command producing a table from {es},align="center"]
 
-ESQL supports these source commands:
+{esql} supports these source commands:
 
 * <<esql-from>>
 * <<esql-row>>

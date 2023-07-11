@@ -1,17 +1,23 @@
 [[esql-is_null]]
 === `IS_NULL`
-Returns a boolean than indicates whether its input is `null`.
+Returns a boolean that indicates whether its input is `null`.
 
-[source,esql]
+[source.merge.styled,esql]
 ----
-FROM employees
-| WHERE IS_NULL(first_name)
+include::{esql-specs}/docs.csv-spec[tag=isNull]
 ----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=isNull-result]
+|===
 
 Combine this function with `NOT` to filter out any `null` data:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
-FROM employees
-| WHERE NOT IS_NULL(first_name)
+include::{esql-specs}/docs.csv-spec[tag=notIsNull]
 ----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=notIsNull-result]
+|===

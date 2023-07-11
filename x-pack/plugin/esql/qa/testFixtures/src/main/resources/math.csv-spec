@@ -169,8 +169,9 @@ NaN      | true
 log10
 // tag::log10[]
 ROW d = 1000.0 
-| EVAL s = LOG10(d);
+| EVAL s = LOG10(d)
 // end::log10[]
+;
 
 // tag::log10-result[]
 d: double | s:double
@@ -214,10 +215,16 @@ Infinity | true
 ;
 
 powDoubleDouble
-row base = 2.0, exponent = 2.0 | eval s = pow(base, exponent);
+// tag::pow[]
+ROW base = 2.0, exponent = 2.0
+| EVAL s = POW(base, exponent)
+// end::pow[]
+;
 
+// tag::pow-result[]
 base:double | exponent:double | s:double
 2.0         | 2.0             | 4.0
+// end::pow-result[]
 ;
 
 powDoubleInt

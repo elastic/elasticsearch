@@ -127,6 +127,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
         return super.canSimulateMethod(method, args);
     }
+
     public void testIdsRewrite() throws IOException {
         RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(
             new TermQueryBuilder("foo", 1),

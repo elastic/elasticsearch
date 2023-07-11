@@ -456,10 +456,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         final String versionOutput = String.format(
             Locale.ROOT,
             "Version: %s, Build: %s/%s/%s, JVM: %s",
-            Build.CURRENT.qualifiedVersion(),
-            Build.CURRENT.type().displayName(),
-            Build.CURRENT.hash(),
-            Build.CURRENT.date(),
+            Build.current().qualifiedVersion(),
+            Build.current().type().displayName(),
+            Build.current().hash(),
+            Build.current().date(),
             JvmInfo.jvmInfo().version()
         );
         System.out.println(versionOutput);

@@ -13,6 +13,7 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.FilterScorable;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
@@ -133,7 +134,7 @@ final class QueryPhaseCollector implements Collector {
         return minScore == null || scorer.score() >= minScore;
     }
 
-    private boolean doesDocMatchPostFilter(int doc, Bits postFilterBits) {
+    private static boolean doesDocMatchPostFilter(int doc, Bits postFilterBits) {
         return postFilterBits == null || postFilterBits.get(doc);
     }
 
@@ -158,104 +159,96 @@ final class QueryPhaseCollector implements Collector {
         Bits postFilterBits = getPostFilterBits(context);
 
         if (aggsCollector == null) {
-            LeafCollector topDocsLeafCollector;
-            try {
-                topDocsLeafCollector = topDocsCollector.getLeafCollector(context);
-            } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
-                // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf collector).
-                // The reason is only to set the early terminated flag to the QueryResult like some tests expect. This needs fixing.
-                if (terminateAfterChecker == NO_OP_TERMINATE_AFTER_CHECKER) {
-                    throw e;
-                }
-                topDocsLeafCollector = null;
+            final LeafCollector topDocsLeafCollector = topDocsCollector.getLeafCollector(context);
+            if (postFilterBits == null && terminateAfterChecker == NO_OP_TERMINATE_AFTER_CHECKER && minScore == null) {
+                // no need to wrap if we just need to collect unfiltered docs through leaf collector.
+                // aggs collector was not originally provided so the overall score mode is that of the top docs collector
+                return topDocsLeafCollector;
             }
             return new TopDocsLeafCollector(postFilterBits, topDocsLeafCollector);
         }
 
-        LeafCollector topDocsLeafCollector;
+        LeafCollector tdlc = null;
         try {
-            topDocsLeafCollector = topDocsCollector.getLeafCollector(context);
+            tdlc = topDocsCollector.getLeafCollector(context);
         } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
             // top docs collector does not need this segment, but the aggs collector does.
-            topDocsLeafCollector = null;
         }
+        final LeafCollector topDocsLeafCollector = tdlc;
 
-        LeafCollector aggsLeafCollector;
+        LeafCollector alf = null;
         try {
-            aggsLeafCollector = aggsCollector.getLeafCollector(context);
+            alf = aggsCollector.getLeafCollector(context);
         } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
             // aggs collector does not need this segment, but the top docs collector may.
             if (topDocsLeafCollector == null) {
-                // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf collector).
-                // The reason is only to set the early terminated flag to the QueryResult. We should fix this.
-                if (terminateAfterChecker == NO_OP_TERMINATE_AFTER_CHECKER) {
-                    throw e;
-                }
+                throw e;
             }
-            aggsLeafCollector = null;
         }
-        // say that the aggs collector early terminates while the top docs collector does not, we still want to wrap in the same way
+        final LeafCollector aggsLeafCollector = alf;
+
+        if (topDocsLeafCollector == null && minScore == null) {
+            // top docs collector early terminated, we can avoid wrapping as long as we don't need to apply min_score.
+            // post_filter and terminate_after do not matter because they not applied to aggs collection anyways.
+            // aggs don't support skipping low scoring hits, so we can rely on setMinCompetitiveScore being a no-op already.
+            return aggsLeafCollector;
+        }
+
+        // if that the aggs collector early terminates while the top docs collector does not, we still need to wrap the leaf collector
         // to enforce that setMinCompetitiveScore is a no-op. Otherwise we may allow the top docs collector to skip non competitive
-        // hits despite the score mode of the Collector did not allow it.
+        // hits despite the score mode of the Collector did not allow it (because aggs don't support TOP_SCORES).
+        if (aggsLeafCollector == null && postFilterBits == null && terminateAfterChecker == NO_OP_TERMINATE_AFTER_CHECKER && minScore == null) {
+            // special case for early terminated aggs
+            return new FilterLeafCollector(topDocsLeafCollector) {
+                @Override
+                public void setScorer(Scorable scorer) throws IOException {
+                    super.setScorer(new FilterScorable(scorer) {
+                        @Override
+                        public void setMinCompetitiveScore(float minScore) {
+                            // Ignore calls to setMinCompetitiveScore. The top docs collector may try to skip low
+                            // scoring hits, but the overall score_mode won't allow it because an aggs collector
+                            // was originally provided which never supports TOP_SCORES is not supported for aggs
+                        }
+                    });
+                }
+
+                @Override
+                public DocIdSetIterator competitiveIterator() throws IOException {
+                    return topDocsLeafCollector.competitiveIterator();
+                }
+            };
+        }
         return new CompositeLeafCollector(postFilterBits, topDocsLeafCollector, aggsLeafCollector);
     }
 
     private class TopDocsLeafCollector implements LeafCollector {
         private final Bits postFilterBits;
-        private LeafCollector topDocsLeafCollector;
+        private final LeafCollector topDocsLeafCollector;
         private Scorable scorer;
 
         TopDocsLeafCollector(Bits postFilterBits, LeafCollector topDocsLeafCollector) {
+            assert topDocsLeafCollector != null;
+            assert postFilterBits != null || terminateAfterChecker != NO_OP_TERMINATE_AFTER_CHECKER || minScore != null;
             this.postFilterBits = postFilterBits;
             this.topDocsLeafCollector = topDocsLeafCollector;
         }
 
         @Override
         public void setScorer(Scorable scorer) throws IOException {
-            if (cacheScores) {
-                scorer = ScoreCachingWrappingScorer.wrap(scorer);
-            }
-            if (terminateAfterChecker != NO_OP_TERMINATE_AFTER_CHECKER) {
-                scorer = new FilterScorable(scorer) {
-                    @Override
-                    public void setMinCompetitiveScore(float minScore) {
-                        // Ignore calls to setMinCompetitiveScore when terminate_after is used, otherwise early termination
-                        // of total hits tracking makes it impossible to terminate after.
-                        // TODO the reason is only to set the early terminated flag to the QueryResult. We should fix this.
-                    }
-                };
-            }
-            if (topDocsLeafCollector != null) {
-                topDocsLeafCollector.setScorer(scorer);
-            }
+            topDocsLeafCollector.setScorer(scorer);
             this.scorer = scorer;
         }
 
         @Override
         public DocIdSetIterator competitiveIterator() throws IOException {
-            if (topDocsLeafCollector != null) {
-                return topDocsLeafCollector.competitiveIterator();
-            }
-            return null;
+            return topDocsLeafCollector.competitiveIterator();
         }
 
         @Override
         public void collect(int doc) throws IOException {
             if (shouldCollectTopDocs(doc, scorer, postFilterBits)) {
                 terminateAfterChecker.incrementNumCollected();
-                if (topDocsLeafCollector != null) {
-                    try {
-                        topDocsLeafCollector.collect(doc);
-                    } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
-                        topDocsLeafCollector = null;
-                        // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
-                        // collector).
-                        // The reason is only to set the early terminated flag to the QueryResult. We should fix this.
-                        if (terminateAfterChecker == NO_OP_TERMINATE_AFTER_CHECKER) {
-                            throw e;
-                        }
-                    }
-                }
+                topDocsLeafCollector.collect(doc);
             }
         }
     }
@@ -267,6 +260,7 @@ final class QueryPhaseCollector implements Collector {
         private Scorable scorer;
 
         CompositeLeafCollector(Bits postFilterBits, LeafCollector topDocsLeafCollector, LeafCollector aggsLeafCollector) {
+            assert topDocsLeafCollector != null || aggsLeafCollector != null;
             this.postFilterBits = postFilterBits;
             this.topDocsLeafCollector = topDocsLeafCollector;
             this.aggsLeafCollector = aggsLeafCollector;
@@ -274,7 +268,7 @@ final class QueryPhaseCollector implements Collector {
 
         @Override
         public void setScorer(Scorable scorer) throws IOException {
-            if (cacheScores) {
+            if (cacheScores && topDocsLeafCollector != null && aggsLeafCollector != null) {
                 scorer = ScoreCachingWrappingScorer.wrap(scorer);
             }
             scorer = new FilterScorable(scorer) {
@@ -297,6 +291,8 @@ final class QueryPhaseCollector implements Collector {
         @Override
         public void collect(int doc) throws IOException {
             if (shouldCollectTopDocs(doc, scorer, postFilterBits)) {
+                // we keep on counting and checking the terminate_after threshold so that we can terminate aggs collection
+                // even if top docs collection early terminated
                 terminateAfterChecker.incrementNumCollected();
                 if (topDocsLeafCollector != null) {
                     try {
@@ -305,31 +301,21 @@ final class QueryPhaseCollector implements Collector {
                         topDocsLeafCollector = null;
                         // top docs collector does not need this segment, but the aggs collector may.
                         if (aggsLeafCollector == null) {
-                            // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
-                            // collector).
-                            // The reason is only to set the early terminated flag to the QueryResult. We should fix this.
-                            if (terminateAfterChecker == NO_OP_TERMINATE_AFTER_CHECKER) {
-                                throw e;
-                            }
+                            throw e;
                         }
                     }
                 }
             }
-            // min_score is applied to aggs as well as top hits
-            if (isDocWithinMinScore(scorer)) {
-                if (aggsLeafCollector != null) {
+            if (aggsLeafCollector != null) {
+                // min_score is applied to aggs as well as top hits
+                if (isDocWithinMinScore(scorer)) {
                     try {
                         aggsLeafCollector.collect(doc);
                     } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
                         aggsLeafCollector = null;
                         // aggs collector does not need this segment, but the top docs collector may.
                         if (topDocsLeafCollector == null) {
-                            // TODO we keep on collecting although we have nothing to collect (there is no top docs nor aggs leaf
-                            // collector).
-                            // The reason is only to set the early terminated flag to the QueryResult. We should fix this.
-                            if (terminateAfterChecker == NO_OP_TERMINATE_AFTER_CHECKER) {
-                                throw e;
-                            }
+                            throw e;
                         }
                     }
                 }
@@ -375,7 +361,6 @@ final class QueryPhaseCollector implements Collector {
 
     abstract static class TerminateAfterChecker {
         abstract boolean isThresholdReached();
-
         abstract void incrementNumCollected();
     }
 

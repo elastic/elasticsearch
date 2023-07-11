@@ -404,14 +404,18 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(updateRequest4.toString(), containsString("access_token"));
         assertThat(
             List.of(updateRequest1.id(), updateRequest2.id()),
-            containsInAnyOrder("token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes1)),
-                    "token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes2)
-        )));
+            containsInAnyOrder(
+                "token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes1)),
+                "token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes2))
+            )
+        );
         assertThat(
-                List.of(updateRequest3.id(), updateRequest4.id()),
-                containsInAnyOrder("token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes1)),
-                        "token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes2)
-                        )));
+            List.of(updateRequest3.id(), updateRequest4.id()),
+            containsInAnyOrder(
+                "token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes1)),
+                "token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes2))
+            )
+        );
     }
 
     private Function<SearchRequest, SearchHit[]> findTokenByRefreshToken(SearchHit[] searchHits) {

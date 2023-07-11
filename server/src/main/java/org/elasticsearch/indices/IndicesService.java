@@ -537,7 +537,11 @@ public class IndicesService extends AbstractLifecycleComponent
                 new ShardStats(
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
-                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                    CommonStats.getShardLevelStats(
+                        () -> indicesService.getIndicesQueryCache().getStats(indexShard.shardId()),
+//                        indicesService.getIndicesQueryCache(),
+                        indexShard,
+                        flags),
                     commitStats,
                     seqNoStats,
                     retentionLeaseStats,

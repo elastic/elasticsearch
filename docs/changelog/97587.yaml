@@ -1,0 +1,5 @@
+pr: 97587
+summary: Fix `sub_searches` serialization bug
+area: Ranking
+type: bug
+issues: []

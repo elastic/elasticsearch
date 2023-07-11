@@ -117,6 +117,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
         boolean caseInsensitive,
         SearchExecutionContext context
     ) {
+        return wildcardQuery(value, caseInsensitive, context);
+    }
+
+    public final Query wildcardQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
         if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {

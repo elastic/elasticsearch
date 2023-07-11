@@ -29,7 +29,7 @@ import java.util.Map;
 public class DieWithDignityIT extends ESRestTestCase {
 
     public void testDieWithDignity() throws Exception {
-        assumeFalse("Mute on Windows, see https://github.com/elastic/elasticsearch/issues/77282", Constants.WINDOWS);
+        //assumeFalse("Mute on Windows, see https://github.com/elastic/elasticsearch/issues/77282", Constants.WINDOWS);
         // there should be an Elasticsearch process running with the die.with.dignity.test system property
         {
             final Map<String, String> esCommandLines = getElasticsearchCommandLines();

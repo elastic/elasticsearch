@@ -108,8 +108,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         return Collections.singletonMap(aliasName, aliasMeta);
     }
 
-    private static DataLifecycle randomLifecycle() {
-        return new DataLifecycle(randomMillisUpToYear9999());
+    private static DataStreamLifecycle randomLifecycle() {
+        return new DataStreamLifecycle(randomMillisUpToYear9999());
     }
 
     private static CompressedXContent randomMappings(ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate) {
@@ -294,7 +294,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        DataLifecycle lifecycle = randomLifecycle();
+        DataStreamLifecycle lifecycle = randomLifecycle();
         Template template = new Template(settings, mappings, aliases, lifecycle);
         new ComposableIndexTemplate(
             List.of(randomAlphaOfLength(4)),

@@ -1,0 +1,6 @@
+pr: 97332
+summary: Fix edge case for active flag for flush on idle
+area: Engine
+type: enhancement
+issues:
+ - 97154

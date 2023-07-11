@@ -45,3 +45,6 @@ comprise its local health such as its disk usage.
 `health.ilm.max_retries_per_step`::
 (<<cluster-update-settings,Dynamic>>) The minimum amount of times an index has retried by an {ilm-init} step before it is considered stagnant. Defaults to `100`
 
+`health.periodic_logger.poll_interval`::
+(<<cluster-update-settings,Dynamic>>, <<time-units, time unit value>>) How often {es} logs the health status of the cluster and of each health indicator as observed by the Health API.
+Defaults to `60s` (60 seconds).

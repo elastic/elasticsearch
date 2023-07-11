@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -99,7 +100,7 @@ public class MockTransportService extends TransportService {
 
     public static MockTransportService createNewService(
         Settings settings,
-        Version version,
+        VersionInformation version,
         TransportVersion transportVersion,
         ThreadPool threadPool
     ) {
@@ -108,7 +109,7 @@ public class MockTransportService extends TransportService {
 
     public static MockTransportService createNewService(
         Settings settings,
-        Version version,
+        VersionInformation version,
         TransportVersion transportVersion,
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings
@@ -143,7 +144,7 @@ public class MockTransportService extends TransportService {
     public static MockTransportService createNewService(
         Settings settings,
         Transport transport,
-        Version version,
+        VersionInformation version,
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
@@ -154,7 +155,7 @@ public class MockTransportService extends TransportService {
     public static MockTransportService createNewService(
         Settings settings,
         Transport transport,
-        Version version,
+        VersionInformation version,
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders,
@@ -453,9 +454,12 @@ public class MockTransportService extends TransportService {
      * @param duration the amount of time to delay sending and connecting.
      */
     public void addUnresponsiveRule(TransportAddress transportAddress, final TimeValue duration) {
-        final long startTime = System.currentTimeMillis();
+        final long startTimeInMillis = threadPool.relativeTimeInMillis();
 
-        Supplier<TimeValue> delaySupplier = () -> new TimeValue(duration.millis() - (System.currentTimeMillis() - startTime));
+        Supplier<TimeValue> delaySupplier = () -> {
+            long elapsed = threadPool.relativeTimeInMillis() - startTimeInMillis;
+            return new TimeValue(Math.max(duration.millis() - elapsed, 0));
+        };
 
         transport().addConnectBehavior(transportAddress, new StubbableTransport.OpenConnectionBehavior() {
             private CountDownLatch stopLatch = new CountDownLatch(1);
@@ -674,7 +678,7 @@ public class MockTransportService extends TransportService {
 
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
-        super.openConnection(node, connectionProfile, listener.delegateFailure((l, connection) -> {
+        super.openConnection(node, connectionProfile, listener.safeMap(connection -> {
             synchronized (openConnections) {
                 openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
                 connection.addCloseListener(ActionListener.running(() -> {
@@ -691,7 +695,7 @@ public class MockTransportService extends TransportService {
                     }
                 }));
             }
-            l.onResponse(connection);
+            return connection;
         }));
     }
 

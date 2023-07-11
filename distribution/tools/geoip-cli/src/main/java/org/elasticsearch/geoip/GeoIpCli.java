@@ -33,7 +33,6 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
@@ -74,7 +73,7 @@ public class GeoIpCli extends Command {
             return;
         }
         try (Stream<Path> files = Files.list(source)) {
-            for (Path path : files.filter(p -> p.getFileName().toString().endsWith(".tgz")).collect(Collectors.toList())) {
+            for (Path path : files.filter(p -> p.getFileName().toString().endsWith(".tgz")).toList()) {
                 Files.copy(path, target.resolve(path.getFileName()), StandardCopyOption.REPLACE_EXISTING);
             }
         }
@@ -82,7 +81,7 @@ public class GeoIpCli extends Command {
 
     private void packDatabasesToTgz(Terminal terminal, Path source, Path target) throws IOException {
         try (Stream<Path> files = Files.list(source)) {
-            for (Path path : files.filter(p -> p.getFileName().toString().endsWith(".mmdb")).collect(Collectors.toList())) {
+            for (Path path : files.filter(p -> p.getFileName().toString().endsWith(".mmdb")).toList()) {
                 String fileName = path.getFileName().toString();
                 Path compressedPath = target.resolve(fileName.replaceAll("mmdb$", "") + "tgz");
                 terminal.println("Found " + fileName + ", will compress it to " + compressedPath.getFileName());
@@ -111,7 +110,7 @@ public class GeoIpCli extends Command {
             XContentGenerator generator = XContentType.JSON.xContent().createGenerator(os)
         ) {
             generator.writeStartArray();
-            for (Path db : files.filter(p -> p.getFileName().toString().endsWith(".tgz")).collect(Collectors.toList())) {
+            for (Path db : files.filter(p -> p.getFileName().toString().endsWith(".tgz")).toList()) {
                 terminal.println("Adding " + db.getFileName() + " to overview.json");
                 MessageDigest md5 = MessageDigests.md5();
                 try (InputStream dis = new DigestInputStream(new BufferedInputStream(Files.newInputStream(db)), md5)) {

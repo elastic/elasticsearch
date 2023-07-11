@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.analytics.multiterms;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -627,8 +626,4 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         );
     }
 
-    @Override
-    public String toString() {
-        return Strings.toString(this);
-    }
 }

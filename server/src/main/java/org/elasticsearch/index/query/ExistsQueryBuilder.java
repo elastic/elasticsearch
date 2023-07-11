@@ -66,14 +66,12 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
-        if (context != null) {
-            if (getMappedFields(context, fieldName).isEmpty()) {
-                return new MatchNoneQueryBuilder();
-            }
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        if (getMappedFields(context, fieldName).isEmpty()) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+        } else {
+            return this;
         }
-        return super.doRewrite(queryRewriteContext);
     }
 
     @Override
@@ -153,7 +151,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }
 
-    private static Collection<String> getMappedFields(SearchExecutionContext context, String fieldPattern) {
+    private static Collection<String> getMappedFields(QueryRewriteContext context, String fieldPattern) {
         Set<String> matchingFieldNames = context.getMatchingFieldNames(fieldPattern);
         if (matchingFieldNames.isEmpty()) {
             // might be an object field, so try matching it as an object prefix pattern

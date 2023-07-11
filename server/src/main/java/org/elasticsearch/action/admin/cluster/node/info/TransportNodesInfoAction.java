@@ -50,8 +50,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
             actionFilters,
             NodesInfoRequest::new,
             NodeInfoRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            NodeInfo.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.nodeService = nodeService;
     }

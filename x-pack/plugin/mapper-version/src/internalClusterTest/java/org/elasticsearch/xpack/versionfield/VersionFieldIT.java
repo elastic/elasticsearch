@@ -43,9 +43,7 @@ public class VersionFieldIT extends ESSingleNodeTestCase {
         String indexName = "test";
         createIndex(indexName);
 
-        client().admin()
-            .indices()
-            .preparePutMapping(indexName)
+        indicesAdmin().preparePutMapping(indexName)
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -69,7 +67,7 @@ public class VersionFieldIT extends ESSingleNodeTestCase {
             .get();
         client().prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
         client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "3.11.5").endObject()).get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         // terms aggs
         SearchResponse response = client().prepareSearch(indexName)
@@ -90,9 +88,7 @@ public class VersionFieldIT extends ESSingleNodeTestCase {
         String indexName = "test";
         createIndex(indexName);
 
-        client().admin()
-            .indices()
-            .preparePutMapping(indexName)
+        indicesAdmin().preparePutMapping(indexName)
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -116,7 +112,7 @@ public class VersionFieldIT extends ESSingleNodeTestCase {
             .get();
         client().prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
         client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "3.11.5").endObject()).get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         {
             TermsEnumResponse response = client().execute(TermsEnumAction.INSTANCE, new TermsEnumRequest(indexName).field("version")).get();

@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
@@ -26,7 +25,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -290,7 +289,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     }
 
     private static TestMapper fromMapping(String mapping) {
-        return fromMapping(mapping, IndexVersion.CURRENT, TransportVersion.current());
+        return fromMapping(mapping, IndexVersion.current(), TransportVersion.current());
     }
 
     private String toStringWithDefaults(ToXContent value) throws IOException {
@@ -531,7 +530,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"type":"test_mapper","some_unknown_parameter":true,"required":"value"}""";
         TestMapper mapper = fromMapping(
             mapping,
-            VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion,
+            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0),
             TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersion.V_7_0_0,

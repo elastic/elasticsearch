@@ -11,7 +11,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Represents the verification mode to be used for SSL connections.
@@ -84,7 +83,7 @@ public enum SslVerificationMode {
     public static SslVerificationMode parse(String value) {
         final SslVerificationMode mode = LOOKUP.get(value.toLowerCase(Locale.ROOT));
         if (mode == null) {
-            final String allowedValues = LOOKUP.keySet().stream().collect(Collectors.joining(","));
+            final String allowedValues = String.join(",", LOOKUP.keySet());
             throw new SslConfigException(
                 "could not resolve ssl client verification mode, unknown value ["
                     + value

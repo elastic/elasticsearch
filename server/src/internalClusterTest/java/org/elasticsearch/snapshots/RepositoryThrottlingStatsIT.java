@@ -33,7 +33,7 @@ public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> create index");
         createIndexWithRandomDocs("test-idx", 100);
 
-        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("test-idx").get();
+        IndicesStatsResponse indicesStats = indicesAdmin().prepareStats("test-idx").get();
         IndexStats indexStats = indicesStats.getIndex("test-idx");
         long totalSizeInBytes = 0;
         for (ShardStats shard : indexStats.getShards()) {
@@ -67,7 +67,7 @@ public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
         assertDocCount("test-idx", 100);
 
         logger.info("--> access repository throttling stats via _nodes/stats api");
-        NodesStatsResponse response = client().admin().cluster().prepareNodesStats().setRepositoryStats(true).get();
+        NodesStatsResponse response = clusterAdmin().prepareNodesStats().setRepositoryStats(true).get();
         RepositoriesStats stats = response.getNodes().get(0).getRepositoriesStats();
 
         assertTrue(stats.getRepositoryThrottlingStats().containsKey("test-repo"));

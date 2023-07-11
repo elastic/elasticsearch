@@ -133,8 +133,4 @@ public class FileSettingsRoleMappingsStartupIT extends SecurityIntegTestCase {
         );
     }
 
-    @Override
-    protected boolean addMockTransportService() {
-        return false; // security has its own transport service
-    }
 }

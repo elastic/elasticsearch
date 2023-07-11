@@ -40,11 +40,70 @@ No query ruleset matching `ruleset_id` could be found.
 
 The following example gets the query ruleset named `my-ruleset`:
 
+////
+
+[source,console]
+--------------------------------------------------
+PUT _query_rules/my-ruleset
+{
+    "rules": [
+        {
+            "rule_id": "my-rule1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "value": "marvel"
+                }
+            ],
+            "actions": {
+                "ids": [
+                    "id1",
+                    "id2"
+                ]
+            }
+        },
+        {
+            "rule_id": "my-rule2",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "value": "dc"
+                }
+            ],
+            "actions": {
+                "docs": [
+                    {
+                        "_index": "index1",
+                        "_id": "id3"
+                    },
+                    {
+                        "_index": "index2",
+                        "_id": "id4"
+                    }
+                ]
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _query_rules/my-ruleset
+--------------------------------------------------
+// TEARDOWN
+
+////
+
 [source,console]
 ----
 GET _query_rules/my-ruleset/
 ----
-// TEST[skip:TBD]
 
 A sample response:
 

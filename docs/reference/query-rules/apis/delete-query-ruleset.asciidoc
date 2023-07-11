@@ -41,8 +41,33 @@ No query ruleset matching `ruleset_id` could be found.
 
 The following example deletes the query ruleset named `my-ruleset`:
 
+////
+[source,console]
+----
+PUT _query_rules/my-ruleset
+{
+    "rules": [
+        {
+            "rule_id": "my-rule1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "value": "marvel"
+                }
+            ],
+            "actions": {
+                "ids": ["id1"]
+            }
+        }
+    ]
+}
+----
+// TESTSETUP
+////
+
 [source,console]
 ----
 DELETE _query_rules/my-ruleset/
 ----
-// TEST[skip:TBD]

@@ -2,7 +2,7 @@ steps:
   - group: packaging-tests-windows
     steps:
       - label: "{{matrix.image}} / packaging-tests-windows"
-        command: .ci\scripts\packaging-test-buildkite.ps1
+        command: .buildkite/generated-scripts/a6f81b402379cfd241ba9e32a55a3d92.bat
         timeout_in_minutes: 180
         matrix:
           setup:

@@ -58,6 +58,7 @@ Criteria must have the following information:
 The following example creates a new query ruleset called `my-ruleset`.
 
 Two rules are associated with `my-ruleset`:
+
 - `my-rule1` will pin documents with IDs `id1` and `id2` when the `query_string` exactly matches `marvel`.
 - `my-rule2` will pin documents from different, specified indices with IDs `id3` and `id4` when the `query_string` exactly matches `dc`.
 

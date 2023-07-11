@@ -185,7 +185,6 @@ public class TestRestrictedIndices {
         return SystemIndexDescriptor.builder()
             .setMappings(mockMappings())
             .setSettings(Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), indexFormat).build())
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1234"))
             .setVersionMetaKey("version");
     }
 

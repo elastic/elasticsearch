@@ -132,6 +132,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
             );
 
         listener = mock(ActionListener.class);
+        when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
 
         createRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         aliasesRequestCaptor = ArgumentCaptor.forClass(IndicesAliasesRequest.class);
@@ -179,6 +180,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
         inOrder.verify(listener).onResponse(true);
+        verify(listener).delegateFailureAndWrap(any());
     }
 
     public void testInstallIndexTemplateIfRequired_GivenComposableTemplateExists() throws UnknownHostException {
@@ -245,6 +247,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
         inOrder.verify(listener).onResponse(true);
+        verify(listener).delegateFailureAndWrap(any());
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_CleanState() throws UnknownHostException {

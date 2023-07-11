@@ -20,9 +20,11 @@ import org.junit.Before;
 import java.util.Collections;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
 
@@ -47,6 +49,7 @@ public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
         );
         @SuppressWarnings("unchecked")
         final ActionListener<DeleteServiceAccountTokenResponse> listener = mock(ActionListener.class);
+        when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
         transportDeleteServiceAccountTokenAction.doExecute(mock(Task.class), request, listener);
         verify(serviceAccountService).deleteIndexToken(eq(request), anyActionListener());
     }

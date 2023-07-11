@@ -24,6 +24,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -119,6 +121,12 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     public EnterpriseSearch(Settings settings) {
         this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
     }
+
+    public static final LicensedFeature.Momentary QUERY_RULES_LICENSE_FEATURE = LicensedFeature.momentary(
+        null,
+        "query-rules",
+        License.OperationMode.PLATINUM
+    );
 
     protected XPackLicenseState getLicenseState() {
         return XPackPlugin.getSharedLicenseState();

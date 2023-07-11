@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -29,6 +30,8 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
@@ -104,6 +107,10 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         Supplier<List<Item>> pinnedDocsSupplier
 
     ) {
+        if (EnterpriseSearch.QUERY_RULES_LICENSE_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException("rule_query");
+        }
+
         if (organicQuery == null) {
             throw new IllegalArgumentException("organicQuery must not be null");
         }
@@ -170,6 +177,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+
+        if (EnterpriseSearch.QUERY_RULES_LICENSE_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException("rule_query");
+        }
+
         builder.startObject(NAME);
         builder.field(ORGANIC_QUERY_FIELD.getPreferredName(), organicQuery);
         builder.startObject(MATCH_CRITERIA_FIELD.getPreferredName());
@@ -282,6 +294,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     }
 
     public static RuleQueryBuilder fromXContent(XContentParser parser) {
+
+        if (EnterpriseSearch.QUERY_RULES_LICENSE_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException("rule_query");
+        }
+
         try {
             return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {

@@ -246,10 +246,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
-            return singletonList(new QuerySpec<>(RuleQueryBuilder.NAME, RuleQueryBuilder::new, RuleQueryBuilder::fromXContent));
-        } else {
-            return Collections.emptyList();
-        }
+        return singletonList(new QuerySpec<>(RuleQueryBuilder.NAME, RuleQueryBuilder::new, RuleQueryBuilder::fromXContent));
     }
 }

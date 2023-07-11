@@ -85,6 +85,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
+import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -169,6 +170,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -488,10 +490,14 @@ public class IndicesService extends AbstractLifecycleComponent
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
         final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
 
+        Function<IndexShard, Supplier<QueryCacheStats>> queryCacheStatsSupplier = (flags.isSet(Flag.QueryCache))
+            ? indexShard -> () -> indicesService.getIndicesQueryCache().getStats(indexShard.shardId())
+            : indexShard -> () -> null;
+
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
                 try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags);
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(queryCacheStatsSupplier.apply(indexShard), indexShard, flags);
 
                     if (indexShardStats == null) {
                         continue;
@@ -512,7 +518,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return statsByShard;
     }
 
-    IndexShardStats indexShardStats(final IndicesService indicesService, final IndexShard indexShard, final CommonStatsFlags flags) {
+    IndexShardStats indexShardStats(final Supplier<QueryCacheStats> queryCacheStatsSupplier, final IndexShard indexShard, final CommonStatsFlags flags) {
         if (indexShard.routingEntry() == null) {
             return null;
         }
@@ -538,7 +544,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
                     CommonStats.getShardLevelStats(
-                        () -> indicesService.getIndicesQueryCache().getStats(indexShard.shardId()),
+                        queryCacheStatsSupplier,
 //                        indicesService.getIndicesQueryCache(),
                         indexShard,
                         flags),

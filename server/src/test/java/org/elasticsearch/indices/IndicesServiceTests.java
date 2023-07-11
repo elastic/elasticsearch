@@ -91,6 +91,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -538,18 +540,15 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
                 shardStats.add(successfulShardStats);
 
-                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL)).thenReturn(successfulShardStats);
+                when(mockIndicesService.indexShardStats(any(), eq(shard), eq(CommonStatsFlags.ALL))).thenReturn(successfulShardStats);
             } else {
-                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL)).thenThrow(expectedException);
+                when(mockIndicesService.indexShardStats(any(), eq(shard), eq(CommonStatsFlags.ALL))).thenThrow(expectedException);
             }
         }
 
         when(mockIndicesService.iterator()).thenReturn(Collections.singleton(indexService).iterator());
         when(indexService.iterator()).thenReturn(shards.iterator());
         when(indexService.index()).thenReturn(index);
-
-        // real one, which has a logger defined
-        final IndicesService indicesService = getIndicesService();
 
         final Map<Index, List<IndexShardStats>> indexStats = IndicesService.statsByShard(mockIndicesService, CommonStatsFlags.ALL);
 

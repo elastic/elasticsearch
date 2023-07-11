@@ -2,7 +2,7 @@ steps:
   - group: packaging-tests-windows
     steps:
       - label: "{{matrix.image}} / packaging-tests-windows"
-        command: .buildkite\generated-scripts\a6f81b402379cfd241ba9e32a55a3d92.bat
+        command: .ci\scripts\packaging-test-buildkite.ps1
         timeout_in_minutes: 180
         matrix:
           setup:
@@ -21,7 +21,7 @@ steps:
   - group: platform-support-windows
     steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-windows"
-        command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
+        command: bash -c '.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK'
         timeout_in_minutes: 180
         matrix:
           setup:

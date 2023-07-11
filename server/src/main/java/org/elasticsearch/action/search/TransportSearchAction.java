@@ -647,7 +647,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             remoteClusterService.maybeEnsureConnectedAndGetConnection(
                 clusterAlias,
                 skipUnavailable == false,
-                ActionListener.wrap(connection -> {
+                singleListener.delegateFailureAndWrap((delegate, connection) -> {
                     final String[] indices = entry.getValue().indices();
                     // TODO: support point-in-time
                     if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_500_000)) {
@@ -665,7 +665,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             SearchShardsAction.NAME,
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(singleListener, SearchShardsResponse::new)
+                            new ActionListenerResponseHandler<>(delegate, SearchShardsResponse::new)
                         );
                     } else {
                         ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(
@@ -677,12 +677,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
-                                singleListener.map(SearchShardsResponse::fromLegacyResponse),
+                                delegate.map(SearchShardsResponse::fromLegacyResponse),
                                 ClusterSearchShardsResponse::new
                             )
                         );
                     }
-                }, singleListener::onFailure)
+                })
             );
         }
     }

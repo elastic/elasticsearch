@@ -95,10 +95,7 @@ public class NativeUsersStore {
      * Blocking version of {@code getUser} that blocks until the User is returned
      */
     public void getUser(String username, ActionListener<User> listener) {
-        getUserAndPassword(
-            username,
-            ActionListener.wrap((uap) -> { listener.onResponse(uap == null ? null : uap.user()); }, listener::onFailure)
-        );
+        getUserAndPassword(username, listener.delegateFailureAndWrap((l, uap) -> l.onResponse(uap == null ? null : uap.user())));
     }
 
     /**
@@ -572,27 +569,27 @@ public class NativeUsersStore {
      * @param password the plaintext password to verify
      */
     void verifyPassword(String username, final SecureString password, ActionListener<AuthenticationResult<User>> listener) {
-        getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
+        getUserAndPassword(username, listener.delegateFailureAndWrap((delegate, userAndPassword) -> {
             if (userAndPassword == null) {
                 logger.trace(
                     "user [{}] does not exist in index [{}], cannot authenticate against the native realm",
                     username,
                     securityIndex.aliasName()
                 );
-                listener.onResponse(AuthenticationResult.notHandled());
+                delegate.onResponse(AuthenticationResult.notHandled());
             } else if (userAndPassword.passwordHash() == null) {
                 logger.debug("user [{}] in index [{}] does not have a password, cannot authenticate", username, securityIndex.aliasName());
-                listener.onResponse(AuthenticationResult.notHandled());
+                delegate.onResponse(AuthenticationResult.notHandled());
             } else {
                 if (userAndPassword.verifyPassword(password)) {
                     logger.trace("successfully authenticated user [{}] (security index [{}])", userAndPassword, securityIndex.aliasName());
-                    listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
+                    delegate.onResponse(AuthenticationResult.success(userAndPassword.user()));
                 } else {
                     logger.trace("password mismatch for user [{}] (security index [{}])", userAndPassword, securityIndex.aliasName());
-                    listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
+                    delegate.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
                 }
             }
-        }, listener::onFailure));
+        }));
     }
 
     void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {

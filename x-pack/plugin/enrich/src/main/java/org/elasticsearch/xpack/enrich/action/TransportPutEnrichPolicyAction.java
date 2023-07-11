@@ -87,11 +87,11 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
             privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
             privRequest.indexPrivileges(privileges);
 
-            ActionListener<HasPrivilegesResponse> wrappedListener = ActionListener.wrap(r -> {
+            ActionListener<HasPrivilegesResponse> wrappedListener = listener.delegateFailureAndWrap((delegate, r) -> {
                 if (r.isCompleteMatch()) {
-                    putPolicy(request, listener);
+                    putPolicy(request, delegate);
                 } else {
-                    listener.onFailure(
+                    delegate.onFailure(
                         Exceptions.authorizationError(
                             "unable to store policy because no indices match with the " + "specified index patterns {}",
                             request.getPolicy().getIndices(),
@@ -99,7 +99,7 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
                         )
                     );
                 }
-            }, listener::onFailure);
+            });
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, wrappedListener);
         } else {
             putPolicy(request, listener);

@@ -148,19 +148,21 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
         // as the setting 'action.destructive_requires_name' may be set to true
         DeleteIndexRequest deleteRequest = new DeleteIndexRequest().indices(indices).indicesOptions(LENIENT_OPTIONS);
 
-        new OriginSettingClient(client, ENRICH_ORIGIN).admin().indices().delete(deleteRequest, ActionListener.wrap((response) -> {
-            if (response.isAcknowledged() == false) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Could not fetch indices to delete during policy delete of [{}]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        name
-                    )
-                );
-            } else {
-                deletePolicy(name, listener);
-            }
-        }, listener::onFailure));
+        new OriginSettingClient(client, ENRICH_ORIGIN).admin()
+            .indices()
+            .delete(deleteRequest, listener.delegateFailureAndWrap((delegate, response) -> {
+                if (response.isAcknowledged() == false) {
+                    delegate.onFailure(
+                        new ElasticsearchStatusException(
+                            "Could not fetch indices to delete during policy delete of [{}]",
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            name
+                        )
+                    );
+                } else {
+                    deletePolicy(name, delegate);
+                }
+            }));
     }
 
     private void deletePolicy(String name, ActionListener<AcknowledgedResponse> listener) {

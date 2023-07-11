@@ -69,12 +69,12 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
 
         resolveApplicationPrivileges(
             request,
-            ActionListener.wrap(
-                applicationPrivilegeDescriptors -> authorizationService.checkPrivileges(
+            listener.delegateFailureAndWrap(
+                (delegate, applicationPrivilegeDescriptors) -> authorizationService.checkPrivileges(
                     authentication.getEffectiveSubject(),
                     request.getPrivilegesToCheck(),
                     applicationPrivilegeDescriptors,
-                    listener.map(privilegesCheckResult -> {
+                    delegate.map(privilegesCheckResult -> {
                         AuthorizationEngine.PrivilegesCheckResult.Details checkResultDetails = privilegesCheckResult.getDetails();
                         assert checkResultDetails != null : "runDetailedCheck is 'true' but the result has no details";
                         return new HasPrivilegesResponse(
@@ -85,8 +85,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                             checkResultDetails != null ? checkResultDetails.application() : Map.of()
                         );
                     })
-                ),
-                listener::onFailure
+                )
             )
         );
     }

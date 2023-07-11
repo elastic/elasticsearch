@@ -90,7 +90,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             prevState.state(),
             prevState.keys(),
             l -> securityIndexRecoveryListener.addListener(
-                ActionListener.wrap(ignored -> nonStateTransform(requests, prevState, l), l::onFailure)
+                l.delegateFailureAndWrap((ll, ignored) -> nonStateTransform(requests, prevState, ll))
             )
         );
     }

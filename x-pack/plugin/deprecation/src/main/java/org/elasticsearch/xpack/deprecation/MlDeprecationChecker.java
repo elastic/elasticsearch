@@ -125,28 +125,31 @@ public class MlDeprecationChecker implements DeprecationChecker {
         getModelSnapshots.setPageParams(new PageParams(0, 50));
         getModelSnapshots.setSort(ModelSnapshot.MIN_VERSION.getPreferredName());
 
-        ActionListener<Void> getModelSnaphots = ActionListener.wrap(
-            _unused -> components.client()
-                .execute(GetModelSnapshotsAction.INSTANCE, getModelSnapshots, ActionListener.wrap(modelSnapshots -> {
-                    modelSnapshots.getResources()
-                        .results()
-                        .forEach(modelSnapshot -> checkModelSnapshot(modelSnapshot).ifPresent(issues::add));
-                    deprecationIssueListener.onResponse(new CheckResult(getName(), issues));
-                }, deprecationIssueListener::onFailure)),
-            deprecationIssueListener::onFailure
+        ActionListener<Void> getModelSnaphots = deprecationIssueListener.delegateFailureAndWrap(
+            (deprecationIssueListenerDelegate, _unused) -> components.client()
+                .execute(
+                    GetModelSnapshotsAction.INSTANCE,
+                    getModelSnapshots,
+                    deprecationIssueListenerDelegate.delegateFailureAndWrap((delegate, modelSnapshots) -> {
+                        modelSnapshots.getResources()
+                            .results()
+                            .forEach(modelSnapshot -> checkModelSnapshot(modelSnapshot).ifPresent(issues::add));
+                        delegate.onResponse(new CheckResult(getName(), issues));
+                    })
+                )
         );
 
         components.client()
             .execute(
                 GetDatafeedsAction.INSTANCE,
                 new GetDatafeedsAction.Request(GetDatafeedsAction.ALL),
-                ActionListener.wrap(datafeedsResponse -> {
+                getModelSnaphots.delegateFailureAndWrap((delegate, datafeedsResponse) -> {
                     for (DatafeedConfig df : datafeedsResponse.getResponse().results()) {
                         checkDataFeedAggregations(df, components.xContentRegistry()).ifPresent(issues::add);
                         checkDataFeedQuery(df, components.xContentRegistry()).ifPresent(issues::add);
                     }
-                    getModelSnaphots.onResponse(null);
-                }, deprecationIssueListener::onFailure)
+                    delegate.onResponse(null);
+                })
             );
     }
 

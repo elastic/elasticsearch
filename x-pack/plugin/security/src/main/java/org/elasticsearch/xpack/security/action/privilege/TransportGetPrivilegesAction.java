@@ -55,7 +55,7 @@ public class TransportGetPrivilegesAction extends HandledTransportAction<GetPriv
         this.privilegeStore.getPrivileges(
             applications,
             names,
-            ActionListener.wrap(privileges -> listener.onResponse(new GetPrivilegesResponse(privileges)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, privileges) -> l.onResponse(new GetPrivilegesResponse(privileges)))
         );
     }
 

@@ -370,7 +370,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
 
         // Roles listener: Log roles from delegated authz lookup or role mapping, and cache User if JWT cache is enabled.
-        final ActionListener<AuthenticationResult<User>> logAndCacheListener = ActionListener.wrap(result -> {
+        final ActionListener<AuthenticationResult<User>> logAndCacheListener = listener.delegateFailureAndWrap((delegate, result) -> {
             if (result.isAuthenticated()) {
                 final User user = result.getValue();
                 logger.debug(() -> format("Realm [%s] roles [%s] for principal=[%s].", name(), join(",", user.roles()), principal));
@@ -381,8 +381,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     }
                 }
             }
-            listener.onResponse(result);
-        }, listener::onFailure);
+            delegate.onResponse(result);
+        });
 
         // Delegated role lookup or Role mapping: Use the above listener to log roles and cache User.
         if (delegatedAuthorizationSupport.hasDelegation()) {
@@ -399,19 +399,19 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final String mail = claimParserMail.getClaimValue(claimsSet);
         final String name = claimParserName.getClaimValue(claimsSet);
         final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMetadata, config);
-        userRoleMapper.resolveRoles(userData, ActionListener.wrap(rolesSet -> {
+        userRoleMapper.resolveRoles(userData, logAndCacheListener.delegateFailureAndWrap((delegate, rolesSet) -> {
             final User user = new User(principal, rolesSet.toArray(Strings.EMPTY_ARRAY), name, mail, userData.getMetadata(), true);
-            logAndCacheListener.onResponse(AuthenticationResult.success(user));
-        }, logAndCacheListener::onFailure));
+            delegate.onResponse(AuthenticationResult.success(user));
+        }));
     }
 
     @Override
     public void usageStats(final ActionListener<Map<String, Object>> listener) {
         ensureInitialized();
-        super.usageStats(ActionListener.wrap(stats -> {
+        super.usageStats(listener.delegateFailureAndWrap((l, stats) -> {
             stats.put("jwt.cache", Collections.singletonMap("size", isCacheEnabled() ? jwtCache.count() : -1));
-            listener.onResponse(stats);
-        }, listener::onFailure));
+            l.onResponse(stats);
+        }));
     }
 
     /**

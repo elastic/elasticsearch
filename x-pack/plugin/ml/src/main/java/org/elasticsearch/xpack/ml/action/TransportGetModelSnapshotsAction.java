@@ -75,7 +75,7 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<
         jobManager.jobExists(
             request.getJobId(),
             parentTaskId,
-            ActionListener.wrap(ok -> getModelSnapshots(request, parentTaskId, listener), listener::onFailure)
+            listener.delegateFailureAndWrap((l, ok) -> getModelSnapshots(request, parentTaskId, l))
         );
     }
 

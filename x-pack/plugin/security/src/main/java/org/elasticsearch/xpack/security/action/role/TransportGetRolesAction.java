@@ -70,14 +70,14 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
             // specific roles were requested but they were built in only, no need to hit the store
             listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
         } else {
-            nativeRolesStore.getRoleDescriptors(rolesToSearchFor, ActionListener.wrap((retrievalResult) -> {
+            nativeRolesStore.getRoleDescriptors(rolesToSearchFor, listener.delegateFailureAndWrap((delegate, retrievalResult) -> {
                 if (retrievalResult.isSuccess()) {
                     roles.addAll(retrievalResult.getDescriptors());
-                    listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
+                    delegate.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
                 } else {
-                    listener.onFailure(retrievalResult.getFailure());
+                    delegate.onFailure(retrievalResult.getFailure());
                 }
-            }, listener::onFailure));
+            }));
         }
     }
 }

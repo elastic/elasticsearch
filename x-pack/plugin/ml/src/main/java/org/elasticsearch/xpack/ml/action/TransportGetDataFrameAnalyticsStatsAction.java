@@ -131,12 +131,12 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
     ) {
         logger.trace("Get stats for running task [{}]", task.getParams().getId());
 
-        ActionListener<Void> updateProgressListener = ActionListener.wrap(aVoid -> {
+        ActionListener<Void> updateProgressListener = listener.delegateFailureAndWrap((delegate, aVoid) -> {
             StatsHolder statsHolder = task.getStatsHolder();
             if (statsHolder == null) {
                 // The task has just been assigned and has not been initialized with its stats holder yet.
                 // We return empty result here so that we treat it as a stopped task and return its stored stats.
-                listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
+                delegate.onResponse(new QueryPage<>(Collections.emptyList(), 0, GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
                 return;
             }
             Stats stats = buildStats(
@@ -146,8 +146,8 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                 statsHolder.getMemoryUsage(),
                 statsHolder.getAnalysisStats()
             );
-            listener.onResponse(new QueryPage<>(Collections.singletonList(stats), 1, GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
-        }, listener::onFailure);
+            delegate.onResponse(new QueryPage<>(Collections.singletonList(stats), 1, GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
+        });
 
         // We must update the progress of the reindexing task as it might be stale
         task.updateTaskProgress(updateProgressListener);
@@ -162,34 +162,35 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         logger.trace("Get stats for data frame analytics [{}]", request.getId());
 
-        ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(getResponse -> {
-            List<String> expandedIds = getResponse.getResources()
-                .results()
-                .stream()
-                .map(DataFrameAnalyticsConfig::getId)
-                .collect(Collectors.toList());
-            request.setExpandedIds(expandedIds);
-            ActionListener<GetDataFrameAnalyticsStatsAction.Response> runningTasksStatsListener = ActionListener.wrap(
-                runningTasksStatsResponse -> gatherStatsForStoppedTasks(
-                    getResponse.getResources().results(),
-                    runningTasksStatsResponse,
-                    parentTaskId,
-                    ActionListener.wrap(finalResponse -> {
+        ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = listener.delegateFailureAndWrap(
+            (delegate, getResponse) -> {
+                List<String> expandedIds = getResponse.getResources()
+                    .results()
+                    .stream()
+                    .map(DataFrameAnalyticsConfig::getId)
+                    .collect(Collectors.toList());
+                request.setExpandedIds(expandedIds);
+                ActionListener<GetDataFrameAnalyticsStatsAction.Response> runningTasksStatsListener = delegate.delegateFailureAndWrap(
+                    (delegate2, runningTasksStatsResponse) -> gatherStatsForStoppedTasks(
+                        getResponse.getResources().results(),
+                        runningTasksStatsResponse,
+                        parentTaskId,
+                        delegate2.delegateFailureAndWrap((l, finalResponse) -> {
 
-                        // While finalResponse has all the stats objects we need, we should report the count
-                        // from the get response
-                        QueryPage<Stats> finalStats = new QueryPage<>(
-                            finalResponse.getResponse().results(),
-                            getResponse.getResources().count(),
-                            GetDataFrameAnalyticsAction.Response.RESULTS_FIELD
-                        );
-                        listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(finalStats));
-                    }, listener::onFailure)
-                ),
-                listener::onFailure
-            );
-            super.doExecute(task, request, runningTasksStatsListener);
-        }, listener::onFailure);
+                            // While finalResponse has all the stats objects we need, we should report the count
+                            // from the get response
+                            QueryPage<Stats> finalStats = new QueryPage<>(
+                                finalResponse.getResponse().results(),
+                                getResponse.getResources().count(),
+                                GetDataFrameAnalyticsAction.Response.RESULTS_FIELD
+                            );
+                            l.onResponse(new GetDataFrameAnalyticsStatsAction.Response(finalStats));
+                        })
+                    )
+                );
+                super.doExecute(task, request, runningTasksStatsListener);
+            }
+        );
 
         GetDataFrameAnalyticsAction.Request getRequest = new GetDataFrameAnalyticsAction.Request();
         getRequest.setResourceId(request.getId());

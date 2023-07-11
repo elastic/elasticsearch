@@ -57,7 +57,7 @@ public final class TransportUpdateCrossClusterApiKeyAction extends TransportBase
                 }
             },
             Set.of(),
-            ActionListener.wrap(bulkResponse -> listener.onResponse(toSingleResponse(request.getId(), bulkResponse)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, bulkResponse) -> l.onResponse(toSingleResponse(request.getId(), bulkResponse)))
         );
     }
 }

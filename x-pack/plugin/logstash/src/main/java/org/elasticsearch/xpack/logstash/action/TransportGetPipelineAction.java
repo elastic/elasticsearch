@@ -185,17 +185,16 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
             client.prepareSearchScroll(searchResponse.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(1L))
                 .execute(
-                    ActionListener.wrap(
-                        searchResponse1 -> handleFilteringSearchResponse(
+                    listener.delegateFailureAndWrap(
+                        (l, searchResponse1) -> handleFilteringSearchResponse(
                             searchResponse1,
                             pipelineSources,
                             explicitPipelineIds,
                             wildcardPipelinePatterns,
                             numberOfHitsSeenSoFar,
                             clearScroll,
-                            listener
-                        ),
-                        listener::onFailure
+                            l
+                        )
                     )
                 );
         }

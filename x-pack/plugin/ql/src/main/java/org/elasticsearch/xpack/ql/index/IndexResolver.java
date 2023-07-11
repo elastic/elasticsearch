@@ -272,7 +272,7 @@ public class IndexResolver {
                     indexRequest.indicesOptions(FROZEN_INDICES_OPTIONS);
                 }
 
-                client.admin().indices().getIndex(indexRequest, wrap(indices -> {
+                client.admin().indices().getIndex(indexRequest, listener.delegateFailureAndWrap((delegate, indices) -> {
                     if (indices != null) {
                         for (String indexName : indices.getIndices()) {
                             boolean isFrozen = retrieveFrozenIndices
@@ -282,8 +282,8 @@ public class IndexResolver {
                             );
                         }
                     }
-                    resolveRemoteIndices(clusterWildcard, indexWildcards, javaRegex, retrieveFrozenIndices, indexInfos, listener);
-                }, listener::onFailure));
+                    resolveRemoteIndices(clusterWildcard, indexWildcards, javaRegex, retrieveFrozenIndices, indexInfos, delegate);
+                }));
             } else {
                 resolveRemoteIndices(clusterWildcard, indexWildcards, javaRegex, retrieveFrozenIndices, indexInfos, listener);
             }
@@ -363,7 +363,7 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, indicesOptions, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
-            ActionListener.wrap(response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
         );
     }
 
@@ -379,7 +379,7 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
-            ActionListener.wrap(response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
         );
     }
 
@@ -586,17 +586,26 @@ public class IndexResolver {
         ActionListener<List<EsIndex>> listener
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
-        client.fieldCaps(fieldRequest, wrap(response -> {
-            client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
-                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));
-            }, ex -> {
-                if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                    listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
-                } else {
-                    listener.onFailure(ex);
-                }
-            }));
-        }, listener::onFailure));
+        client.fieldCaps(
+            fieldRequest,
+            listener.delegateFailureAndWrap(
+                (delegate, response) -> client.admin()
+                    .indices()
+                    .getAliases(
+                        createGetAliasesRequest(response, includeFrozen),
+                        wrap(
+                            aliases -> delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases())),
+                            ex -> {
+                                if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
+                                    delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
+                                } else {
+                                    delegate.onFailure(ex);
+                                }
+                            }
+                        )
+                    )
+            )
+        );
 
     }
 

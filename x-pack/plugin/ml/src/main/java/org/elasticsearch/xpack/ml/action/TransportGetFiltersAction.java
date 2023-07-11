@@ -54,7 +54,7 @@ public class TransportGetFiltersAction extends AbstractTransportGetResourcesActi
         searchResources(
             request,
             new TaskId(clusterService.localNode().getId(), task.getId()),
-            ActionListener.wrap(filters -> listener.onResponse(new GetFiltersAction.Response(filters)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, filters) -> l.onResponse(new GetFiltersAction.Response(filters)))
         );
     }
 

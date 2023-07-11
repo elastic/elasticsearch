@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.rest.inference;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.RestApiVersion;
@@ -86,13 +85,12 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
             request,
             // This API is deprecated but refactoring makes it simpler to call
             // the new replacement API and swap in the old response.
-            ActionListener.wrap(response -> {
+            new RestToXContentListener<>(channel).delegateFailureAndWrap((l, response) -> {
                 InferTrainedModelDeploymentAction.Response oldResponse = new InferTrainedModelDeploymentAction.Response(
                     response.getInferenceResults()
                 );
-                new RestToXContentListener<>(channel).onResponse(oldResponse);
-            }, e -> new RestToXContentListener<>(channel).onFailure(e))
-
+                l.onResponse(oldResponse);
+            })
         );
     }
 }

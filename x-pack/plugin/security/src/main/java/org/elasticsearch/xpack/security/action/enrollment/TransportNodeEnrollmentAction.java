@@ -143,22 +143,28 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
 
         final List<String> nodeList = new ArrayList<>();
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().addMetric(NodesInfoRequest.Metric.TRANSPORT.metricName());
-        executeAsyncWithOrigin(client, SECURITY_ORIGIN, NodesInfoAction.INSTANCE, nodesInfoRequest, ActionListener.wrap(response -> {
-            for (NodeInfo nodeInfo : response.getNodes()) {
-                nodeList.add(nodeInfo.getInfo(TransportInfo.class).getAddress().publishAddress().toString());
-            }
-            try {
-                final String httpCaKey = Base64.getEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v1().getEncoded());
-                final String httpCaCert = Base64.getEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v2().getEncoded());
-                final String transportCaCert = Base64.getEncoder().encodeToString(transportCaCertificates.get(0).getEncoded());
-                final String transportKey = Base64.getEncoder().encodeToString(transportKeysAndCertificates.get(0).v1().getEncoded());
-                final String transportCert = Base64.getEncoder().encodeToString(transportKeysAndCertificates.get(0).v2().getEncoded());
-                listener.onResponse(
-                    new NodeEnrollmentResponse(httpCaKey, httpCaCert, transportCaCert, transportKey, transportCert, nodeList)
-                );
-            } catch (CertificateEncodingException e) {
-                listener.onFailure(new ElasticsearchException("Unable to enroll node", e));
-            }
-        }, listener::onFailure));
+        executeAsyncWithOrigin(
+            client,
+            SECURITY_ORIGIN,
+            NodesInfoAction.INSTANCE,
+            nodesInfoRequest,
+            listener.delegateFailureAndWrap((delegate, response) -> {
+                for (NodeInfo nodeInfo : response.getNodes()) {
+                    nodeList.add(nodeInfo.getInfo(TransportInfo.class).getAddress().publishAddress().toString());
+                }
+                try {
+                    final String httpCaKey = Base64.getEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v1().getEncoded());
+                    final String httpCaCert = Base64.getEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v2().getEncoded());
+                    final String transportCaCert = Base64.getEncoder().encodeToString(transportCaCertificates.get(0).getEncoded());
+                    final String transportKey = Base64.getEncoder().encodeToString(transportKeysAndCertificates.get(0).v1().getEncoded());
+                    final String transportCert = Base64.getEncoder().encodeToString(transportKeysAndCertificates.get(0).v2().getEncoded());
+                    delegate.onResponse(
+                        new NodeEnrollmentResponse(httpCaKey, httpCaCert, transportCaCert, transportKey, transportCert, nodeList)
+                    );
+                } catch (CertificateEncodingException e) {
+                    delegate.onFailure(new ElasticsearchException("Unable to enroll node", e));
+                }
+            })
+        );
     }
 }

@@ -15,8 +15,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -30,8 +28,6 @@ import java.util.Map;
 public class TransportRenderSearchApplicationQueryAction extends HandledTransportAction<
     SearchApplicationSearchRequest,
     RenderSearchApplicationQueryAction.Response> {
-
-    private static final Logger logger = LogManager.getLogger(TransportRenderSearchApplicationQueryAction.class);
 
     protected final SearchApplicationIndexService systemIndexService;
 
@@ -59,10 +55,10 @@ public class TransportRenderSearchApplicationQueryAction extends HandledTranspor
         SearchApplicationSearchRequest request,
         ActionListener<RenderSearchApplicationQueryAction.Response> listener
     ) {
-        systemIndexService.getSearchApplication(request.name(), ActionListener.wrap(searchApplication -> {
+        systemIndexService.getSearchApplication(request.name(), listener.delegateFailureAndWrap((l, searchApplication) -> {
             final Map<String, Object> renderedMetadata = templateService.renderTemplate(searchApplication, request.queryParams());
             final SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, renderedMetadata);
-            listener.onResponse(new RenderSearchApplicationQueryAction.Response(request.name(), sourceBuilder));
-        }, listener::onFailure));
+            l.onResponse(new RenderSearchApplicationQueryAction.Response(request.name(), sourceBuilder));
+        }));
     }
 }

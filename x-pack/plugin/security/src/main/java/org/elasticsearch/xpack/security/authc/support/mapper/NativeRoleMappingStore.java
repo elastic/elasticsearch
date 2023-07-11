@@ -322,7 +322,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         if (securityIndex.isAvailable() == false) {
             reportStats(listener, Collections.emptyList());
         } else {
-            getMappings(ActionListener.wrap(mappings -> reportStats(listener, mappings), listener::onFailure));
+            getMappings(listener.delegateFailureAndWrap(NativeRoleMappingStore::reportStats));
         }
     }
 
@@ -366,7 +366,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     @Override
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
-        getRoleMappings(null, ActionListener.wrap(mappings -> {
+        getRoleMappings(null, listener.delegateFailureAndWrap((delegate, mappings) -> {
             final ExpressionModel model = user.asModel();
             final Set<String> roles = mappings.stream()
                 .filter(ExpressionRoleMapping::isEnabled)
@@ -378,8 +378,8 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 })
                 .collect(Collectors.toSet());
             logger.debug("Mapping user [{}] to roles [{}]", user, roles);
-            listener.onResponse(roles);
-        }, listener::onFailure));
+            delegate.onResponse(roles);
+        }));
     }
 
     /**

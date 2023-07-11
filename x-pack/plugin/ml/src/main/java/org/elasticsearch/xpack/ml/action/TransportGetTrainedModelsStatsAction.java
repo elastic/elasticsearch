@@ -275,32 +275,39 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         TaskId parentTaskId,
         ActionListener<Map<String, TrainedModelSizeStats>> listener
     ) {
-        ActionListener<List<TrainedModelConfig>> modelsListener = ActionListener.wrap(models -> {
+        ActionListener<List<TrainedModelConfig>> modelsListener = listener.delegateFailureAndWrap((delegate, models) -> {
             final List<String> pytorchModelIds = models.stream()
                 .filter(m -> m.getModelType() == TrainedModelType.PYTORCH)
                 .map(TrainedModelConfig::getModelId)
                 .toList();
-            definitionLengths(pytorchModelIds, parentTaskId, ActionListener.wrap(pytorchTotalDefinitionLengthsByModelId -> {
-                Map<String, TrainedModelSizeStats> modelSizeStatsByModelId = new HashMap<>();
-                for (TrainedModelConfig model : models) {
-                    if (model.getModelType() == TrainedModelType.PYTORCH) {
-                        long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
-                        modelSizeStatsByModelId.put(
-                            model.getModelId(),
-                            new TrainedModelSizeStats(
-                                totalDefinitionLength,
-                                totalDefinitionLength > 0L
-                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(model.getModelId(), totalDefinitionLength)
-                                    : 0L
-                            )
-                        );
-                    } else {
-                        modelSizeStatsByModelId.put(model.getModelId(), new TrainedModelSizeStats(model.getModelSize(), 0));
+            definitionLengths(
+                pytorchModelIds,
+                parentTaskId,
+                delegate.delegateFailureAndWrap((delegate2, pytorchTotalDefinitionLengthsByModelId) -> {
+                    Map<String, TrainedModelSizeStats> modelSizeStatsByModelId = new HashMap<>();
+                    for (TrainedModelConfig model : models) {
+                        if (model.getModelType() == TrainedModelType.PYTORCH) {
+                            long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
+                            modelSizeStatsByModelId.put(
+                                model.getModelId(),
+                                new TrainedModelSizeStats(
+                                    totalDefinitionLength,
+                                    totalDefinitionLength > 0L
+                                        ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+                                            model.getModelId(),
+                                            totalDefinitionLength
+                                        )
+                                        : 0L
+                                )
+                            );
+                        } else {
+                            modelSizeStatsByModelId.put(model.getModelId(), new TrainedModelSizeStats(model.getModelSize(), 0));
+                        }
                     }
-                }
-                listener.onResponse(modelSizeStatsByModelId);
-            }, listener::onFailure));
-        }, listener::onFailure);
+                    delegate2.onResponse(modelSizeStatsByModelId);
+                })
+            );
+        });
 
         trainedModelProvider.getTrainedModels(
             expandedIdsWithAliases,
@@ -326,21 +333,28 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             .request();
         searchRequest.setParentTask(parentTaskId);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
-            Map<String, Long> totalDefinitionLengthByModelId = new HashMap<>();
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                DocumentField modelIdField = hit.field(TrainedModelConfig.MODEL_ID.getPreferredName());
-                if (modelIdField != null && modelIdField.getValue() instanceof String modelId) {
-                    DocumentField totalDefinitionLengthField = hit.field(
-                        TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName()
-                    );
-                    if (totalDefinitionLengthField != null && totalDefinitionLengthField.getValue() instanceof Long totalDefinitionLength) {
-                        totalDefinitionLengthByModelId.put(modelId, totalDefinitionLength);
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            SearchAction.INSTANCE,
+            searchRequest,
+            listener.delegateFailureAndWrap((delegate, searchResponse) -> {
+                Map<String, Long> totalDefinitionLengthByModelId = new HashMap<>();
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    DocumentField modelIdField = hit.field(TrainedModelConfig.MODEL_ID.getPreferredName());
+                    if (modelIdField != null && modelIdField.getValue() instanceof String modelId) {
+                        DocumentField totalDefinitionLengthField = hit.field(
+                            TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName()
+                        );
+                        if (totalDefinitionLengthField != null
+                            && totalDefinitionLengthField.getValue() instanceof Long totalDefinitionLength) {
+                            totalDefinitionLengthByModelId.put(modelId, totalDefinitionLength);
+                        }
                     }
                 }
-            }
-            listener.onResponse(totalDefinitionLengthByModelId);
-        }, listener::onFailure));
+                delegate.onResponse(totalDefinitionLengthByModelId);
+            })
+        );
     }
 
     static Map<String, IngestStats> inferenceIngestStatsByModelId(

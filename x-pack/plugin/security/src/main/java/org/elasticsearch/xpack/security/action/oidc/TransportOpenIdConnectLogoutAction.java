@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutAction;
@@ -50,26 +49,21 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
         Realms realms,
         TokenService tokenService
     ) {
-        super(
-            OpenIdConnectLogoutAction.NAME,
-            transportService,
-            actionFilters,
-            (Writeable.Reader<OpenIdConnectLogoutRequest>) OpenIdConnectLogoutRequest::new
-        );
+        super(OpenIdConnectLogoutAction.NAME, transportService, actionFilters, OpenIdConnectLogoutRequest::new);
         this.realms = realms;
         this.tokenService = tokenService;
     }
 
     @Override
     protected void doExecute(Task task, OpenIdConnectLogoutRequest request, ActionListener<OpenIdConnectLogoutResponse> listener) {
-        invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
+        invalidateRefreshToken(request.getRefreshToken(), listener.delegateFailureAndWrap((delegate, ignore) -> {
             final String token = request.getToken();
-            tokenService.getAuthenticationAndMetadata(token, ActionListener.wrap(tuple -> {
+            tokenService.getAuthenticationAndMetadata(token, delegate.delegateFailureAndWrap((delegate2, tuple) -> {
                 final Authentication authentication = tuple.v1();
                 assert false == authentication.isRunAs() : "oidc realm authentication cannot have run-as";
                 final Map<String, Object> tokenMetadata = tuple.v2();
                 validateAuthenticationAndMetadata(authentication, tokenMetadata);
-                tokenService.invalidateAccessToken(token, ActionListener.wrap(result -> {
+                tokenService.invalidateAccessToken(token, delegate2.delegateFailureAndWrap((l, result) -> {
                     if (logger.isTraceEnabled()) {
                         logger.trace(
                             "OpenID Connect Logout for user [{}] and token [{}...{}]",
@@ -79,10 +73,10 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
                         );
                     }
                     OpenIdConnectLogoutResponse response = buildResponse(authentication, tokenMetadata);
-                    listener.onResponse(response);
-                }, listener::onFailure));
-            }, listener::onFailure));
-        }, listener::onFailure));
+                    l.onResponse(response);
+                }));
+            }));
+        }));
     }
 
     private OpenIdConnectLogoutResponse buildResponse(Authentication authentication, Map<String, Object> tokenMetadata) {

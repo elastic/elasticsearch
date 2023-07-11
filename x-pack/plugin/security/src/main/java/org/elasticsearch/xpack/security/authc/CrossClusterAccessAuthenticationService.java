@@ -92,18 +92,18 @@ public class CrossClusterAccessAuthenticationService {
             final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);
             authenticationService.authenticate(
                 authcContext,
-                new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
+                new ContextPreservingActionListener<>(storedContextSupplier, listener.delegateFailureAndWrap((delegate, authentication) -> {
                     assert authentication.isApiKey() : "initial authentication for cross cluster access must be by API key";
                     assert false == authentication.isRunAs() : "initial authentication for cross cluster access cannot be run-as";
                     // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
                     // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
                     try {
                         final CrossClusterAccessSubjectInfo subjectInfo = crossClusterAccessHeaders.getCleanAndValidatedSubjectInfo();
-                        writeAuthToContext(authcContext, authentication.toCrossClusterAccess(subjectInfo), listener);
+                        writeAuthToContext(authcContext, authentication.toCrossClusterAccess(subjectInfo), delegate);
                     } catch (Exception ex) {
-                        withRequestProcessingFailure(authcContext, ex, listener);
+                        withRequestProcessingFailure(authcContext, ex, delegate);
                     }
-                }, listener::onFailure))
+                }))
             );
         }
     }

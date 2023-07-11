@@ -64,12 +64,12 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
 
             final String runAsUsername = request.getGrant().getRunAsUsername();
 
-            final ActionListener<Authentication> authenticationListener = ActionListener.wrap(authentication -> {
+            final ActionListener<Authentication> authenticationListener = listener.delegateFailureAndWrap((delegate, authentication) -> {
                 if (authentication.isRunAs()) {
                     final String effectiveUsername = authentication.getEffectiveSubject().getUser().principal();
                     if (runAsUsername != null && false == runAsUsername.equals(effectiveUsername)) {
                         // runAs is ignored
-                        listener.onFailure(
+                        delegate.onFailure(
                             new ElasticsearchStatusException("the provided grant credentials do not support run-as", RestStatus.BAD_REQUEST)
                         );
                     } else {
@@ -80,23 +80,22 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
                             authentication,
                             AuthenticateAction.NAME,
                             AuthenticateRequest.INSTANCE,
-                            ActionListener.wrap(
-                                ignore2 -> doExecuteWithGrantAuthentication(task, request, authentication, listener),
-                                listener::onFailure
+                            delegate.delegateFailureAndWrap(
+                                (l, ignore2) -> doExecuteWithGrantAuthentication(task, request, authentication, l)
                             )
                         );
                     }
                 } else {
                     if (runAsUsername != null) {
                         // runAs is ignored
-                        listener.onFailure(
+                        delegate.onFailure(
                             new ElasticsearchStatusException("the provided grant credentials do not support run-as", RestStatus.BAD_REQUEST)
                         );
                     } else {
-                        doExecuteWithGrantAuthentication(task, request, authentication, listener);
+                        doExecuteWithGrantAuthentication(task, request, authentication, delegate);
                     }
                 }
-            }, listener::onFailure);
+            });
 
             if (runAsUsername != null) {
                 threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, runAsUsername);

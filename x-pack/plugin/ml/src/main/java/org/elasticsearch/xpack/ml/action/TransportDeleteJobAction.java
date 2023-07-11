@@ -166,28 +166,25 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             }
         );
 
-        ActionListener<PutJobAction.Response> markAsDeletingListener = ActionListener.wrap(response -> {
+        ActionListener<PutJobAction.Response> markAsDeletingListener = finalListener.delegateFailureAndWrap((delegate, response) -> {
             if (request.isForce()) {
-                forceDeleteJob(parentTaskClient, request, state, finalListener);
+                forceDeleteJob(parentTaskClient, request, state, delegate);
             } else {
-                normalDeleteJob(parentTaskClient, request, state, finalListener);
+                normalDeleteJob(parentTaskClient, request, state, delegate);
             }
-        }, finalListener::onFailure);
+        });
 
-        ActionListener<AcknowledgedResponse> datafeedDeleteListener = ActionListener.wrap(response -> {
-            auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
-            cancelResetTaskIfExists(
-                request.getJobId(),
-                ActionListener.wrap(
-                    r -> jobConfigProvider.updateJobBlockReason(
-                        request.getJobId(),
-                        new Blocked(Blocked.Reason.DELETE, taskId),
-                        markAsDeletingListener
-                    ),
-                    finalListener::onFailure
-                )
-            );
-        }, finalListener::onFailure);
+        ActionListener<AcknowledgedResponse> datafeedDeleteListener = markAsDeletingListener.delegateFailureAndWrap(
+            (delegate, response) -> {
+                auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
+                cancelResetTaskIfExists(
+                    request.getJobId(),
+                    delegate.delegateFailureAndWrap(
+                        (l, r) -> jobConfigProvider.updateJobBlockReason(request.getJobId(), new Blocked(Blocked.Reason.DELETE, taskId), l)
+                    )
+                );
+            }
+        );
 
         ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
             response -> deleteDatafeedIfNecessary(request, datafeedDeleteListener),
@@ -317,11 +314,11 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
 
         datafeedConfigProvider.findDatafeedIdsForJobIds(
             Collections.singletonList(deleteJobRequest.getJobId()),
-            ActionListener.wrap(datafeedIds -> {
+            listener.delegateFailureAndWrap((delegate, datafeedIds) -> {
                 // Since it's only possible to delete a single job at a time there should not be more than one datafeed
                 assert datafeedIds.size() <= 1 : "Expected at most 1 datafeed for a single job, got " + datafeedIds;
                 if (datafeedIds.isEmpty()) {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
+                    delegate.onResponse(AcknowledgedResponse.TRUE);
                     return;
                 }
                 DeleteDatafeedAction.Request deleteDatafeedRequest = new DeleteDatafeedAction.Request(datafeedIds.iterator().next());
@@ -332,13 +329,13 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                     ClientHelper.ML_ORIGIN,
                     DeleteDatafeedAction.INSTANCE,
                     deleteDatafeedRequest,
-                    ActionListener.wrap(listener::onResponse, e -> {
+                    ActionListener.wrap(delegate::onResponse, e -> {
                         // It's possible that a simultaneous call to delete the datafeed has deleted it in between
                         // us finding the datafeed ID and trying to delete it in this method - this is OK
                         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                            listener.onResponse(AcknowledgedResponse.TRUE);
+                            delegate.onResponse(AcknowledgedResponse.TRUE);
                         } else {
-                            listener.onFailure(
+                            delegate.onFailure(
                                 ExceptionsHelper.conflictStatusException(
                                     "failed to delete job [{}] as its datafeed [{}] could not be deleted",
                                     e,
@@ -349,12 +346,12 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                         }
                     })
                 );
-            }, listener::onFailure)
+            })
         );
     }
 
     private void cancelResetTaskIfExists(String jobId, ActionListener<Boolean> listener) {
-        ActionListener<Job.Builder> jobListener = ActionListener.wrap(jobBuilder -> {
+        ActionListener<Job.Builder> jobListener = listener.delegateFailureAndWrap((delegate, jobBuilder) -> {
             Job job = jobBuilder.build();
             if (job.getBlocked().getReason() == Blocked.Reason.RESET) {
                 logger.info("[{}] Cancelling reset task [{}] because delete was requested", jobId, job.getBlocked().getTaskId());
@@ -367,18 +364,18 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                     ML_ORIGIN,
                     CancelTasksAction.INSTANCE,
                     cancelTasksRequest,
-                    ActionListener.wrap(cancelTasksResponse -> listener.onResponse(true), e -> {
+                    ActionListener.wrap(cancelTasksResponse -> delegate.onResponse(true), e -> {
                         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                            listener.onResponse(true);
+                            delegate.onResponse(true);
                         } else {
-                            listener.onFailure(e);
+                            delegate.onFailure(e);
                         }
                     })
                 );
             } else {
-                listener.onResponse(false);
+                delegate.onResponse(false);
             }
-        }, listener::onFailure);
+        });
 
         jobConfigProvider.getJob(jobId, null, jobListener);
     }

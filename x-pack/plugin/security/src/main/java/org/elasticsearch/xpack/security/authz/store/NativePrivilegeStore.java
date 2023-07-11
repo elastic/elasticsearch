@@ -175,14 +175,14 @@ public class NativePrivilegeStore {
                 final long invalidationCount = descriptorsAndApplicationNamesCache == null
                     ? -1
                     : descriptorsAndApplicationNamesCache.getInvalidationCount();
-                innerGetPrivileges(applicationNamesCacheKey, ActionListener.wrap(fetchedDescriptors -> {
+                innerGetPrivileges(applicationNamesCacheKey, listener.delegateFailureAndWrap((delegate, fetchedDescriptors) -> {
                     final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
                         .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
                     if (invalidationCount != -1) {
                         cacheFetchedDescriptors(applicationNamesCacheKey, mapOfFetchedDescriptors, invalidationCount);
                     }
-                    listener.onResponse(filterDescriptorsForPrivilegeNames(fetchedDescriptors, names));
-                }, listener::onFailure));
+                    delegate.onResponse(filterDescriptorsForPrivilegeNames(fetchedDescriptors, names));
+                }));
             }
         }
     }
@@ -370,18 +370,18 @@ public class NativePrivilegeStore {
         securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             ActionListener<IndexResponse> groupListener = new GroupedActionListener<>(
                 privileges.size(),
-                ActionListener.wrap((Collection<IndexResponse> responses) -> {
+                listener.delegateFailureAndWrap((delegate, responses) -> {
                     final Map<String, List<String>> createdNames = responses.stream()
                         .filter(r -> r.getResult() == DocWriteResponse.Result.CREATED)
-                        .map(r -> r.getId())
+                        .map(DocWriteResponse::getId)
                         .map(NativePrivilegeStore::nameFromDocId)
                         .collect(TUPLES_TO_MAP);
                     clearCaches(
-                        listener,
+                        delegate,
                         privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toUnmodifiableSet()),
                         createdNames
                     );
-                }, listener::onFailure)
+                })
             );
             for (ApplicationPrivilegeDescriptor privilege : privileges) {
                 innerPutPrivilege(privilege, refreshPolicy, groupListener);
@@ -427,14 +427,17 @@ public class NativePrivilegeStore {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(names.size(), ActionListener.wrap(responses -> {
-                    final Map<String, List<String>> deletedNames = responses.stream()
-                        .filter(r -> r.getResult() == DocWriteResponse.Result.DELETED)
-                        .map(r -> r.getId())
-                        .map(NativePrivilegeStore::nameFromDocId)
-                        .collect(TUPLES_TO_MAP);
-                    clearCaches(listener, Collections.singleton(application), deletedNames);
-                }, listener::onFailure));
+                ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(
+                    names.size(),
+                    listener.delegateFailureAndWrap((delegate, responses) -> {
+                        final Map<String, List<String>> deletedNames = responses.stream()
+                            .filter(r -> r.getResult() == DocWriteResponse.Result.DELETED)
+                            .map(DocWriteResponse::getId)
+                            .map(NativePrivilegeStore::nameFromDocId)
+                            .collect(TUPLES_TO_MAP);
+                        clearCaches(delegate, Collections.singleton(application), deletedNames);
+                    })
+                );
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),

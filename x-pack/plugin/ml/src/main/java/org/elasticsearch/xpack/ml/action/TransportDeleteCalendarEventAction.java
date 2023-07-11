@@ -58,47 +58,53 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
     protected void doExecute(Task task, DeleteCalendarEventAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final String eventId = request.getEventId();
 
-        ActionListener<Calendar> calendarListener = ActionListener.wrap(calendar -> {
+        ActionListener<Calendar> calendarListener = listener.delegateFailureAndWrap((delegate, calendar) -> {
             GetRequest getRequest = new GetRequest(MlMetaIndex.indexName(), eventId);
-            executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
-                if (getResponse.isExists() == false) {
-                    listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
-                    return;
-                }
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                GetAction.INSTANCE,
+                getRequest,
+                delegate.delegateFailureAndWrap((delegate2, getResponse) -> {
+                    if (getResponse.isExists() == false) {
+                        delegate2.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
+                        return;
+                    }
 
-                Map<String, Object> source = getResponse.getSourceAsMap();
-                String calendarId = (String) source.get(Calendar.ID.getPreferredName());
-                if (calendarId == null) {
-                    listener.onFailure(
-                        ExceptionsHelper.badRequestException(
-                            "Event [" + eventId + "] does not have a valid " + Calendar.ID.getPreferredName()
-                        )
-                    );
-                    return;
-                }
+                    Map<String, Object> source = getResponse.getSourceAsMap();
+                    String calendarId = (String) source.get(Calendar.ID.getPreferredName());
+                    if (calendarId == null) {
+                        delegate2.onFailure(
+                            ExceptionsHelper.badRequestException(
+                                "Event [" + eventId + "] does not have a valid " + Calendar.ID.getPreferredName()
+                            )
+                        );
+                        return;
+                    }
 
-                if (calendarId.equals(request.getCalendarId()) == false) {
-                    listener.onFailure(
-                        ExceptionsHelper.badRequestException(
-                            "Event ["
-                                + eventId
-                                + "] has "
-                                + Calendar.ID.getPreferredName()
-                                + " ["
-                                + calendarId
-                                + "] which does not match the request "
-                                + Calendar.ID.getPreferredName()
-                                + " ["
-                                + request.getCalendarId()
-                                + "]"
-                        )
-                    );
-                    return;
-                }
+                    if (calendarId.equals(request.getCalendarId()) == false) {
+                        delegate2.onFailure(
+                            ExceptionsHelper.badRequestException(
+                                "Event ["
+                                    + eventId
+                                    + "] has "
+                                    + Calendar.ID.getPreferredName()
+                                    + " ["
+                                    + calendarId
+                                    + "] which does not match the request "
+                                    + Calendar.ID.getPreferredName()
+                                    + " ["
+                                    + request.getCalendarId()
+                                    + "]"
+                            )
+                        );
+                        return;
+                    }
 
-                deleteEvent(eventId, calendar, listener);
-            }, listener::onFailure));
-        }, listener::onFailure);
+                    deleteEvent(eventId, calendar, delegate2);
+                })
+            );
+        });
 
         // Get the calendar first so we check the calendar exists before checking the event exists
         jobResultsProvider.calendar(request.getCalendarId(), calendarListener);
@@ -117,7 +123,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                 } else {
                     jobManager.updateProcessOnCalendarChanged(
                         calendar.getJobIds(),
-                        ActionListener.wrap(r -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
+                        listener.delegateFailureAndWrap((l, r) -> l.onResponse(AcknowledgedResponse.TRUE))
                     );
                 }
             }

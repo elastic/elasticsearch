@@ -156,19 +156,23 @@ public class Querier {
         final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(search.indicesOptions())
             .keepAlive(cfg.pageTimeout());
 
-        client.execute(OpenPointInTimeAction.INSTANCE, openPitRequest, wrap(openPointInTimeResponse -> {
-            String pitId = openPointInTimeResponse.getPointInTimeId();
-            search.indices(Strings.EMPTY_ARRAY);
-            search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
-            ActionListener<SearchResponse> closePitOnErrorListener = wrap(searchResponse -> {
-                try {
-                    listener.onResponse(searchResponse);
-                } catch (Exception e) {
-                    closePointInTimeAfterError(client, pitId, e, listener);
-                }
-            }, searchError -> closePointInTimeAfterError(client, pitId, searchError, listener));
-            client.search(search, closePitOnErrorListener);
-        }, listener::onFailure));
+        client.execute(
+            OpenPointInTimeAction.INSTANCE,
+            openPitRequest,
+            listener.delegateFailureAndWrap((delegate, openPointInTimeResponse) -> {
+                String pitId = openPointInTimeResponse.getPointInTimeId();
+                search.indices(Strings.EMPTY_ARRAY);
+                search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
+                ActionListener<SearchResponse> closePitOnErrorListener = wrap(searchResponse -> {
+                    try {
+                        listener.onResponse(searchResponse);
+                    } catch (Exception e) {
+                        closePointInTimeAfterError(client, pitId, e, listener);
+                    }
+                }, searchError -> closePointInTimeAfterError(client, pitId, searchError, delegate));
+                client.search(search, closePitOnErrorListener);
+            })
+        );
     }
 
     private static void closePointInTimeAfterError(Client client, String pointInTimeId, Exception e, ActionListener<?> listener) {
@@ -186,7 +190,7 @@ public class Querier {
             client.execute(
                 ClosePointInTimeAction.INSTANCE,
                 new ClosePointInTimeRequest(pointInTimeId),
-                wrap(clearPointInTimeResponse -> listener.onResponse(clearPointInTimeResponse.isSucceeded()), listener::onFailure)
+                listener.delegateFailureAndWrap((l, clearPointInTimeResponse) -> l.onResponse(clearPointInTimeResponse.isSucceeded()))
             );
         } else {
             listener.onResponse(true);

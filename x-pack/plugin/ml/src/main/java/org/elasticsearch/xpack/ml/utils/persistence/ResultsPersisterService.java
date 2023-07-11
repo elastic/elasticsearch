@@ -356,37 +356,40 @@ public class ResultsPersisterService {
                 jobId,
                 shouldRetry,
                 msgHandler,
-                (request, retryableListener) -> actionExecutor.accept(request, ActionListener.wrap(bulkResponse -> {
-                    if (bulkResponse.hasFailures() == false) {
-                        retryableListener.onResponse(bulkResponse);
-                        return;
-                    }
-                    for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
-                        if (itemResponse.isFailed() && isIrrecoverable(itemResponse.getFailure().getCause())) {
-                            Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
-                            LOGGER.warn(
-                                () -> format(
-                                    "[%s] experienced failure that cannot be automatically retried. Bulk failure message [%s]",
-                                    jobId,
-                                    bulkResponse.buildFailureMessage()
-                                ),
-                                unwrappedParticular
-                            );
-                            retryableListener.onFailure(
-                                new IrrecoverableException(
-                                    "{} experienced failure that cannot be automatically retried. See logs for bulk failures",
-                                    status(unwrappedParticular),
-                                    unwrappedParticular,
-                                    jobId
-                                )
-                            );
+                (request, retryableListener) -> actionExecutor.accept(
+                    request,
+                    retryableListener.delegateFailureAndWrap((delegate, bulkResponse) -> {
+                        if (bulkResponse.hasFailures() == false) {
+                            delegate.onResponse(bulkResponse);
                             return;
                         }
-                    }
-                    bulkRequestRewriter.rewriteRequest(bulkResponse);
-                    // Let the listener attempt again with the new bulk request
-                    retryableListener.onFailure(new RecoverableException());
-                }, retryableListener::onFailure)),
+                        for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
+                            if (itemResponse.isFailed() && isIrrecoverable(itemResponse.getFailure().getCause())) {
+                                Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
+                                LOGGER.warn(
+                                    () -> format(
+                                        "[%s] experienced failure that cannot be automatically retried. Bulk failure message [%s]",
+                                        jobId,
+                                        bulkResponse.buildFailureMessage()
+                                    ),
+                                    unwrappedParticular
+                                );
+                                delegate.onFailure(
+                                    new IrrecoverableException(
+                                        "{} experienced failure that cannot be automatically retried. See logs for bulk failures",
+                                        status(unwrappedParticular),
+                                        unwrappedParticular,
+                                        jobId
+                                    )
+                                );
+                                return;
+                            }
+                        }
+                        bulkRequestRewriter.rewriteRequest(bulkResponse);
+                        // Let the listener attempt again with the new bulk request
+                        delegate.onFailure(new RecoverableException());
+                    })
+                ),
                 listener
             );
             this.bulkRequestRewriter = bulkRequestRewriter;
@@ -421,15 +424,22 @@ public class ResultsPersisterService {
                 jobId,
                 shouldRetry,
                 msgHandler,
-                (request, retryableListener) -> client.search(request, ActionListener.wrap(searchResponse -> {
-                    if (RestStatus.OK.equals(searchResponse.status())) {
-                        retryableListener.onResponse(searchResponse);
-                        return;
-                    }
-                    retryableListener.onFailure(
-                        new ElasticsearchStatusException("search failed with status {}", searchResponse.status(), searchResponse.status())
-                    );
-                }, retryableListener::onFailure)),
+                (request, retryableListener) -> client.search(
+                    request,
+                    retryableListener.delegateFailureAndWrap((delegate, searchResponse) -> {
+                        if (RestStatus.OK.equals(searchResponse.status())) {
+                            delegate.onResponse(searchResponse);
+                            return;
+                        }
+                        delegate.onFailure(
+                            new ElasticsearchStatusException(
+                                "search failed with status {}",
+                                searchResponse.status(),
+                                searchResponse.status()
+                            )
+                        );
+                    })
+                ),
                 listener
             );
             this.searchRequest = searchRequest;

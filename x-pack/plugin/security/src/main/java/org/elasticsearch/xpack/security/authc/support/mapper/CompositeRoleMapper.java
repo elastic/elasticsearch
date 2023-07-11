@@ -45,9 +45,8 @@ public class CompositeRoleMapper implements UserRoleMapper {
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
         GroupedActionListener<Set<String>> groupListener = new GroupedActionListener<>(
             delegates.size(),
-            ActionListener.wrap(
-                composite -> listener.onResponse(composite.stream().flatMap(Set::stream).collect(Collectors.toSet())),
-                listener::onFailure
+            listener.delegateFailureAndWrap(
+                (l, composite) -> l.onResponse(composite.stream().flatMap(Set::stream).collect(Collectors.toSet()))
             )
         );
         this.delegates.forEach(mapper -> mapper.resolveRoles(user, groupListener));

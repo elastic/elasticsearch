@@ -47,7 +47,7 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
     @Override
     protected void doExecute(Task task, GetCategoriesAction.Request request, ActionListener<GetCategoriesAction.Response> listener) {
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        jobManager.jobExists(request.getJobId(), parentTaskId, ActionListener.wrap(jobExists -> {
+        jobManager.jobExists(request.getJobId(), parentTaskId, listener.delegateFailureAndWrap((delegate, jobExists) -> {
             Integer from = request.getPageParams() != null ? request.getPageParams().getFrom() : null;
             Integer size = request.getPageParams() != null ? request.getPageParams().getSize() : null;
             jobResultsProvider.categoryDefinitions(
@@ -57,12 +57,12 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
                 true,
                 from,
                 size,
-                r -> listener.onResponse(new GetCategoriesAction.Response(r)),
-                listener::onFailure,
+                r -> delegate.onResponse(new GetCategoriesAction.Response(r)),
+                delegate::onFailure,
                 (CancellableTask) task,
                 parentTaskId,
                 new ParentTaskAssigningClient(client, parentTaskId)
             );
-        }, listener::onFailure));
+        }));
     }
 }

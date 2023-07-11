@@ -106,18 +106,18 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
         final ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(
             new ParentTaskAssigningClient(client, parentTaskId)
         );
-        extractedFieldsDetectorFactory.createFromSource(config, ActionListener.wrap(extractedFieldsDetector -> {
+        extractedFieldsDetectorFactory.createFromSource(config, listener.delegateFailureAndWrap((delegate, extractedFieldsDetector) -> {
             DataFrameDataExtractor extractor = DataFrameDataExtractorFactory.createForSourceIndices(
                 client,
                 parentTaskId.toString(),
                 config,
                 extractedFieldsDetector.detect().v1()
             ).newExtractor(false);
-            extractor.preview(ActionListener.wrap(rows -> {
+            extractor.preview(delegate.delegateFailureAndWrap((l, rows) -> {
                 List<String> fieldNames = extractor.getFieldNames();
-                listener.onResponse(new Response(rows.stream().map((r) -> mergeRow(r, fieldNames)).collect(Collectors.toList())));
-            }, listener::onFailure));
-        }, listener::onFailure));
+                l.onResponse(new Response(rows.stream().map((r) -> mergeRow(r, fieldNames)).collect(Collectors.toList())));
+            }));
+        }));
     }
 
 }

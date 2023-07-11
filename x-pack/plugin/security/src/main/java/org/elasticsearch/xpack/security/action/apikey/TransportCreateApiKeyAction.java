@@ -64,9 +64,8 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
             }
             resolver.resolveUserRoleDescriptors(
                 authentication,
-                ActionListener.wrap(
-                    roleDescriptors -> apiKeyService.createApiKey(authentication, request, roleDescriptors, listener),
-                    listener::onFailure
+                listener.delegateFailureAndWrap(
+                    (l, roleDescriptors) -> apiKeyService.createApiKey(authentication, request, roleDescriptors, l)
                 )
             );
         }

@@ -754,7 +754,7 @@ public class AuthorizationService {
         final Map<String, Set<String>> actionToIndicesMap = new HashMap<>();
         final AuditTrail auditTrail = auditTrailService.get();
 
-        resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(overallResolvedIndices -> {
+        resolvedIndicesAsyncSupplier.getAsync(listener.delegateFailureAndWrap((delegate, overallResolvedIndices) -> {
             final Set<String> localIndices = new HashSet<>(overallResolvedIndices.getLocal());
             for (BulkItemRequest item : request.items()) {
                 final String itemAction = getAction(item);
@@ -791,8 +791,8 @@ public class AuthorizationService {
                 });
             }
 
-            final ActionListener<Collection<Tuple<String, IndexAuthorizationResult>>> bulkAuthzListener = ActionListener.wrap(
-                collection -> {
+            final ActionListener<Collection<Tuple<String, IndexAuthorizationResult>>> bulkAuthzListener = delegate.delegateFailureAndWrap(
+                (delegate2, collection) -> {
                     final Map<String, IndicesAccessControl> actionToIndicesAccessControl = new HashMap<>();
                     collection.forEach(tuple -> {
                         final IndicesAccessControl existing = actionToIndicesAccessControl.putIfAbsent(
@@ -846,9 +846,8 @@ public class AuthorizationService {
                             );
                         }
                     }
-                    listener.onResponse(null);
-                },
-                listener::onFailure
+                    delegate2.onResponse(null);
+                }
             );
             final ActionListener<Tuple<String, IndexAuthorizationResult>> groupedActionListener = wrapPreservingContext(
                 new GroupedActionListener<>(actionToIndicesMap.size(), bulkAuthzListener),
@@ -873,7 +872,7 @@ public class AuthorizationService {
                     )
                 );
             });
-        }, listener::onFailure));
+        }));
     }
 
     private static IllegalArgumentException illegalArgument(String message) {

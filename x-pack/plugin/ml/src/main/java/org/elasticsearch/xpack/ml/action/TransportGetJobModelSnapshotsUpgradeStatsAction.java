@@ -79,7 +79,7 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         // 2. Now that we have the job IDs, find the relevant model snapshot upgrades
-        ActionListener<List<Job.Builder>> expandIdsListener = ActionListener.wrap(jobs -> {
+        ActionListener<List<Job.Builder>> expandIdsListener = listener.delegateFailureAndWrap((delegate, jobs) -> {
             ExpandedIdsMatcher requiredSnapshotIdMatches = new ExpandedIdsMatcher(request.getSnapshotId(), request.allowNoMatch());
             Set<String> jobIds = jobs.stream().map(Job.Builder::getId).collect(Collectors.toSet());
             List<Response.JobModelSnapshotUpgradeStats> statsList = snapshotUpgrades.stream()
@@ -107,18 +107,18 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
                 statsList.stream().map(Response.JobModelSnapshotUpgradeStats::getSnapshotId).collect(Collectors.toList())
             );
             if (requiredSnapshotIdMatches.hasUnmatchedIds()) {
-                listener.onFailure(
+                delegate.onFailure(
                     new ResourceNotFoundException(
                         "no snapshot upgrade is running for snapshot_id [{}]",
                         requiredSnapshotIdMatches.unmatchedIdsString()
                     )
                 );
             } else {
-                listener.onResponse(
+                delegate.onResponse(
                     new Response(new QueryPage<>(statsList, statsList.size(), GetJobModelSnapshotsUpgradeStatsAction.RESULTS_FIELD))
                 );
             }
-        }, listener::onFailure);
+        });
 
         // 1. Expand jobs - this will throw if a required job ID match isn't made
         jobConfigProvider.expandJobs(request.getJobId(), request.allowNoMatch(), true, parentTaskId, expandIdsListener);

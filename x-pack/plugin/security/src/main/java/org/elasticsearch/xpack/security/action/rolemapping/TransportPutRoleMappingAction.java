@@ -44,7 +44,7 @@ public class TransportPutRoleMappingAction extends ReservedStateAwareHandledTran
     ) {
         roleMappingStore.putRoleMapping(
             request,
-            ActionListener.wrap(created -> listener.onResponse(new PutRoleMappingResponse(created)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, created) -> l.onResponse(new PutRoleMappingResponse(created)))
         );
     }
 

@@ -67,7 +67,7 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
         datafeedManager.getDatafeeds(
             request,
             parentTaskId,
-            ActionListener.wrap(datafeeds -> listener.onResponse(new GetDatafeedsAction.Response(datafeeds)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, datafeeds) -> l.onResponse(new GetDatafeedsAction.Response(datafeeds)))
         );
     }
 

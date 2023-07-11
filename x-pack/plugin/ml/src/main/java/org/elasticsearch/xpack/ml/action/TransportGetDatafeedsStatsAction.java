@@ -71,39 +71,40 @@ public class TransportGetDatafeedsStatsAction extends HandledTransportAction<Req
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         // 5. Build response
-        ActionListener<GetDatafeedRunningStateAction.Response> runtimeStateListener = ActionListener.wrap(runtimeStateResponse -> {
-            responseBuilder.setDatafeedRuntimeState(runtimeStateResponse);
-            listener.onResponse(responseBuilder.build(tasksInProgress, state));
-        }, listener::onFailure);
+        ActionListener<GetDatafeedRunningStateAction.Response> runtimeStateListener = listener.delegateFailureAndWrap(
+            (l, runtimeStateResponse) -> l.onResponse(
+                responseBuilder.setDatafeedRuntimeState(runtimeStateResponse).build(tasksInProgress, state)
+            )
+        );
 
         // 4. Grab runtime state
-        ActionListener<Map<String, DatafeedTimingStats>> datafeedTimingStatsListener = ActionListener.wrap(timingStatsByJobId -> {
-            responseBuilder.setTimingStatsMap(timingStatsByJobId);
-            GetDatafeedRunningStateAction.Request datafeedRunningStateAction = new GetDatafeedRunningStateAction.Request(
-                responseBuilder.getDatafeedIds()
-            );
-            datafeedRunningStateAction.setParentTask(parentTaskId);
-            client.execute(
-                GetDatafeedRunningStateAction.INSTANCE,
-                new GetDatafeedRunningStateAction.Request(responseBuilder.getDatafeedIds()),
-                runtimeStateListener
-            );
-        }, listener::onFailure);
+        ActionListener<Map<String, DatafeedTimingStats>> datafeedTimingStatsListener = runtimeStateListener.delegateFailureAndWrap(
+            (delegate, timingStatsByJobId) -> {
+                responseBuilder.setTimingStatsMap(timingStatsByJobId);
+                GetDatafeedRunningStateAction.Request datafeedRunningStateAction = new GetDatafeedRunningStateAction.Request(
+                    responseBuilder.getDatafeedIds()
+                );
+                datafeedRunningStateAction.setParentTask(parentTaskId);
+                client.execute(
+                    GetDatafeedRunningStateAction.INSTANCE,
+                    new GetDatafeedRunningStateAction.Request(responseBuilder.getDatafeedIds()),
+                    delegate
+                );
+            }
+        );
 
         // 3. Grab timing stats
-        ActionListener<List<DatafeedConfig.Builder>> expandedConfigsListener = ActionListener.wrap(datafeedBuilders -> {
-            Map<String, String> datafeedIdsToJobIds = datafeedBuilders.stream()
-                .collect(Collectors.toMap(DatafeedConfig.Builder::getId, DatafeedConfig.Builder::getJobId));
-            responseBuilder.setDatafeedToJobId(datafeedIdsToJobIds);
-            jobResultsProvider.datafeedTimingStats(
-                new ArrayList<>(datafeedIdsToJobIds.values()),
-                parentTaskId,
-                datafeedTimingStatsListener
-            );
-        }, listener::onFailure);
+        ActionListener<List<DatafeedConfig.Builder>> expandedConfigsListener = datafeedTimingStatsListener.delegateFailureAndWrap(
+            (delegate, datafeedBuilders) -> {
+                Map<String, String> datafeedIdsToJobIds = datafeedBuilders.stream()
+                    .collect(Collectors.toMap(DatafeedConfig.Builder::getId, DatafeedConfig.Builder::getJobId));
+                responseBuilder.setDatafeedToJobId(datafeedIdsToJobIds);
+                jobResultsProvider.datafeedTimingStats(new ArrayList<>(datafeedIdsToJobIds.values()), parentTaskId, delegate);
+            }
+        );
 
         // 2. Now that we have the ids, grab the datafeed configs
-        ActionListener<SortedSet<String>> expandIdsListener = ActionListener.wrap(expandedIds -> {
+        ActionListener<SortedSet<String>> expandIdsListener = expandedConfigsListener.delegateFailureAndWrap((delegate, expandedIds) -> {
             responseBuilder.setDatafeedIds(expandedIds);
             datafeedConfigProvider.expandDatafeedConfigs(
                 request.getDatafeedId(),
@@ -111,9 +112,9 @@ public class TransportGetDatafeedsStatsAction extends HandledTransportAction<Req
                 // Should allow for no datafeeds in case the config is gone
                 true,
                 parentTaskId,
-                expandedConfigsListener
+                delegate
             );
-        }, listener::onFailure);
+        });
 
         // 1. This might also include datafeed tasks that exist but no longer have a config
         datafeedConfigProvider.expandDatafeedIds(

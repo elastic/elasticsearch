@@ -75,9 +75,9 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
     @Override
     protected void doExecute(Task task, ProfileHasPrivilegesRequest request, ActionListener<ProfileHasPrivilegesResponse> listener) {
         assert task instanceof CancellableTask : "task must be cancellable";
-        profileService.getProfileSubjects(request.profileUids(), ActionListener.wrap(profileSubjectsAndFailures -> {
+        profileService.getProfileSubjects(request.profileUids(), listener.delegateFailureAndWrap((delegate, profileSubjectsAndFailures) -> {
             if (profileSubjectsAndFailures.results().isEmpty()) {
-                listener.onResponse(new ProfileHasPrivilegesResponse(Set.of(), profileSubjectsAndFailures.errors()));
+                delegate.onResponse(new ProfileHasPrivilegesResponse(Set.of(), profileSubjectsAndFailures.errors()));
                 return;
             }
             final Set<String> hasPrivilegeProfiles = Collections.synchronizedSet(new HashSet<>());
@@ -86,11 +86,11 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
             assert counter.get() > 0;
             resolveApplicationPrivileges(
                 request,
-                ActionListener.wrap(applicationPrivilegeDescriptors -> threadPool.generic().execute(() -> {
+                delegate.delegateFailureAndWrap((delegate2, applicationPrivilegeDescriptors) -> threadPool.generic().execute(() -> {
                     for (Map.Entry<String, Subject> profileUidToSubject : profileSubjectsAndFailures.results()) {
                         // return the partial response if the "has privilege" task got cancelled in the meantime
                         if (((CancellableTask) task).isCancelled()) {
-                            listener.onFailure(new TaskCancelledException("has privilege task cancelled"));
+                            delegate2.onFailure(new TaskCancelledException("has privilege task cancelled"));
                             return;
                         }
                         final String profileUid = profileUidToSubject.getKey();
@@ -109,14 +109,14 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                                 errorProfiles.put(profileUid, checkPrivilegesException);
                             }), () -> {
                                 if (counter.decrementAndGet() == 0) {
-                                    listener.onResponse(new ProfileHasPrivilegesResponse(hasPrivilegeProfiles, errorProfiles));
+                                    delegate2.onResponse(new ProfileHasPrivilegesResponse(hasPrivilegeProfiles, errorProfiles));
                                 }
                             })
                         );
                     }
-                }), listener::onFailure)
+                }))
             );
-        }, listener::onFailure));
+        }));
     }
 
     private void resolveApplicationPrivileges(

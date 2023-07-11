@@ -88,21 +88,18 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
             }
         }
 
-        final ActionListener<Collection<Collection<User>>> sendingListener = ActionListener.wrap((userLists) -> {
+        final ActionListener<Collection<Collection<User>>> sendingListener = listener.delegateFailureAndWrap((delegate, userLists) -> {
             users.addAll(userLists.stream().flatMap(Collection::stream).filter(Objects::nonNull).toList());
             if (request.isWithProfileUid()) {
                 resolveProfileUids(
                     users,
-                    ActionListener.wrap(
-                        profileUidLookup -> listener.onResponse(new GetUsersResponse(users, profileUidLookup)),
-                        listener::onFailure
-                    )
+                    delegate.delegateFailureAndWrap((l, profileUidLookup) -> l.onResponse(new GetUsersResponse(users, profileUidLookup)))
                 );
             } else {
-                listener.onResponse(new GetUsersResponse(users));
+                delegate.onResponse(new GetUsersResponse(users));
             }
 
-        }, listener::onFailure);
+        });
         final GroupedActionListener<Collection<User>> groupListener = new GroupedActionListener<>(2, sendingListener);
         // We have two sources for the users object, the reservedRealm and the usersStore, we query both at the same time with a
         // GroupedActionListener
@@ -143,7 +140,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
             }
         }).toList();
 
-        profileService.searchProfilesForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
+        profileService.searchProfilesForSubjects(subjects, listener.delegateFailureAndWrap((delegate, resultsAndErrors) -> {
             if (resultsAndErrors.errors().isEmpty()) {
                 assert users.size() == resultsAndErrors.results().size();
                 final Map<String, String> profileUidLookup = resultsAndErrors.results()
@@ -151,15 +148,15 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
                     .filter(t -> Objects.nonNull(t.v2()))
                     .map(t -> new Tuple<>(t.v1().getUser().principal(), t.v2().uid()))
                     .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
-                listener.onResponse(profileUidLookup);
+                delegate.onResponse(profileUidLookup);
             } else {
                 final ElasticsearchStatusException exception = new ElasticsearchStatusException(
                     "failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)",
                     RestStatus.INTERNAL_SERVER_ERROR
                 );
                 resultsAndErrors.errors().values().forEach(exception::addSuppressed);
-                listener.onFailure(exception);
+                delegate.onFailure(exception);
             }
-        }, listener::onFailure));
+        }));
     }
 }

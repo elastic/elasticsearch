@@ -146,31 +146,35 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
             }
         };
 
-        final ActionListener<Map<String, Object>> rolesStoreUsageListener = ActionListener.wrap(rolesStoreUsage -> {
+        final ActionListener<Map<String, Object>> rolesStoreUsageListener = listener.delegateFailureAndWrap((l, rolesStoreUsage) -> {
             rolesUsageRef.set(rolesStoreUsage);
             doCountDown.run();
-        }, listener::onFailure);
+        });
 
-        final ActionListener<Map<String, Object>> roleMappingStoreUsageListener = ActionListener.wrap(nativeRoleMappingStoreUsage -> {
-            Map<String, Object> usage = singletonMap("native", nativeRoleMappingStoreUsage);
-            roleMappingUsageRef.set(usage);
-            doCountDown.run();
-        }, listener::onFailure);
+        final ActionListener<Map<String, Object>> roleMappingStoreUsageListener = listener.delegateFailureAndWrap(
+            (l, nativeRoleMappingStoreUsage) -> {
+                Map<String, Object> usage = singletonMap("native", nativeRoleMappingStoreUsage);
+                roleMappingUsageRef.set(usage);
+                doCountDown.run();
+            }
+        );
 
-        final ActionListener<Map<String, Object>> realmsUsageListener = ActionListener.wrap(realmsUsage -> {
+        final ActionListener<Map<String, Object>> realmsUsageListener = listener.delegateFailureAndWrap((l, realmsUsage) -> {
             realmsUsageRef.set(realmsUsage);
             doCountDown.run();
-        }, listener::onFailure);
+        });
 
-        final ActionListener<Map<String, Object>> userProfileUsageListener = ActionListener.wrap(userProfileUsage -> {
+        final ActionListener<Map<String, Object>> userProfileUsageListener = listener.delegateFailureAndWrap((l, userProfileUsage) -> {
             userProfileUsageRef.set(userProfileUsage);
             doCountDown.run();
-        }, listener::onFailure);
+        });
 
-        final ActionListener<Map<String, Object>> remoteClusterServerUsageListener = ActionListener.wrap(remoteClusterServerUsage -> {
-            remoteClusterServerUsageRef.set(remoteClusterServerUsage);
-            doCountDown.run();
-        }, listener::onFailure);
+        final ActionListener<Map<String, Object>> remoteClusterServerUsageListener = listener.delegateFailureAndWrap(
+            (l, remoteClusterServerUsage) -> {
+                remoteClusterServerUsageRef.set(remoteClusterServerUsage);
+                doCountDown.run();
+            }
+        );
 
         if (rolesStore == null || enabled == false) {
             rolesStoreUsageListener.onResponse(Collections.emptyMap());
@@ -204,8 +208,8 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
     private void remoteClusterServerUsage(ActionListener<Map<String, Object>> listener) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             apiKeyService.crossClusterApiKeyUsageStats(
-                ActionListener.wrap(
-                    usage -> listener.onResponse(
+                listener.delegateFailureAndWrap(
+                    (l, usage) -> l.onResponse(
                         Map.of(
                             "available",
                             ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState),
@@ -214,8 +218,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
                             "api_keys",
                             usage
                         )
-                    ),
-                    listener::onFailure
+                    )
                 )
             );
         } else {

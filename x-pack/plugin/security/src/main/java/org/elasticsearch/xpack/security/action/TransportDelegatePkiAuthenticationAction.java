@@ -101,12 +101,10 @@ public final class TransportDelegatePkiAuthenticationAction extends HandledTrans
                         delegateeAuthentication,
                         Map.of(),
                         false,
-                        ActionListener.wrap(tokenResult -> {
+                        listener.delegateFailureAndWrap((l, tokenResult) -> {
                             final TimeValue expiresIn = tokenService.getExpirationDelay();
-                            listener.onResponse(
-                                new DelegatePkiAuthenticationResponse(tokenResult.getAccessToken(), expiresIn, authentication)
-                            );
-                        }, listener::onFailure)
+                            l.onResponse(new DelegatePkiAuthenticationResponse(tokenResult.getAccessToken(), expiresIn, authentication));
+                        })
                     );
                 }, e -> {
                     logger.debug(() -> format("Delegated x509Token [%s] could not be authenticated", x509DelegatedToken), e);

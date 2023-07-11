@@ -51,17 +51,13 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
     ) {
         resolver.resolveUserRoleDescriptors(
             authentication,
-            ActionListener.wrap(
-                roleDescriptors -> apiKeyService.updateApiKeys(
+            listener.delegateFailureAndWrap(
+                (delegate, roleDescriptors) -> apiKeyService.updateApiKeys(
                     authentication,
                     BulkUpdateApiKeyRequest.wrap(request),
                     roleDescriptors,
-                    ActionListener.wrap(
-                        bulkResponse -> listener.onResponse(toSingleResponse(request.getId(), bulkResponse)),
-                        listener::onFailure
-                    )
-                ),
-                listener::onFailure
+                    delegate.delegateFailureAndWrap((l, bulkResponse) -> l.onResponse(toSingleResponse(request.getId(), bulkResponse)))
+                )
             )
         );
     }

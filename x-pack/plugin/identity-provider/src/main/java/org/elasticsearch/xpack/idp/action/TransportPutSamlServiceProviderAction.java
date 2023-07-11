@@ -78,14 +78,14 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
             return;
         }
         logger.trace("Searching for existing ServiceProvider with id [{}] for [{}]", document.entityId, request);
-        index.findByEntityId(document.entityId, ActionListener.wrap(matchingDocuments -> {
+        index.findByEntityId(document.entityId, listener.delegateFailureAndWrap((delegate, matchingDocuments) -> {
             if (matchingDocuments.isEmpty()) {
                 // derive a document id from the entity id so that don't accidentally create duplicate entities due to a race condition
                 document.docId = deriveDocumentId(document);
                 // force a create in case there are concurrent requests. This way, if two nodes/threads are trying to create the SP at
                 // the same time, one will fail. That's not ideal, but it's better than having 1 silently overwrite the other.
                 logger.trace("No existing ServiceProvider for EntityID=[{}], writing new doc [{}]", document.entityId, document.docId);
-                writeDocument(document, DocWriteRequest.OpType.CREATE, request.getRefreshPolicy(), listener);
+                writeDocument(document, DocWriteRequest.OpType.CREATE, request.getRefreshPolicy(), delegate);
             } else if (matchingDocuments.size() == 1) {
                 final SamlServiceProviderDocument existingDoc = Iterables.get(matchingDocuments, 0).getDocument();
                 assert existingDoc.docId != null : "Loaded document with no doc id";
@@ -93,7 +93,7 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
                 document.setDocId(existingDoc.docId);
                 document.setCreated(existingDoc.created);
                 logger.trace("Found existing ServiceProvider for EntityID=[{}], writing to doc [{}]", document.entityId, document.docId);
-                writeDocument(document, DocWriteRequest.OpType.INDEX, request.getRefreshPolicy(), listener);
+                writeDocument(document, DocWriteRequest.OpType.INDEX, request.getRefreshPolicy(), delegate);
             } else {
                 logger.warn(
                     "Found multiple existing service providers in [{}] with entity id [{}] - [{}]",
@@ -101,11 +101,11 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
                     document.entityId,
                     matchingDocuments.stream().map(d -> d.getDocument().docId).collect(Collectors.joining(","))
                 );
-                listener.onFailure(
+                delegate.onFailure(
                     new IllegalStateException("Multiple service providers already exist with entity id [" + document.entityId + "]")
                 );
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void writeDocument(
@@ -130,8 +130,8 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
             document,
             opType,
             refreshPolicy,
-            ActionListener.wrap(
-                response -> listener.onResponse(
+            listener.delegateFailureAndWrap(
+                (l, response) -> l.onResponse(
                     new PutSamlServiceProviderResponse(
                         response.getId(),
                         response.getResult() == DocWriteResponse.Result.CREATED,
@@ -140,8 +140,7 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
                         document.entityId,
                         document.enabled
                     )
-                ),
-                listener::onFailure
+                )
             )
         );
     }

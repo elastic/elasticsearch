@@ -59,7 +59,7 @@ public class SpatialUsageTransportAction extends XPackUsageFeatureTransportActio
         client.execute(
             SpatialStatsAction.INSTANCE,
             statsRequest,
-            ActionListener.wrap(r -> listener.onResponse(new XPackUsageFeatureResponse(new SpatialFeatureSetUsage(r))), listener::onFailure)
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(new XPackUsageFeatureResponse(new SpatialFeatureSetUsage(r))))
         );
     }
 }

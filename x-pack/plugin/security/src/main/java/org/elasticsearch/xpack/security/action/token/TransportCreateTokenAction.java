@@ -161,7 +161,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
             originatingAuth,
             Collections.emptyMap(),
             includeRefreshToken,
-            ActionListener.wrap(tokenResult -> {
+            listener.delegateFailureAndWrap((delegate, tokenResult) -> {
                 final String scope = getResponseScopeValue(request.getScope());
                 final String base64AuthenticateResponse = (grantType == GrantType.KERBEROS) ? extractOutToken() : null;
                 final CreateTokenResponse response = new CreateTokenResponse(
@@ -172,8 +172,8 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                     base64AuthenticateResponse,
                     authentication
                 );
-                listener.onResponse(response);
-            }, listener::onFailure)
+                delegate.onResponse(response);
+            })
         );
     }
 

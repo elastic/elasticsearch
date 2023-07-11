@@ -64,7 +64,7 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
         logger.debug("[{}] cancel model snapshot [{}] upgrades", request.getJobId(), request.getSnapshotId());
 
         // 2. Now that we have the job IDs, find the relevant model snapshot upgrade tasks
-        ActionListener<List<Job.Builder>> expandIdsListener = ActionListener.wrap(jobs -> {
+        ActionListener<List<Job.Builder>> expandIdsListener = listener.delegateFailureAndWrap((delegate, jobs) -> {
             SimpleIdsMatcher matcher = new SimpleIdsMatcher(request.getSnapshotId());
             Set<String> jobIds = jobs.stream().map(Job.Builder::getId).collect(Collectors.toSet());
             PersistentTasksCustomMetadata tasksInProgress = clusterService.state().metadata().custom(PersistentTasksCustomMetadata.TYPE);
@@ -78,8 +78,8 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
                 .filter(t -> jobIds.contains(((SnapshotUpgradeTaskParams) t.getParams()).getJobId()))
                 .filter(t -> matcher.idMatches(((SnapshotUpgradeTaskParams) t.getParams()).getSnapshotId()))
                 .collect(Collectors.toList());
-            removePersistentTasks(request, upgradeTasksToCancel, listener);
-        }, listener::onFailure);
+            removePersistentTasks(request, upgradeTasksToCancel, delegate);
+        });
 
         // 1. Expand jobs - this will throw if a required job ID match isn't made. Jobs being deleted are included here.
         jobConfigProvider.expandJobs(request.getJobId(), request.allowNoMatch(), false, null, expandIdsListener);

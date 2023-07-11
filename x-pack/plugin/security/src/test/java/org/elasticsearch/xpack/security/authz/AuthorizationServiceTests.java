@@ -347,10 +347,10 @@ public class AuthorizationServiceTests extends ESTestCase {
                 fieldPermissionsCache,
                 privilegesStore,
                 RESTRICTED_INDICES,
-                ActionListener.wrap(r -> {
+                listener.delegateFailureAndWrap((l, r) -> {
                     roleCache.put(names, r);
-                    listener.onResponse(r);
-                }, listener::onFailure)
+                    l.onResponse(r);
+                })
             );
         }
     }

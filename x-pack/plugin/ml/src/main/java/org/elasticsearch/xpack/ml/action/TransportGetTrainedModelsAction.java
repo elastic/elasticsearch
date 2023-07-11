@@ -61,20 +61,20 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
 
         Response.Builder responseBuilder = Response.builder();
 
-        ActionListener<List<TrainedModelConfig>> getModelDefinitionStatusListener = ActionListener.wrap(configs -> {
+        ActionListener<List<TrainedModelConfig>> getModelDefinitionStatusListener = listener.delegateFailureAndWrap((delegate, configs) -> {
             if (request.getIncludes().isIncludeDefinitionStatus() == false) {
-                listener.onResponse(responseBuilder.setModels(configs).build());
+                delegate.onResponse(responseBuilder.setModels(configs).build());
                 return;
             }
 
             assert configs.size() <= 1;
             if (configs.isEmpty()) {
-                listener.onResponse(responseBuilder.setModels(configs).build());
+                delegate.onResponse(responseBuilder.setModels(configs).build());
                 return;
             }
 
             if (configs.get(0).getModelType() != TrainedModelType.PYTORCH) {
-                listener.onFailure(ExceptionsHelper.badRequestException("Definition status is only relevant to PyTorch model types"));
+                delegate.onFailure(ExceptionsHelper.badRequestException("Definition status is only relevant to PyTorch model types"));
                 return;
             }
 
@@ -82,57 +82,58 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                 new OriginSettingClient(client, ML_ORIGIN),
                 configs.get(0),
                 false,  // missing docs are not an error
-                ActionListener.wrap(modelIdAndLength -> {
+                delegate.delegateFailureAndWrap((l, modelIdAndLength) -> {
                     configs.get(0).setFullDefinition(modelIdAndLength.v2() > 0);
-                    listener.onResponse(responseBuilder.setModels(configs).build());
-                }, listener::onFailure)
+                    l.onResponse(responseBuilder.setModels(configs).build());
+                })
             );
-        }, listener::onFailure);
+        });
 
-        ActionListener<Tuple<Long, Map<String, Set<String>>>> idExpansionListener = ActionListener.wrap(totalAndIds -> {
-            responseBuilder.setTotalCount(totalAndIds.v1());
+        ActionListener<Tuple<Long, Map<String, Set<String>>>> idExpansionListener = listener.delegateFailureAndWrap(
+            (delegate, totalAndIds) -> {
+                responseBuilder.setTotalCount(totalAndIds.v1());
 
-            if (totalAndIds.v2().isEmpty()) {
-                listener.onResponse(responseBuilder.build());
-                return;
+                if (totalAndIds.v2().isEmpty()) {
+                    delegate.onResponse(responseBuilder.build());
+                    return;
+                }
+
+                if (request.getIncludes().isIncludeModelDefinition() && totalAndIds.v2().size() > 1) {
+                    delegate.onFailure(ExceptionsHelper.badRequestException(Messages.INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED));
+                    return;
+                }
+
+                if (request.getIncludes().isIncludeDefinitionStatus() && totalAndIds.v2().size() > 1) {
+                    delegate.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            "Getting the model download status is not supported when getting more than one model"
+                        )
+                    );
+                    return;
+                }
+
+                if (request.getIncludes().isIncludeModelDefinition()) {
+                    Map.Entry<String, Set<String>> modelIdAndAliases = totalAndIds.v2().entrySet().iterator().next();
+                    provider.getTrainedModel(
+                        modelIdAndAliases.getKey(),
+                        modelIdAndAliases.getValue(),
+                        request.getIncludes(),
+                        parentTaskId,
+                        getModelDefinitionStatusListener.delegateFailureAndWrap(
+                            (l, config) -> l.onResponse(Collections.singletonList(config))
+                        )
+                    );
+                } else {
+                    provider.getTrainedModels(
+                        totalAndIds.v2(),
+                        request.getIncludes(),
+                        request.isAllowNoResources(),
+                        parentTaskId,
+                        getModelDefinitionStatusListener
+                    );
+                }
             }
-
-            if (request.getIncludes().isIncludeModelDefinition() && totalAndIds.v2().size() > 1) {
-                listener.onFailure(ExceptionsHelper.badRequestException(Messages.INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED));
-                return;
-            }
-
-            if (request.getIncludes().isIncludeDefinitionStatus() && totalAndIds.v2().size() > 1) {
-                listener.onFailure(
-                    ExceptionsHelper.badRequestException(
-                        "Getting the model download status is not supported when getting more than one model"
-                    )
-                );
-                return;
-            }
-
-            if (request.getIncludes().isIncludeModelDefinition()) {
-                Map.Entry<String, Set<String>> modelIdAndAliases = totalAndIds.v2().entrySet().iterator().next();
-                provider.getTrainedModel(
-                    modelIdAndAliases.getKey(),
-                    modelIdAndAliases.getValue(),
-                    request.getIncludes(),
-                    parentTaskId,
-                    ActionListener.wrap(
-                        config -> getModelDefinitionStatusListener.onResponse(Collections.singletonList(config)),
-                        getModelDefinitionStatusListener::onFailure
-                    )
-                );
-            } else {
-                provider.getTrainedModels(
-                    totalAndIds.v2(),
-                    request.getIncludes(),
-                    request.isAllowNoResources(),
-                    parentTaskId,
-                    getModelDefinitionStatusListener
-                );
-            }
-        }, listener::onFailure);
+        );
         provider.expandIds(
             request.getResourceId(),
             request.isAllowNoResources(),

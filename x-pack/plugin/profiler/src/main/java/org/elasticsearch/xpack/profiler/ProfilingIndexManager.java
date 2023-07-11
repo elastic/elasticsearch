@@ -141,7 +141,7 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
                     priorIndexVersions.toArray(new String[0]),
                     // the cluster state that we are operating on is a snapshot and won't reflect that the alias has just gone.
                     // Therefore, we use putIndex here which does not check for the existence of an alias
-                    ActionListener.wrap(r -> putIndex(index.getName(), index.getAlias(), listener), listener::onFailure)
+                    listener.delegateFailureAndWrap((l, r) -> putIndex(index.getName(), index.getAlias(), l))
                 );
             } else {
                 createIndex(state, index, listener);

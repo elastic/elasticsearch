@@ -426,7 +426,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 markAsFailed(versionException);
                 return;
             }
-            createIndex(migrationInfo, ActionListener.wrap(shardsAcknowledgedResponse -> {
+            createIndex(migrationInfo, innerListener.delegateFailureAndWrap((delegateInnerListener, shardsAcknowledgedResponse) -> {
                 logger.debug(
                     "while migrating [{}] , got create index response: [{}]",
                     oldIndexName,
@@ -435,45 +435,51 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 setWriteBlock(
                     oldIndex,
                     true,
-                    ActionListener.wrap(setReadOnlyResponse -> reindex(migrationInfo, ActionListener.wrap(bulkByScrollResponse -> {
-                        logger.debug(
-                            "while migrating [{}], got reindex response: [{}]",
-                            oldIndexName,
-                            Strings.toString(bulkByScrollResponse)
-                        );
-                        if ((bulkByScrollResponse.getBulkFailures() != null && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
-                            || (bulkByScrollResponse.getSearchFailures() != null
-                                && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
-                            removeReadOnlyBlockOnReindexFailure(
-                                oldIndex,
-                                innerListener,
-                                logAndThrowExceptionForFailures(bulkByScrollResponse)
-                            );
-                        } else {
-                            // Successful completion of reindexing - remove read only and delete old index
-                            setWriteBlock(
-                                oldIndex,
-                                false,
-                                ActionListener.wrap(
-                                    setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse, innerListener),
-                                    innerListener::onFailure
-                                )
-                            );
-                        }
-                    }, e -> {
-                        logger.error(
-                            () -> format(
-                                "error occurred while reindexing index [%s] from feature [%s] to destination index [%s]",
-                                oldIndexName,
-                                migrationInfo.getFeatureName(),
-                                newIndexName
-                            ),
-                            e
-                        );
-                        removeReadOnlyBlockOnReindexFailure(oldIndex, innerListener, e);
-                    })), innerListener::onFailure)
+                    delegateInnerListener.delegateFailureAndWrap(
+                        (delegateInnerListener2, setReadOnlyResponse) -> reindex(
+                            migrationInfo,
+                            ActionListener.wrap(bulkByScrollResponse -> {
+                                logger.debug(
+                                    "while migrating [{}], got reindex response: [{}]",
+                                    oldIndexName,
+                                    Strings.toString(bulkByScrollResponse)
+                                );
+                                if ((bulkByScrollResponse.getBulkFailures() != null
+                                    && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
+                                    || (bulkByScrollResponse.getSearchFailures() != null
+                                        && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
+                                    removeReadOnlyBlockOnReindexFailure(
+                                        oldIndex,
+                                        delegateInnerListener2,
+                                        logAndThrowExceptionForFailures(bulkByScrollResponse)
+                                    );
+                                } else {
+                                    // Successful completion of reindexing - remove read only and delete old index
+                                    setWriteBlock(
+                                        oldIndex,
+                                        false,
+                                        ActionListener.wrap(
+                                            setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse, delegateInnerListener2),
+                                            delegateInnerListener2::onFailure
+                                        )
+                                    );
+                                }
+                            }, e -> {
+                                logger.error(
+                                    () -> format(
+                                        "error occurred while reindexing index [%s] from feature [%s] to destination index [%s]",
+                                        oldIndexName,
+                                        migrationInfo.getFeatureName(),
+                                        newIndexName
+                                    ),
+                                    e
+                                );
+                                removeReadOnlyBlockOnReindexFailure(oldIndex, delegateInnerListener2, e);
+                            })
+                        )
+                    )
                 );
-            }, innerListener::onFailure));
+            }));
         } catch (Exception ex) {
             logger.error(
                 () -> format(

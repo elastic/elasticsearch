@@ -366,7 +366,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         refresh(
             clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE),
             Collections.singleton(jobId),
-            ActionListener.wrap(aVoid -> refreshAnomalyDetectorJobMemory(jobId, listener), listener::onFailure)
+            listener.delegateFailureAndWrap((l, aVoid) -> refreshAnomalyDetectorJobMemory(jobId, l))
         );
     }
 
@@ -452,9 +452,8 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 .stream()
                 .filter(task -> MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName()))
                 .toList();
-            ActionListener<Void> refreshDataFrameAnalyticsJobs = ActionListener.wrap(
-                aVoid -> refreshAllDataFrameAnalyticsJobTasks(mlDataFrameAnalyticsJobTasks, refreshComplete),
-                refreshComplete::onFailure
+            ActionListener<Void> refreshDataFrameAnalyticsJobs = refreshComplete.delegateFailureAndWrap(
+                (l, aVoid) -> refreshAllDataFrameAnalyticsJobTasks(mlDataFrameAnalyticsJobTasks, l)
             );
 
             Set<String> mlAnomalyDetectorJobTasks = Stream.concat(
@@ -475,14 +474,13 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         if (iterator.hasNext()) {
             refreshAnomalyDetectorJobMemory(
                 iterator.next(),
-                ActionListener.wrap(
+                refreshComplete.delegateFailureAndWrap(
                     // Do the next iteration in a different thread, otherwise stack overflow
                     // can occur if the searches happen to be on the local node, as the huge
                     // chain of listeners are all called in the same thread if only one node
                     // is involved
-                    mem -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                        .execute(() -> iterateAnomalyDetectorJobs(iterator, refreshComplete)),
-                    refreshComplete::onFailure
+                    (l, mem) -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                        .execute(() -> iterateAnomalyDetectorJobs(iterator, l))
                 )
             );
         } else {
@@ -503,15 +501,15 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             .map(task -> ((StartDataFrameAnalyticsAction.TaskParams) task.getParams()).getId())
             .collect(Collectors.toSet());
 
-        configProvider.getConfigsForJobsWithTasksLeniently(jobsWithTasks, ActionListener.wrap(analyticsConfigs -> {
+        configProvider.getConfigsForJobsWithTasksLeniently(jobsWithTasks, listener.delegateFailureAndWrap((delegate, analyticsConfigs) -> {
             for (DataFrameAnalyticsConfig analyticsConfig : analyticsConfigs) {
                 memoryRequirementByDataFrameAnalyticsJob.put(
                     analyticsConfig.getId(),
                     analyticsConfig.getModelMemoryLimit().getBytes() + DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes()
                 );
             }
-            listener.onResponse(null);
-        }, listener::onFailure));
+            delegate.onResponse(null);
+        }));
     }
 
     /**

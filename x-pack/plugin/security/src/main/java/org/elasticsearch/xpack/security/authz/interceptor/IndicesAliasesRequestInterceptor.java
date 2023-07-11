@@ -100,10 +100,10 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                 requestInfo,
                 authorizationInfo,
                 indexToAliasesMap,
-                wrapPreservingContext(ActionListener.wrap(authzResult -> {
+                wrapPreservingContext(listener.delegateFailureAndWrap((delegate, authzResult) -> {
                     if (authzResult.isGranted()) {
                         // do not audit success again
-                        listener.onResponse(null);
+                        delegate.onResponse(null);
                     } else {
                         auditTrail.accessDenied(
                             AuditUtil.extractRequestId(threadContext),
@@ -112,13 +112,13 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                             request,
                             authorizationInfo
                         );
-                        listener.onFailure(
+                        delegate.onFailure(
                             Exceptions.authorizationError(
                                 "Adding an alias is not allowed when the alias " + "has more permissions than any of the indices"
                             )
                         );
                     }
-                }, listener::onFailure), threadContext)
+                }), threadContext)
             );
         } else {
             listener.onResponse(null);

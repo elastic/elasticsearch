@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
@@ -54,12 +53,7 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
         TokenService tokenService,
         SecurityContext securityContext
     ) {
-        super(
-            OpenIdConnectAuthenticateAction.NAME,
-            transportService,
-            actionFilters,
-            (Writeable.Reader<OpenIdConnectAuthenticateRequest>) OpenIdConnectAuthenticateRequest::new
-        );
+        super(OpenIdConnectAuthenticateAction.NAME, transportService, actionFilters, OpenIdConnectAuthenticateRequest::new);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
@@ -95,9 +89,9 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
                     originatingAuthentication,
                     tokenMetadata,
                     true,
-                    ActionListener.wrap(tokenResult -> {
+                    listener.delegateFailureAndWrap((l, tokenResult) -> {
                         final TimeValue expiresIn = tokenService.getExpirationDelay();
-                        listener.onResponse(
+                        l.onResponse(
                             new OpenIdConnectAuthenticateResponse(
                                 authentication,
                                 tokenResult.getAccessToken(),
@@ -105,7 +99,7 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
                                 expiresIn
                             )
                         );
-                    }, listener::onFailure)
+                    })
                 );
             }, e -> {
                 logger.debug(() -> "OpenIDConnectToken [" + token + "] could not be authenticated", e);

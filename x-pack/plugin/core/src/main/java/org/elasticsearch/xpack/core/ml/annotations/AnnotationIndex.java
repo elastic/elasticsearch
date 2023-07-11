@@ -69,7 +69,7 @@ public class AnnotationIndex {
         final ActionListener<Boolean> finalListener
     ) {
 
-        final ActionListener<Boolean> annotationsIndexCreatedListener = ActionListener.wrap(success -> {
+        final ActionListener<Boolean> annotationsIndexCreatedListener = finalListener.delegateFailureAndWrap((delegate, success) -> {
             final ClusterHealthRequest request = new ClusterHealthRequest(READ_ALIAS_NAME).waitForYellowStatus()
                 .masterNodeTimeout(masterNodeTimeout);
             executeAsyncWithOrigin(
@@ -77,9 +77,9 @@ public class AnnotationIndex {
                 ML_ORIGIN,
                 ClusterHealthAction.INSTANCE,
                 request,
-                ActionListener.wrap(r -> finalListener.onResponse(r.isTimedOut() == false), finalListener::onFailure)
+                delegate.delegateFailureAndWrap((l, r) -> l.onResponse(r.isTimedOut() == false))
             );
-        }, finalListener::onFailure);
+        });
 
         createAnnotationsIndexIfNecessary(client, state, masterNodeTimeout, annotationsIndexCreatedListener);
     }
@@ -95,16 +95,15 @@ public class AnnotationIndex {
         final ActionListener<Boolean> finalListener
     ) {
 
-        final ActionListener<Boolean> checkMappingsListener = ActionListener.wrap(
-            success -> ElasticsearchMappings.addDocMappingIfMissing(
+        final ActionListener<Boolean> checkMappingsListener = finalListener.delegateFailureAndWrap(
+            (l, success) -> ElasticsearchMappings.addDocMappingIfMissing(
                 WRITE_ALIAS_NAME,
                 AnnotationIndex::annotationsMapping,
                 client,
                 state,
                 masterNodeTimeout,
-                finalListener
-            ),
-            finalListener::onFailure
+                l
+            )
         );
 
         final ActionListener<String> createAliasListener = finalListener.delegateFailureAndWrap((finalDelegate, currentIndexName) -> {

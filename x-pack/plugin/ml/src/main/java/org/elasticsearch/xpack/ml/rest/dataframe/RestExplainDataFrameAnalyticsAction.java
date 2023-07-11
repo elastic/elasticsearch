@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.rest.dataframe;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -78,20 +77,26 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
             } else {
                 GetDataFrameAnalyticsAction.Request getRequest = new GetDataFrameAnalyticsAction.Request(jobId);
                 getRequest.setAllowNoResources(false);
-                cancellableClient.execute(GetDataFrameAnalyticsAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
-                    List<DataFrameAnalyticsConfig> jobs = getResponse.getResources().results();
-                    if (jobs.size() > 1) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "expected only one config but matched {}",
-                                jobs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toList())
-                            )
-                        );
-                    } else {
-                        ExplainDataFrameAnalyticsAction.Request explainRequest = new ExplainDataFrameAnalyticsAction.Request(jobs.get(0));
-                        cancellableClient.execute(ExplainDataFrameAnalyticsAction.INSTANCE, explainRequest, listener);
-                    }
-                }, listener::onFailure));
+                cancellableClient.execute(
+                    GetDataFrameAnalyticsAction.INSTANCE,
+                    getRequest,
+                    listener.delegateFailureAndWrap((delegate, getResponse) -> {
+                        List<DataFrameAnalyticsConfig> jobs = getResponse.getResources().results();
+                        if (jobs.size() > 1) {
+                            delegate.onFailure(
+                                ExceptionsHelper.badRequestException(
+                                    "expected only one config but matched {}",
+                                    jobs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toList())
+                                )
+                            );
+                        } else {
+                            ExplainDataFrameAnalyticsAction.Request explainRequest = new ExplainDataFrameAnalyticsAction.Request(
+                                jobs.get(0)
+                            );
+                            cancellableClient.execute(ExplainDataFrameAnalyticsAction.INSTANCE, explainRequest, delegate);
+                        }
+                    })
+                );
             }
         };
     }

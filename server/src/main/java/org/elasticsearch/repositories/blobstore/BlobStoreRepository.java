@@ -1139,13 +1139,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RepositoryData newRepoData,
         ActionListener<DeleteResult> listener
     ) {
-        final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(2, ActionListener.wrap(deleteResults -> {
-            DeleteResult deleteResult = DeleteResult.ZERO;
-            for (DeleteResult result : deleteResults) {
-                deleteResult = deleteResult.add(result);
-            }
-            listener.onResponse(deleteResult);
-        }, listener::onFailure));
+        final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(
+            2,
+            listener.delegateFailureAndWrap((delegate, deleteResults) -> {
+                DeleteResult deleteResult = DeleteResult.ZERO;
+                for (DeleteResult result : deleteResults) {
+                    deleteResult = deleteResult.add(result);
+                }
+                delegate.onResponse(deleteResult);
+            })
+        );
 
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         final List<String> staleRootBlobs = staleRootBlobs(newRepoData, rootBlobs.keySet());

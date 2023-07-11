@@ -98,28 +98,34 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         );
         inferRequest.setHighPriority(true);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, InferModelAction.INSTANCE, inferRequest, ActionListener.wrap(response -> {
-            if (response.getInferenceResults().isEmpty()) {
-                listener.onFailure(new IllegalStateException("text embedding inference response contain no results"));
-                return;
-            }
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            InferModelAction.INSTANCE,
+            inferRequest,
+            listener.delegateFailureAndWrap((delegate, response) -> {
+                if (response.getInferenceResults().isEmpty()) {
+                    delegate.onFailure(new IllegalStateException("text embedding inference response contain no results"));
+                    return;
+                }
 
-            if (response.getInferenceResults().get(0) instanceof TextEmbeddingResults textEmbeddingResults) {
-                listener.onResponse(textEmbeddingResults.getInferenceAsFloat());
-            } else if (response.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
-                listener.onFailure(new IllegalStateException(warning.getWarning()));
-            } else {
-                throw new IllegalStateException(
-                    "expected a result of type ["
-                        + TextEmbeddingResults.NAME
-                        + "] received ["
-                        + response.getInferenceResults().get(0).getWriteableName()
-                        + "]. Is ["
-                        + modelId
-                        + "] a text embedding model?"
-                );
-            }
-        }, listener::onFailure));
+                if (response.getInferenceResults().get(0) instanceof TextEmbeddingResults textEmbeddingResults) {
+                    delegate.onResponse(textEmbeddingResults.getInferenceAsFloat());
+                } else if (response.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
+                    delegate.onFailure(new IllegalStateException(warning.getWarning()));
+                } else {
+                    throw new IllegalStateException(
+                        "expected a result of type ["
+                            + TextEmbeddingResults.NAME
+                            + "] received ["
+                            + response.getInferenceResults().get(0).getWriteableName()
+                            + "]. Is ["
+                            + modelId
+                            + "] a text embedding model?"
+                    );
+                }
+            })
+        );
     }
 
     public String getModelText() {

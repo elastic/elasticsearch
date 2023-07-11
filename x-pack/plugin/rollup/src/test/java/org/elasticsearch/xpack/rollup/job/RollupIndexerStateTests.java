@@ -306,7 +306,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
-                    super.onFinish(ActionListener.wrap(r -> { listener.onResponse(r); }, listener::onFailure));
+                    super.onFinish(listener.delegateFailureAndWrap((l, r) -> l.onResponse(r)));
                 }
 
                 @Override
@@ -362,10 +362,10 @@ public class RollupIndexerStateTests extends ESTestCase {
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null, spyStats) {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
-                    super.onFinish(ActionListener.wrap(r -> {
-                        listener.onResponse(r);
+                    super.onFinish(listener.delegateFailureAndWrap((l, r) -> {
+                        l.onResponse(r);
                         isFinished.set(true);
-                    }, listener::onFailure));
+                    }));
                 }
             };
             final CountDownLatch latch = indexer.newLatch();

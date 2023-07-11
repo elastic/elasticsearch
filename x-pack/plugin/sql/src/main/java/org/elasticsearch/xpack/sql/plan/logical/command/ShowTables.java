@@ -68,14 +68,14 @@ public class ShowTables extends Command {
         boolean withFrozen = session.configuration().includeFrozen() || includeFrozen;
         // to avoid redundancy, indicate whether frozen fields are required by specifying the type
         EnumSet<IndexType> indexType = withFrozen ? IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
-        session.indexResolver().resolveNames(cat, idx, regex, indexType, ActionListener.wrap(result -> {
-            listener.onResponse(
+        session.indexResolver().resolveNames(cat, idx, regex, indexType, listener.delegateFailureAndWrap((delegate, result) -> {
+            delegate.onResponse(
                 of(
                     session,
                     result.stream().map(t -> asList(t.cluster(), t.name(), t.type().toSql(), t.type().toNative())).collect(toList())
                 )
             );
-        }, listener::onFailure));
+        }));
     }
 
     @Override

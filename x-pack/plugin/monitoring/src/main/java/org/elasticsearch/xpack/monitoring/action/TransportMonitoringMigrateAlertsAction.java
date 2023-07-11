@@ -112,10 +112,9 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
         ActionListener<MonitoringMigrateAlertsResponse> delegate
     ) {
         // Send failures to the final listener directly, and on success, fork to management thread and execute best effort alert removal
-        return ActionListener.wrap(
-            (response) -> threadPool.executor(ThreadPool.Names.MANAGEMENT)
-                .execute(ActionRunnable.wrap(delegate, (listener) -> afterSettingUpdate(listener, response))),
-            delegate::onFailure
+        return delegate.delegateFailureAndWrap(
+            (l, response) -> threadPool.executor(ThreadPool.Names.MANAGEMENT)
+                .execute(ActionRunnable.wrap(l, listener -> afterSettingUpdate(listener, response)))
         );
     }
 

@@ -96,6 +96,6 @@ public class TransportClearDeploymentCacheAction extends TransportTasksAction<Tr
         TrainedModelDeploymentTask task,
         ActionListener<Response> listener
     ) {
-        task.clearCache(ActionListener.wrap(r -> listener.onResponse(new Response(true)), listener::onFailure));
+        task.clearCache(listener.delegateFailureAndWrap((l, r) -> l.onResponse(new Response(true))));
     }
 }

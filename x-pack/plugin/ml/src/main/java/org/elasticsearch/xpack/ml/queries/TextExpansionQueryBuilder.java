@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.queries;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -130,34 +129,40 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         inferRequest.setHighPriority(true);
 
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
-        queryRewriteContext.registerAsyncAction((client, listener) -> {
-            executeAsyncWithOrigin(client, ML_ORIGIN, InferModelAction.INSTANCE, inferRequest, ActionListener.wrap(inferenceResponse -> {
+        queryRewriteContext.registerAsyncAction(
+            (client, listener) -> executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                InferModelAction.INSTANCE,
+                inferRequest,
+                listener.delegateFailureAndWrap((delegate, inferenceResponse) -> {
 
-                if (inferenceResponse.getInferenceResults().isEmpty()) {
-                    listener.onFailure(new IllegalStateException("inference response contain no results"));
-                    return;
-                }
+                    if (inferenceResponse.getInferenceResults().isEmpty()) {
+                        delegate.onFailure(new IllegalStateException("inference response contain no results"));
+                        return;
+                    }
 
-                if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
-                    textExpansionResultsSupplier.set(textExpansionResults);
-                    listener.onResponse(null);
-                } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
-                    listener.onFailure(new IllegalStateException(warning.getWarning()));
-                } else {
-                    listener.onFailure(
-                        new IllegalStateException(
-                            "expected a result of type ["
-                                + TextExpansionResults.NAME
-                                + "] received ["
-                                + inferenceResponse.getInferenceResults().get(0).getWriteableName()
-                                + "]. Is ["
-                                + modelId
-                                + "] a compatible model?"
-                        )
-                    );
-                }
-            }, listener::onFailure));
-        });
+                    if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
+                        textExpansionResultsSupplier.set(textExpansionResults);
+                        delegate.onResponse(null);
+                    } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
+                        delegate.onFailure(new IllegalStateException(warning.getWarning()));
+                    } else {
+                        delegate.onFailure(
+                            new IllegalStateException(
+                                "expected a result of type ["
+                                    + TextExpansionResults.NAME
+                                    + "] received ["
+                                    + inferenceResponse.getInferenceResults().get(0).getWriteableName()
+                                    + "]. Is ["
+                                    + modelId
+                                    + "] a compatible model?"
+                            )
+                        );
+                    }
+                })
+            )
+        );
 
         return new TextExpansionQueryBuilder(this, textExpansionResultsSupplier);
     }

@@ -1905,7 +1905,7 @@ public class MachineLearning extends Plugin
         originClient.execute(
             SetUpgradeModeAction.INSTANCE,
             new SetUpgradeModeAction.Request(true),
-            ActionListener.wrap(r -> listener.onResponse(Collections.singletonMap("already_in_upgrade_mode", false)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(Collections.singletonMap("already_in_upgrade_mode", false)))
         );
     }
 
@@ -1927,7 +1927,7 @@ public class MachineLearning extends Plugin
         originClient.execute(
             SetUpgradeModeAction.INSTANCE,
             new SetUpgradeModeAction.Request(false),
-            ActionListener.wrap(r -> listener.onResponse(r.isAcknowledged()), listener::onFailure)
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged()))
         );
     }
 

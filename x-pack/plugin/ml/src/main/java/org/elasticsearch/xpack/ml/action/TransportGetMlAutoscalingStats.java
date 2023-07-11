@@ -76,7 +76,7 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
                 parentTaskAssigningClient,
                 request.timeout(),
                 mlMemoryTracker,
-                ActionListener.wrap(autoscalingResources -> listener.onResponse(new Response(autoscalingResources)), listener::onFailure)
+                listener.delegateFailureAndWrap((l, autoscalingResources) -> l.onResponse(new Response(autoscalingResources)))
             );
         } else {
             // recent memory statistics aren't available at the moment, trigger a refresh,
@@ -88,18 +88,14 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
                     threadPool,
                     request.timeout(),
                     ThreadPool.Names.GENERIC,
-                    ActionListener.wrap(
-                        ignored -> MlAutoscalingResourceTracker.getMlAutoscalingStats(
+                    listener.delegateFailureAndWrap(
+                        (delegate, ignored) -> MlAutoscalingResourceTracker.getMlAutoscalingStats(
                             state,
                             parentTaskAssigningClient,
                             request.timeout(),
                             mlMemoryTracker,
-                            ActionListener.wrap(
-                                autoscalingResources -> listener.onResponse(new Response(autoscalingResources)),
-                                listener::onFailure
-                            )
-                        ),
-                        listener::onFailure
+                            delegate.delegateFailureAndWrap((l, autoscalingResources) -> l.onResponse(new Response(autoscalingResources)))
+                        )
                     ),
                     timeoutTrigger -> {
                         // Timeout triggered

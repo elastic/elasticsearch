@@ -67,7 +67,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
     ) {
         List<ScheduledEvent> events = request.getScheduledEvents();
 
-        ActionListener<Calendar> calendarListener = ActionListener.wrap(calendar -> {
+        ActionListener<Calendar> calendarListener = listener.delegateFailureAndWrap((delegate, calendar) -> {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
 
             for (ScheduledEvent event : events) {
@@ -87,30 +87,21 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
 
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                BulkAction.INSTANCE,
-                bulkRequestBuilder.request(),
-                new ActionListener<BulkResponse>() {
-                    @Override
-                    public void onResponse(BulkResponse response) {
-                        jobManager.updateProcessOnCalendarChanged(
-                            calendar.getJobIds(),
-                            ActionListener.wrap(
-                                r -> listener.onResponse(new PostCalendarEventsAction.Response(events)),
-                                listener::onFailure
-                            )
-                        );
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(ExceptionsHelper.serverError("Error indexing event", e));
-                    }
+            executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(), new ActionListener<>() {
+                @Override
+                public void onResponse(BulkResponse response) {
+                    jobManager.updateProcessOnCalendarChanged(
+                        calendar.getJobIds(),
+                        delegate.delegateFailureAndWrap((l, r) -> l.onResponse(new PostCalendarEventsAction.Response(events)))
+                    );
                 }
-            );
-        }, listener::onFailure);
+
+                @Override
+                public void onFailure(Exception e) {
+                    delegate.onFailure(ExceptionsHelper.serverError("Error indexing event", e));
+                }
+            });
+        });
 
         jobResultsProvider.calendar(request.getCalendarId(), calendarListener);
     }

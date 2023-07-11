@@ -49,11 +49,10 @@ public class TransportDeletePrivilegesAction extends HandledTransportAction<Dele
             request.application(),
             names,
             request.getRefreshPolicy(),
-            ActionListener.wrap(
-                privileges -> listener.onResponse(
+            listener.delegateFailureAndWrap(
+                (l, privileges) -> l.onResponse(
                     new DeletePrivilegesResponse(privileges.getOrDefault(request.application(), Collections.emptyList()))
-                ),
-                listener::onFailure
+                )
             )
         );
     }

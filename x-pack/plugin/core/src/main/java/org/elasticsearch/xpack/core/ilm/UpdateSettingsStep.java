@@ -47,7 +47,7 @@ public class UpdateSettingsStep extends AsyncActionStep {
         ).settings(settings);
         getClient().admin()
             .indices()
-            .updateSettings(updateSettingsRequest, ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure));
+            .updateSettings(updateSettingsRequest, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
     }
 
     public Settings getSettings() {

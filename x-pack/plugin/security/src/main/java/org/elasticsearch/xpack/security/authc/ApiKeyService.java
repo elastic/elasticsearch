@@ -443,14 +443,16 @@ public class ApiKeyService {
                         SECURITY_ORIGIN,
                         BulkAction.INSTANCE,
                         bulkRequest,
-                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
-                            assert request.getId().equals(indexResponse.getId());
-                            assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
-                            final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
-                            listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
-                            apiKeyAuthCache.put(request.getId(), listenableFuture);
-                            listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
-                        }, listener::onFailure))
+                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(
+                            listener.delegateFailureAndWrap((delegate, indexResponse) -> {
+                                assert request.getId().equals(indexResponse.getId());
+                                assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                                final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                                listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                                apiKeyAuthCache.put(request.getId(), listenableFuture);
+                                delegate.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
+                            })
+                        )
                     )
                 );
             } catch (IOException e) {
@@ -1098,49 +1100,49 @@ public class ApiKeyService {
                 }
 
                 if (valueAlreadyInCache.get()) {
-                    listenableCacheEntry.addListener(ActionListener.wrap(result -> {
+                    listenableCacheEntry.addListener(listener.delegateFailureAndWrap((delegate, result) -> {
                         if (result.success) {
                             if (result.verify(credentials.getKey())) {
                                 // move on
-                                validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
+                                validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, delegate);
                             } else {
-                                listener.onResponse(
+                                delegate.onResponse(
                                     AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
                                 );
                             }
                         } else if (result.verify(credentials.getKey())) { // same key, pass the same result
-                            listener.onResponse(
+                            delegate.onResponse(
                                 AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
                             );
                         } else {
                             apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
-                            validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
+                            validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, delegate);
                         }
-                    }, listener::onFailure), threadPool.generic(), threadPool.getThreadContext());
+                    }), threadPool.generic(), threadPool.getThreadContext());
                 } else {
-                    verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {
+                    verifyKeyAgainstHash(apiKeyDoc.hash, credentials, listener.delegateFailureAndWrap((delegate, verified) -> {
                         listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
                         if (verified) {
                             // move on
-                            validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
+                            validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, delegate);
                         } else {
-                            listener.onResponse(
+                            delegate.onResponse(
                                 AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
                             );
                         }
-                    }, listener::onFailure));
+                    }));
                 }
             } else {
-                verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {
+                verifyKeyAgainstHash(apiKeyDoc.hash, credentials, listener.delegateFailureAndWrap((delegate, verified) -> {
                     if (verified) {
                         // move on
-                        validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
+                        validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, delegate);
                     } else {
-                        listener.onResponse(
+                        delegate.onResponse(
                             AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
                         );
                     }
-                }, listener::onFailure));
+                }));
             }
         }
     }
@@ -1310,30 +1312,36 @@ public class ApiKeyService {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery("doc_type", "api_key"))
                 .filter(QueryBuilders.termQuery("type", ApiKey.Type.CROSS_CLUSTER.value()));
-            findApiKeys(boolQuery, true, true, this::convertSearchHitToApiKeyInfo, ActionListener.wrap(apiKeyInfos -> {
-                int ccsKeys = 0, ccrKeys = 0, ccsCcrKeys = 0;
-                for (ApiKey apiKeyInfo : apiKeyInfos) {
-                    assert apiKeyInfo.getType() == ApiKey.Type.CROSS_CLUSTER;
-                    assert apiKeyInfo.getRoleDescriptors().size() == 1;
-                    final String[] clusterPrivileges = apiKeyInfo.getRoleDescriptors().iterator().next().getClusterPrivileges();
-                    if (Arrays.equals(clusterPrivileges, CCS_CLUSTER_PRIVILEGE_NAMES)) {
-                        ccsKeys += 1;
-                    } else if (Arrays.equals(clusterPrivileges, CCR_CLUSTER_PRIVILEGE_NAMES)) {
-                        ccrKeys += 1;
-                    } else if (Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES)) {
-                        ccsCcrKeys += 1;
-                    } else {
-                        final String message = "invalid cluster privileges ["
-                            + Strings.arrayToCommaDelimitedString(clusterPrivileges)
-                            + "] for cross-cluster API key ["
-                            + apiKeyInfo.getId()
-                            + "]";
-                        assert false : message;
-                        listener.onFailure(new IllegalStateException(message));
+            findApiKeys(
+                boolQuery,
+                true,
+                true,
+                this::convertSearchHitToApiKeyInfo,
+                listener.delegateFailureAndWrap((delegate, apiKeyInfos) -> {
+                    int ccsKeys = 0, ccrKeys = 0, ccsCcrKeys = 0;
+                    for (ApiKey apiKeyInfo : apiKeyInfos) {
+                        assert apiKeyInfo.getType() == ApiKey.Type.CROSS_CLUSTER;
+                        assert apiKeyInfo.getRoleDescriptors().size() == 1;
+                        final String[] clusterPrivileges = apiKeyInfo.getRoleDescriptors().iterator().next().getClusterPrivileges();
+                        if (Arrays.equals(clusterPrivileges, CCS_CLUSTER_PRIVILEGE_NAMES)) {
+                            ccsKeys += 1;
+                        } else if (Arrays.equals(clusterPrivileges, CCR_CLUSTER_PRIVILEGE_NAMES)) {
+                            ccrKeys += 1;
+                        } else if (Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES)) {
+                            ccsCcrKeys += 1;
+                        } else {
+                            final String message = "invalid cluster privileges ["
+                                + Strings.arrayToCommaDelimitedString(clusterPrivileges)
+                                + "] for cross-cluster API key ["
+                                + apiKeyInfo.getId()
+                                + "]";
+                            assert false : message;
+                            delegate.onFailure(new IllegalStateException(message));
+                        }
                     }
-                }
-                listener.onResponse(Map.of("total", apiKeyInfos.size(), "ccs", ccsKeys, "ccr", ccrKeys, "ccs_ccr", ccsCcrKeys));
-            }, listener::onFailure));
+                    delegate.onResponse(Map.of("total", apiKeyInfos.size(), "ccs", ccsKeys, "ccr", ccrKeys, "ccs_ccr", ccsCcrKeys));
+                })
+            );
         }
     }
 
@@ -1904,7 +1912,7 @@ public class ApiKeyService {
             false,
             false,
             hit -> convertSearchHitToApiKeyInfo(hit, withLimitedBy),
-            ActionListener.wrap(apiKeyInfos -> {
+            listener.delegateFailureAndWrap((delegate, apiKeyInfos) -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug(
                         "No active api keys found for realms {}, user [{}], api key name [{}] and api key ids {}",
@@ -1913,11 +1921,11 @@ public class ApiKeyService {
                         apiKeyName,
                         Arrays.toString(apiKeyIds)
                     );
-                    listener.onResponse(GetApiKeyResponse.emptyResponse());
+                    delegate.onResponse(GetApiKeyResponse.emptyResponse());
                 } else {
-                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
+                    delegate.onResponse(new GetApiKeyResponse(apiKeyInfos));
                 }
-            }, listener::onFailure)
+            })
         );
     }
 
@@ -1938,18 +1946,18 @@ public class ApiKeyService {
                     SECURITY_ORIGIN,
                     SearchAction.INSTANCE,
                     searchRequest,
-                    ActionListener.wrap(searchResponse -> {
+                    listener.delegateFailureAndWrap((delegate, searchResponse) -> {
                         final long total = searchResponse.getHits().getTotalHits().value;
                         if (total == 0) {
                             logger.debug("No api keys found for query [{}]", searchRequest.source().query());
-                            listener.onResponse(QueryApiKeyResponse.emptyResponse());
+                            delegate.onResponse(QueryApiKeyResponse.emptyResponse());
                             return;
                         }
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
                             .map(hit -> convertSearchHitToQueryItem(hit, withLimitedBy))
                             .toList();
-                        listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
-                    }, listener::onFailure)
+                        delegate.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
+                    })
                 )
             );
         }

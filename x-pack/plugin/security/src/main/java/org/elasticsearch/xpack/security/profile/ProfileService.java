@@ -204,23 +204,23 @@ public class ProfileService {
             return;
         }
 
-        searchVersionedDocumentForSubject(subject, ActionListener.wrap(versionedDocument -> {
+        searchVersionedDocumentForSubject(subject, listener.delegateFailureAndWrap((delegate, versionedDocument) -> {
             if (versionedDocument == null) {
                 final DomainConfig domainConfig = getDomainConfigForSubject(subject);
                 if (domainConfig == null || false == domainConfig.literalUsername()) {
                     assert domainConfig == null || domainConfig.suffix() == null;
                     // The initial differentiator is 0 for new profile
-                    createNewProfile(subject, ProfileDocument.computeBaseUidForSubject(subject) + "_0", listener);
+                    createNewProfile(subject, ProfileDocument.computeBaseUidForSubject(subject) + "_0", delegate);
                 } else {
                     assert domainConfig.suffix() != null;
                     validateUsername(subject);
-                    createNewProfile(subject, "u_" + subject.getUser().principal() + "_" + domainConfig.suffix(), listener);
+                    createNewProfile(subject, "u_" + subject.getUser().principal() + "_" + domainConfig.suffix(), delegate);
                 }
             } else {
-                updateProfileForActivate(subject, versionedDocument, listener);
+                updateProfileForActivate(subject, versionedDocument, delegate);
 
             }
-        }, listener::onFailure));
+        }));
     }
 
     public void updateProfileData(UpdateProfileDataRequest request, ActionListener<AcknowledgedResponse> listener) {
@@ -271,7 +271,7 @@ public class ProfileService {
                     getActionOrigin(),
                     SearchAction.INSTANCE,
                     searchRequest,
-                    ActionListener.wrap(searchResponse -> {
+                    listener.delegateFailureAndWrap((delegate, searchResponse) -> {
                         final SearchHits searchHits = searchResponse.getHits();
                         final SearchHit[] hits = searchHits.getHits();
                         final SuggestProfilesResponse.ProfileHit[] profileHits;
@@ -292,10 +292,10 @@ public class ProfileService {
                                 );
                             }
                         }
-                        listener.onResponse(
+                        delegate.onResponse(
                             new SuggestProfilesResponse(profileHits, searchResponse.getTook().millis(), searchHits.getTotalHits())
                         );
-                    }, listener::onFailure)
+                    })
                 )
             );
         });
@@ -314,20 +314,20 @@ public class ProfileService {
     }
 
     public void searchProfilesForSubjects(List<Subject> subjects, ActionListener<SubjectSearchResultsAndErrors<Profile>> listener) {
-        searchVersionedDocumentsForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
+        searchVersionedDocumentsForSubjects(subjects, listener.delegateFailureAndWrap((delegate, resultsAndErrors) -> {
             if (resultsAndErrors == null) {
                 // profile index does not exist
-                listener.onResponse(null);
+                delegate.onResponse(null);
                 return;
             }
-            listener.onResponse(new SubjectSearchResultsAndErrors<>(resultsAndErrors.results().stream().map(t -> {
+            delegate.onResponse(new SubjectSearchResultsAndErrors<>(resultsAndErrors.results().stream().map(t -> {
                 if (t.v2() != null) {
                     return new Tuple<>(t.v1(), t.v2().toProfile(Set.of()));
                 } else {
                     return new Tuple<>(t.v1(), (Profile) null);
                 }
             }).toList(), resultsAndErrors.errors()));
-        }, listener::onFailure));
+        }));
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
@@ -373,7 +373,7 @@ public class ProfileService {
                     getActionOrigin(),
                     MultiSearchAction.INSTANCE,
                     multiSearchRequest,
-                    ActionListener.wrap(multiSearchResponse -> {
+                    listener.delegateFailureAndWrap((delegate, multiSearchResponse) -> {
                         final MultiSearchResponse.Item[] items = multiSearchResponse.getResponses();
                         assert items.length == 3;
                         final Map<String, Object> usage = new HashMap<>();
@@ -395,8 +395,8 @@ public class ProfileService {
                         } else {
                             usage.put("recent", items[2].getResponse().getHits().getTotalHits().value);
                         }
-                        listener.onResponse(usage);
-                    }, listener::onFailure)
+                        delegate.onResponse(usage);
+                    })
                 )
             );
         });
@@ -449,20 +449,26 @@ public class ProfileService {
             final GetRequest getRequest = new GetRequest(SECURITY_PROFILE_ALIAS, uidToDocId(uid));
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> executeAsyncWithOrigin(client, getActionOrigin(), GetAction.INSTANCE, getRequest, ActionListener.wrap(response -> {
-                    if (false == response.isExists()) {
-                        logger.debug("profile with uid [{}] does not exist", uid);
-                        listener.onResponse(null);
-                        return;
-                    }
-                    listener.onResponse(
-                        new VersionedDocument(
-                            buildProfileDocument(response.getSourceAsBytesRef()),
-                            response.getPrimaryTerm(),
-                            response.getSeqNo()
-                        )
-                    );
-                }, listener::onFailure))
+                () -> executeAsyncWithOrigin(
+                    client,
+                    getActionOrigin(),
+                    GetAction.INSTANCE,
+                    getRequest,
+                    listener.delegateFailureAndWrap((delegate, response) -> {
+                        if (false == response.isExists()) {
+                            logger.debug("profile with uid [{}] does not exist", uid);
+                            delegate.onResponse(null);
+                            return;
+                        }
+                        delegate.onResponse(
+                            new VersionedDocument(
+                                buildProfileDocument(response.getSourceAsBytesRef()),
+                                response.getPrimaryTerm(),
+                                response.getSeqNo()
+                            )
+                        );
+                    })
+                )
             );
         });
     }
@@ -477,7 +483,7 @@ public class ProfileService {
                 listener::onFailure,
                 () -> new OriginSettingClient(client, getActionOrigin()).prepareMultiGet()
                     .addIds(frozenProfileIndex.aliasName(), uids.stream().map(ProfileService::uidToDocId).toArray(String[]::new))
-                    .execute(ActionListener.wrap(multiGetResponse -> {
+                    .execute(listener.delegateFailureAndWrap((delegate, multiGetResponse) -> {
                         List<VersionedDocument> retrievedDocs = new ArrayList<>(multiGetResponse.getResponses().length);
                         // ordered for tests
                         final Map<String, Exception> errors = new TreeMap<>();
@@ -505,35 +511,34 @@ public class ProfileService {
                                 logger.error("Inconsistent mget item response [{}] [{}]", itemResponse.getIndex(), itemResponse.getId());
                             }
                         }
-                        listener.onResponse(new ResultsAndErrors<>(retrievedDocs, errors));
-                    }, listener::onFailure))
+                        delegate.onResponse(new ResultsAndErrors<>(retrievedDocs, errors));
+                    }))
             );
         });
     }
 
     // Package private for testing
     void searchVersionedDocumentForSubject(Subject subject, ActionListener<VersionedDocument> listener) {
-        searchVersionedDocumentsForSubjects(List.of(subject), ActionListener.wrap(resultsAndErrors -> {
+        searchVersionedDocumentsForSubjects(List.of(subject), listener.delegateFailureAndWrap((delegate, resultsAndErrors) -> {
             if (resultsAndErrors == null) {
                 // profile index does not exist
-                listener.onResponse(null);
+                delegate.onResponse(null);
                 return;
             }
 
             assert resultsAndErrors.results().size() + resultsAndErrors.errors().size() == 1
                 : "a single subject must have either a single result or error";
             if (resultsAndErrors.results().size() == 1) {
-                listener.onResponse(resultsAndErrors.results().iterator().next().v2());
+                delegate.onResponse(resultsAndErrors.results().iterator().next().v2());
             } else if (resultsAndErrors.errors().size() == 1) {
                 final Exception exception = resultsAndErrors.errors().values().iterator().next();
                 logger.error(exception.getMessage());
-                listener.onFailure(exception);
+                delegate.onFailure(exception);
             } else {
                 assert false : "a single subject must have either a single result or error";
-                listener.onFailure(new ElasticsearchException("a single subject must have either a single result or error"));
+                delegate.onFailure(new ElasticsearchException("a single subject must have either a single result or error"));
             }
-
-        }, listener::onFailure));
+        }));
     }
 
     private void searchVersionedDocumentsForSubjects(
@@ -553,9 +558,8 @@ public class ProfileService {
                     getActionOrigin(),
                     MultiSearchAction.INSTANCE,
                     multiSearchRequest,
-                    ActionListener.wrap(
-                        multiSearchResponse -> listener.onResponse(convertSubjectMultiSearchResponse(multiSearchResponse, subjects)),
-                        listener::onFailure
+                    listener.delegateFailureAndWrap(
+                        (l, multiSearchResponse) -> l.onResponse(convertSubjectMultiSearchResponse(multiSearchResponse, subjects))
                     )
                 );
             });
@@ -734,7 +738,7 @@ public class ProfileService {
         Iterator<TimeValue> backoff,
         ActionListener<Profile> listener
     ) {
-        getVersionedDocument(profileDocument.uid(), ActionListener.wrap(versionedDocument -> {
+        getVersionedDocument(profileDocument.uid(), listener.delegateFailureAndWrap((delegate, versionedDocument) -> {
             if (versionedDocument == null) {
                 // Document not found. This can happen if the GET request hits a replica that is still processing the document
                 if (backoff.hasNext()) {
@@ -742,14 +746,14 @@ public class ProfileService {
                     logger.debug("retrying get profile document [{}] after [{}] backoff", profileDocument.uid(), backoffTimeValue);
                     client.threadPool()
                         .schedule(
-                            () -> getOrCreateProfileWithBackoff(subject, profileDocument, backoff, listener),
+                            () -> getOrCreateProfileWithBackoff(subject, profileDocument, backoff, delegate),
                             backoffTimeValue,
                             ThreadPool.Names.GENERIC
                         );
                 } else {
                     // Retry has depleted. This can only happen when the document or the profile index itself gets deleted
                     // in between requests.
-                    listener.onFailure(
+                    delegate.onFailure(
                         new ElasticsearchException("failed to retrieving profile [{}] after all retries", profileDocument.uid())
                     );
                 }
@@ -765,16 +769,16 @@ public class ProfileService {
                     subject.getUser().principal(),
                     subject.getRealm().getName()
                 );
-                updateProfileForActivate(subject, versionedDocument, listener);
+                updateProfileForActivate(subject, versionedDocument, delegate);
             } else {
                 // The profile document is NOT a match, this means either:
                 // 1. Genuine hash collision
                 // 2. A different user has the same username
                 // 3. Profile document was manually updated
                 // So we attempt to differentiate from the existing profile document by increase the differentiator number by 1.
-                maybeIncrementDifferentiatorAndCreateNewProfile(subject, profileDocument, listener);
+                maybeIncrementDifferentiatorAndCreateNewProfile(subject, profileDocument, delegate);
             }
-        }, listener::onFailure));
+        }));
     }
 
     // Package private for tests
@@ -943,11 +947,11 @@ public class ProfileService {
                 getActionOrigin(),
                 UpdateAction.INSTANCE,
                 updateRequest,
-                ActionListener.wrap(updateResponse -> {
+                listener.delegateFailureAndWrap((l, updateResponse) -> {
                     assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
                         || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
-                    listener.onResponse(updateResponse);
-                }, listener::onFailure)
+                    l.onResponse(updateResponse);
+                })
             )
         );
     }

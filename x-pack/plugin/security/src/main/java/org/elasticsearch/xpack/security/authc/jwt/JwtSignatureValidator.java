@@ -271,11 +271,11 @@ public interface JwtSignatureValidator extends Releasable {
                     primaryException
                 );
 
-                jwkSetLoader.reload(ActionListener.wrap(reloadResult -> {
+                jwkSetLoader.reload(listener.delegateFailureAndWrap((delegate, reloadResult) -> {
                     if (false == reloadResult.v1()) {
                         // No change in JWKSet
                         logger.debug("Reloaded same PKC JWKs, can't retry verify JWT token [{}]", tokenPrincipal);
-                        listener.onFailure(primaryException);
+                        delegate.onFailure(primaryException);
                         return;
                     }
                     // If all PKC JWKs were replaced, all PKC JWT cache entries need to be invalidated.
@@ -291,7 +291,7 @@ public interface JwtSignatureValidator extends Releasable {
 
                     try {
                         JwtValidateUtil.validateSignature(signedJWT, reloadedJwksAlgs.jwks());
-                        listener.onResponse(null);
+                        delegate.onResponse(null);
                     } catch (Exception secondaryException) {
                         logger.debug(
                             "Signature verification of JWT [{}] failed - original failure: [{}], failure after reload: [{}]",
@@ -300,9 +300,9 @@ public interface JwtSignatureValidator extends Releasable {
                             secondaryException.getMessage()
                         );
                         secondaryException.addSuppressed(primaryException);
-                        listener.onFailure(secondaryException);
+                        delegate.onFailure(secondaryException);
                     }
-                }, listener::onFailure));
+                }));
             }
         }
 

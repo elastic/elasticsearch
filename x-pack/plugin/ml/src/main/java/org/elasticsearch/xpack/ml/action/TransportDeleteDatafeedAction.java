@@ -83,15 +83,13 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        ActionListener<Boolean> finalListener = ActionListener.wrap(
+        ActionListener<Boolean> finalListener = listener.delegateFailureAndWrap(
             // use clusterService.state() here so that the updated state without the task is available
-            response -> datafeedManager.deleteDatafeed(request, clusterService.state(), listener),
-            listener::onFailure
+            (l, response) -> datafeedManager.deleteDatafeed(request, clusterService.state(), l)
         );
 
-        ActionListener<IsolateDatafeedAction.Response> isolateDatafeedHandler = ActionListener.wrap(
-            response -> removeDatafeedTask(request, state, finalListener),
-            listener::onFailure
+        ActionListener<IsolateDatafeedAction.Response> isolateDatafeedHandler = finalListener.delegateFailureAndWrap(
+            (l, response) -> removeDatafeedTask(request, state, l)
         );
 
         IsolateDatafeedAction.Request isolateDatafeedRequest = new IsolateDatafeedAction.Request(request.getDatafeedId());

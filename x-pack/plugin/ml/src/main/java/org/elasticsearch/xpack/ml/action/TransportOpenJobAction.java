@@ -129,13 +129,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
 
             // Clear job finished time once the job is started and respond
-            ActionListener<NodeAcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(response -> {
+            ActionListener<NodeAcknowledgedResponse> clearJobFinishTime = listener.delegateFailureAndWrap((l, response) -> {
                 if (response.isAcknowledged()) {
-                    clearJobFinishedTime(response, state, jobParams.getJobId(), request.masterNodeTimeout(), listener);
+                    clearJobFinishedTime(response, state, jobParams.getJobId(), request.masterNodeTimeout(), l);
                 } else {
-                    listener.onResponse(response);
+                    l.onResponse(response);
                 }
-            }, listener::onFailure);
+            });
 
             // Wait for job to be started
             ActionListener<PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams>> waitForJobToStart =
@@ -171,35 +171,33 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             );
 
             // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
-            ActionListener<Boolean> referencedRuleFiltersPresentListener = ActionListener.wrap(
-                response -> memoryTracker.refreshAnomalyDetectorJobMemoryAndAllOthers(
-                    jobParams.getJobId(),
-                    memoryRequirementRefreshListener
-                ),
-                listener::onFailure
+            ActionListener<Boolean> referencedRuleFiltersPresentListener = memoryRequirementRefreshListener.delegateFailureAndWrap(
+                (l, response) -> memoryTracker.refreshAnomalyDetectorJobMemoryAndAllOthers(jobParams.getJobId(), l)
             );
 
             // Validate referenced rule filters are present
-            ActionListener<Boolean> modelSnapshotValidationListener = ActionListener.wrap(response -> {
-                Set<String> referencedRuleFilters = jobParams.getJob().getAnalysisConfig().extractReferencedFilters();
-                if (referencedRuleFilters.isEmpty()) {
-                    referencedRuleFiltersPresentListener.onResponse(true);
-                } else {
-                    GetFiltersAction.Request getFiltersRequest = new GetFiltersAction.Request();
-                    getFiltersRequest.setResourceId(String.join(",", referencedRuleFilters));
-                    getFiltersRequest.setAllowNoResources(false);
-                    client.execute(
-                        GetFiltersAction.INSTANCE,
-                        getFiltersRequest,
-                        ActionListener.wrap(filtersResponse -> referencedRuleFiltersPresentListener.onResponse(true), listener::onFailure)
-                    );
+            ActionListener<Boolean> modelSnapshotValidationListener = referencedRuleFiltersPresentListener.delegateFailureAndWrap(
+                (delegate, response) -> {
+                    Set<String> referencedRuleFilters = jobParams.getJob().getAnalysisConfig().extractReferencedFilters();
+                    if (referencedRuleFilters.isEmpty()) {
+                        delegate.onResponse(true);
+                    } else {
+                        GetFiltersAction.Request getFiltersRequest = new GetFiltersAction.Request();
+                        getFiltersRequest.setResourceId(String.join(",", referencedRuleFilters));
+                        getFiltersRequest.setAllowNoResources(false);
+                        client.execute(
+                            GetFiltersAction.INSTANCE,
+                            getFiltersRequest,
+                            delegate.delegateFailureAndWrap((l, filtersResponse) -> l.onResponse(true))
+                        );
+                    }
                 }
-            }, listener::onFailure);
+            );
 
             // Validate the model snapshot is supported
-            ActionListener<Boolean> getJobHandler = ActionListener.wrap(response -> {
+            ActionListener<Boolean> getJobHandler = modelSnapshotValidationListener.delegateFailureAndWrap((delegate, response) -> {
                 if (jobParams.getJob().getModelSnapshotId() == null) {
-                    modelSnapshotValidationListener.onResponse(true);
+                    delegate.onResponse(true);
                     return;
                 }
                 client.execute(
@@ -207,15 +205,15 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     new GetModelSnapshotsAction.Request(jobParams.getJobId(), jobParams.getJob().getModelSnapshotId()),
                     ActionListener.wrap(modelSnapshot -> {
                         if (modelSnapshot.getPage().results().isEmpty()) {
-                            modelSnapshotValidationListener.onResponse(true);
+                            delegate.onResponse(true);
                             return;
                         }
                         assert modelSnapshot.getPage().results().size() == 1;
                         if (modelSnapshot.getPage().results().get(0).getMinVersion().onOrAfter(MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION)) {
-                            modelSnapshotValidationListener.onResponse(true);
+                            delegate.onResponse(true);
                             return;
                         }
-                        listener.onFailure(
+                        delegate.onFailure(
                             ExceptionsHelper.badRequestException(
                                 "[{}] job model snapshot [{}] has min version before [{}], "
                                     + "please revert to a newer model snapshot or reset the job",
@@ -229,16 +227,16 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                             modelSnapshotValidationListener.onResponse(true);
                             return;
                         }
-                        listener.onFailure(ExceptionsHelper.serverError("Unable to validate model snapshot", failure));
+                        delegate.onFailure(ExceptionsHelper.serverError("Unable to validate model snapshot", failure));
                     })
                 );
-            }, listener::onFailure);
+            });
 
             // Get the job config
-            jobConfigProvider.getJob(jobParams.getJobId(), null, ActionListener.wrap(builder -> {
+            jobConfigProvider.getJob(jobParams.getJobId(), null, getJobHandler.delegateFailureAndWrap((delegate, builder) -> {
                 jobParams.setJob(builder.build());
-                getJobHandler.onResponse(null);
-            }, listener::onFailure));
+                delegate.onResponse(null);
+            }));
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
         }

@@ -75,19 +75,17 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
             request.getJobId(),
             request.allowNoMatch(),
             parentTaskId,
-            ActionListener.wrap(
-                jobs -> datafeedManager.getDatafeedsByJobIds(
+            listener.delegateFailureAndWrap(
+                (delegate, jobs) -> datafeedManager.getDatafeedsByJobIds(
                     jobs.stream().map(Job.Builder::getId).collect(Collectors.toSet()),
                     parentTaskId,
-                    ActionListener.wrap(
-                        dfsByJobId -> listener.onResponse(new GetJobsAction.Response(new QueryPage<>(jobs.stream().map(jb -> {
+                    delegate.delegateFailureAndWrap(
+                        (l, dfsByJobId) -> l.onResponse(new GetJobsAction.Response(new QueryPage<>(jobs.stream().map(jb -> {
                             Optional.ofNullable(dfsByJobId.get(jb.getId())).ifPresent(jb::setDatafeed);
                             return jb.build();
-                        }).collect(Collectors.toList()), jobs.size(), Job.RESULTS_FIELD))),
-                        listener::onFailure
+                        }).collect(Collectors.toList()), jobs.size(), Job.RESULTS_FIELD)))
                     )
-                ),
-                listener::onFailure
+                )
             )
         );
     }

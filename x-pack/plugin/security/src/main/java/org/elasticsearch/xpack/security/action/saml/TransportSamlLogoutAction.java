@@ -53,15 +53,15 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
 
     @Override
     protected void doExecute(Task task, SamlLogoutRequest request, ActionListener<SamlLogoutResponse> listener) {
-        invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
+        invalidateRefreshToken(request.getRefreshToken(), listener.delegateFailureAndWrap((delegate, ignore) -> {
             try {
                 final String token = request.getToken();
-                tokenService.getAuthenticationAndMetadata(token, ActionListener.wrap(tuple -> {
+                tokenService.getAuthenticationAndMetadata(token, delegate.delegateFailureAndWrap((delegate2, tuple) -> {
                     Authentication authentication = tuple.v1();
                     assert false == authentication.isRunAs() : "saml realm authentication cannot have run-as";
                     final Map<String, Object> tokenMetadata = tuple.v2();
                     SamlLogoutResponse response = buildResponse(authentication, tokenMetadata);
-                    tokenService.invalidateAccessToken(token, ActionListener.wrap(created -> {
+                    tokenService.invalidateAccessToken(token, delegate2.delegateFailureAndWrap((delegate3, ecreated) -> {
                         if (logger.isTraceEnabled()) {
                             logger.trace(
                                 "SAML Logout User [{}], Token [{}...{}]",
@@ -70,14 +70,14 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
                                 token.substring(token.length() - 8)
                             );
                         }
-                        listener.onResponse(response);
-                    }, listener::onFailure));
-                }, listener::onFailure));
+                        delegate3.onResponse(response);
+                    }));
+                }));
             } catch (ElasticsearchException e) {
                 logger.debug("Internal exception during SAML logout", e);
-                listener.onFailure(e);
+                delegate.onFailure(e);
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void invalidateRefreshToken(String refreshToken, ActionListener<TokensInvalidationResult> listener) {

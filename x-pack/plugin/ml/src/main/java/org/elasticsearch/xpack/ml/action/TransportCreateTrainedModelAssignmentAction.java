@@ -75,7 +75,7 @@ public class TransportCreateTrainedModelAssignmentAction extends TransportMaster
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         trainedModelAssignmentClusterService.createNewModelAssignment(
             request.getTaskParams(),
-            ActionListener.wrap(trainedModelAssignment -> listener.onResponse(new Response(trainedModelAssignment)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, trainedModelAssignment) -> l.onResponse(new Response(trainedModelAssignment)))
         );
     }
 

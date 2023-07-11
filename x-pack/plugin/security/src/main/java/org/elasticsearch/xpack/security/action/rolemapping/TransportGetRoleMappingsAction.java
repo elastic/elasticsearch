@@ -44,9 +44,11 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
         } else {
             names = new HashSet<>(Arrays.asList(request.getNames()));
         }
-        this.roleMappingStore.getRoleMappings(names, ActionListener.wrap(mappings -> {
-            ExpressionRoleMapping[] array = mappings.toArray(new ExpressionRoleMapping[mappings.size()]);
-            listener.onResponse(new GetRoleMappingsResponse(array));
-        }, listener::onFailure));
+        this.roleMappingStore.getRoleMappings(
+            names,
+            listener.delegateFailureAndWrap(
+                (delegate, mappings) -> delegate.onResponse(new GetRoleMappingsResponse(mappings.toArray(new ExpressionRoleMapping[0])))
+            )
+        );
     }
 }

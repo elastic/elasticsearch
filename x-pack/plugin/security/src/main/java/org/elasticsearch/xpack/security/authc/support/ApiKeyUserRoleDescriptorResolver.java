@@ -28,17 +28,17 @@ public class ApiKeyUserRoleDescriptorResolver {
     }
 
     public void resolveUserRoleDescriptors(final Authentication authentication, final ActionListener<Set<RoleDescriptor>> listener) {
-        final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener = ActionListener.wrap(roleDescriptors -> {
+        final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener = listener.delegateFailureAndWrap((delegate, roleDescriptors) -> {
             for (RoleDescriptor rd : roleDescriptors) {
                 try {
                     DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
                 } catch (ElasticsearchException | IllegalArgumentException e) {
-                    listener.onFailure(e);
+                    delegate.onFailure(e);
                     return;
                 }
             }
-            listener.onResponse(roleDescriptors);
-        }, listener::onFailure);
+            delegate.onResponse(roleDescriptors);
+        });
 
         final Subject effectiveSubject = authentication.getEffectiveSubject();
 
@@ -48,9 +48,9 @@ public class ApiKeyUserRoleDescriptorResolver {
             return;
         }
 
-        rolesStore.getRoleDescriptorsList(effectiveSubject, ActionListener.wrap(roleDescriptorsList -> {
+        rolesStore.getRoleDescriptorsList(effectiveSubject, roleDescriptorsListener.delegateFailureAndWrap((l, roleDescriptorsList) -> {
             assert roleDescriptorsList.size() == 1;
-            roleDescriptorsListener.onResponse(roleDescriptorsList.iterator().next());
-        }, roleDescriptorsListener::onFailure));
+            l.onResponse(roleDescriptorsList.iterator().next());
+        }));
     }
 }

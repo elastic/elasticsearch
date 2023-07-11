@@ -106,10 +106,10 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
         }
 
         // Do this to catch datafeed tasks that have been created but are currently not assigned to a node.
-        ActionListener<Response> taskResponseListener = ActionListener.wrap(actionResponses -> {
+        ActionListener<Response> taskResponseListener = listener.delegateFailureAndWrap((delegate, actionResponses) -> {
             Map<String, Response.RunningState> runningStateMap = actionResponses.getDatafeedRunningState();
             if (runningStateMap.size() == datafeedTasks.size()) {
-                listener.onResponse(actionResponses);
+                delegate.onResponse(actionResponses);
                 return;
             }
             List<Response> missingResponses = new ArrayList<>();
@@ -128,8 +128,8 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
                         )
                 )
             );
-            listener.onResponse(Response.fromResponses(missingResponses));
-        }, listener::onFailure);
+            delegate.onResponse(Response.fromResponses(missingResponses));
+        });
 
         String[] nodesOfConcern = datafeedTasks.stream()
             .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)

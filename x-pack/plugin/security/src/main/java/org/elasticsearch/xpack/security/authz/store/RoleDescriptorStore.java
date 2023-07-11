@@ -169,7 +169,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     }
 
     private void resolveRoleNames(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
-        roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
+        roleDescriptors(roleNames, listener.delegateFailureAndWrap((delegate, rolesRetrievalResult) -> {
             logDeprecatedRoles(rolesRetrievalResult.getRoleDescriptors());
             final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
             if (missingRoles) {
@@ -189,8 +189,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             if (false == rolesRetrievalResult.isSuccess()) {
                 finalResult.setFailure();
             }
-            listener.onResponse(finalResult);
-        }, listener::onFailure));
+            delegate.onResponse(finalResult);
+        }));
     }
 
     private Set<RoleDescriptor> maybeSkipRolesUsingDocumentOrFieldLevelSecurity(Set<RoleDescriptor> roleDescriptors) {
@@ -249,17 +249,17 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         final RolesRetrievalResult rolesResult = new RolesRetrievalResult();
         final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> asyncRoleProviders = roleProviders.getProviders();
         final ActionListener<RoleRetrievalResult> descriptorsListener = ContextPreservingActionListener.wrapPreservingContext(
-            ActionListener.wrap(ignore -> {
+            listener.delegateFailureAndWrap((l, ignore) -> {
                 rolesResult.setMissingRoles(roleNames);
-                listener.onResponse(rolesResult);
-            }, listener::onFailure),
+                l.onResponse(rolesResult);
+            }),
             threadContext
         );
 
         final Predicate<RoleRetrievalResult> iterationPredicate = result -> roleNames.isEmpty() == false;
         new IteratingActionListener<>(descriptorsListener, (rolesProvider, providerListener) -> {
             // try to resolve descriptors with role provider
-            rolesProvider.accept(roleNames, ActionListener.wrap(result -> {
+            rolesProvider.accept(roleNames, providerListener.delegateFailureAndWrap((delegate, result) -> {
                 if (result.isSuccess()) {
                     logger.debug(
                         () -> format(
@@ -278,8 +278,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                     logger.warn(() -> format("role [%s] retrieval failed from [%s]", roleNames, rolesProvider), result.getFailure());
                     rolesResult.setFailure();
                 }
-                providerListener.onResponse(result);
-            }, providerListener::onFailure));
+                delegate.onResponse(result);
+            }));
         }, asyncRoleProviders, threadContext, Function.identity(), iterationPredicate).run();
     }
 

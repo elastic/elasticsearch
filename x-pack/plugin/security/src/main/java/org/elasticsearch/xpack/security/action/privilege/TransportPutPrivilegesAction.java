@@ -44,7 +44,7 @@ public class TransportPutPrivilegesAction extends HandledTransportAction<PutPriv
             this.privilegeStore.putPrivileges(
                 request.getPrivileges(),
                 request.getRefreshPolicy(),
-                ActionListener.wrap(created -> listener.onResponse(new PutPrivilegesResponse(created)), listener::onFailure)
+                listener.delegateFailureAndWrap((l, created) -> l.onResponse(new PutPrivilegesResponse(created)))
             );
         }
     }

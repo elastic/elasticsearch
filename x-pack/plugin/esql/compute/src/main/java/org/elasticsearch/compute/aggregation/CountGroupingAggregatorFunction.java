@@ -143,14 +143,14 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     @Override
-    public void addIntermediateInput(LongVector groupIdVector, Page page) {
+    public void addIntermediateInput(int positionOffset, LongVector groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
         LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
         BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
         assert count.getPositionCount() == seen.getPositionCount();
-        for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
-            state.increment(count.getLong(position), Math.toIntExact(groupIdVector.getLong(position)));
+        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+            state.increment(count.getLong(groupPosition + positionOffset), Math.toIntExact(groups.getLong(groupPosition)));
         }
     }
 

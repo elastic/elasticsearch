@@ -35,7 +35,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -603,7 +602,6 @@ public class BlockHashTests extends ESTestCase {
     }
 
     public void testLongLongHashHugeCombinatorialExplosion() {
-        assumeFalse("fix doesn't exist for packed hash yet", forcePackedHash);
         long[] v1 = LongStream.range(0, 10000).toArray();
         long[] v2 = LongStream.range(100, 200).toArray();
 
@@ -619,7 +617,7 @@ public class BlockHashTests extends ESTestCase {
             assertThat(
                 ordsAndKeys.description,
                 forcePackedHash
-                    ? startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:LONG], entries=8, size=")
+                    ? startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:LONG], entries=" + expectedEntries[0] + ", size=")
                     : equalTo("LongLongBlockHash{channels=[0,1], entries=" + expectedEntries[0] + "}")
             );
             assertOrds(ordsAndKeys.ords, LongStream.range(start, expectedEntries[0]).toArray());
@@ -768,42 +766,43 @@ public class BlockHashTests extends ESTestCase {
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
     }
 
+    private void append(LongBlock.Builder b1, BytesRefBlock.Builder b2, long[] v1, String[] v2) {
+        if (v1 == null) {
+            b1.appendNull();
+        } else if (v1.length == 1) {
+            b1.appendLong(v1[0]);
+        } else {
+            b1.beginPositionEntry();
+            for (long v : v1) {
+                b1.appendLong(v);
+            }
+            b1.endPositionEntry();
+        }
+        if (v2 == null) {
+            b2.appendNull();
+        } else if (v2.length == 1) {
+            b2.appendBytesRef(new BytesRef(v2[0]));
+        } else {
+            b2.beginPositionEntry();
+            for (String v : v2) {
+                b2.appendBytesRef(new BytesRef(v));
+            }
+            b2.endPositionEntry();
+        }
+    }
+
     public void testLongBytesRefHashWithMultiValuedFields() {
         var b1 = LongBlock.newBlockBuilder(8);
         var b2 = BytesRefBlock.newBlockBuilder(8);
-        BiConsumer<long[], String[]> append = (v1, v2) -> {
-            if (v1 == null) {
-                b1.appendNull();
-            } else if (v1.length == 1) {
-                b1.appendLong(v1[0]);
-            } else {
-                b1.beginPositionEntry();
-                for (long v : v1) {
-                    b1.appendLong(v);
-                }
-                b1.endPositionEntry();
-            }
-            if (v2 == null) {
-                b2.appendNull();
-            } else if (v2.length == 1) {
-                b2.appendBytesRef(new BytesRef(v2[0]));
-            } else {
-                b2.beginPositionEntry();
-                for (String v : v2) {
-                    b2.appendBytesRef(new BytesRef(v));
-                }
-                b2.endPositionEntry();
-            }
-        };
-        append.accept(new long[] { 1, 2 }, new String[] { "a", "b" });
-        append.accept(new long[] { 1, 2 }, new String[] { "a" });
-        append.accept(new long[] { 1 }, new String[] { "a", "b" });
-        append.accept(new long[] { 1 }, new String[] { "a" });
-        append.accept(null, new String[] { "a" });
-        append.accept(new long[] { 1 }, null);
-        append.accept(new long[] { 1, 1, 1 }, new String[] { "a", "a", "a" });
-        append.accept(new long[] { 1, 1, 2, 2 }, new String[] { "a", "b", "b" });
-        append.accept(new long[] { 1, 2, 3 }, new String[] { "c", "c", "a" });
+        append(b1, b2, new long[] { 1, 2 }, new String[] { "a", "b" });
+        append(b1, b2, new long[] { 1, 2 }, new String[] { "a" });
+        append(b1, b2, new long[] { 1 }, new String[] { "a", "b" });
+        append(b1, b2, new long[] { 1 }, new String[] { "a" });
+        append(b1, b2, null, new String[] { "a" });
+        append(b1, b2, new long[] { 1 }, null);
+        append(b1, b2, new long[] { 1, 1, 1 }, new String[] { "a", "a", "a" });
+        append(b1, b2, new long[] { 1, 1, 2, 2 }, new String[] { "a", "b", "b" });
+        append(b1, b2, new long[] { 1, 2, 3 }, new String[] { "c", "c", "a" });
 
         OrdsAndKeys ordsAndKeys = hash(b1.build(), b2.build());
         assertThat(
@@ -849,6 +848,44 @@ public class BlockHashTests extends ESTestCase {
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 8)));
     }
 
+    public void testBytesRefLongHashHugeCombinatorialExplosion() {
+        long[] v1 = LongStream.range(0, 5000).toArray();
+        String[] v2 = LongStream.range(100, 200).mapToObj(l -> "a" + l).toArray(String[]::new);
+
+        var b1 = LongBlock.newBlockBuilder(v1.length);
+        var b2 = BytesRefBlock.newBlockBuilder(v2.length);
+        append(b1, b2, v1, v2);
+
+        int[] expectedEntries = new int[1];
+        int pageSize = between(1000, 16 * 1024);
+        hash(ordsAndKeys -> {
+            int start = expectedEntries[0];
+            expectedEntries[0] = Math.min(expectedEntries[0] + pageSize, v1.length * v2.length);
+            assertThat(
+                ordsAndKeys.description,
+                forcePackedHash
+                    ? startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=" + expectedEntries[0] + ", size=")
+                    : startsWith(
+                        "BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=" + expectedEntries[0] + ", size="
+                    )
+            );
+            assertOrds(ordsAndKeys.ords, LongStream.range(start, expectedEntries[0]).toArray());
+            assertKeys(
+                ordsAndKeys.keys,
+                IntStream.range(0, expectedEntries[0])
+                    .mapToObj(
+                        i -> forcePackedHash
+                            ? new Object[] { v1[i / v2.length], v2[i % v2.length] }
+                            : new Object[] { v1[i % v1.length], v2[i / v1.length] }
+                    )
+                    .toArray(l -> new Object[l][])
+            );
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, expectedEntries[0])));
+        }, pageSize, b1.build(), b2.build());
+
+        assertThat("misconfigured test", expectedEntries[0], greaterThan(0));
+    }
+
     record OrdsAndKeys(String description, int positionOffset, LongBlock ords, Block[] keys, IntVector nonEmpty) {}
 
     /**
@@ -874,7 +911,7 @@ public class BlockHashTests extends ESTestCase {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
         try (
             BlockHash blockHash = forcePackedHash
-                ? new PackedValuesBlockHash(specs, bigArrays)
+                ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
                 : BlockHash.build(specs, bigArrays, emitBatchSize)
         ) {
             hash(blockHash, callback, values);

@@ -190,14 +190,13 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
   }
 
   @Override
-  public void addIntermediateInput(LongVector groupIdVector, Page page) {
+  public void addIntermediateInput(int positionOffset, LongVector groups, Page page) {
     assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     BytesRefVector hll = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
     BytesRef scratch = new BytesRef();
-    for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
-      int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(position, scratch));
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }
 

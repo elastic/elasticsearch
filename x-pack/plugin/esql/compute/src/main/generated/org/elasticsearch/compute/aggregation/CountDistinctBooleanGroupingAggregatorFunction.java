@@ -181,15 +181,14 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
   }
 
   @Override
-  public void addIntermediateInput(LongVector groupIdVector, Page page) {
+  public void addIntermediateInput(int positionOffset, LongVector groups, Page page) {
     assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     BooleanVector fbit = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
     BooleanVector tbit = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
     assert fbit.getPositionCount() == tbit.getPositionCount();
-    for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
-      int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      CountDistinctBooleanAggregator.combineIntermediate(state, groupId, fbit.getBoolean(position), tbit.getBoolean(position));
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      CountDistinctBooleanAggregator.combineIntermediate(state, groupId, fbit.getBoolean(groupPosition + positionOffset), tbit.getBoolean(groupPosition + positionOffset));
     }
   }
 

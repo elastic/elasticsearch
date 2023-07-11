@@ -67,13 +67,13 @@ public abstract sealed class BlockHash implements Releasable //
                 return new LongLongBlockHash(bigArrays, g1.channel(), g2.channel(), emitBatchSize);
             }
             if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                return new BytesRefLongBlockHash(bigArrays, g1.channel(), g2.channel(), false);
+                return new BytesRefLongBlockHash(bigArrays, g1.channel(), g2.channel(), false, emitBatchSize);
             }
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                return new BytesRefLongBlockHash(bigArrays, g2.channel(), g1.channel(), true);
+                return new BytesRefLongBlockHash(bigArrays, g2.channel(), g1.channel(), true, emitBatchSize);
             }
         }
-        return new PackedValuesBlockHash(groups, bigArrays);
+        return new PackedValuesBlockHash(groups, bigArrays, emitBatchSize);
     }
 
     /**

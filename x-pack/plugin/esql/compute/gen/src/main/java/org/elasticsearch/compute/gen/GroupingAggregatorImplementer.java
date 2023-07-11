@@ -422,10 +422,11 @@ public class GroupingAggregatorImplementer {
     private MethodSpec addIntermediateInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        builder.addParameter(LONG_VECTOR, "groupIdVector").addParameter(PAGE, "page");
+        builder.addParameter(TypeName.INT, "positionOffset");
+        builder.addParameter(LONG_VECTOR, "groups");
+        builder.addParameter(PAGE, "page");
 
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
-        builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
         int count = 0;
         for (var interState : intermediateState) {
             builder.addStatement(
@@ -449,19 +450,21 @@ public class GroupingAggregatorImplementer {
         if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
             builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
         }
-        builder.beginControlFlow("for (int position = 0; position < groupIdVector.getPositionCount(); position++)");
+        builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
-            builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(position))");
+            builder.addStatement("int groupId = Math.toIntExact(groups.getLong(groupPosition))");
             if (hasPrimitiveState()) {
                 assert intermediateState.size() == 2;
                 assert intermediateState.get(1).name().equals("seen");
-                builder.beginControlFlow("if (seen.getBoolean(position))");
+                builder.beginControlFlow("if (seen.getBoolean(groupPosition + positionOffset))");
                 {
                     var name = intermediateState.get(0).name();
                     var m = vectorAccessorName(intermediateState.get(0).elementType());
                     builder.addStatement(
-                        "state.set($T.combine(state.getOrDefault(groupId), " + name + "." + m + "(position)), groupId)",
-                        declarationType
+                        "state.set($T.combine(state.getOrDefault(groupId), $L.$L(groupPosition + positionOffset)), groupId)",
+                        declarationType,
+                        name,
+                        m
                     );
                     builder.nextControlFlow("else");
                     builder.addStatement("state.putNull(groupId)");
@@ -480,7 +483,7 @@ public class GroupingAggregatorImplementer {
     }
 
     static String vectorAccess(IntermediateStateDesc isd) {
-        String s = isd.name() + "." + vectorAccessorName(isd.elementType()) + "(position";
+        String s = isd.name() + "." + vectorAccessorName(isd.elementType()) + "(groupPosition + positionOffset";
         if (isd.elementType().equals("BYTES_REF")) {
             s += ", scratch";
         }

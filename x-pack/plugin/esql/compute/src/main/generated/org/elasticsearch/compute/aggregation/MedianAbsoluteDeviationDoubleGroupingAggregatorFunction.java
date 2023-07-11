@@ -183,14 +183,13 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
   }
 
   @Override
-  public void addIntermediateInput(LongVector groupIdVector, Page page) {
+  public void addIntermediateInput(int positionOffset, LongVector groups, Page page) {
     assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
     BytesRef scratch = new BytesRef();
-    for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
-      int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(position, scratch));
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }
 

@@ -177,16 +177,15 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public void addIntermediateInput(LongVector groupIdVector, Page page) {
+  public void addIntermediateInput(int positionOffset, LongVector groups, Page page) {
     assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     LongVector max = page.<LongBlock>getBlock(channels.get(0)).asVector();
     BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
-    for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
-      int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      if (seen.getBoolean(position)) {
-        state.set(MaxLongAggregator.combine(state.getOrDefault(groupId), max.getLong(position)), groupId);
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      if (seen.getBoolean(groupPosition + positionOffset)) {
+        state.set(MaxLongAggregator.combine(state.getOrDefault(groupId), max.getLong(groupPosition + positionOffset)), groupId);
       } else {
         state.putNull(groupId);
       }

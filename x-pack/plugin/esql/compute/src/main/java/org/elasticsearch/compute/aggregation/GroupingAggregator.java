@@ -50,10 +50,7 @@ public class GroupingAggregator implements Releasable {
 
                 @Override
                 public void add(int positionOffset, LongVector groupIds) {
-                    if (positionOffset != 0) {
-                        throw new IllegalStateException("Intermediate doesn't support offset");
-                    }
-                    aggregatorFunction.addIntermediateInput(groupIds, page);
+                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
                 }
             };
         } else {

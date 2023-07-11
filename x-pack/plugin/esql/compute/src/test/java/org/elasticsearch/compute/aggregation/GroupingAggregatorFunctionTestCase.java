@@ -438,8 +438,15 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
-                    public void addIntermediateInput(LongVector groupIdVector, Page page) {
-                        delegate.addIntermediateInput(groupIdVector, page);
+                    public void addIntermediateInput(int positionOffset, LongVector groupIds, Page page) {
+                        long[] chunk = new long[emitChunkSize];
+                        for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
+                            int count = 0;
+                            for (int i = offset; i < Math.min(groupIds.getPositionCount(), offset + emitChunkSize); i++) {
+                                chunk[count++] = groupIds.getLong(i);
+                            }
+                            delegate.addIntermediateInput(positionOffset, new LongArrayVector(chunk, count), page);
+                        }
                     }
 
                     @Override

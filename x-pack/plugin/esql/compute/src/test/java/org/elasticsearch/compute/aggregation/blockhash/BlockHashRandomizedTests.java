@@ -107,16 +107,15 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 }
                 oracle.add(randomBlocks);
                 int[] batchCount = new int[1];
+                // PackedValuesBlockHash always chunks but the normal single value ones don't
+                boolean usingSingle = forcePackedHash == false && types.size() == 1;
                 BlockHashTests.hash(blockHash, ordsAndKeys -> {
-                    if (forcePackedHash == false) {
-                        if (types.equals(List.of(ElementType.LONG, ElementType.LONG))) {
-                            // For now we only have defense against big blocks in the long/long hash
-                            assertThat(ordsAndKeys.ords().getTotalValueCount(), lessThanOrEqualTo(emitBatchSize));
-                        }
+                    if (usingSingle == false) {
+                        assertThat(ordsAndKeys.ords().getTotalValueCount(), lessThanOrEqualTo(emitBatchSize));
                     }
                     batchCount[0]++;
                 }, blocks);
-                if (types.size() == 1) {
+                if (usingSingle) {
                     assertThat(batchCount[0], equalTo(1));
                 }
             }
@@ -147,7 +146,9 @@ public class BlockHashRandomizedTests extends ESTestCase {
             specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
         }
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
-        return forcePackedHash ? new PackedValuesBlockHash(specs, bigArrays) : BlockHash.build(specs, bigArrays, emitBatchSize);
+        return forcePackedHash
+            ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
+            : BlockHash.build(specs, bigArrays, emitBatchSize);
     }
 
     private static class KeyComparator implements Comparator<List<?>> {

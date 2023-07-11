@@ -79,7 +79,7 @@ public interface GroupingAggregatorFunction extends Releasable {
     /**
      * Add data produced by {@link #evaluateIntermediate}.
      */
-    void addIntermediateInput(LongVector groupIdVector, Page page);
+    void addIntermediateInput(int positionOffset, LongVector groupIdVector, Page page);
 
     /**
      * Add the position-th row from the intermediate output of the given aggregator function to the groupId

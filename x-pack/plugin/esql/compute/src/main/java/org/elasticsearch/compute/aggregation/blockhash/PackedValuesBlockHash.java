@@ -18,8 +18,6 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BatchEncoder;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -55,11 +53,13 @@ final class PackedValuesBlockHash extends BlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
     private final List<HashAggregationOperator.GroupSpec> groups;
+    private final int emitBatchSize;
     private final BytesRefHash bytesRefHash;
     private final int nullTrackingBytes;
 
-    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays) {
+    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays, int emitBatchSize) {
         this.groups = groups;
+        this.emitBatchSize = emitBatchSize;
         this.bytesRefHash = new BytesRefHash(1, bigArrays);
         this.nullTrackingBytes = groups.size() / 8 + 1;
     }
@@ -73,28 +73,26 @@ final class PackedValuesBlockHash extends BlockHash {
         new AddWork(page, addInput, batchSize).add();
     }
 
-    class AddWork {
+    class AddWork extends LongLongBlockHash.AbstractAddBlock {
         final BatchEncoder[] encoders = new BatchEncoder[groups.size()];
         final int[] positionOffsets = new int[groups.size()];
         final int[] valueOffsets = new int[groups.size()];
         final BytesRef[] scratches = new BytesRef[groups.size()];
         final BytesRefBuilder bytes = new BytesRefBuilder();
         final int positionCount;
-        final GroupingAggregatorFunction.AddInput addInput;
-        final LongBlock.Builder builder;
 
+        int position;
         int count;
         long bufferedGroup;
 
         AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
+            super(emitBatchSize, addInput);
             for (int g = 0; g < groups.size(); g++) {
                 encoders[g] = MultivalueDedupe.batchEncoder(page.getBlock(groups.get(g).channel()), batchSize);
                 scratches[g] = new BytesRef();
             }
             bytes.grow(nullTrackingBytes);
             this.positionCount = page.getPositionCount();
-            this.addInput = addInput;
-            builder = LongBlock.newBlockBuilder(positionCount);
         }
 
         /**
@@ -103,7 +101,7 @@ final class PackedValuesBlockHash extends BlockHash {
          * front of the bytes.
          */
         void add() {
-            for (int position = 0; position < positionCount; position++) {
+            for (position = 0; position < positionCount; position++) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("position {}", position);
                 }
@@ -124,22 +122,20 @@ final class PackedValuesBlockHash extends BlockHash {
                 switch (count) {
                     case 0 -> {
                         logger.trace("appending null");
-                        builder.appendNull();  // TODO https://github.com/elastic/elasticsearch-internal/issues/1327
+                        ords.appendNull();  // TODO https://github.com/elastic/elasticsearch-internal/issues/1327
+                        addedValue(position);
                     }
-                    case 1 -> builder.appendLong(bufferedGroup);
-                    default -> builder.endPositionEntry();
+                    case 1 -> {
+                        ords.appendLong(bufferedGroup);
+                        addedValue(position);
+                    }
+                    default -> ords.endPositionEntry();
                 }
                 for (int g = 0; g < encoders.length; g++) {
                     valueOffsets[g] += encoders[g].valueCount(positionOffsets[g]);
                 }
             }
-            LongBlock groupIdsBlock = builder.build();  // TODO exploit for a crash and then call incrementally
-            LongVector groupIdsVector = groupIdsBlock.asVector();
-            if (groupIdsVector == null) {
-                addInput.add(0, groupIdsBlock);
-            } else {
-                addInput.add(0, groupIdsVector);
-            }
+            emitOrds();
         }
 
         private void addPosition(int g) {
@@ -187,11 +183,16 @@ final class PackedValuesBlockHash extends BlockHash {
             switch (count) {
                 case 0 -> bufferedGroup = group;
                 case 1 -> {
-                    builder.beginPositionEntry();
-                    builder.appendLong(bufferedGroup);
-                    builder.appendLong(group);
+                    ords.beginPositionEntry();
+                    ords.appendLong(bufferedGroup);
+                    addedValueInMultivaluePosition(position);
+                    ords.appendLong(group);
+                    addedValueInMultivaluePosition(position);
                 }
-                default -> builder.appendLong(group);
+                default -> {
+                    ords.appendLong(group);
+                    addedValueInMultivaluePosition(position);
+                }
             }
             count++;
             if (logger.isTraceEnabled()) {

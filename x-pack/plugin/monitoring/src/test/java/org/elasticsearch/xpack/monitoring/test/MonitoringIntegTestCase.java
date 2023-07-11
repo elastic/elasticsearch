@@ -97,11 +97,11 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void startMonitoringService() {
-        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::start);
+        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::unpause);
     }
 
     protected void stopMonitoringService() {
-        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::stop);
+        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::pause);
     }
 
     protected void wipeMonitoringIndices() throws Exception {

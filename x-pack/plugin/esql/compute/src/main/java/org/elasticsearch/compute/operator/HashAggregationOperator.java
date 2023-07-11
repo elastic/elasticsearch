@@ -32,12 +32,6 @@ import static java.util.stream.Collectors.joining;
 @Experimental
 public class HashAggregationOperator implements Operator {
 
-    // monotonically increasing state
-    private static final int NEEDS_INPUT = 0;
-    private static final int HAS_OUTPUT = 1;
-    private static final int FINISHING = 2;
-    private static final int FINISHED = 3;
-
     public record GroupSpec(int channel, ElementType elementType) {}
 
     public record HashAggregationOperatorFactory(
@@ -61,7 +55,8 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    private int state;
+    private boolean finished;
+    private Page output;
 
     private final BlockHash blockHash;
 
@@ -72,8 +67,6 @@ public class HashAggregationOperator implements Operator {
         Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
-        state = NEEDS_INPUT;
-
         this.aggregators = new ArrayList<>(aggregators.size());
         boolean success = false;
         try {
@@ -91,7 +84,7 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return state == NEEDS_INPUT;
+        return finished == false;
     }
 
     @Override
@@ -123,12 +116,17 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        if (state != HAS_OUTPUT) {
-            return null;
+        Page p = output;
+        output = null;
+        return p;
+    }
+
+    @Override
+    public void finish() {
+        if (finished) {
+            return;
         }
-
-        state = FINISHING;  // << allows to produce output step by step
-
+        finished = true;
         Block[] keys = blockHash.getKeys();
         IntVector selected = blockHash.nonEmpty();
 
@@ -141,35 +139,17 @@ public class HashAggregationOperator implements Operator {
             aggregator.evaluate(blocks, offset, selected);
             offset += aggBlockCounts[i];
         }
-
-        Page page = new Page(blocks);
-        state = FINISHED;
-        return page;
-    }
-
-    @Override
-    public void finish() {
-        if (state == NEEDS_INPUT) {
-            state = HAS_OUTPUT;
-        }
+        output = new Page(blocks);
     }
 
     @Override
     public boolean isFinished() {
-        return state == FINISHED;
+        return finished && output == null;
     }
 
     @Override
     public void close() {
         Releasables.close(blockHash, () -> Releasables.close(aggregators));
-    }
-
-    protected BlockHash blockHash() {
-        return blockHash;
-    }
-
-    protected List<GroupingAggregator> aggregators() {
-        return aggregators;
     }
 
     protected static void checkState(boolean condition, String msg) {

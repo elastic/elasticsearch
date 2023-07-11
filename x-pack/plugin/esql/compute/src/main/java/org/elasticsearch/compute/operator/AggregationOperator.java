@@ -33,14 +33,8 @@ import static java.util.stream.Collectors.joining;
 @Experimental
 public class AggregationOperator implements Operator {
 
-    // monotonically increasing state
-    private static final int NEEDS_INPUT = 0;
-    private static final int HAS_OUTPUT = 1;
-    private static final int FINISHING = 2;
-    private static final int FINISHED = 3;
-
-    private int state;
-
+    private boolean finished;
+    private Page output;
     private final List<Aggregator> aggregators;
 
     public record AggregationOperatorFactory(List<Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
@@ -68,12 +62,11 @@ public class AggregationOperator implements Operator {
         Objects.requireNonNull(aggregators);
         checkNonEmpty(aggregators);
         this.aggregators = aggregators;
-        state = NEEDS_INPUT;
     }
 
     @Override
     public boolean needsInput() {
-        return state == NEEDS_INPUT;
+        return finished == false;
     }
 
     @Override
@@ -87,10 +80,17 @@ public class AggregationOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        if (state != HAS_OUTPUT) {
-            return null;
-        }
+        Page p = output;
+        this.output = null;
+        return p;
+    }
 
+    @Override
+    public void finish() {
+        if (finished) {
+            return;
+        }
+        finished = true;
         int[] aggBlockCounts = aggregators.stream().mapToInt(Aggregator::evaluateBlockCount).toArray();
         Block[] blocks = new Block[Arrays.stream(aggBlockCounts).sum()];
         int offset = 0;
@@ -99,22 +99,12 @@ public class AggregationOperator implements Operator {
             aggregator.evaluate(blocks, offset);
             offset += aggBlockCounts[i];
         }
-
-        Page page = new Page(blocks);
-        state = FINISHED;
-        return page;
-    }
-
-    @Override
-    public void finish() {
-        if (state == NEEDS_INPUT) {
-            state = HAS_OUTPUT;
-        }
+        output = new Page(blocks);
     }
 
     @Override
     public boolean isFinished() {
-        return state == FINISHED;
+        return finished && output == null;
     }
 
     @Override

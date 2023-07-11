@@ -36,17 +36,10 @@ public class LimitOperator implements Operator {
 
     private Page lastInput;
 
-    private State state;
-
-    private enum State {
-        NEEDS_INPUT,
-        FINISHING,
-        FINISHED
-    }
+    private boolean finished;
 
     public LimitOperator(int limit) {
         this.limit = this.limitRemaining = limit;
-        this.state = State.NEEDS_INPUT;
     }
 
     public record Factory(int limit) implements OperatorFactory {
@@ -64,7 +57,7 @@ public class LimitOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return lastInput == null && state == State.NEEDS_INPUT;
+        return finished == false;
     }
 
     @Override
@@ -74,21 +67,17 @@ public class LimitOperator implements Operator {
 
     @Override
     public void finish() {
-        if (lastInput == null) {
-            this.state = State.FINISHED;
-        } else {
-            this.state = State.FINISHING;
-        }
+        finished = true;
     }
 
     @Override
     public boolean isFinished() {
-        return state == State.FINISHED;
+        return finished && lastInput == null;
     }
 
     @Override
     public Page getOutput() {
-        if (lastInput == null || state == State.FINISHED) {
+        if (lastInput == null) {
             return null;
         }
 
@@ -96,9 +85,6 @@ public class LimitOperator implements Operator {
         if (lastInput.getPositionCount() <= limitRemaining) {
             result = lastInput;
             limitRemaining -= lastInput.getPositionCount();
-            if (state == State.FINISHING) {
-                state = State.FINISHED;
-            }
         } else {
             int[] filter = new int[limitRemaining];
             for (int i = 0; i < limitRemaining; i++) {
@@ -110,9 +96,10 @@ public class LimitOperator implements Operator {
             }
             result = new Page(blocks);
             limitRemaining = 0;
-            state = State.FINISHED;
         }
-
+        if (limitRemaining == 0) {
+            finished = true;
+        }
         lastInput = null;
         pagesProcessed++;
 

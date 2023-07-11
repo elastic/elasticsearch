@@ -60,8 +60,6 @@ public class SearchApplicationSearchRequest extends ActionRequest implements Ind
         false,
         (params, searchAppName) -> {
             final String name = Strings.isEmpty(searchAppName) ? (String) params[0] : searchAppName;
-
-            @SuppressWarnings("unchecked")
             final Map<String, Object> queryParams = (Map<String, Object>) params[1];
             return new SearchApplicationSearchRequest(name, queryParams);
         }
@@ -133,8 +131,9 @@ public class SearchApplicationSearchRequest extends ActionRequest implements Ind
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+
         builder.field(NAME_FIELD.getPreferredName(), name);
-        if (queryParams.isEmpty() != true) {
+        if (queryParams.isEmpty()==false) {
             builder.field(QUERY_PARAMS_FIELD.getPreferredName(), queryParams);
         }
         builder.endObject();

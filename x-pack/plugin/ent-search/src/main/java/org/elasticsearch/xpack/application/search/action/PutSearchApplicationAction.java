@@ -43,10 +43,8 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
     public static class Request extends ActionRequest implements ToXContentObject {
 
         private final SearchApplication searchApp;
-        public static ParseField SEARCH_APPLICATION = new ParseField("searchApp");
-
         private final boolean create;
-        public static ParseField CREATE = new ParseField("create");
+
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -106,6 +104,9 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
         public int hashCode() {
             return Objects.hash(searchApp, create);
         }
+
+        public static ParseField SEARCH_APPLICATION = new ParseField("searchApp");
+        public static ParseField CREATE = new ParseField("create");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(

@@ -40,8 +40,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -82,7 +80,6 @@ public class SynonymsManagementAPIService {
     public static final int MAX_SYNONYMS_SETS = 10_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
-    private static final String RULESET_FILTER_AGG_NAME = "ruleset_filter";
 
     private final Client client;
 
@@ -165,21 +162,18 @@ public class SynonymsManagementAPIService {
     public void getSynonymsSets(int from, int size, ActionListener<PagedResult<SynonymSetSummary>> listener) {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setSize(0)
+            // Retrieves aggregated synonym rules for each synonym set, excluding the synonym set object type
+            .setQuery(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
             .addAggregation(
-                // Retrieves synonym rules for each synonym set, excluding the synonym set object type
-                new FilterAggregationBuilder(RULESET_FILTER_AGG_NAME, QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
-                    .subAggregation(
-                        new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD)
-                            .order(BucketOrder.key(true))
-                            .size(MAX_SYNONYMS_SETS)
-                    )
+                new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD)
+                    .order(BucketOrder.key(true))
+                    .size(MAX_SYNONYMS_SETS)
             )
             .setPreference(Preference.LOCAL.type())
             .execute(new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    Filter filterAggregation = searchResponse.getAggregations().get(RULESET_FILTER_AGG_NAME);
-                    Terms termsAggregation = filterAggregation.getAggregations().get(SYNONYM_SETS_AGG_NAME);
+                    Terms termsAggregation = searchResponse.getAggregations().get(SYNONYM_SETS_AGG_NAME);
                     List<? extends Terms.Bucket> buckets = termsAggregation.getBuckets();
                     SynonymSetSummary[] synonymSetSummaries = buckets.stream()
                         .skip(from)
@@ -253,10 +247,8 @@ public class SynonymsManagementAPIService {
             // Insert as bulk requests
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             try {
-                if (created) {
-                    // Insert synonym set object
-                    bulkRequestBuilder.add(createSynonymSetIndexRequest(synonymSetId));
-                }
+                // Insert synonym set object
+                bulkRequestBuilder.add(createSynonymSetIndexRequest(synonymSetId));
                 // Insert synonym rules
                 for (SynonymRule synonymRule : synonymsSet) {
                     bulkRequestBuilder.add(createSynonymRuleIndexRequest(synonymSetId, synonymRule));
@@ -381,8 +373,8 @@ public class SynonymsManagementAPIService {
     private <T> void checkSynonymSetExists(String synonymsSetId, ActionListener<T> listener) {
         // Get the document with the synonym set ID
         client.prepareGet(SYNONYMS_ALIAS_NAME, synonymsSetId)
-            .execute(new DelegatingIndexNotFoundActionListener<>(synonymsSetId, listener, (l, searchResponse) -> {
-                if (searchResponse.isExists() == false) {
+            .execute(new DelegatingIndexNotFoundActionListener<>(synonymsSetId, listener, (l, getResponse) -> {
+                if (getResponse.isExists() == false) {
                     l.onFailure(new ResourceNotFoundException("Synonym set [" + synonymsSetId + "] not found"));
                     return;
                 }

@@ -1,11 +1,11 @@
 [role="xpack"]
 [[put-query-ruleset]]
-=== Put query ruleset
+=== Create or update query ruleset
 
 preview::[]
 
 ++++
-<titleabbrev>Put query ruleset</titleabbrev>
+<titleabbrev>Create or update query ruleset</titleabbrev>
 ++++
 
 Creates or updates a query ruleset.

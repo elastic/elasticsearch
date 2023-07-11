@@ -124,7 +124,7 @@ public class EsExecutors {
         int queueCapacity,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        boolean trackExecutionTime
+        TaskTrackingConfig config
     ) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
@@ -132,7 +132,7 @@ public class EsExecutors {
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
-        if (trackExecutionTime) {
+        if (config.trackExecutionTime()) {
             return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
                 size,
@@ -143,7 +143,8 @@ public class EsExecutors {
                 TimedRunnable::new,
                 threadFactory,
                 new EsAbortPolicy(),
-                contextHolder
+                contextHolder,
+                config.getEwmaAlpha()
             );
         } else {
             return new EsThreadPoolExecutor(
@@ -384,6 +385,34 @@ public class EsExecutors {
         private void reject(ThreadPoolExecutor executor, Runnable task) {
             incrementRejections();
             throw newRejectedException(task, executor, true);
+        }
+    }
+
+    public static class TaskTrackingConfig {
+        // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
+        public static double DEFAULT_EWMA_ALPHA = 0.3;
+
+        private final boolean trackExecutionTime;
+        private final double ewmaAlpha;
+
+        public static TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(false, DEFAULT_EWMA_ALPHA);
+        public static TaskTrackingConfig DEFAULT = new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA);
+
+        public TaskTrackingConfig(double ewmaAlpha) {
+            this(true, ewmaAlpha);
+        }
+
+        private TaskTrackingConfig(boolean trackExecutionTime, double EWMAAlpha) {
+            this.trackExecutionTime = trackExecutionTime;
+            this.ewmaAlpha = EWMAAlpha;
+        }
+
+        public boolean trackExecutionTime() {
+            return trackExecutionTime;
+        }
+
+        public double getEwmaAlpha() {
+            return ewmaAlpha;
         }
     }
 

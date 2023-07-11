@@ -187,7 +187,7 @@ public class CoordinationStateTestCluster {
         this.electionStrategy = electionStrategy;
         messages = new ArrayList<>();
 
-        clusterNodes = nodes.stream().map(node -> new ClusterNode(node, electionStrategy)).collect(Collectors.toList());
+        clusterNodes = nodes.stream().map(node -> new ClusterNode(node, electionStrategy)).toList();
 
         initialConfiguration = randomVotingConfig();
         initialValue = randomLong();
@@ -200,7 +200,7 @@ public class CoordinationStateTestCluster {
     }
 
     void broadcast(DiscoveryNode sourceNode, Object payload) {
-        messages.addAll(clusterNodes.stream().map(cn -> new Message(sourceNode, cn.localNode, payload)).collect(Collectors.toList()));
+        clusterNodes.stream().map(cn -> new Message(sourceNode, cn.localNode, payload)).forEach(messages::add);
     }
 
     Optional<ClusterNode> getNode(DiscoveryNode node) {
@@ -251,9 +251,7 @@ public class CoordinationStateTestCluster {
                 } else if (rarely() && rarely()) {
                     randomFrom(clusterNodes).reboot();
                 } else if (rarely()) {
-                    final List<ClusterNode> masterNodes = clusterNodes.stream()
-                        .filter(cn -> cn.state.electionWon())
-                        .collect(Collectors.toList());
+                    final List<ClusterNode> masterNodes = clusterNodes.stream().filter(cn -> cn.state.electionWon()).toList();
                     if (masterNodes.isEmpty() == false) {
                         final ClusterNode clusterNode = randomFrom(masterNodes);
                         final long term = rarely() ? randomLongBetween(0, maxTerm + 1) : clusterNode.state.getCurrentTerm();

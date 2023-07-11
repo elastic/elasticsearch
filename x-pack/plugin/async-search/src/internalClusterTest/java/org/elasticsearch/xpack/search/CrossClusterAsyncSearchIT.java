@@ -346,6 +346,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97286")
     public void testCancellationViaTimeoutWithAllowPartialResultsSetToFalse() throws Exception {
         setupTwoClusters();
 

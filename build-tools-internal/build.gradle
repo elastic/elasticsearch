@@ -155,6 +155,10 @@ gradlePlugin {
       id = 'elasticsearch.standalone-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.StandaloneTestPlugin'
     }
+    stringTemplate {
+       id = 'elasticsearch.string-templates'
+       implementationClass = 'org.elasticsearch.gradle.internal.StringTemplatePlugin'
+     }
     testFixtures {
       id = 'elasticsearch.test.fixtures'
       implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
@@ -199,8 +203,10 @@ gradlePlugin {
  *****************************************************************************/
 
 def minCompilerJava = versions.get("minimumCompilerJava")
-targetCompatibility = minCompilerJava
-sourceCompatibility = minCompilerJava
+java {
+  targetCompatibility = minCompilerJava
+  sourceCompatibility = minCompilerJava
+}
 
 if (JavaVersion.current() < JavaVersion.toVersion(minCompilerJava)) {
   throw new GradleException("Java ${minCompilerJava} is required to build Elasticsearch but current Java is version ${JavaVersion.current()}.")
@@ -269,6 +275,7 @@ dependencies {
   // needs to match the jackson minor version in use
   api buildLibs.json.schema.validator
   api buildLibs.jackson.dataformat.yaml
+  api buildLibs.antlrst4
   api buildLibs.asm
   api buildLibs.asm.tree
   api buildLibs.httpclient

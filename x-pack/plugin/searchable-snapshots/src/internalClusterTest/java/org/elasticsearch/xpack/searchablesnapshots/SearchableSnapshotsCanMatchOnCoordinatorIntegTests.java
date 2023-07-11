@@ -20,7 +20,6 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -47,12 +46,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -63,6 +60,9 @@ import static org.hamcrest.Matchers.sameInstance;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
+
+    private static final String TIMESTAMP_TEMPLATE_WITHIN_RANGE = "2020-11-28T%02d:%02d:%02d.%09dZ";
+    private static final String TIMESTAMP_TEMPLATE_OUTSIDE_RANGE = "2020-11-26T%02d:%02d:%02d.%09dZ";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -117,7 +117,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             indexDocumentsWithTimestampWithinDate(
                 indexOutsideSearchRange,
                 numberOfDocsInIndexOutsideSearchRange,
-                "2020-11-26T%02d:%02d:%02d.%09dZ"
+                TIMESTAMP_TEMPLATE_OUTSIDE_RANGE
             );
         } else {
             indexRandomDocs(indexOutsideSearchRange, numberOfDocsInIndexOutsideSearchRange);
@@ -125,7 +125,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         // Index enough documents to ensure that all shards have at least some documents
         int numDocsWithinRange = between(100, 1000);
-        indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, numDocsWithinRange, "2020-11-28T%02d:%02d:%02d.%09dZ");
+        indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, numDocsWithinRange, TIMESTAMP_TEMPLATE_WITHIN_RANGE);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "mock");
@@ -243,207 +243,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         }
     }
 
-    public void testSearchableSnapshotShardsAreSkippedBySearchShardsAPIWithoutQueryingAnyNodeWhenTheyAreOutsideOfTheQueryRange()
-        throws Exception {
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-        final String dataNodeHoldingRegularIndex = internalCluster().startDataOnlyNode();
-        final String dataNodeHoldingSearchableSnapshot = internalCluster().startDataOnlyNode();
-
-        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNodeHoldingSearchableSnapshot);
-
-        final String indexOutsideSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final int indexOutsideSearchRangeShardCount = randomIntBetween(1, 3);
-        createIndexWithTimestamp(indexOutsideSearchRange, indexOutsideSearchRangeShardCount, Settings.EMPTY);
-
-        final String indexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final int indexWithinSearchRangeShardCount = randomIntBetween(1, 3);
-        createIndexWithTimestamp(
-            indexWithinSearchRange,
-            indexWithinSearchRangeShardCount,
-            Settings.builder()
-                .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingRegularIndex)
-                .build()
-        );
-
-        // Either add data outside of the range, or documents that don't have timestamp data
-        final boolean indexDataWithTimestamp = randomBoolean();
-        // Add enough documents to have non-metadata segment files in all shards,
-        // otherwise the mount operation might go through as the read won't be
-        // blocked
-        final int numberOfDocsInIndexOutsideSearchRange = between(350, 1000);
-        if (indexDataWithTimestamp) {
-            indexDocumentsWithTimestampWithinDate(
-                indexOutsideSearchRange,
-                numberOfDocsInIndexOutsideSearchRange,
-                "2020-11-26T%02d:%02d:%02d.%09dZ"
-            );
-        } else {
-            indexRandomDocs(indexOutsideSearchRange, numberOfDocsInIndexOutsideSearchRange);
-        }
-
-        // Index enough documents to ensure that all shards have at least some documents
-        int numDocsWithinRange = between(100, 1000);
-        indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, numDocsWithinRange, "2020-11-28T%02d:%02d:%02d.%09dZ");
-
-        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createRepository(repositoryName, "mock");
-
-        final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexOutsideSearchRange)).snapshotId();
-        assertAcked(indicesAdmin().prepareDelete(indexOutsideSearchRange));
-
-        final String searchableSnapshotIndexOutsideSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        // Block the repository for the node holding the searchable snapshot shards
-        // to delay its restore
-        blockDataNode(repositoryName, dataNodeHoldingSearchableSnapshot);
-
-        // Force the searchable snapshot to be allocated in a particular node
-        Settings restoredIndexSettings = Settings.builder()
-            .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingSearchableSnapshot)
-            .build();
-
-        final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
-            searchableSnapshotIndexOutsideSearchRange,
-            repositoryName,
-            snapshotId.getName(),
-            indexOutsideSearchRange,
-            restoredIndexSettings,
-            Strings.EMPTY_ARRAY,
-            false,
-            randomFrom(MountSearchableSnapshotRequest.Storage.values())
-        );
-        client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
-
-        final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
-
-        DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
-        assertThat(timestampFieldType, nullValue());
-
-        final boolean includeIndexCoveringSearchRangeInSearchRequest = randomBoolean();
-        List<String> indicesToSearch = new ArrayList<>();
-        if (includeIndexCoveringSearchRangeInSearchRequest) {
-            indicesToSearch.add(indexWithinSearchRange);
-        }
-        indicesToSearch.add(searchableSnapshotIndexOutsideSearchRange);
-
-        boolean allowPartialSearchResults = randomBoolean();
-
-        RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
-            .from("2020-11-28T00:00:00.000000000Z", true)
-            .to("2020-11-29T00:00:00.000000000Z");
-
-        SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
-            indicesToSearch.toArray(new String[0]),
-            SearchRequest.DEFAULT_INDICES_OPTIONS,
-            rangeQuery,
-            null,
-            null,
-            allowPartialSearchResults,
-            randomBoolean() ? null : randomAlphaOfLength(10)
-        );
-
-        if (allowPartialSearchResults) {
-            SearchShardsResponse searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
-            assertNotNull(searchShardsResponse);
-
-            Collection<SearchShardsGroup> groups = searchShardsResponse.getGroups();
-
-            List<SearchShardsGroup> unskippedShardsFromIndexWithinRange = groups.stream()
-                .filter(g -> g.skipped() == false)
-                .filter(g -> g.shardId().getIndex().getName().equals(indexWithinSearchRange))
-                .collect(Collectors.toList());
-
-            if (includeIndexCoveringSearchRangeInSearchRequest) {
-                assertThat(unskippedShardsFromIndexWithinRange.size(), equalTo(indexWithinSearchRangeShardCount));
-            } else {
-                assertThat(unskippedShardsFromIndexWithinRange.size(), equalTo(0));
-            }
-
-            long unskippedShardsFromIndexOutsideRangeCount = groups.stream()
-                .filter(g -> g.skipped() == false)
-                .filter(g -> g.shardId().getIndex().getName().equals(indexOutsideSearchRange))
-                .count();
-            // should be none found because the index in the searchable snapshot has not been mounted
-            assertThat(unskippedShardsFromIndexOutsideRangeCount, equalTo(0L));
-        } else {
-            SearchPhaseExecutionException e = expectThrows(
-                SearchPhaseExecutionException.class,
-                () -> client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet()
-            );
-            assertThat(e.getPhaseName(), equalTo("can_match"));
-            assertThat(e.getMessage(), equalTo("start"));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause().getMessage(), containsString("Search rejected due to missing shards"));
-        }
-
-        // Allow the searchable snapshots to be finally mounted
-        unblockNode(repositoryName, dataNodeHoldingSearchableSnapshot);
-        waitUntilRecoveryIsDone(searchableSnapshotIndexOutsideSearchRange);
-        ensureGreen(searchableSnapshotIndexOutsideSearchRange);
-
-        final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
-        final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex());
-        assertThat(dateFieldType, notNullValue());
-        final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
-        assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
-        if (indexDataWithTimestamp) {
-            assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-            assertThat(
-                updatedTimestampMillisRange.getMin(),
-                greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
-            );
-            assertThat(updatedTimestampMillisRange.getMax(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
-        } else {
-            assertThat(updatedTimestampMillisRange, sameInstance(IndexLongFieldRange.EMPTY));
-        }
-
-        // Stop the node holding the searchable snapshots, and since we defined
-        // the index allocation criteria to require the searchable snapshot
-        // index to be allocated in that node, the shards should remain unassigned
-        internalCluster().stopNode(dataNodeHoldingSearchableSnapshot);
-        waitUntilAllShardsAreUnassigned(updatedIndexMetadata.getIndex());
-
-        if (allowPartialSearchResults) {
-            SearchShardsResponse searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
-            assertNotNull(searchShardsResponse);
-
-            Collection<SearchShardsGroup> groups = searchShardsResponse.getGroups();
-            List<SearchShardsGroup> shardsFromIndexWithinRange = groups.stream()
-                .filter(g -> g.shardId().getIndex().getName().equals(indexWithinSearchRange))
-                .collect(Collectors.toList());
-
-            if (includeIndexCoveringSearchRangeInSearchRequest) {
-                assertThat(shardsFromIndexWithinRange.size(), equalTo(indexWithinSearchRangeShardCount));
-                // all shards should be unskipped (in scope) since this index is within range
-                int unskippedShards = (int) shardsFromIndexWithinRange.stream().filter(g -> g.skipped() == false).count();
-                assertThat(unskippedShards, equalTo(indexWithinSearchRangeShardCount));
-            } else {
-                assertThat(shardsFromIndexWithinRange.size(), equalTo(0));
-            }
-
-            List<SearchShardsGroup> shardsFromIndexOutsideRange = groups.stream()
-                .filter(g -> g.shardId().getIndex().getName().equals(searchableSnapshotIndexOutsideSearchRange))
-                .collect(Collectors.toList());
-            assertThat(shardsFromIndexOutsideRange.size(), equalTo(indexOutsideSearchRangeShardCount));
-            // all shards should be skipped (out of scope) since this index is outside range
-            int skippedShards = (int) shardsFromIndexOutsideRange.stream().filter(g -> g.skipped()).count();
-            assertThat(skippedShards, equalTo(indexOutsideSearchRangeShardCount));
-
-        } else {
-            SearchPhaseExecutionException e = expectThrows(
-                SearchPhaseExecutionException.class,
-                () -> client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet()
-            );
-            assertThat(e.getPhaseName(), equalTo("can_match"));
-            assertThat(e.getMessage(), equalTo("start"));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause().getMessage(), containsString("Search rejected due to missing shards"));
-        }
-    }
-
     public void testQueryPhaseIsExecutedInAnAvailableNodeWhenAllShardsCanBeSkipped() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -461,7 +260,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 .build()
         );
 
-        indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(1, 1000), "2020-11-26T%02d:%02d:%02d.%09dZ");
+        indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(1, 1000), TIMESTAMP_TEMPLATE_OUTSIDE_RANGE);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "mock");
@@ -572,7 +371,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 .build()
         );
 
-        indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, between(1, 1000), "2020-11-28T%02d:%02d:%02d.%09dZ");
+        indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, between(1, 1000), TIMESTAMP_TEMPLATE_WITHIN_RANGE);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "mock");
@@ -648,33 +447,138 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         expectThrows(SearchPhaseExecutionException.class, () -> client().search(request).actionGet());
     }
 
-    public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedBySearchShardsAPI() throws Exception {
+    /**
+     * When the searchable snapshots data nodes are blocked, the SearchShards API should not
+     * result in a can-match match (skipped=true) since they cannot be analyzed.
+     */
+    public void testSearchShardsAPIWithinRangeAgainstBlockedDataStore() throws Exception {
+        int indexWithinSearchRangeShardCount = randomIntBetween(1, 3);
+        String searchableSnapshotIndexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        boolean blockDataNode = true;
+        setupSearchableSnapshots(
+            blockDataNode,
+            indexWithinSearchRangeShardCount,
+            searchableSnapshotIndexWithinSearchRange,
+            TIMESTAMP_TEMPLATE_WITHIN_RANGE
+        );
+
+        SearchShardsResponse searchShardsResponse = executeSearchShardsAPIRequest(searchableSnapshotIndexWithinSearchRange);
+        assertNotNull(searchShardsResponse);
+        /*
+         * The SearchShardsGroup should have shardId info, but note that they are not allocated and thus skipped=false
+         * since they could not be analyzed. Example (two shard scenario):
+         * [SearchShardsGroup{shardId=[uapvsokzud][0], allocatedNodes=[], skipped=false, preFiltered=true},
+         *  SearchShardsGroup{shardId=[uapvsokzud][1], allocatedNodes=[], skipped=false, preFiltered=true},
+         */
+        Collection<SearchShardsGroup> groups = searchShardsResponse.getGroups();
+        assertThat(groups.size(), equalTo(indexWithinSearchRangeShardCount));
+        for (SearchShardsGroup group : groups) {
+            assertFalse(group + " should not be marked as skipped", group.skipped());
+            assertThat(group.shardId().getIndexName(), equalTo(searchableSnapshotIndexWithinSearchRange));
+            // nodes are blocked, so allocated nodes in the response should be empty
+            assertThat(group.allocatedNodes().size(), equalTo(0));
+        }
+    }
+
+    /**
+     * When the searchable snapshots data nodes are unblocked, the SearchShards API should
+     * see allocated nodes, and should not mark them as skipped=true when the timestamp range of the query
+     * is within the range of the index being searched.
+     */
+    public void testSearchShardsAPIWithinRangeAgainstUnblockedDataStore() throws Exception {
+        int indexWithinSearchRangeShardCount = randomIntBetween(1, 3);
+        String searchableSnapshotIndexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        boolean blockDataNode = false;
+        setupSearchableSnapshots(
+            blockDataNode,
+            indexWithinSearchRangeShardCount,
+            searchableSnapshotIndexWithinSearchRange,
+            TIMESTAMP_TEMPLATE_WITHIN_RANGE
+        );
+
+        SearchShardsResponse searchShardsResponse = executeSearchShardsAPIRequest(searchableSnapshotIndexWithinSearchRange);
+        assertNotNull(searchShardsResponse);
+        /*
+         * The SearchShardsGroup should have shardId info, allocatedNodes should be present, but they shards should NOT
+         * be marked as skipped since the index searched was in the timestamp range of the query
+         * Example (two shard scenario):
+         * [SearchShardsGroup{shardId=[kgtrbmoadi][0], allocatedNodes=[E2saPwQpRDeTjXKgDGzlLA], skipped=false, preFiltered=true}
+         *  SearchShardsGroup{shardId=[kgtrbmoadi][1], allocatedNodes=[E2saPwQpRDeTjXKgDGzlLA], skipped=false, preFiltered=true}]
+         */
+        Collection<SearchShardsGroup> groups = searchShardsResponse.getGroups();
+        assertThat(groups.size(), equalTo(indexWithinSearchRangeShardCount));
+        for (SearchShardsGroup group : groups) {
+            assertFalse(group + " should not be marked as skipped", group.skipped());
+            assertThat(group.shardId().getIndexName(), equalTo(searchableSnapshotIndexWithinSearchRange));
+            assertThat(group.allocatedNodes().size(), equalTo(1));
+        }
+    }
+
+    /**
+     * When the searchable snapshots data nodes are unblocked, the SearchShards API should
+     * see allocated nodes, and should mark them as skipped=true when the timestamp range of the query
+     * is outside the range of the index being searched.
+     */
+    public void testSearchShardsAPIOutsideRange() throws Exception {
+        int indexOutsideSearchRangeShardCount = randomIntBetween(1, 3);
+        String searchableSnapshotIndexOutsideSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        boolean blockDataNode = false;
+        setupSearchableSnapshots(
+            blockDataNode,
+            indexOutsideSearchRangeShardCount,
+            searchableSnapshotIndexOutsideSearchRange,
+            TIMESTAMP_TEMPLATE_OUTSIDE_RANGE
+        );
+
+        SearchShardsResponse searchShardsResponse = executeSearchShardsAPIRequest(searchableSnapshotIndexOutsideSearchRange);
+        assertNotNull(searchShardsResponse);
+        /*
+         * The SearchShardsGroup should have shardId info, allocatedNodes should be present, and they shards should
+         * be marked as skipped since the index searched was outside the timestamp range of the query
+         * Example (two shard scenario):
+         * [SearchShardsGroup{shardId=[kgtrbmoadi][0], allocatedNodes=[E2saPwQpRDeTjXKgDGzlLA], skipped=true, preFiltered=true}
+         *  SearchShardsGroup{shardId=[kgtrbmoadi][1], allocatedNodes=[E2saPwQpRDeTjXKgDGzlLA], skipped=true, preFiltered=true}]
+         */
+        Collection<SearchShardsGroup> groups = searchShardsResponse.getGroups();
+        assertThat(groups.size(), equalTo(indexOutsideSearchRangeShardCount));
+        for (SearchShardsGroup group : groups) {
+            assertTrue(group + " should be marked as skipped", group.skipped());
+            assertThat(group.shardId().getIndexName(), equalTo(searchableSnapshotIndexOutsideSearchRange));
+            assertThat(group.allocatedNodes().size(), equalTo(1));
+        }
+    }
+
+    private void setupSearchableSnapshots(
+        boolean blockDataNode,
+        int indexShardCount,
+        String searchableSnapshotIndex,
+        String timestampTemplate
+    ) throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-        final String dataNodeHoldingRegularIndex = internalCluster().startDataOnlyNode();
-        final String dataNodeHoldingSearchableSnapshot = internalCluster().startDataOnlyNode();
-        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNodeHoldingSearchableSnapshot);
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String dataNodeHoldingRegularIndex = internalCluster().startDataOnlyNode();
+        String dataNodeHoldingSearchableSnapshot = internalCluster().startDataOnlyNode();
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNodeHoldingSearchableSnapshot);
 
-        final String indexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final int indexWithinSearchRangeShardCount = randomIntBetween(1, 3);
         createIndexWithTimestamp(
-            indexWithinSearchRange,
-            indexWithinSearchRangeShardCount,
+            indexName,
+            indexShardCount,
             Settings.builder()
                 .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingRegularIndex)
                 .build()
         );
 
-        indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, between(1, 1000), "2020-11-28T%02d:%02d:%02d.%09dZ");
+        indexDocumentsWithTimestampWithinDate(indexName, between(1, 1000), timestampTemplate);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "mock");
 
         // put the index within search range into a snapshot
-        final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexWithinSearchRange)).snapshotId();
-        assertAcked(indicesAdmin().prepareDelete(indexWithinSearchRange));
-
-        final String searchableSnapshotIndexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         // Block the repository for the node holding the searchable snapshot shards
         // to delay its restore
@@ -686,10 +590,10 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             .build();
 
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
-            searchableSnapshotIndexWithinSearchRange,
+            searchableSnapshotIndex,
             repositoryName,
             snapshotId.getName(),
-            indexWithinSearchRange,
+            indexName,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
             false,
@@ -697,17 +601,25 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
 
-        final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexWithinSearchRange);
+        final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndex);
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
         DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
         assertThat(timestampFieldType, nullValue());
 
-        RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
-            .from("2020-11-28T00:00:00.000000000Z", true)
-            .to("2020-11-29T00:00:00.000000000Z");
+        if (blockDataNode == false) {
+            unblockNode(repositoryName, dataNodeHoldingSearchableSnapshot);
+            waitUntilRecoveryIsDone(searchableSnapshotIndex);
+            ensureGreen(searchableSnapshotIndex);
+        }
+    }
 
-        boolean allowPartialSearchResults = randomBoolean();
+    private SearchShardsResponse executeSearchShardsAPIRequest(String searchableSnapshotIndexWithinSearchRange) {
+        RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(DataStream.TIMESTAMP_FIELD_NAME)
+            .from("2020-11-28T00:00:01.000000000Z", true)
+            .to("2020-11-28T23:59:59.000000000Z");
+
+        boolean allowPartialSearchResults = true;
 
         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
             new String[] { searchableSnapshotIndexWithinSearchRange },
@@ -719,103 +631,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             randomBoolean() ? null : randomAlphaOfLength(10)
         );
 
-        if (allowPartialSearchResults) {
-            SearchShardsResponse searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
-            assertNotNull(searchShardsResponse);
-            /*
-             * The SearchShardsGroup should have shardId info, but note that they are not allocated and thus skipped=false
-             * since they could not be analyzed. Example (two shard scenario):
-             * [SearchShardsGroup{shardId=[uapvsokzud][0], allocatedNodes=[], skipped=false, preFiltered=true},
-             *  SearchShardsGroup{shardId=[uapvsokzud][1], allocatedNodes=[], skipped=false, preFiltered=true},
-             */
-            Collection<SearchShardsGroup> groups = searchShardsResponse.getGroups();
-            assertThat(groups.size(), equalTo(indexWithinSearchRangeShardCount));
-            for (SearchShardsGroup group : groups) {
-                assertFalse(group + " should not be marked as skipped", group.skipped());
-                assertThat(group.shardId().getIndexName(), equalTo(searchableSnapshotIndexWithinSearchRange));
-            }
-
-        } else {
-            SearchPhaseExecutionException e = expectThrows(
-                SearchPhaseExecutionException.class,
-                () -> client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet()
-            );
-            assertThat(e.getPhaseName(), equalTo("can_match"));
-            assertThat(e.getMessage(), equalTo("start"));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause().getMessage(), containsString("Search rejected due to missing shards"));
-        }
-
-        // Allow the searchable snapshots to be finally mounted
-        unblockNode(repositoryName, dataNodeHoldingSearchableSnapshot);
-        waitUntilRecoveryIsDone(searchableSnapshotIndexWithinSearchRange);
-        ensureGreen(searchableSnapshotIndexWithinSearchRange);
-
-        final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexWithinSearchRange);
-        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
-        final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex());
-        assertThat(dateFieldType, notNullValue());
-        final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
-        assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
-        assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-        assertThat(updatedTimestampMillisRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-28T00:00:00Z"))));
-        assertThat(updatedTimestampMillisRange.getMax(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-29T00:00:00Z"))));
-
-        {
-            SearchShardsResponse searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
-            assertNotNull(searchShardsResponse);
-            /*
-             * The SearchShardsGroup should have shardId info, and record that they are now allocated
-             * but skipped=false since they could not be analyzed. Example (two shard scenario):
-             * [SearchShardsGroup{shardId=[uapvsokzud][0], allocatedNodes=[fcIc_pm8S_qDMCa9EI_Zig], skipped=false, preFiltered=true},
-             *  SearchShardsGroup{shardId=[uapvsokzud][1], allocatedNodes=[fcIc_pm8S_qDMCa9EI_Zig], skipped=false, preFiltered=true},
-             */
-            Collection<SearchShardsGroup> groups = searchShardsResponse.getGroups();
-            assertThat(groups.size(), equalTo(indexWithinSearchRangeShardCount));
-            ClusterService clusterService = internalCluster().clusterService(dataNodeHoldingSearchableSnapshot);
-            String localNodeIdForSearchableSnapshot = clusterService.state().nodes().getLocalNodeId();
-
-            for (SearchShardsGroup group : groups) {
-                assertFalse(group + " should not be marked as skipped", group.skipped());
-                assertThat(group.allocatedNodes().size(), equalTo(1));
-                assertThat(group.allocatedNodes().get(0), equalTo(localNodeIdForSearchableSnapshot));
-                assertThat(group.shardId().getIndexName(), equalTo(searchableSnapshotIndexWithinSearchRange));
-            }
-        }
-
-        // Stop the node holding the searchable snapshots, and since we defined
-        // the index allocation criteria to require the searchable snapshot
-        // index to be allocated in that node, the shards should remain unassigned
-        internalCluster().stopNode(dataNodeHoldingSearchableSnapshot);
-        waitUntilAllShardsAreUnassigned(updatedIndexMetadata.getIndex());
-
-        if (allowPartialSearchResults) {
-            SearchShardsResponse searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
-            assertNotNull(searchShardsResponse);
-            /*
-             * The SearchShardsGroup should have shardId info, but note that they are not allocated and thus skipped=false
-             * since they could not be analyzed since the searchable snapshot node has been stopped. Example (two shard scenario):
-             * [SearchShardsGroup{shardId=[uapvsokzud][0], allocatedNodes=[], skipped=false, preFiltered=true},
-             *  SearchShardsGroup{shardId=[uapvsokzud][1], allocatedNodes=[], skipped=false, preFiltered=true},
-             */
-            Collection<SearchShardsGroup> groups = searchShardsResponse.getGroups();
-            assertThat(groups.size(), equalTo(indexWithinSearchRangeShardCount));
-            for (SearchShardsGroup group : groups) {
-                assertFalse(group + " should not be marked as skipped", group.skipped());
-                assertThat(group.allocatedNodes().size(), equalTo(0));
-                assertThat(group.shardId().getIndexName(), equalTo(searchableSnapshotIndexWithinSearchRange));
-            }
-
-        } else {
-            SearchPhaseExecutionException e = expectThrows(
-                SearchPhaseExecutionException.class,
-                () -> client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet()
-            );
-            assertThat(e.getPhaseName(), equalTo("can_match"));
-            assertThat(e.getMessage(), equalTo("start"));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause().getMessage(), containsString("Search rejected due to missing shards"));
-        }
+        return client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
     }
 
     private void createIndexWithTimestamp(String indexName, int numShards, Settings extraSettings) throws IOException {

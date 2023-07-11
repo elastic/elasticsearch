@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
@@ -15,7 +16,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -31,8 +31,10 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperat
 import org.elasticsearch.xpack.ql.expression.Attribute;
 
 import java.util.List;
+import java.util.Random;
 import java.util.function.Supplier;
 
+import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static java.util.stream.Collectors.joining;
 
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
@@ -72,14 +74,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         List<GroupingAggregator.Factory> aggregatorFactories,
         Attribute attrSource,
         ElementType groupElementType,
-        BigArrays bigArrays
+        LocalExecutionPlannerContext context
     ) {
         int channelIndex = source.layout.numberOfChannels();
         return new TestOrdinalsGroupingAggregationOperatorFactory(
             channelIndex,
             aggregatorFactories,
             groupElementType,
-            bigArrays,
+            context.bigArrays(),
             attrSource.name()
         );
     }
@@ -249,12 +251,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
         @Override
         public Operator get(DriverContext driverContext) {
+            Random random = Randomness.get();
+            int pageSize = random.nextBoolean() ? randomIntBetween(random, 1, 16) : randomIntBetween(random, 1, 10 * 1024);
             return new TestHashAggregationOperator(
                 aggregators,
                 () -> BlockHash.build(
                     List.of(new HashAggregationOperator.GroupSpec(groupByChannel, groupElementType)),
                     bigArrays,
-                    LuceneSourceOperator.PAGE_SIZE
+                    pageSize
                 ),
                 columnName,
                 driverContext

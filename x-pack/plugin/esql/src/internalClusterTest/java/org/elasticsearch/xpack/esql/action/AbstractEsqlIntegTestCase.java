@@ -99,6 +99,15 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             if (randomBoolean()) {
                 settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
             }
+            if (randomBoolean()) {
+                final int pageSize = switch (between(0, 2)) {
+                    case 0 -> between(1, 16);
+                    case 1 -> between(1, 1024);
+                    case 2 -> between(64, 10 * 1024);
+                    default -> throw new AssertionError("unknown");
+                };
+                settings.put("page_size", pageSize);
+            }
         }
         return new QueryPragmas(settings.build());
     }

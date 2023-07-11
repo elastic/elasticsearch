@@ -218,4 +218,12 @@ public abstract class OperatorTestCase extends ESTestCase {
         assertTrue(driverContext.isFinished());
         assertThat(driverContext.getSnapshot().releasables(), empty());
     }
+
+    public static int randomPageSize() {
+        if (randomBoolean()) {
+            return between(1, 16);
+        } else {
+            return between(1, 16 * 1024);
+        }
+    }
 }

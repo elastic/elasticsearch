@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -78,12 +77,13 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return plan;
     }
 
-    static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
+    protected List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(4);
         esSourceRules.add(new ReplaceAttributeSourceWithDocId());
 
         if (optimizeForEsSource) {
-            esSourceRules.add(new PushTopNToSource());
+            int pageSize = context().configuration().pragmas().pageSize();
+            esSourceRules.add(new PushTopNToSource(pageSize));
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
         }
@@ -243,6 +243,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     private static class PushTopNToSource extends OptimizerRule<TopNExec> {
+        private final int maxPageSize;
+
+        PushTopNToSource(int maxPageSize) {
+            this.maxPageSize = maxPageSize;
+        }
+
         @Override
         protected PhysicalPlan rule(TopNExec topNExec) {
             PhysicalPlan plan = topNExec;
@@ -250,7 +256,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
             boolean canPushDownTopN = child instanceof EsQueryExec
                 || (child instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec);
-            if (canPushDownTopN && canPushDownOrders(topNExec.order()) && ((Integer) topNExec.limit().fold()) <= LuceneOperator.PAGE_SIZE) {
+            if (canPushDownTopN && canPushDownOrders(topNExec.order()) && ((Integer) topNExec.limit().fold()) <= maxPageSize) {
                 var sorts = buildFieldSorts(topNExec.order());
                 var limit = topNExec.limit();
 

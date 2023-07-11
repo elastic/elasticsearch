@@ -102,10 +102,11 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             Function<SearchContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
+            int maxPageSize,
             int limit,
             List<SortBuilder<?>> sorts
         ) {
-            super(searchContexts, queryFunction, dataPartitioning, taskConcurrency, limit);
+            super(searchContexts, queryFunction, dataPartitioning, taskConcurrency, maxPageSize, limit);
             assert sorts != null;
             this.sorts = sorts;
         }

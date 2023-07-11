@@ -141,7 +141,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery());
+        return new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), OperatorTestCase.randomPageSize(), LuceneOperator.NO_LIMIT);
     }
 
     @Override
@@ -179,23 +179,17 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testLoadAll() {
-        loadSimpleAndAssert(CannedSourceOperator.collectPages(simpleInput(between(1_000, 10 * LuceneSourceOperator.PAGE_SIZE))));
+        loadSimpleAndAssert(CannedSourceOperator.collectPages(simpleInput(between(1_000, 100 * 1024))));
     }
 
     public void testLoadAllInOnePage() {
         loadSimpleAndAssert(
-            List.of(
-                CannedSourceOperator.mergePages(
-                    CannedSourceOperator.collectPages(simpleInput(between(1_000, 10 * LuceneSourceOperator.PAGE_SIZE)))
-                )
-            )
+            List.of(CannedSourceOperator.mergePages(CannedSourceOperator.collectPages(simpleInput(between(1_000, 100 * 1024)))))
         );
     }
 
     public void testLoadAllInOnePageShuffled() {
-        Page source = CannedSourceOperator.mergePages(
-            CannedSourceOperator.collectPages(simpleInput(between(1_000, 10 * LuceneSourceOperator.PAGE_SIZE)))
-        );
+        Page source = CannedSourceOperator.mergePages(CannedSourceOperator.collectPages(simpleInput(between(1_000, 100 * 1024))));
         List<Integer> shuffleList = new ArrayList<>();
         IntStream.range(0, source.getPositionCount()).forEach(i -> shuffleList.add(i));
         Randomness.shuffle(shuffleList);
@@ -367,7 +361,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         try (
             Driver driver = new Driver(
                 driverContext,
-                new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
+                new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), randomPageSize(), LuceneOperator.NO_LIMIT),
                 List.of(
                     factory(CoreValuesSourceType.NUMERIC, ElementType.INT, intFt).get(driverContext),
                     factory(CoreValuesSourceType.NUMERIC, ElementType.LONG, longFt).get(driverContext),

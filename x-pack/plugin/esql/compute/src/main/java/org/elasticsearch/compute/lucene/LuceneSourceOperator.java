@@ -46,9 +46,10 @@ public class LuceneSourceOperator extends LuceneOperator {
             Function<SearchContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
+            int maxPageSize,
             int limit
         ) {
-            super(searchContexts, queryFunction, dataPartitioning, taskConcurrency, limit);
+            super(searchContexts, queryFunction, dataPartitioning, taskConcurrency, maxPageSize, limit);
         }
 
         @Override
@@ -62,10 +63,6 @@ public class LuceneSourceOperator extends LuceneOperator {
         public String describe() {
             return "LuceneSourceOperator[dataPartitioning = " + dataPartitioning + ", limit = " + limit + "]";
         }
-    }
-
-    public LuceneSourceOperator(IndexReader reader, int shardId, Query query) {
-        this(reader, shardId, query, PAGE_SIZE, NO_LIMIT);
     }
 
     public LuceneSourceOperator(IndexReader reader, int shardId, Query query, int maxPageSize, int limit) {

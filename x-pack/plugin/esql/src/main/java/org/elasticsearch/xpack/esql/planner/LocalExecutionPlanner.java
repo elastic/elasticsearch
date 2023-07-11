@@ -142,6 +142,7 @@ public class LocalExecutionPlanner {
             new Holder<>(DriverParallelism.SINGLE),
             configuration.pragmas().taskConcurrency(),
             configuration.pragmas().dataPartitioning(),
+            configuration.pragmas().pageSize(),
             bigArrays
         );
 
@@ -300,6 +301,7 @@ public class LocalExecutionPlanner {
             new Holder<>(DriverParallelism.SINGLE),
             1,
             DataPartitioning.SHARD,
+            1,
             BigArrays.NON_RECYCLING_INSTANCE
         );
 
@@ -336,7 +338,7 @@ public class LocalExecutionPlanner {
             throw new UnsupportedOperationException();
         }
 
-        return source.with(new TopNOperatorFactory(limit, orders), source.layout);
+        return source.with(new TopNOperatorFactory(limit, orders, context.pageSize), source.layout);
     }
 
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
@@ -631,6 +633,7 @@ public class LocalExecutionPlanner {
         Holder<DriverParallelism> driverParallelism,
         int taskConcurrency,
         DataPartitioning dataPartitioning,
+        int pageSize,
         BigArrays bigArrays
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
@@ -639,16 +642,6 @@ public class LocalExecutionPlanner {
 
         void driverParallelism(DriverParallelism parallelism) {
             driverParallelism.set(parallelism);
-        }
-
-        public LocalExecutionPlannerContext createSubContext() {
-            return new LocalExecutionPlannerContext(
-                driverFactories,
-                new Holder<>(DriverParallelism.SINGLE),
-                taskConcurrency,
-                dataPartitioning,
-                bigArrays
-            );
         }
     }
 

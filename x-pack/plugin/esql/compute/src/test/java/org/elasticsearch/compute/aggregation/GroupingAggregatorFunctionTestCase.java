@@ -70,6 +70,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
             List.of(supplier.groupingAggregatorFactory(mode)),
+            randomPageSize(),
             bigArrays
         );
     }

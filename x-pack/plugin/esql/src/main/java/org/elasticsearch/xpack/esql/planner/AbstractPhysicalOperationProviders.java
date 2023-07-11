@@ -146,12 +146,13 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                     aggregatorFactories,
                     groupSpecs.get(0).attribute,
                     groupSpecs.get(0).elementType(),
-                    context.bigArrays()
+                    context
                 );
             } else {
                 operatorFactory = new HashAggregationOperatorFactory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorFactories,
+                    context.pageSize(),
                     context.bigArrays()
                 );
             }
@@ -233,6 +234,6 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         List<GroupingAggregator.Factory> aggregatorFactories,
         Attribute attrSource,
         ElementType groupType,
-        BigArrays bigArrays
+        LocalExecutionPlannerContext context
     );
 }

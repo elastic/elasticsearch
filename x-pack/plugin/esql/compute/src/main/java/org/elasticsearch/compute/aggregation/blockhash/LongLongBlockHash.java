@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -67,9 +66,7 @@ final class LongLongBlockHash extends BlockHash {
 
     private void add(LongBlock block1, LongBlock block2, GroupingAggregatorFunction.AddInput addInput) {
         int positions = block1.getPositionCount();
-        LongBlock.Builder ords = LongBlock.newBlockBuilder(
-            Math.min(LuceneSourceOperator.PAGE_SIZE, block1.getPositionCount() * block2.getPositionCount())
-        );
+        LongBlock.Builder ords = LongBlock.newBlockBuilder(Math.min(emitBatchSize, block1.getPositionCount() * block2.getPositionCount()));
         long[] seen1 = EMPTY;
         long[] seen2 = EMPTY;
         int added = 0;
@@ -79,7 +76,7 @@ final class LongLongBlockHash extends BlockHash {
                 ords.appendNull();
                 if (++added % emitBatchSize == 0) {
                     addInput.add(positionOffset, ords.build());
-                    positionOffset = p;
+                    positionOffset = p + 1;
                     ords = LongBlock.newBlockBuilder(positions); // TODO build a clear method on the builder?
                 }
                 continue;
@@ -93,7 +90,7 @@ final class LongLongBlockHash extends BlockHash {
                 ords.appendLong(hashOrdToGroup(hash.add(block1.getLong(start1), block2.getLong(start2))));
                 if (++added % emitBatchSize == 0) {
                     addInput.add(positionOffset, ords.build());
-                    positionOffset = p;
+                    positionOffset = p + 1;
                     ords = LongBlock.newBlockBuilder(positions); // TODO build a clear method on the builder?
                 }
                 continue;
@@ -118,7 +115,7 @@ final class LongLongBlockHash extends BlockHash {
                 ords.appendLong(hashOrdToGroup(hash.add(seen1[0], seen2[0])));
                 if (++added % emitBatchSize == 0) {
                     addInput.add(positionOffset, ords.build());
-                    positionOffset = p;
+                    positionOffset = p + 1;
                     ords = LongBlock.newBlockBuilder(positions); // TODO build a clear method on the builder?
                 }
                 continue;

@@ -32,11 +32,11 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -142,7 +142,7 @@ public class AggregatorBenchmark {
         };
         return new HashAggregationOperator(
             List.of(supplier(op, dataType, groups.size()).groupingAggregatorFactory(AggregatorMode.SINGLE)),
-            () -> BlockHash.build(groups, BIG_ARRAYS, LuceneSourceOperator.PAGE_SIZE),
+            () -> BlockHash.build(groups, BIG_ARRAYS, QueryPragmas.DEFAULT_PAGE_SIZE),
             new DriverContext()
         );
     }

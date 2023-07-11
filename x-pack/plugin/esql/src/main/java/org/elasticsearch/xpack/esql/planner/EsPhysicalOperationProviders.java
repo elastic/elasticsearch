@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.LuceneOperator;
@@ -119,6 +118,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 querySupplier,
                 context.dataPartitioning(),
                 context.taskConcurrency(),
+                context.pageSize(),
                 esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT,
                 fieldSorts
             );
@@ -128,6 +128,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 querySupplier,
                 context.dataPartitioning(),
                 context.taskConcurrency(),
+                context.pageSize(),
                 esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT
             );
         }
@@ -150,7 +151,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<GroupingAggregator.Factory> aggregatorFactories,
         Attribute attrSource,
         ElementType groupElementType,
-        BigArrays bigArrays
+        LocalExecutionPlannerContext context
     ) {
         var sourceAttribute = FieldExtractExec.extractSourceAttributesFrom(aggregateExec.child());
         int docChannel = source.layout.getChannel(sourceAttribute.id());
@@ -166,7 +167,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             docChannel,
             attrSource.name(),
             aggregatorFactories,
-            BigArrays.NON_RECYCLING_INSTANCE
+            context.pageSize(),
+            context.bigArrays()
         );
     }
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -41,7 +40,6 @@ import java.util.stream.StreamSupport;
 
 public abstract class LuceneOperator extends SourceOperator {
 
-    public static final int PAGE_SIZE = Math.toIntExact(ByteSizeValue.ofKb(16).getBytes());
     public static final int NO_LIMIT = Integer.MAX_VALUE;
 
     private static final int MAX_DOCS_PER_SLICE = 250_000; // copied from IndexSearcher
@@ -72,7 +70,7 @@ public abstract class LuceneOperator extends SourceOperator {
         this.leaves = reader.leaves().stream().map(PartialLeafReaderContext::new).collect(Collectors.toList());
         this.query = query;
         this.maxPageSize = maxPageSize;
-        this.minPageSize = maxPageSize / 2;
+        this.minPageSize = Math.max(1, maxPageSize / 2);
     }
 
     LuceneOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves, int maxPageSize) {
@@ -110,13 +108,14 @@ public abstract class LuceneOperator extends SourceOperator {
             Function<SearchContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
+            int maxPageSize,
             int limit
         ) {
             this.searchContexts = searchContexts;
             this.queryFunction = queryFunction;
             this.dataPartitioning = dataPartitioning;
             this.taskConcurrency = taskConcurrency;
-            this.maxPageSize = PAGE_SIZE;
+            this.maxPageSize = maxPageSize;
             this.limit = limit;
         }
 

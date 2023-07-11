@@ -97,6 +97,7 @@ import java.util.function.LongUnaryOperator;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
+import static org.elasticsearch.compute.operator.OperatorTestCase.randomPageSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -176,7 +177,7 @@ public class OperatorTests extends ESTestCase {
                                 0,
                                 fieldName
                             ),
-                            new TopNOperator(limit, List.of(new TopNOperator.SortOrder(1, true, true)))
+                            new TopNOperator(limit, List.of(new TopNOperator.SortOrder(1, true, true)), randomPageSize())
                         ),
                         new PageConsumerOperator(page -> {
                             rowCount.addAndGet(page.getPositionCount());
@@ -215,10 +216,15 @@ public class OperatorTests extends ESTestCase {
                 AtomicInteger rowCount = new AtomicInteger();
 
                 List<Driver> drivers = new ArrayList<>();
+                LuceneSourceOperator luceneOperator = new LuceneSourceOperator(
+                    reader,
+                    0,
+                    new MatchAllDocsQuery(),
+                    randomPageSize(),
+                    LuceneOperator.NO_LIMIT
+                );
                 try {
-                    for (LuceneOperator luceneSourceOperator : new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()).docSlice(
-                        randomIntBetween(1, 10)
-                    )) {
+                    for (LuceneOperator luceneSourceOperator : luceneOperator.docSlice(randomIntBetween(1, 10))) {
                         drivers.add(
                             new Driver(
                                 new DriverContext(),
@@ -271,10 +277,17 @@ public class OperatorTests extends ESTestCase {
             final long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 10000);
             final Query query = LongPoint.newRangeQuery("pt", from, to);
             final String partition = randomFrom("shard", "segment", "doc");
+            final LuceneSourceOperator luceneOperator = new LuceneSourceOperator(
+                reader,
+                0,
+                query,
+                randomPageSize(),
+                LuceneOperator.NO_LIMIT
+            );
             final List<LuceneOperator> queryOperators = switch (partition) {
-                case "shard" -> List.of(new LuceneSourceOperator(reader, 0, query));
-                case "segment" -> new LuceneSourceOperator(reader, 0, query).segmentSlice();
-                case "doc" -> new LuceneSourceOperator(reader, 0, query).docSlice(randomIntBetween(1, 10));
+                case "shard" -> List.of(luceneOperator);
+                case "segment" -> luceneOperator.segmentSlice();
+                case "doc" -> luceneOperator.docSlice(randomIntBetween(1, 10));
                 default -> throw new AssertionError("unknown partition [" + partition + "]");
             };
             List<Driver> drivers = new ArrayList<>();
@@ -391,7 +404,7 @@ public class OperatorTests extends ESTestCase {
                 DriverContext driverContext = new DriverContext();
                 Driver driver = new Driver(
                     driverContext,
-                    new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
+                    new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), randomPageSize(), LuceneOperator.NO_LIMIT),
                     List.of(shuffleDocsOperator, new AbstractPageMappingOperator() {
                         @Override
                         protected Page process(Page page) {
@@ -415,6 +428,7 @@ public class OperatorTests extends ESTestCase {
                             0,
                             gField,
                             List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1)).groupingAggregatorFactory(INITIAL)),
+                            randomPageSize(),
                             bigArrays,
                             driverContext
                         ),
@@ -423,7 +437,7 @@ public class OperatorTests extends ESTestCase {
                             () -> BlockHash.build(
                                 List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)),
                                 bigArrays,
-                                LuceneSourceOperator.PAGE_SIZE
+                                randomPageSize()
                             ),
                             driverContext
                         )

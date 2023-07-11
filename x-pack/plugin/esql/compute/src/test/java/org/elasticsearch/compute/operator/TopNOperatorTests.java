@@ -40,12 +40,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class TopNOperatorTests extends OperatorTestCase {
 
+    private final int pageSize = randomPageSize();
+
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return new TopNOperator.TopNOperatorFactory(4, List.of(new TopNOperator.SortOrder(0, true, false)));
+        return new TopNOperator.TopNOperatorFactory(4, List.of(new TopNOperator.SortOrder(0, true, false)), pageSize);
     }
 
     @Override
@@ -65,6 +68,10 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
+        for (int i = 0; i < results.size() - 1; i++) {
+            assertThat(results.get(i).getPositionCount(), equalTo(pageSize));
+        }
+        assertThat(results.get(results.size() - 1).getPositionCount(), lessThanOrEqualTo(pageSize));
         long[] topN = input.stream()
             .flatMapToLong(
                 page -> IntStream.range(0, page.getPositionCount())
@@ -75,7 +82,6 @@ public class TopNOperatorTests extends OperatorTestCase {
             .limit(4)
             .toArray();
 
-        assertThat(results, hasSize(1));
         results.stream().forEach(page -> assertThat(page.getPositionCount(), equalTo(4)));
         results.stream().forEach(page -> assertThat(page.getBlockCount(), equalTo(1)));
         assertThat(
@@ -283,7 +289,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             Driver driver = new Driver(
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
-                List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false)))),
+                List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false)), randomPageSize())),
                 new PageConsumerOperator(page -> readInto(actualTop, page)),
                 () -> {}
             )
@@ -351,7 +357,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             Driver driver = new Driver(
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
-                List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false)))),
+                List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false)), randomPageSize())),
                 new PageConsumerOperator(page -> readInto(actualTop, page)),
                 () -> {}
             )
@@ -374,7 +380,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             Driver driver = new Driver(
                 driverContext,
                 new TupleBlockSourceOperator(inputValues, randomIntBetween(1, 1000)),
-                List.of(new TopNOperator(limit, sortOrders)),
+                List.of(new TopNOperator(limit, sortOrders, randomPageSize())),
                 new PageConsumerOperator(page -> {
                     LongBlock block1 = page.getBlock(0);
                     LongBlock block2 = page.getBlock(1);
@@ -395,7 +401,8 @@ public class TopNOperatorTests extends OperatorTestCase {
     public void testTopNManyDescriptionAndToString() {
         TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
             10,
-            List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true))
+            List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true)),
+            randomPageSize()
         );
         String sorts = List.of("SortOrder[channel=1, asc=false, nullsFirst=false]", "SortOrder[channel=3, asc=false, nullsFirst=true]")
             .stream()

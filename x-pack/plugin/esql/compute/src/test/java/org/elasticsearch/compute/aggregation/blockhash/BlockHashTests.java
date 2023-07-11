@@ -26,7 +26,6 @@ import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -613,9 +612,10 @@ public class BlockHashTests extends ESTestCase {
         append(b1, b2, v1, v2);
 
         int[] expectedEntries = new int[1];
+        int pageSize = between(1000, 16 * 1024);
         hash(ordsAndKeys -> {
             int start = expectedEntries[0];
-            expectedEntries[0] = Math.min(expectedEntries[0] + LuceneSourceOperator.PAGE_SIZE, v1.length * v2.length);
+            expectedEntries[0] = Math.min(expectedEntries[0] + pageSize, v1.length * v2.length);
             assertThat(
                 ordsAndKeys.description,
                 forcePackedHash
@@ -630,7 +630,7 @@ public class BlockHashTests extends ESTestCase {
                     .toArray(l -> new Object[l][])
             );
             assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, expectedEntries[0])));
-        }, LuceneSourceOperator.PAGE_SIZE, b1.build(), b2.build());
+        }, pageSize, b1.build(), b2.build());
 
         assertThat("misconfigured test", expectedEntries[0], greaterThan(0));
     }
@@ -862,7 +862,7 @@ public class BlockHashTests extends ESTestCase {
                 throw new IllegalStateException("hash produced more than one block");
             }
             result[0] = ordsAndKeys;
-        }, LuceneSourceOperator.PAGE_SIZE, values);
+        }, 16 * 1024, values);
         return result[0];
     }
 

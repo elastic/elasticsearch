@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
@@ -41,16 +40,15 @@ public class HashAggregationOperator implements Operator {
 
     public record GroupSpec(int channel, ElementType elementType) {}
 
-    public record HashAggregationOperatorFactory(List<GroupSpec> groups, List<GroupingAggregator.Factory> aggregators, BigArrays bigArrays)
-        implements
-            OperatorFactory {
+    public record HashAggregationOperatorFactory(
+        List<GroupSpec> groups,
+        List<GroupingAggregator.Factory> aggregators,
+        int maxPageSize,
+        BigArrays bigArrays
+    ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new HashAggregationOperator(
-                aggregators,
-                () -> BlockHash.build(groups, bigArrays, LuceneSourceOperator.PAGE_SIZE),
-                driverContext
-            );
+            return new HashAggregationOperator(aggregators, () -> BlockHash.build(groups, bigArrays, maxPageSize), driverContext);
         }
 
         @Override

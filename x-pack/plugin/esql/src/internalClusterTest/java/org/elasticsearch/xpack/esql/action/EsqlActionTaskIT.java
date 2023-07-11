@@ -61,7 +61,8 @@ import static org.hamcrest.Matchers.not;
  * Tests that we expose a reasonable task status.
  */
 public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
-    private static final int COUNT = LuceneSourceOperator.PAGE_SIZE * 5;
+    private static int PAGE_SIZE;
+    private static int NUM_DOCS;
 
     private static final String READ_DESCRIPTION = """
         \\_LuceneSourceOperator[dataPartitioning = SHARD, limit = 2147483647]
@@ -81,6 +82,9 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() throws IOException {
+        PAGE_SIZE = between(10, 100);
+        NUM_DOCS = between(4 * PAGE_SIZE, 5 * PAGE_SIZE);
+
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("runtime");
         {
@@ -95,7 +99,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         client().admin().indices().prepareCreate("test").setSettings(Map.of("number_of_shards", 1)).setMapping(mapping.endObject()).get();
 
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < COUNT; i++) {
+        for (int i = 0; i < NUM_DOCS; i++) {
             bulk.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
         }
         bulk.get();
@@ -149,7 +153,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         assertThat(exchangeSources, equalTo(1));
 
         drain.await();
-        assertThat(response.get().values(), equalTo(List.of(List.of((long) COUNT))));
+        assertThat(response.get().values(), equalTo(List.of(List.of((long) NUM_DOCS))));
     }
 
     public void testCancelRead() throws Exception {
@@ -189,8 +193,9 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         scriptPermits.set(0);
         scriptStarted.set(false);
         scriptDraining.set(false);
+        var pragmas = new QueryPragmas(Settings.builder().put("data_partitioning", "shard").put("page_size", PAGE_SIZE).build());
         return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query("from test | stats sum(pause_me)")
-            .pragmas(new QueryPragmas(Settings.builder().put("data_partitioning", "shard").build()))
+            .pragmas(pragmas)
             .execute();
     }
 
@@ -320,7 +325,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
                                             if (false == scriptStarted.get()) {
                                                 start.await();
                                                 scriptStarted.set(true);
-                                                scriptPermits.set(LuceneSourceOperator.PAGE_SIZE * 2);
+                                                scriptPermits.set(PAGE_SIZE * 2);
                                                 // Sleeping so when we finish this run we'll be over the limit on this thread
                                                 Thread.sleep(Driver.DEFAULT_TIME_BEFORE_YIELDING.millis());
                                             } else if (false == scriptDraining.get()) {

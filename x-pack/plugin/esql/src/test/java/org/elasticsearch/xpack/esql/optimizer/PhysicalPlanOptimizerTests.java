@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -1271,7 +1270,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testTopNNotPushedDownOnOverlimit() {
-        var optimized = optimizedPlan(physicalPlan("from test | sort emp_no | limit " + (LuceneOperator.PAGE_SIZE + 1) + " | keep emp_no"));
+        int pageSize = config.pragmas().pageSize();
+        var optimized = optimizedPlan(physicalPlan("from test | sort emp_no | limit " + (pageSize + 1) + " | keep emp_no"));
 
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);

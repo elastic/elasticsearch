@@ -69,7 +69,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         }
     }
 
-    private final Iterable<Batch<TreeType>> batches = batches();
+    private Iterable<Batch<TreeType>> batches = null;
 
     protected abstract Iterable<RuleExecutor.Batch<TreeType>> batches();
 
@@ -138,6 +138,9 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         long totalDuration = 0;
 
         Map<Batch<TreeType>, List<Transformation>> transformations = new LinkedHashMap<>();
+        if (batches == null) {
+            batches = batches();
+        }
 
         for (Batch<TreeType> batch : batches) {
             int batchRuns = 0;

@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.BlockOrdinalsReader;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.GroupSpec;
@@ -57,12 +56,13 @@ public class OrdinalsGroupingOperator implements Operator {
         int docChannel,
         String groupingField,
         List<Factory> aggregators,
+        int maxPageSize,
         BigArrays bigArrays
     ) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new OrdinalsGroupingOperator(sources, docChannel, groupingField, aggregators, bigArrays, driverContext);
+            return new OrdinalsGroupingOperator(sources, docChannel, groupingField, aggregators, maxPageSize, bigArrays, driverContext);
         }
 
         @Override
@@ -84,6 +84,7 @@ public class OrdinalsGroupingOperator implements Operator {
     private boolean finished = false;
 
     // used to extract and aggregate values
+    private final int maxPageSize;
     private ValuesAggregator valuesAggregator;
 
     public OrdinalsGroupingOperator(
@@ -91,6 +92,7 @@ public class OrdinalsGroupingOperator implements Operator {
         int docChannel,
         String groupingField,
         List<GroupingAggregator.Factory> aggregatorFactories,
+        int maxPageSize,
         BigArrays bigArrays,
         DriverContext driverContext
     ) {
@@ -106,6 +108,7 @@ public class OrdinalsGroupingOperator implements Operator {
         this.groupingField = groupingField;
         this.aggregatorFactories = aggregatorFactories;
         this.ordinalAggregators = new HashMap<>();
+        this.maxPageSize = maxPageSize;
         this.bigArrays = bigArrays;
         this.driverContext = driverContext;
     }
@@ -162,6 +165,7 @@ public class OrdinalsGroupingOperator implements Operator {
                     groupingField,
                     channelIndex,
                     aggregatorFactories,
+                    maxPageSize,
                     bigArrays,
                     driverContext
                 );
@@ -391,17 +395,14 @@ public class OrdinalsGroupingOperator implements Operator {
             String groupingField,
             int channelIndex,
             List<GroupingAggregator.Factory> aggregatorFactories,
+            int maxPageSize,
             BigArrays bigArrays,
             DriverContext driverContext
         ) {
             this.extractor = new ValuesSourceReaderOperator(sources, docChannel, groupingField);
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
-                () -> BlockHash.build(
-                    List.of(new GroupSpec(channelIndex, sources.get(0).elementType())),
-                    bigArrays,
-                    LuceneSourceOperator.PAGE_SIZE
-                ),
+                () -> BlockHash.build(List.of(new GroupSpec(channelIndex, sources.get(0).elementType())), bigArrays, maxPageSize),
                 driverContext
             );
         }

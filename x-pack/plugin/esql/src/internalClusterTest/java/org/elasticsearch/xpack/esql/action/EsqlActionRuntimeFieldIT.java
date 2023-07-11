@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -43,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
-    private static final int SIZE = LuceneSourceOperator.PAGE_SIZE * 10;
+    private final int SIZE = between(10, 100);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -149,7 +149,7 @@ public class CsvTests extends ESTestCase {
         ZoneOffset.UTC,
         null,
         null,
-        new QueryPragmas(Settings.EMPTY),
+        new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
         EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY)
     );
     private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -193,6 +193,14 @@ public class CsvTests extends ESTestCase {
     public void tearDown() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         super.tearDown();
+    }
+
+    private int randomPageSize() {
+        if (randomBoolean()) {
+            return between(1, 16);
+        } else {
+            return between(1, 16 * 1024);
+        }
     }
 
     public CsvTests(String fileName, String groupName, String testName, Integer lineNumber, CsvSpecReader.CsvTestCase testCase) {

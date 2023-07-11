@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -250,11 +249,11 @@ public class TopNOperator implements Operator {
 
     public record SortOrder(int channel, boolean asc, boolean nullsFirst) {}
 
-    public record TopNOperatorFactory(int topCount, List<SortOrder> sortOrders) implements OperatorFactory {
+    public record TopNOperatorFactory(int topCount, List<SortOrder> sortOrders, int maxPageSize) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new TopNOperator(topCount, sortOrders);
+            return new TopNOperator(topCount, sortOrders, maxPageSize);
         }
 
         @Override
@@ -265,6 +264,7 @@ public class TopNOperator implements Operator {
 
     private final PriorityQueue<Row> inputQueue;
 
+    private final int maxPageSize;
     private RowFactory rowFactory;
 
     // these will be inferred at runtime: one input page might not contain all the information needed
@@ -273,7 +273,8 @@ public class TopNOperator implements Operator {
 
     private Iterator<Page> output;
 
-    public TopNOperator(int topCount, List<SortOrder> sortOrders) {
+    public TopNOperator(int topCount, List<SortOrder> sortOrders, int maxPageSize) {
+        this.maxPageSize = maxPageSize;
         if (sortOrders.size() == 1) {
             // avoid looping over sortOrders if there is only one order
             SortOrder order = sortOrders.get(0);
@@ -392,7 +393,7 @@ public class TopNOperator implements Operator {
         int size = 0;
         for (int i = 0; i < list.size(); i++) {
             if (builders == null) {
-                size = Math.min(LuceneSourceOperator.PAGE_SIZE, list.size() - i);
+                size = Math.min(maxPageSize, list.size() - i);
                 builders = new Block.Builder[rowFactory.size];
                 for (int b = 0; b < builders.length; b++) {
                     builders[b] = outputTypes[b].newBlockBuilder(size);

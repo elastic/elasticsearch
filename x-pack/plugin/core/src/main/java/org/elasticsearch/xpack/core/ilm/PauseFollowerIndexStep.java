@@ -54,11 +54,11 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
 
         PauseFollowAction.Request request = new PauseFollowAction.Request(followerIndex);
         request.masterNodeTimeout(TimeValue.MAX_VALUE);
-        getClient().execute(PauseFollowAction.INSTANCE, request, ActionListener.wrap(r -> {
+        getClient().execute(PauseFollowAction.INSTANCE, request, listener.delegateFailureAndWrap((l, r) -> {
             if (r.isAcknowledged() == false) {
                 throw new ElasticsearchException("pause follow request failed to be acknowledged");
             }
-            listener.onResponse(null);
-        }, listener::onFailure));
+            l.onResponse(null);
+        }));
     }
 }

@@ -525,11 +525,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                     asyncExecutionId,
                     false,
                     false,
-                    outerListener.delegateFailure(
-                        (listener, resp) -> listener.onResponse(
-                            statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded())
-                        )
-                    )
+                    outerListener.map(resp -> statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded()))
                 );
             }
         } catch (Exception exc) {

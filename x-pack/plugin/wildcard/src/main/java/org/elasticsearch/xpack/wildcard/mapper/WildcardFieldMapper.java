@@ -342,7 +342,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 clauseCount++;
             }
             Automaton automaton = caseInsensitive
-                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern), Integer.MAX_VALUE)
+                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern))
                 : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query

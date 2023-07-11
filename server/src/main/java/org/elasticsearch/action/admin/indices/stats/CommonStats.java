@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -140,6 +141,10 @@ public class CommonStats implements Writeable, ToXContentFragment {
     /**
      * Filters the given flags for {@link CommonStatsFlags#SHARD_LEVEL} flags and calculates the corresponding statistics.
      */
+    public static CommonStats getShardLevelStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
+        return getShardLevelStats(() -> indicesQueryCache.getStats(indexShard.shardId()), indexShard, flags);
+    }
+
     public static CommonStats getShardLevelStats(
         Supplier<QueryCacheStats> queryCacheStatsSupplier,
         IndexShard indexShard,
@@ -164,7 +169,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Refresh -> stats.refresh = indexShard.refreshStats();
                     case Flush -> stats.flush = indexShard.flushStats();
                     case Warmer -> stats.warmer = indexShard.warmerStats();
-                    // case QueryCache -> stats.queryCache = indicesQueryCache.getStats(indexShard.shardId());
                     case QueryCache -> stats.queryCache = queryCacheStatsSupplier.get();
                     case FieldData -> stats.fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
                     case Completion -> stats.completion = indexShard.completionStats(flags.completionDataFields());

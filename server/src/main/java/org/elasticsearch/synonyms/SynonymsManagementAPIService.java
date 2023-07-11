@@ -109,7 +109,7 @@ public class SynonymsManagementAPIService {
         - OBJECT_TYPE_FIELD contains SYNONYM_RULE_OBJECT_TYPE
         - The id is calculated using internalSynonymRuleId method
     - Synonym sets:
-        - SYNONYMS_FIELD contains the synonym set name
+        - SYNONYMS_SET_FIELD contains the synonym set name
         - OBJECT_TYPE_FIELD contains SYNONYM_SET_OBJECT_TYPE
         - The id is the synonym set name
      */
@@ -251,8 +251,10 @@ public class SynonymsManagementAPIService {
             // Insert as bulk requests
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             try {
-                // Insert synonym set object
-                bulkRequestBuilder.add(createSynonymSetIndexRequest(synonymSetId));
+                if (created == false) {
+                    // Insert synonym set object
+                    bulkRequestBuilder.add(createSynonymSetIndexRequest(synonymSetId));
+                }
                 // Insert synonym rules
                 for (SynonymRule synonymRule : synonymsSet) {
                     bulkRequestBuilder.add(createSynonymRuleIndexRequest(synonymSetId, synonymRule));
@@ -375,7 +377,7 @@ public class SynonymsManagementAPIService {
     }
 
     private <T> void checkSynonymSetExists(String synonymsSetId, ActionListener<T> listener) {
-        // Search for the synonym set ID
+        // Get the document with the synonym set ID
         client.prepareGet(SYNONYMS_ALIAS_NAME, synonymsSetId)
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymsSetId, listener, (l, searchResponse) -> {
                 if (searchResponse.isExists() == false) {
@@ -386,7 +388,7 @@ public class SynonymsManagementAPIService {
             }));
     }
 
-    // Deletes a synonym set rules and the synonym set object, using the supplied listener
+    // Deletes a synonym set rules, using the supplied listener
     private void deleteSynonymsSetObjects(String synonymSetId, ActionListener<BulkByScrollResponse> listener) {
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_ALIAS_NAME).setQuery(
             QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId)

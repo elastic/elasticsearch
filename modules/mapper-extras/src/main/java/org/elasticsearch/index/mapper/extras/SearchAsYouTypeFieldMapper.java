@@ -747,17 +747,19 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
+        return subfieldsAndMultifieldsIterator();
+    }
+
+    private Iterator<Mapper> subfieldsAndMultifieldsIterator() {
         List<Mapper> subIterators = new ArrayList<>();
         subIterators.add(prefixField);
         subIterators.addAll(Arrays.asList(shingleFields));
-        @SuppressWarnings("unchecked")
-        Iterator<Mapper> concat = Iterators.concat(super.iterator(), subIterators.iterator());
-        return concat;
+        return Iterators.concat(multiFieldsIterator(), subIterators.iterator());
     }
 
     @Override
     public Iterator<Mapper> sourcePathUsedBy() {
-        return iterator();
+        return subfieldsAndMultifieldsIterator();
     }
 
     /**

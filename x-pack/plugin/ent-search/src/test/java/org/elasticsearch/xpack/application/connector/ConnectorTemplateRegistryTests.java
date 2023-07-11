@@ -55,9 +55,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.ACCESS_CONTROL_INDEX_NAME_PATTERN;
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.CONNECTOR_INDEX_NAME_PATTERN;
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.ACCESS_CONTROL_INDEX_NAME_PATTERN;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -92,15 +92,15 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         Map<String, Integer> existingComponentTemplates = Map.of(
-            ConnectorConstants.CONNECTOR_TEMPLATE_NAME + "-mappings",
+            ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-mappings",
             ConnectorTemplateRegistry.REGISTRY_VERSION,
-            ConnectorConstants.CONNECTOR_TEMPLATE_NAME + "-settings",
+            ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-settings",
             ConnectorTemplateRegistry.REGISTRY_VERSION,
-            ConnectorConstants.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-mappings",
+            ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-mappings",
             ConnectorTemplateRegistry.REGISTRY_VERSION,
-            ConnectorConstants.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-settings",
+            ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-settings",
             ConnectorTemplateRegistry.REGISTRY_VERSION,
-            ConnectorConstants.ACCESS_CONTROL_TEMPLATE_NAME,
+            ConnectorTemplateRegistry.ACCESS_CONTROL_TEMPLATE_NAME,
             ConnectorTemplateRegistry.REGISTRY_VERSION
         );
 
@@ -132,7 +132,10 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(
             Collections.emptyMap(),
             Collections.emptyMap(),
-            Collections.singletonMap(ConnectorConstants.ENT_SEARCH_GENERIC_PIPELINE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION),
+            Collections.singletonMap(
+                ConnectorTemplateRegistry.ENT_SEARCH_GENERIC_PIPELINE_NAME,
+                ConnectorTemplateRegistry.REGISTRY_VERSION
+            ),
             Collections.emptyMap(),
             nodes
         );
@@ -163,10 +166,13 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(
             Collections.emptyMap(),
             Collections.singletonMap(
-                ConnectorConstants.CONNECTOR_TEMPLATE_NAME + "-settings",
+                ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-settings",
                 ConnectorTemplateRegistry.REGISTRY_VERSION - 1
             ),
-            Collections.singletonMap(ConnectorConstants.ENT_SEARCH_GENERIC_PIPELINE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION),
+            Collections.singletonMap(
+                ConnectorTemplateRegistry.ENT_SEARCH_GENERIC_PIPELINE_NAME,
+                ConnectorTemplateRegistry.REGISTRY_VERSION
+            ),
             Collections.emptyMap(),
             nodes
         );
@@ -182,8 +188,11 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(
             Collections.emptyMap(),
-            Collections.singletonMap(ConnectorConstants.CONNECTOR_TEMPLATE_NAME + "-mappings", null),
-            Collections.singletonMap(ConnectorConstants.ENT_SEARCH_GENERIC_PIPELINE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION),
+            Collections.singletonMap(ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-mappings", null),
+            Collections.singletonMap(
+                ConnectorTemplateRegistry.ENT_SEARCH_GENERIC_PIPELINE_NAME,
+                ConnectorTemplateRegistry.REGISTRY_VERSION
+            ),
             Collections.emptyMap(),
             nodes
         );
@@ -198,11 +207,11 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, Integer> versions = new HashMap<>();
-        versions.put(ConnectorConstants.CONNECTOR_TEMPLATE_NAME + "-mappings", ConnectorTemplateRegistry.REGISTRY_VERSION);
-        versions.put(ConnectorConstants.CONNECTOR_TEMPLATE_NAME + "-settings", ConnectorTemplateRegistry.REGISTRY_VERSION);
-        versions.put(ConnectorConstants.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-mappings", ConnectorTemplateRegistry.REGISTRY_VERSION);
-        versions.put(ConnectorConstants.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-settings", ConnectorTemplateRegistry.REGISTRY_VERSION);
-        versions.put(ConnectorConstants.ACCESS_CONTROL_TEMPLATE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION);
+        versions.put(ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-mappings", ConnectorTemplateRegistry.REGISTRY_VERSION);
+        versions.put(ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-settings", ConnectorTemplateRegistry.REGISTRY_VERSION);
+        versions.put(ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-mappings", ConnectorTemplateRegistry.REGISTRY_VERSION);
+        versions.put(ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-settings", ConnectorTemplateRegistry.REGISTRY_VERSION);
+        versions.put(ConnectorTemplateRegistry.ACCESS_CONTROL_TEMPLATE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION);
         ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(Collections.emptyMap(), versions, nodes);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutPipelineAction) {
@@ -227,23 +236,23 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
 
         versions.clear();
         versions.put(
-            ConnectorConstants.CONNECTOR_TEMPLATE_NAME + "-mappings",
+            ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-mappings",
             ConnectorTemplateRegistry.REGISTRY_VERSION + randomIntBetween(0, 1000)
         );
         versions.put(
-            ConnectorConstants.CONNECTOR_TEMPLATE_NAME + "-settings",
+            ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-settings",
             ConnectorTemplateRegistry.REGISTRY_VERSION + randomIntBetween(0, 1000)
         );
         versions.put(
-            ConnectorConstants.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-mappings",
+            ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-mappings",
             ConnectorTemplateRegistry.REGISTRY_VERSION + randomIntBetween(0, 1000)
         );
         versions.put(
-            ConnectorConstants.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-settings",
+            ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-settings",
             ConnectorTemplateRegistry.REGISTRY_VERSION + randomIntBetween(0, 1000)
         );
         versions.put(
-            ConnectorConstants.ACCESS_CONTROL_TEMPLATE_NAME,
+            ConnectorTemplateRegistry.ACCESS_CONTROL_TEMPLATE_NAME,
             ConnectorTemplateRegistry.REGISTRY_VERSION + randomIntBetween(0, 1000)
         );
         ClusterChangedEvent higherVersionEvent = createClusterChangedEvent(Collections.emptyMap(), versions, nodes);
@@ -260,7 +269,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         });
 
         ClusterChangedEvent event = createClusterChangedEvent(
-            Collections.singletonMap(ConnectorConstants.CONNECTOR_TEMPLATE_NAME, null),
+            Collections.singletonMap(ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME, null),
             Collections.emptyMap(),
             nodes
         );

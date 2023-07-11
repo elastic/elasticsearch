@@ -27,17 +27,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.ACCESS_CONTROL_INDEX_NAME_PATTERN;
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.ACCESS_CONTROL_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.CONNECTOR_INDEX_NAME_PATTERN;
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN;
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.CONNECTOR_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.ENT_SEARCH_GENERIC_PIPELINE_FILE;
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.ENT_SEARCH_GENERIC_PIPELINE_NAME;
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.ROOT_RESOURCE_PATH;
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.ROOT_TEMPLATE_RESOURCE_PATH;
-import static org.elasticsearch.xpack.application.connector.ConnectorConstants.TEMPLATE_VERSION_VARIABLE;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
@@ -47,32 +36,61 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     // This number must be incremented when we make changes to built-in templates.
     static final int REGISTRY_VERSION = 1;
 
+    // Connector indices constants
+
+    public static final String CONNECTOR_INDEX_NAME_PATTERN = ".elastic-connectors-v" + REGISTRY_VERSION;
+    public static final String CONNECTOR_TEMPLATE_NAME = "elastic-connectors";
+
+    public static final String CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN = ".elastic-connectors-sync-jobs-v" + REGISTRY_VERSION;
+    public static final String CONNECTOR_SYNC_JOBS_TEMPLATE_NAME = "elastic-connectors-sync-jobs";
+
+    public static final String ACCESS_CONTROL_INDEX_NAME_PATTERN = ".search-acl-filter-*";
+    public static final String ACCESS_CONTROL_TEMPLATE_NAME = "search-acl-filter";
+
+    // Pipeline constants
+
+    public static final String ENT_SEARCH_GENERIC_PIPELINE_NAME = "ent-search-generic-ingestion";
+    public static final String ENT_SEARCH_GENERIC_PIPELINE_FILE = "generic_ingestion_pipeline";
+
+    // Resource config
+    public static final String ROOT_RESOURCE_PATH = "/org/elasticsearch/xpack/entsearch/";
+    public static final String ROOT_TEMPLATE_RESOURCE_PATH = ROOT_RESOURCE_PATH + "connector/";
+
+    // Variable used to replace template version in index templates
+    public static final String TEMPLATE_VERSION_VARIABLE = "xpack.application.connector.template.version";
+
+    private static final String MAPPINGS_SUFFIX = "-mappings";
+
+    private static final String SETTINGS_SUFFIX = "-settings";
+
+    private static final String JSON_EXTENSION = ".json";
+
     static final Map<String, ComponentTemplate> COMPONENT_TEMPLATES;
 
     static {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
         for (IndexTemplateConfig config : List.of(
             new IndexTemplateConfig(
-                CONNECTOR_TEMPLATE_NAME + "-mappings",
-                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + "-mappings.json",
+                CONNECTOR_TEMPLATE_NAME + MAPPINGS_SUFFIX,
+                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + MAPPINGS_SUFFIX + JSON_EXTENSION,
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
-                CONNECTOR_TEMPLATE_NAME + "-settings",
-                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + "-settings.json",
+                CONNECTOR_TEMPLATE_NAME + SETTINGS_SUFFIX,
+                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + SETTINGS_SUFFIX + JSON_EXTENSION,
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
-                CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-mappings",
-                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-mappings.json",
+                CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + MAPPINGS_SUFFIX,
+                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + MAPPINGS_SUFFIX + JSON_EXTENSION,
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
-                CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-settings",
-                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + "-settings.json",
+                CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + SETTINGS_SUFFIX,
+                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + SETTINGS_SUFFIX + JSON_EXTENSION,
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE
             )
@@ -152,18 +170,13 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected boolean requiresMasterNode() {
-        // We are using the composable index template and component APIs,
-        // these APIs aren't supported in 7.7 and earlier and in mixed cluster
-        // environments this can cause a lot of ActionNotFoundTransportException
-        // errors in the logs during rolling upgrades. If these templates
-        // are only installed via elected master node then the APIs are always
-        // there and the ActionNotFoundTransportException errors are then prevented.
+        // Necessary to prevent conflicts in some mixed-cluster environments with pre-7.7 nodes
         return true;
     }
 
     @Override
     protected boolean isClusterReady(ClusterChangedEvent event) {
-        // Ensure templates are installed only once all nodes are updated to 8.8.0.
+        // Ensure templates are installed only once all nodes are updated to 8.10.0.
         Version minNodeVersion = event.state().nodes().getMinNodeVersion();
         return minNodeVersion.onOrAfter(MIN_NODE_VERSION);
     }

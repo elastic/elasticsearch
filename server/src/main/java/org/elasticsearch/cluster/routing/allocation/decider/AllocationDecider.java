@@ -42,7 +42,7 @@ public abstract class AllocationDecider {
     }
 
     /**
-     * Returns a {@link Decision} whether the given shard routing can be remain
+     * Returns a {@link Decision} whether the given shard routing can remain
      * on the given node. The default is {@link Decision#ALWAYS}.
      */
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

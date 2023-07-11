@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -49,6 +51,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
@@ -894,6 +897,74 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         decision = decider.canRemain(
             metadata.getIndexSafe(test_0.index()),
             test_0.initialize(node_0.getId(), null, 0L).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+            routingNode,
+            allocation
+        );
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
+    }
+
+    public void testDecidesYesIfPromotableShardRole() {
+        final Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.V_8_10_0)).numberOfShards(1).numberOfReplicas(0))
+            .build();
+        final Index index = metadata.index("test").getIndex();
+        ShardRouting shardRouting = ShardRouting.newUnassigned(
+            new ShardId(index, 0),
+            true,
+            EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
+            ShardRouting.Role.INDEX_ONLY
+        );
+
+        final var node = DiscoveryNodeUtils.builder("node_id").name("node_name").roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder(new ShardRoutingRoleStrategy() {
+                @Override
+                public ShardRouting.Role newEmptyRole(int copyIndex) {
+                    return ShardRouting.Role.INDEX_ONLY;
+                }
+
+                @Override
+                public ShardRouting.Role newReplicaRole() {
+                    return ShardRouting.Role.DEFAULT;
+                }
+            }).addAsNew(metadata.index("test")).build())
+            .nodes(DiscoveryNodes.builder().add(node))
+            .build();
+
+        var diskUsageMap = Map.of("node", new DiskUsage(node.getId(), node.getName(), "_na_", 100, 0)); // all full
+        final ClusterInfo clusterInfo = new ClusterInfo(
+            diskUsageMap,
+            diskUsageMap,
+            Map.of("[test][0][p]", 10L),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
+
+        DiskThresholdDecider decider = new DiskThresholdDecider(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        RoutingAllocation allocation = new RoutingAllocation(
+            new AllocationDeciders(Collections.singleton(decider)),
+            clusterState,
+            clusterInfo,
+            null,
+            System.nanoTime()
+        );
+        allocation.debugDecision(true);
+        final RoutingNode routingNode = RoutingNodesHelper.routingNode(node.getId(), node);
+        Decision decision = decider.canAllocate(shardRouting, routingNode, allocation);
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
+
+        decision = decider.canRemain(
+            metadata.getIndexSafe(shardRouting.index()),
+            shardRouting.initialize(node.getId(), null, 0L).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
             routingNode,
             allocation
         );

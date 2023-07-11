@@ -190,7 +190,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
+        if (ignoreDiskWatermarksForShard(allocation, shardRouting)) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -348,7 +348,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
+        if (ignoreDiskWatermarksForShard(allocation, shardRouting)) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -388,7 +388,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (indexMetadata.ignoreDiskWatermarks()) {
+        if (indexMetadata.ignoreDiskWatermarks() || ignoreDiskWatermarksForShard(allocation, shardRouting)) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -463,6 +463,10 @@ public class DiskThresholdDecider extends AllocationDecider {
             "there is enough disk on this node for the shard to remain, free: [%s]",
             ByteSizeValue.ofBytes(freeBytes)
         );
+    }
+
+    private static boolean ignoreDiskWatermarksForShard(RoutingAllocation allocation, ShardRouting shardRouting) {
+        return shardRouting.role().isPromotableToPrimary() || allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks();
     }
 
     private static DiskUsageWithRelocations getDiskUsage(

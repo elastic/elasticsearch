@@ -1,0 +1,5 @@
+pr: 97557
+summary: Run downsampling using persistent tasks
+area: Downsampling
+type: enhancement
+issues: []

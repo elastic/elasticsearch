@@ -13,6 +13,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -85,7 +86,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
     @Override
     public SortedBinaryDocValues getBytesValues() {
-        return preComputeDocValueCount(getOrdinalsValues());
+        return FieldData.toString(getOrdinalsValues());
     }
 
     /**
@@ -162,6 +163,8 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
          */
         private long cachedNextOrd;
 
+        private int count;
+
         private KeyedFlattenedDocValues(BytesRef key, SortedSetDocValues delegate, long minOrd, long maxOrd) {
             assert minOrd >= 0 && maxOrd >= 0;
             this.key = key;
@@ -169,6 +172,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             this.minOrd = minOrd;
             this.maxOrd = maxOrd;
             this.cachedNextOrd = -1;
+            this.count = -1;
         }
 
         @Override
@@ -210,12 +214,35 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
         @Override
         public int docValueCount() {
-            return delegate.docValueCount();
+            return count;
         }
 
         @Override
         public boolean advanceExact(int target) throws IOException {
             if (delegate.advanceExact(target)) {
+
+                int count = 0;
+                while (true) {
+                    long ord = delegate.nextOrd();
+                    if (ord == NO_MORE_ORDS || ord > maxOrd) {
+                        break;
+                    }
+                    if (ord >= minOrd) {
+                        count++;
+                    }
+                }
+                if (count == 0) {
+                    this.count = -1;
+                    this.cachedNextOrd = -1;
+                    return false;
+                }
+                this.count = count;
+
+                // It is a match, but still need to reset the iterator on the current doc and
+                // iterate the delegate until at least minOrd has been seen.
+                boolean advanced = delegate.advanceExact(target);
+                assert advanced;
+
                 while (true) {
                     long ord = delegate.nextOrd();
                     if (ord == NO_MORE_ORDS || ord > maxOrd) {
@@ -230,6 +257,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             }
 
             cachedNextOrd = -1;
+            count = -1;
             return false;
         }
 
@@ -250,49 +278,5 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             assert 0 <= ord && ord <= maxOrd - minOrd;
             return ord + minOrd;
         }
-    }
-
-    /**
-     * Note: If {@link SortedSetDocValues#docValueCount()} is equal to the number of ordinals returned by
-     * {@link SortedSetDocValues#nextOrd()} then use {@link org.elasticsearch.index.fielddata.FieldData#toString(SortedSetDocValues)}
-     * instead of this implementation.
-     *
-     * @return a {@link SortedBinaryDocValues} instance that wraps a {@link SortedSetDocValues} instance that pre-computes doc count
-     * when advancing to a docId that matches. This is needed in some cases when the {@link SortedSetDocValues#docValueCount()} returns
-     * a count that is <b>not</b> equal to number of ordinals (via {@link SortedSetDocValues#nextOrd()}. This requires advancing the
-     * provided {@link SortedSetDocValues} twice.
-     */
-    static SortedBinaryDocValues preComputeDocValueCount(final SortedSetDocValues values) {
-        return new SortedBinaryDocValues() {
-            private int count = 0;
-
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                if (values.advanceExact(doc) == false) {
-                    return false;
-                }
-                for (int i = 0;; ++i) {
-                    if (values.nextOrd() == SortedSetDocValues.NO_MORE_ORDS) {
-                        count = i;
-                        break;
-                    }
-                }
-                // reset the iterator on the current doc
-                boolean advanced = values.advanceExact(doc);
-                assert advanced;
-                return true;
-            }
-
-            @Override
-            public int docValueCount() {
-                return count;
-            }
-
-            @Override
-            public BytesRef nextValue() throws IOException {
-                return values.lookupOrd(values.nextOrd());
-            }
-
-        };
     }
 }

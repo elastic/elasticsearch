@@ -490,14 +490,24 @@ public class IndicesService extends AbstractLifecycleComponent
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
         final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
 
-        Function<IndexShard, Supplier<QueryCacheStats>> queryCacheStatsSupplier = (flags.isSet(Flag.QueryCache))
-            ? indexShard -> () -> indicesService.getIndicesQueryCache().getStats(indexShard.shardId())
-            : indexShard -> () -> null;
+        Function<IndexShard, Supplier<QueryCacheStats>> queryCacheStatsCreator = indexShard -> () -> null;
+
+        if (flags.isSet(Flag.QueryCache)) {
+            var generalStats = indicesService.getIndicesQueryCache().getGeneralStats();
+            queryCacheStatsCreator = indexShard -> () -> Objects.requireNonNullElseGet(
+                generalStats.get(indexShard.shardId()),
+                QueryCacheStats::new
+            );
+        }
 
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
                 try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(queryCacheStatsSupplier.apply(indexShard), indexShard, flags);
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(
+                        queryCacheStatsCreator.apply(indexShard),
+                        indexShard,
+                        flags
+                    );
 
                     if (indexShardStats == null) {
                         continue;
@@ -518,7 +528,11 @@ public class IndicesService extends AbstractLifecycleComponent
         return statsByShard;
     }
 
-    IndexShardStats indexShardStats(final Supplier<QueryCacheStats> queryCacheStatsSupplier, final IndexShard indexShard, final CommonStatsFlags flags) {
+    IndexShardStats indexShardStats(
+        final Supplier<QueryCacheStats> queryCacheStatsSupplier,
+        final IndexShard indexShard,
+        final CommonStatsFlags flags
+    ) {
         if (indexShard.routingEntry() == null) {
             return null;
         }
@@ -543,11 +557,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 new ShardStats(
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
-                    CommonStats.getShardLevelStats(
-                        queryCacheStatsSupplier,
-//                        indicesService.getIndicesQueryCache(),
-                        indexShard,
-                        flags),
+                    CommonStats.getShardLevelStats(queryCacheStatsSupplier, indexShard, flags),
                     commitStats,
                     seqNoStats,
                     retentionLeaseStats,

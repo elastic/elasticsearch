@@ -1611,9 +1611,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardStats stats = new ShardStats(
             shard.routingEntry(),
             shard.shardPath(),
-            CommonStats.getShardLevelStats(QueryCacheStats::new,
-//                new IndicesQueryCache(Settings.EMPTY),
-                shard, new CommonStatsFlags()),
+            CommonStats.getShardLevelStats(QueryCacheStats::new, shard, new CommonStatsFlags()),
             shard.commitStats(),
             shard.seqNoStats(),
             shard.getRetentionLeaseStats(),

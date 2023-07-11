@@ -529,6 +529,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final IndicesService mockIndicesService = mock(IndicesService.class);
         final IndexService indexService = mock(IndexService.class);
 
+        when(mockIndicesService.getIndicesQueryCache()).thenReturn(mock(IndicesQueryCache.class));
+
         // generate fake shards and their responses
         for (int i = 0; i < shardCount; ++i) {
             final IndexShard shard = mock(IndexShard.class);

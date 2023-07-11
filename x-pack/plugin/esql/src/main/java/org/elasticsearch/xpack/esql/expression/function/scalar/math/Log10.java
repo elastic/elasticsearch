@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Function;
@@ -32,11 +34,34 @@ public class Log10 extends UnaryScalarFunction implements Mappable {
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
         Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
-        return () -> new Log10Evaluator(field.get());
+        var fieldType = field().dataType();
+        var eval = field.get();
+
+        if (fieldType == DataTypes.DOUBLE) {
+            return () -> new Log10DoubleEvaluator(eval);
+        }
+        if (fieldType == DataTypes.INTEGER) {
+            return () -> new Log10IntEvaluator(eval);
+        }
+        if (fieldType == DataTypes.LONG) {
+            return () -> new Log10LongEvaluator(eval);
+        }
+
+        throw new UnsupportedOperationException("Unsupported type " + fieldType);
     }
 
-    @Evaluator
+    @Evaluator(extraName = "Double")
     static double process(double val) {
+        return Math.log10(val);
+    }
+
+    @Evaluator(extraName = "Long")
+    static double process(long val) {
+        return Math.log10(val);
+    }
+
+    @Evaluator(extraName = "Int")
+    static double process(int val) {
         return Math.log10(val);
     }
 
@@ -48,6 +73,11 @@ public class Log10 extends UnaryScalarFunction implements Mappable {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Log10::new, field());
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataTypes.DOUBLE;
     }
 
     @Override

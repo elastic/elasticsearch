@@ -12,11 +12,11 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class Log10Tests extends AbstractScalarFunctionTestCase {
@@ -28,7 +28,7 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression expressionForSimpleData() {
-        return new Log10(Source.EMPTY, field("arg", DataTypes.DOUBLE));
+        return new Log10(Source.EMPTY, field("arg", DOUBLE));
     }
 
     @Override
@@ -43,12 +43,12 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "Log10Evaluator[val=Attribute[channel=0]]";
+        return "Log10DoubleEvaluator[val=Attribute[channel=0]]";
     }
 
     @Override
     protected Expression constantFoldable(List<Object> data) {
-        return new Log10(Source.EMPTY, new Literal(Source.EMPTY, data.get(0), DataTypes.DOUBLE));
+        return new Log10(Source.EMPTY, new Literal(Source.EMPTY, data.get(0), DOUBLE));
     }
 
     @Override
@@ -63,6 +63,6 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
-        return argTypes.get(0);
+        return DOUBLE;
     }
 }

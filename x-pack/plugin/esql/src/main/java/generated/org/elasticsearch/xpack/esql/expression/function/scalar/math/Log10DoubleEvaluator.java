@@ -16,10 +16,10 @@ import org.elasticsearch.compute.operator.EvalOperator;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Log10}.
  * This class is generated. Do not edit it.
  */
-public final class Log10Evaluator implements EvalOperator.ExpressionEvaluator {
+public final class Log10DoubleEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator val;
 
-  public Log10Evaluator(EvalOperator.ExpressionEvaluator val) {
+  public Log10DoubleEvaluator(EvalOperator.ExpressionEvaluator val) {
     this.val = val;
   }
 
@@ -59,6 +59,6 @@ public final class Log10Evaluator implements EvalOperator.ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "Log10Evaluator[" + "val=" + val + "]";
+    return "Log10DoubleEvaluator[" + "val=" + val + "]";
   }
 }

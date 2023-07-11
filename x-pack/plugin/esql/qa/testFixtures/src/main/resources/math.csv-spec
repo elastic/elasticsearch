@@ -214,6 +214,13 @@ d:double | s:boolean
 Infinity | true
 ;
 
+log10ofLong
+row d = 10 | eval l = log10(10);
+
+d:i | l:double
+10  | 1
+;
+
 powDoubleDouble
 // tag::pow[]
 ROW base = 2.0, exponent = 2.0

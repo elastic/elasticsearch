@@ -44,15 +44,15 @@ public class SecuritySystemIndices {
         "-2130894359"
     );
 
-    // 9 - change of origin, and requiring index formats for prior descriptors
-    public static final SystemIndexDescriptor.IndexFormat INTERNAL_PROFILE_INDEX_FORMAT_9 = new SystemIndexDescriptor.IndexFormat(
-        9,
-        "-1639937422"
-    );
-    // 8 - original version
+    // 8 - change of origin, and requiring index formats for prior descriptors
     public static final SystemIndexDescriptor.IndexFormat INTERNAL_PROFILE_INDEX_FORMAT_8 = new SystemIndexDescriptor.IndexFormat(
         8,
         "-1639937421"
+    );
+    // 7 - original version
+    public static final SystemIndexDescriptor.IndexFormat INTERNAL_PROFILE_INDEX_FORMAT_7 = new SystemIndexDescriptor.IndexFormat(
+        7,
+        "-1639937428"
     );
 
     public static final String SECURITY_MAIN_ALIAS = ".security";
@@ -800,7 +800,7 @@ public class SecuritySystemIndices {
             .setMappings(getProfileIndexMappings())
             .setSettings(getProfileIndexSettings())
             .setAliasName(SECURITY_PROFILE_ALIAS)
-            .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT_9)
+            .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT_8)
             .setVersionMetaKey(SECURITY_VERSION_STRING)
             .setOrigin(SECURITY_PROFILE_ORIGIN) // new origin since 8.3
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
@@ -813,10 +813,13 @@ public class SecuritySystemIndices {
                         .setDescription("Contains user profile documents")
                         .setMappings(getProfileIndexMappings())
                         .setSettings(
-                            Settings.builder().put(getProfileIndexSettings()).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 8).build()
+                            Settings.builder()
+                                .put(getProfileIndexSettings())
+                                .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_PROFILE_INDEX_FORMAT_7.version())
+                                .build()
                         )
                         .setAliasName(SECURITY_PROFILE_ALIAS)
-                        .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT_8) // before we required different index formats for prior descriptors
+                        .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT_7) // before we required different index formats for prior descriptors
                         .setVersionMetaKey(SECURITY_VERSION_STRING)
                         .setOrigin(SECURITY_ORIGIN)
                         .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
@@ -833,7 +836,7 @@ public class SecuritySystemIndices {
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
             .put("index.refresh_interval", "1s")
-            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_PROFILE_INDEX_FORMAT_9.version())
+            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_PROFILE_INDEX_FORMAT_8.version())
             .put("analysis.filter.email.type", "pattern_capture")
             .put("analysis.filter.email.preserve_original", true)
             .putList("analysis.filter.email.patterns", List.of("([^@]+)", "(\\p{L}+)", "(\\d+)", "@(.+)"))

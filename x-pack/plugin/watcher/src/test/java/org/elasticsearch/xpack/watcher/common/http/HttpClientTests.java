@@ -808,6 +808,29 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
+    public void testNoCookies() throws IOException {
+        /*
+         * In this test we make the same request twice, and assert that the second request is not sent with the cookie that the first
+         * response tells us to set.
+         */
+        int responseCode = randomIntBetween(200, 203);
+        String body = randomAlphaOfLengthBetween(2, 8096);
+        webServer.enqueue(
+            new MockResponse().setResponseCode(responseCode).setBody(body).addHeader("Set-Cookie", "test-cookie=" + randomAlphaOfLength(10))
+        );
+        webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
+
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
+            .method(HttpMethod.POST)
+            .path("/" + randomAlphaOfLength(5));
+        requestBuilder.body(randomAlphaOfLength(5));
+        HttpRequest request = requestBuilder.build();
+
+        httpClient.execute(request);
+        httpClient.execute(request);
+        assertNull(webServer.requests().get(1).getHeader("Cookie"));
+    }
+
     private void assertCreateUri(String uri, String expectedPath) {
         final HttpRequest request = HttpRequest.builder().fromUrl(uri).build();
         final Tuple<HttpHost, URI> tuple = HttpClient.createURI(request);

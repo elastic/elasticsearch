@@ -135,6 +135,12 @@ public class HttpClient implements Closeable {
         clientBuilder.evictExpiredConnections();
         clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
         clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
+        /*
+         * This client will potentially be used by multiple users. We do not want it to keep any state like cookies, because that will
+         * result in that state unexpectedlky being shared across all users.
+         */
+        clientBuilder.disableCookieManagement();
+
         clientBuilder.setRedirectStrategy(new DefaultRedirectStrategy() {
             @Override
             public boolean isRedirected(org.apache.http.HttpRequest request, org.apache.http.HttpResponse response, HttpContext context)

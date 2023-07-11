@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting.Role;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
@@ -466,7 +467,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     }
 
     private static boolean ignoreDiskWatermarksForShard(RoutingAllocation allocation, ShardRouting shardRouting) {
-        return shardRouting.role().isPromotableToPrimary() || allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks();
+        return shardRouting.role() == Role.INDEX_ONLY || allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks();
     }
 
     private static DiskUsageWithRelocations getDiskUsage(

@@ -7,17 +7,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.core.Releasable;
 
-@Experimental
-public interface AggregatorStateSerializer<T extends AggregatorState<T>> {
+public interface GroupingAggregatorState extends Releasable {
 
-    int size();
-
-    // returns the number of bytes written
-    int serialize(T state, byte[] ba, int offset, IntVector selected);
-
-    void deserialize(T state, byte[] ba, int offset);
+    /** Extracts an intermediate view of the contents of this state.  */
+    void toIntermediate(Block[] blocks, int offset, IntVector selected);
 
 }

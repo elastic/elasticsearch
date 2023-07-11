@@ -7,59 +7,27 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
-import org.elasticsearch.tdigest.Centroid;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 
 public final class QuantileStates {
     public static final double MEDIAN = 50.0;
     static final double DEFAULT_COMPRESSION = 1000.0;
 
-    private static final VarHandle doubleHandle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.BIG_ENDIAN);
-    private static final VarHandle intHandle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
-
-    private QuantileStates() {
-
-    }
-
-    static int estimateSizeInBytes(TDigestState digest) {
-        return 12 + (12 * digest.centroidCount());
-    }
-
-    static int serializeDigest(TDigestState digest, byte[] ba, int offset) {
-        doubleHandle.set(ba, offset, digest.compression());
-        intHandle.set(ba, offset + 8, digest.centroidCount());
-        offset += 12;
-        for (Centroid centroid : digest.centroids()) {
-            doubleHandle.set(ba, offset, centroid.mean());
-            intHandle.set(ba, offset + 8, centroid.count());
-            offset += 12;
-        }
-        return estimateSizeInBytes(digest);
-    }
-
-    static TDigestState deserializeDigest(byte[] ba, int offset) {
-        final double compression = (double) doubleHandle.get(ba, offset);
-        final TDigestState digest = TDigestState.create(compression);
-        final int positions = (int) intHandle.get(ba, offset + 8);
-        offset += 12;
-        for (int i = 0; i < positions; i++) {
-            double mean = (double) doubleHandle.get(ba, offset);
-            int count = (int) intHandle.get(ba, offset + 8);
-            digest.add(mean, count);
-            offset += 12;
-        }
-        return digest;
-    }
+    private QuantileStates() {}
 
     private static Double percentileParam(double p) {
         // Percentile must be a double between 0 and 100 inclusive
@@ -67,7 +35,28 @@ public final class QuantileStates {
         return 0 <= p && p <= 100 ? p : null;
     }
 
-    static class SingleState implements AggregatorState<SingleState> {
+    static BytesRef serializeDigest(TDigestState digest) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OutputStreamStreamOutput out = new OutputStreamStreamOutput(baos);
+        try {
+            TDigestState.write(digest, out);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return new BytesRef(baos.toByteArray());
+    }
+
+    static TDigestState deserializeDigest(BytesRef bytesRef) {
+        ByteArrayStreamInput in = new ByteArrayStreamInput(bytesRef.bytes);
+        in.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        try {
+            return TDigestState.read(in);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    static class SingleState implements AggregatorState {
         private TDigestState digest;
         private final Double percentile;
 
@@ -77,14 +66,7 @@ public final class QuantileStates {
         }
 
         @Override
-        public long getEstimatedSize() {
-            return estimateSizeInBytes(digest);
-        }
-
-        @Override
-        public void close() {
-
-        }
+        public void close() {}
 
         void add(double v) {
             digest.add(v);
@@ -92,6 +74,17 @@ public final class QuantileStates {
 
         void add(SingleState other) {
             digest.add(other.digest);
+        }
+
+        void add(BytesRef other) {
+            digest.add(deserializeDigest(other));
+        }
+
+        /** Extracts an intermediate view of the contents of this state.  */
+        @Override
+        public void toIntermediate(Block[] blocks, int offset) {
+            assert blocks.length >= offset + 1;
+            blocks[offset] = new ConstantBytesRefVector(serializeDigest(this.digest), 1).asBlock();
         }
 
         Block evaluateMedianAbsoluteDeviation() {
@@ -113,34 +106,9 @@ public final class QuantileStates {
             double result = digest.quantile(percentile / 100);
             return DoubleBlock.newConstantBlockWith(result, 1);
         }
-
-        @Override
-        public AggregatorStateSerializer<SingleState> serializer() {
-            return new SingleStateSerializer();
-        }
     }
 
-    static class SingleStateSerializer implements AggregatorStateSerializer<SingleState> {
-        @Override
-        public int size() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int serialize(SingleState state, byte[] ba, int offset, IntVector selected) {
-            assert selected.getPositionCount() == 1;
-            assert selected.getInt(0) == 0;
-            return serializeDigest(state.digest, ba, offset);
-        }
-
-        @Override
-        public void deserialize(SingleState state, byte[] ba, int offset) {
-            state.digest = deserializeDigest(ba, offset);
-        }
-    }
-
-    static class GroupingState implements AggregatorState<GroupingState> {
-        private final GroupingStateSerializer serializer;
+    static class GroupingState implements GroupingAggregatorState {
         private long largestGroupId = -1;
         private ObjectArray<TDigestState> digests;
         private final BigArrays bigArrays;
@@ -148,7 +116,6 @@ public final class QuantileStates {
 
         GroupingState(BigArrays bigArrays, double percentile) {
             this.bigArrays = bigArrays;
-            this.serializer = new GroupingStateSerializer();
             this.digests = bigArrays.newObjectArray(1);
             this.percentile = percentileParam(percentile);
         }
@@ -178,8 +145,24 @@ public final class QuantileStates {
             getOrAddGroup(groupId).add(other);
         }
 
+        void add(int groupId, BytesRef other) {
+            getOrAddGroup(groupId).add(deserializeDigest(other));
+        }
+
         TDigestState get(int position) {
             return digests.get(position);
+        }
+
+        /** Extracts an intermediate view of the contents of this state.  */
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+            assert blocks.length >= offset + 1;
+            var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount());
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                builder.appendBytesRef(serializeDigest(get(group)));
+            }
+            blocks[offset] = builder.build();
         }
 
         Block evaluateMedianAbsoluteDeviation(IntVector selected) {
@@ -210,55 +193,8 @@ public final class QuantileStates {
         }
 
         @Override
-        public long getEstimatedSize() {
-            long size = 8;
-            for (long i = 0; i <= largestGroupId; i++) {
-                size += estimateSizeInBytes(digests.get(i));
-            }
-            return size;
-        }
-
-        @Override
         public void close() {
             digests.close();
-        }
-
-        @Override
-        public AggregatorStateSerializer<GroupingState> serializer() {
-            return serializer;
-        }
-    }
-
-    static class GroupingStateSerializer implements AggregatorStateSerializer<GroupingState> {
-        private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
-
-        @Override
-        public int size() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int serialize(GroupingState state, byte[] ba, int offset, IntVector selected) {
-            final int origOffset = offset;
-            final ObjectArray<TDigestState> digests = state.digests;
-            longHandle.set(ba, offset, selected.getPositionCount() - 1);
-            offset += Long.BYTES;
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                offset += serializeDigest(digests.get(selected.getInt(i)), ba, offset);
-            }
-            return origOffset - offset;
-        }
-
-        @Override
-        public void deserialize(GroupingState state, byte[] ba, int offset) {
-            state.largestGroupId = (long) longHandle.get(ba, offset);
-            offset += 8;
-            state.digests = state.bigArrays.newObjectArray(state.largestGroupId + 1);
-            for (long i = 0; i <= state.largestGroupId; i++) {
-                TDigestState digest = deserializeDigest(ba, offset);
-                offset += estimateSizeInBytes(digest);
-                state.digests.set(i, digest);
-            }
         }
     }
 }

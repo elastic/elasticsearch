@@ -43,8 +43,6 @@ import java.util.stream.Stream;
 
 public class AggregateMapper {
 
-    public static DataType AGG_STATE_TYPE = new DataType("_aggState", Integer.MAX_VALUE, false, false, false);
-
     static final List<String> NUMERIC = List.of("Int", "Long", "Double");
 
     /** List of all ESQL agg functions. */
@@ -196,10 +194,10 @@ public class AggregateMapper {
     static DataType toDataType(ElementType elementType) {
         return switch (elementType) {
             case BOOLEAN -> DataTypes.BOOLEAN;
+            case BYTES_REF -> DataTypes.BINARY;
             case INT -> DataTypes.INTEGER;
             case LONG -> DataTypes.LONG;
             case DOUBLE -> DataTypes.DOUBLE;
-            case UNKNOWN -> AGG_STATE_TYPE;
             default -> throw new UnsupportedOperationException("unsupported agg type: " + elementType);
         };
     }

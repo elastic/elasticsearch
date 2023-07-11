@@ -13,16 +13,12 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasables;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
-import java.util.Objects;
-
-@Aggregator({ @IntermediateState(name = "aggstate", type = "UNKNOWN") })
+@Aggregator({ @IntermediateState(name = "fbit", type = "BOOLEAN"), @IntermediateState(name = "tbit", type = "BOOLEAN") })
 @GroupingAggregator
 public class CountDistinctBooleanAggregator {
     private static final byte BIT_FALSE = 0b01;
@@ -38,6 +34,11 @@ public class CountDistinctBooleanAggregator {
 
     public static void combineStates(SingleState current, SingleState state) {
         current.bits |= state.bits;
+    }
+
+    public static void combineIntermediate(SingleState current, boolean fbit, boolean tbit) {
+        if (fbit) current.bits |= BIT_FALSE;
+        if (tbit) current.bits |= BIT_TRUE;
     }
 
     public static Block evaluateFinal(SingleState state) {
@@ -57,6 +58,11 @@ public class CountDistinctBooleanAggregator {
         current.combineStates(currentGroupId, state);
     }
 
+    public static void combineIntermediate(GroupingState current, int groupId, boolean fbit, boolean tbit) {
+        if (fbit) current.bits.set(groupId * 2);
+        if (tbit) current.bits.set(groupId * 2 + 1);
+    }
+
     public static Block evaluateFinal(GroupingState state, IntVector selected) {
         LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
@@ -71,49 +77,22 @@ public class CountDistinctBooleanAggregator {
      * State contains a byte variable where we set two bits. Bit 0 is set when a boolean false
      * value is collected. Bit 1 is set when a boolean true value is collected.
      */
-    static class SingleState implements AggregatorState<SingleState> {
+    static class SingleState implements AggregatorState {
 
-        private final SingleStateSerializer serializer;
         byte bits;
 
-        SingleState() {
-            this.serializer = new SingleStateSerializer();
-        }
+        SingleState() {}
 
+        /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public long getEstimatedSize() {
-            return Byte.BYTES; // Serialize the two boolean values as two bits in a single byte
+        public void toIntermediate(Block[] blocks, int offset) {
+            assert blocks.length >= offset + 2;
+            blocks[offset + 0] = BooleanBlock.newConstantBlockWith((bits & BIT_FALSE) != 0, 1);
+            blocks[offset + 1] = BooleanBlock.newConstantBlockWith((bits & BIT_TRUE) != 0, 1);
         }
 
         @Override
         public void close() {}
-
-        @Override
-        public AggregatorStateSerializer<SingleState> serializer() {
-            return serializer;
-        }
-    }
-
-    static class SingleStateSerializer implements AggregatorStateSerializer<SingleState> {
-        @Override
-        public int size() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int serialize(SingleState state, byte[] ba, int offset, IntVector selected) {
-            assert selected.getPositionCount() == 1;
-            assert selected.getInt(0) == 0;
-            ba[offset] = state.bits;
-
-            return Byte.BYTES;
-        }
-
-        @Override
-        public void deserialize(SingleState state, byte[] ba, int offset) {
-            Objects.requireNonNull(state);
-            state.bits = ba[offset];
-        }
     }
 
     /**
@@ -123,14 +102,12 @@ public class CountDistinctBooleanAggregator {
      * This means that false values for a groupId are stored at bits[2*groupId] and
      * true values for a groupId are stored at bits[2*groupId + 1]
      */
-    static class GroupingState implements AggregatorState<GroupingState> {
+    static class GroupingState implements GroupingAggregatorState {
 
-        private final GroupingStateSerializer serializer;
         final BitArray bits;
         int largestGroupId; // total number of groups; <= bytes.length
 
         GroupingState(BigArrays bigArrays) {
-            this.serializer = new GroupingStateSerializer();
             boolean success = false;
             try {
                 this.bits = new BitArray(2, bigArrays); // Start with two bits for a single groupId
@@ -162,64 +139,24 @@ public class CountDistinctBooleanAggregator {
             }
         }
 
+        /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public long getEstimatedSize() {
-            return Integer.BYTES + (largestGroupId + 1) * Byte.BYTES;
-        }
-
-        @Override
-        public AggregatorStateSerializer<GroupingState> serializer() {
-            return serializer;
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+            assert blocks.length >= offset + 2;
+            var fbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+            var tbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                fbitBuilder.appendBoolean(bits.get(2 * group + 0));
+                tbitBuilder.appendBoolean(bits.get(2 * group + 1));
+            }
+            blocks[offset + 0] = fbitBuilder.build();
+            blocks[offset + 1] = tbitBuilder.build();
         }
 
         @Override
         public void close() {
             Releasables.close(bits);
-        }
-    }
-
-    static class GroupingStateSerializer implements AggregatorStateSerializer<GroupingState> {
-
-        private static final VarHandle intHandle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
-
-        @Override
-        public int size() {
-            throw new UnsupportedOperationException();
-        }
-
-        /**
-         * The bit array is serialized using a whole byte for each group and the bits for each group are encoded
-         * similar to {@link SingleState}.
-         */
-        @Override
-        public int serialize(GroupingState state, byte[] ba, int offset, IntVector selected) {
-            int origOffset = offset;
-            intHandle.set(ba, offset, selected.getPositionCount());
-            offset += Integer.BYTES;
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int groupId = selected.getInt(i);
-                ba[offset] |= state.bits.get(2 * groupId) ? BIT_FALSE : 0;
-                ba[offset] |= state.bits.get(2 * groupId + 1) ? BIT_TRUE : 0;
-                offset += Byte.BYTES;
-            }
-            return offset - origOffset;
-        }
-
-        @Override
-        public void deserialize(GroupingState state, byte[] ba, int offset) {
-            Objects.requireNonNull(state);
-            int positions = (int) intHandle.get(ba, offset);
-            offset += Integer.BYTES;
-            state.ensureCapacity(positions - 1);
-            for (int i = 0; i < positions; i++) {
-                if ((ba[offset] & BIT_FALSE) > 0) {
-                    state.bits.set(2 * i);
-                }
-                if ((ba[offset] & BIT_TRUE) > 0) {
-                    state.bits.set(2 * i + 1);
-                }
-                offset += Byte.BYTES;
-            }
         }
     }
 }

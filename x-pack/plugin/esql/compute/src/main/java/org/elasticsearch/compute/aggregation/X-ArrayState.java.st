@@ -28,7 +28,7 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Do not edit it.
  */
 @Experimental
-final class $Type$ArrayState implements AggregatorState<$Type$ArrayState> {
+final class $Type$ArrayState implements GroupingAggregatorState {
     private final BigArrays bigArrays;
     private final $type$ init;
 
@@ -126,7 +126,8 @@ $endif$
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
-    void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+    @Override
+    public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
         assert blocks.length >= offset + 2;
         var valuesBuilder = $Type$Block.newBlockBuilder(selected.getPositionCount());
         var nullsBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
@@ -140,17 +141,7 @@ $endif$
     }
 
     @Override
-    public long getEstimatedSize() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void close() {
         Releasables.close(values, nonNulls);
-    }
-
-    @Override
-    public AggregatorStateSerializer<$Type$ArrayState> serializer() {
-        throw new UnsupportedOperationException();
     }
 }

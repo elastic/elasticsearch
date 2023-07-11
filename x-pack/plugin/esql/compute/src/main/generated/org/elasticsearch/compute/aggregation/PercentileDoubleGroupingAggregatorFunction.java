@@ -9,9 +9,11 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -19,7 +21,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link PercentileDoubleAggregator}.
@@ -27,7 +28,7 @@ import org.elasticsearch.compute.data.Vector;
  */
 public final class PercentileDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("aggstate", ElementType.UNKNOWN)  );
+      new IntermediateStateDesc("quart", ElementType.BYTES_REF)  );
 
   private final QuantileStates.GroupingState state;
 
@@ -186,21 +187,14 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   @Override
   public void addIntermediateInput(LongVector groupIdVector, Page page) {
-    Block block = page.getBlock(channels.get(0));
-    Vector vector = block.asVector();
-    if (vector == null || vector instanceof AggregatorStateVector == false) {
-      throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
-    }
-    @SuppressWarnings("unchecked") AggregatorStateVector<QuantileStates.GroupingState> blobVector = (AggregatorStateVector<QuantileStates.GroupingState>) vector;
-    // TODO exchange big arrays directly without funny serialization - no more copying
-    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    QuantileStates.GroupingState inState = PercentileDoubleAggregator.initGrouping(bigArrays, percentile);
-    blobVector.get(0, inState);
+    assert channels.size() == intermediateBlockCount();
+    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
+    BytesRef scratch = new BytesRef();
     for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      PercentileDoubleAggregator.combineStates(state, groupId, inState, position);
+      PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(position, scratch));
     }
-    inState.close();
   }
 
   @Override
@@ -214,10 +208,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    AggregatorStateVector.Builder<AggregatorStateVector<QuantileStates.GroupingState>, QuantileStates.GroupingState> builder =
-        AggregatorStateVector.builderOfAggregatorState(QuantileStates.GroupingState.class, state.getEstimatedSize());
-    builder.add(state, selected);
-    blocks[offset] = builder.build().asBlock();
+    state.toIntermediate(blocks, offset, selected);
   }
 
   @Override

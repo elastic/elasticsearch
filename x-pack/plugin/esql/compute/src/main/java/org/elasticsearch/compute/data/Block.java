@@ -181,8 +181,7 @@ public interface Block extends NamedWriteable {
             DoubleVectorBlock.ENTRY,
             BytesRefVectorBlock.ENTRY,
             BooleanVectorBlock.ENTRY,
-            ConstantNullBlock.ENTRY,
-            AggregatorStateBlock.ENTRY
+            ConstantNullBlock.ENTRY
         );
     }
 }

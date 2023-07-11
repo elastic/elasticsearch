@@ -9,15 +9,14 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.AggregatorStateVector;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MedianAbsoluteDeviationDoubleAggregator}.
@@ -25,7 +24,7 @@ import org.elasticsearch.compute.data.Vector;
  */
 public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("aggstate", ElementType.UNKNOWN)  );
+      new IntermediateStateDesc("quart", ElementType.BYTES_REF)  );
 
   private final QuantileStates.SingleState state;
 
@@ -86,28 +85,17 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements Ag
 
   @Override
   public void addIntermediateInput(Page page) {
-    Block block = page.getBlock(channels.get(0));
-    Vector vector = block.asVector();
-    if (vector == null || vector instanceof AggregatorStateVector == false) {
-      throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
-    }
-    @SuppressWarnings("unchecked") AggregatorStateVector<QuantileStates.SingleState> blobVector = (AggregatorStateVector<QuantileStates.SingleState>) vector;
-    // TODO exchange big arrays directly without funny serialization - no more copying
-    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    QuantileStates.SingleState tmpState = MedianAbsoluteDeviationDoubleAggregator.initSingle();
-    for (int i = 0; i < block.getPositionCount(); i++) {
-      blobVector.get(i, tmpState);
-      MedianAbsoluteDeviationDoubleAggregator.combineStates(state, tmpState);
-    }
-    tmpState.close();
+    assert channels.size() == intermediateBlockCount();
+    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
+    assert quart.getPositionCount() == 1;
+    BytesRef scratch = new BytesRef();
+    MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
   }
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset) {
-    AggregatorStateVector.Builder<AggregatorStateVector<QuantileStates.SingleState>, QuantileStates.SingleState> builder =
-        AggregatorStateVector.builderOfAggregatorState(QuantileStates.SingleState.class, state.getEstimatedSize());
-    builder.add(state, IntVector.range(0, 1));
-    blocks[offset] = builder.build().asBlock();
+    state.toIntermediate(blocks, offset);
   }
 
   @Override

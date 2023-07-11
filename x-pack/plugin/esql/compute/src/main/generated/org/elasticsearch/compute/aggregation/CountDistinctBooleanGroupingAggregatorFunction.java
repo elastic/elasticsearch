@@ -10,7 +10,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -19,7 +18,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link CountDistinctBooleanAggregator}.
@@ -27,7 +25,8 @@ import org.elasticsearch.compute.data.Vector;
  */
 public final class CountDistinctBooleanGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("aggstate", ElementType.UNKNOWN)  );
+      new IntermediateStateDesc("fbit", ElementType.BOOLEAN),
+      new IntermediateStateDesc("tbit", ElementType.BOOLEAN)  );
 
   private final CountDistinctBooleanAggregator.GroupingState state;
 
@@ -183,21 +182,15 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
 
   @Override
   public void addIntermediateInput(LongVector groupIdVector, Page page) {
-    Block block = page.getBlock(channels.get(0));
-    Vector vector = block.asVector();
-    if (vector == null || vector instanceof AggregatorStateVector == false) {
-      throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
-    }
-    @SuppressWarnings("unchecked") AggregatorStateVector<CountDistinctBooleanAggregator.GroupingState> blobVector = (AggregatorStateVector<CountDistinctBooleanAggregator.GroupingState>) vector;
-    // TODO exchange big arrays directly without funny serialization - no more copying
-    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    CountDistinctBooleanAggregator.GroupingState inState = CountDistinctBooleanAggregator.initGrouping(bigArrays);
-    blobVector.get(0, inState);
+    assert channels.size() == intermediateBlockCount();
+    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    BooleanVector fbit = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
+    BooleanVector tbit = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    assert fbit.getPositionCount() == tbit.getPositionCount();
     for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      CountDistinctBooleanAggregator.combineStates(state, groupId, inState, position);
+      CountDistinctBooleanAggregator.combineIntermediate(state, groupId, fbit.getBoolean(position), tbit.getBoolean(position));
     }
-    inState.close();
   }
 
   @Override
@@ -211,10 +204,7 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    AggregatorStateVector.Builder<AggregatorStateVector<CountDistinctBooleanAggregator.GroupingState>, CountDistinctBooleanAggregator.GroupingState> builder =
-        AggregatorStateVector.builderOfAggregatorState(CountDistinctBooleanAggregator.GroupingState.class, state.getEstimatedSize());
-    builder.add(state, selected);
-    blocks[offset] = builder.build().asBlock();
+    state.toIntermediate(blocks, offset, selected);
   }
 
   @Override

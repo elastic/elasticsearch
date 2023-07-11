@@ -124,9 +124,11 @@ public class Methods {
      */
     static String vectorAccessorName(String elementTypeName) {
         return switch (elementTypeName) {
+            case "BOOLEAN" -> "getBoolean";
             case "INT" -> "getInt";
             case "LONG" -> "getLong";
             case "DOUBLE" -> "getDouble";
+            case "BYTES_REF" -> "getBytesRef";
             default -> throw new IllegalArgumentException(
                 "don't know how to fetch primitive values from " + elementTypeName + ". define combineStates."
             );

@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.ConstantLongVector;
  * This class is generated. Do not edit it.
  */
 @Experimental
-final class LongState implements AggregatorState<LongState> {
+final class LongState implements AggregatorState {
     private long value;
     private boolean seen;
 
@@ -46,22 +46,13 @@ final class LongState implements AggregatorState<LongState> {
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
-    void toIntermediate(Block[] blocks, int offset) {
+    @Override
+    public void toIntermediate(Block[] blocks, int offset) {
         assert blocks.length >= offset + 2;
         blocks[offset + 0] = new ConstantLongVector(value, 1).asBlock();
         blocks[offset + 1] = new ConstantBooleanVector(seen, 1).asBlock();
     }
 
     @Override
-    public long getEstimatedSize() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void close() {}
-
-    @Override
-    public AggregatorStateSerializer<LongState> serializer() {
-        throw new UnsupportedOperationException();
-    }
 }

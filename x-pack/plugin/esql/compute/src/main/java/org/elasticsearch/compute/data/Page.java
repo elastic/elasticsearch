@@ -62,9 +62,6 @@ public final class Page implements Writeable {
         this.blocks = copyBlocks ? blocks.clone() : blocks;
         if (Assertions.ENABLED) {
             for (Block b : blocks) {
-                if (b instanceof AggregatorStateBlock<?>) {
-                    continue;
-                }
                 assert b.getPositionCount() == positionCount : "expected positionCount=" + positionCount + " but was " + b;
             }
         }

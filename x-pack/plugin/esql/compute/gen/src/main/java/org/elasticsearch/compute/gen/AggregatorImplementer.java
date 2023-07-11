@@ -12,7 +12,6 @@ import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
@@ -34,9 +33,6 @@ import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION;
-import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
-import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
-import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
@@ -55,7 +51,6 @@ import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
-import static org.elasticsearch.compute.gen.Types.VECTOR;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
@@ -399,20 +394,20 @@ public class AggregatorImplementer {
     private MethodSpec addIntermediateInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
-        if (isAggState() == false) {
-            builder.addStatement("assert channels.size() == intermediateBlockCount()");
-            builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
-            int count = 0;
-            for (var interState : intermediateState) {
-                builder.addStatement(
-                    "$T " + interState.name() + " = page.<$T>getBlock(channels.get(" + count + ")).asVector()",
-                    vectorType(interState.elementType()),
-                    blockType(interState.elementType())
-                );
-                count++;
-            }
-            final String first = intermediateState.get(0).name();
-            builder.addStatement("assert " + first + ".getPositionCount() == 1");
+        builder.addStatement("assert channels.size() == intermediateBlockCount()");
+        builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
+        int count = 0;
+        for (var interState : intermediateState) {
+            builder.addStatement(
+                "$T " + interState.name() + " = page.<$T>getBlock(channels.get(" + count + ")).asVector()",
+                vectorType(interState.elementType()),
+                blockType(interState.elementType())
+            );
+            count++;
+        }
+        final String first = intermediateState.get(0).name();
+        builder.addStatement("assert " + first + ".getPositionCount() == 1");
+        if (intermediateState.size() > 1) {
             builder.addStatement(
                 "assert "
                     + intermediateState.stream()
@@ -421,58 +416,37 @@ public class AggregatorImplementer {
                         .map(s -> first + ".getPositionCount() == " + s + ".getPositionCount()")
                         .collect(joining(" && "))
             );
-            if (hasPrimitiveState()) {
-                assert intermediateState.size() == 2;
-                assert intermediateState.get(1).name().equals("seen");
-                builder.beginControlFlow("if (seen.getBoolean(0))");
-                {
-                    var state = intermediateState.get(0);
-                    var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
-                    builder.addStatement(s, primitiveStateMethod(), declarationType, primitiveStateMethod());
-                    builder.addStatement("state.seen(true)");
-                    builder.endControlFlow();
-                }
-            } else {
-                builder.addStatement(
-                    "$T.combineIntermediate(state, "
-                        + intermediateState.stream().map(IntermediateStateDesc::name).collect(joining(", "))
-                        + ")",
-                    declarationType
-                );
+        }
+        if (hasPrimitiveState()) {
+            assert intermediateState.size() == 2;
+            assert intermediateState.get(1).name().equals("seen");
+            builder.beginControlFlow("if (seen.getBoolean(0))");
+            {
+                var state = intermediateState.get(0);
+                var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
+                builder.addStatement(s, primitiveStateMethod(), declarationType, primitiveStateMethod());
+                builder.addStatement("state.seen(true)");
+                builder.endControlFlow();
             }
         } else {
-            builder.addStatement("Block block = page.getBlock(channels.get(0))");
-            builder.addStatement("$T vector = block.asVector()", VECTOR);
-            builder.beginControlFlow("if (vector == null || vector instanceof $T == false)", AGGREGATOR_STATE_VECTOR);
-            {
-                builder.addStatement("throw new RuntimeException($S + block)", "expected AggregatorStateBlock, got:");
-                builder.endControlFlow();
+            if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
+                builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
             }
-            builder.addStatement("@SuppressWarnings($S) $T blobVector = ($T) vector", "unchecked", stateBlockType(), stateBlockType());
-            builder.addComment("TODO exchange big arrays directly without funny serialization - no more copying");
-            builder.addStatement("$T bigArrays = $T.NON_RECYCLING_INSTANCE", BIG_ARRAYS, BIG_ARRAYS);
-            builder.addStatement("$T tmpState = $L", stateType, callInit());
-            builder.beginControlFlow("for (int i = 0; i < block.getPositionCount(); i++)");
-            {
-                builder.addStatement("blobVector.get(i, tmpState)");
-                combineStates(builder);
-                builder.endControlFlow();
-            }
-            if (stateTypeHasSeen) {
-                builder.addStatement("state.seen(state.seen() || tmpState.seen())");
-            }
-            builder.addStatement("tmpState.close()");
+            builder.addStatement("$T.combineIntermediate(state, " + intermediateStateRowAccess() + ")", declarationType);
         }
         return builder.build();
     }
 
-    private void combineStates(MethodSpec.Builder builder) {
-        if (combineStates == null) {
-            String m = primitiveStateMethod();
-            builder.addStatement("state.$L($T.combine(state.$L(), tmpState.$L()))", m, declarationType, m, m);
-            return;
+    String intermediateStateRowAccess() {
+        return intermediateState.stream().map(AggregatorImplementer::vectorAccess).collect(joining(", "));
+    }
+
+    static String vectorAccess(IntermediateStateDesc isd) {
+        String s = isd.name() + "." + vectorAccessorName(isd.elementType()) + "(0";
+        if (isd.elementType().equals("BYTES_REF")) {
+            s += ", scratch";
         }
-        builder.addStatement("$T.combineStates(state, tmpState)", declarationType);
+        return s + ")";
     }
 
     private String primitiveStateMethod() {
@@ -496,24 +470,7 @@ public class AggregatorImplementer {
             .addModifiers(Modifier.PUBLIC)
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset");
-        if (isAggState() == false) {
-            assert hasPrimitiveState();
-            builder.addStatement("state.toIntermediate(blocks, offset)");
-        } else {
-            ParameterizedTypeName stateBlockBuilderType = ParameterizedTypeName.get(
-                AGGREGATOR_STATE_VECTOR_BUILDER,
-                stateBlockType(),
-                stateType
-            );
-            builder.addStatement(
-                "$T builder =\n$T.builderOfAggregatorState($T.class, state.getEstimatedSize())",
-                stateBlockBuilderType,
-                AGGREGATOR_STATE_VECTOR,
-                stateType
-            );
-            builder.addStatement("builder.add(state, $T.range(0, 1))", INT_VECTOR);
-            builder.addStatement("blocks[offset] = builder.build().asBlock()");
-        }
+        builder.addStatement("state.toIntermediate(blocks, offset)");
         return builder.build();
     }
 
@@ -569,14 +526,6 @@ public class AggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addStatement("state.close()");
         return builder.build();
-    }
-
-    private ParameterizedTypeName stateBlockType() {
-        return ParameterizedTypeName.get(AGGREGATOR_STATE_VECTOR, stateType);
-    }
-
-    private boolean isAggState() {
-        return intermediateState.get(0).name().equals("aggstate");
     }
 
     private boolean hasPrimitiveState() {

@@ -47,9 +47,6 @@ public class Types {
 
     static final ClassName ELEMENT_TYPE = ClassName.get(DATA_PACKAGE, "ElementType");
 
-    static final ClassName AGGREGATOR_STATE_VECTOR = ClassName.get(DATA_PACKAGE, "AggregatorStateVector");
-    static final ClassName AGGREGATOR_STATE_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "AggregatorStateVector", "Builder");
-
     static final ClassName BOOLEAN_VECTOR = ClassName.get(DATA_PACKAGE, "BooleanVector");
     static final ClassName BYTES_REF_VECTOR = ClassName.get(DATA_PACKAGE, "BytesRefVector");
     static final ClassName INT_VECTOR = ClassName.get(DATA_PACKAGE, "IntVector");
@@ -127,7 +124,7 @@ public class Types {
         if (elementType.equalsIgnoreCase(TypeName.BOOLEAN.toString())) {
             return BOOLEAN_BLOCK;
         }
-        if (elementType.equalsIgnoreCase(BYTES_REF.toString())) {
+        if (elementType.equalsIgnoreCase("BYTES_REF")) {
             return BYTES_REF_BLOCK;
         }
         if (elementType.equalsIgnoreCase(TypeName.INT.toString())) {
@@ -165,7 +162,7 @@ public class Types {
         if (elementType.equalsIgnoreCase(TypeName.BOOLEAN.toString())) {
             return BOOLEAN_VECTOR;
         }
-        if (elementType.equalsIgnoreCase(BYTES_REF.toString())) {
+        if (elementType.equalsIgnoreCase("BYTES_REF")) {
             return BYTES_REF_VECTOR;
         }
         if (elementType.equalsIgnoreCase(TypeName.INT.toString())) {

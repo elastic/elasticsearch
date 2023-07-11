@@ -94,7 +94,7 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
     BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(2)).asVector();
     assert value.getPositionCount() == 1;
     assert value.getPositionCount() == delta.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
-    SumDoubleAggregator.combineIntermediate(state, value, delta, seen);
+    SumDoubleAggregator.combineIntermediate(state, value.getDouble(0), delta.getDouble(0), seen.getBoolean(0));
   }
 
   @Override

@@ -15,13 +15,10 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ConstantBooleanVector;
 import org.elasticsearch.compute.data.ConstantDoubleVector;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
@@ -50,9 +47,9 @@ class SumDoubleAggregator {
         current.add(state.value(), state.delta());
     }
 
-    public static void combineIntermediate(SumState state, DoubleVector values, DoubleVector deltas, BooleanVector seen) {
-        if (seen.getBoolean(0)) {
-            combine(state, values.getDouble(0), deltas.getDouble(0));
+    public static void combineIntermediate(SumState state, double inValue, double inDelta, boolean seen) {
+        if (seen) {
+            combine(state, inValue, inDelta);
             state.seen(true);
         }
     }
@@ -85,28 +82,11 @@ class SumDoubleAggregator {
         }
     }
 
-    public static void combine(GroupingSumState current, int groupId, double value, double delta, boolean seen) {
+    public static void combineIntermediate(GroupingSumState current, int groupId, double inValue, double inDelta, boolean seen) {
         if (seen) {
-            current.add(value, delta, groupId);
+            current.add(inValue, inDelta, groupId);
         } else {
             current.putNull(groupId);
-        }
-    }
-
-    public static void combineIntermediate(
-        LongVector groupIdVector,
-        GroupingSumState state,
-        DoubleVector values,
-        DoubleVector deltas,
-        BooleanVector seen
-    ) {
-        for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
-            int groupId = Math.toIntExact(groupIdVector.getLong(position));
-            if (seen.getBoolean(position)) {
-                state.add(values.getDouble(position), deltas.getDouble(position), groupId);
-            } else {
-                state.putNull(groupId);
-            }
         }
     }
 
@@ -144,7 +124,7 @@ class SumDoubleAggregator {
         return builder.build();
     }
 
-    static class SumState extends CompensatedSum implements AggregatorState<SumState> {
+    static class SumState extends CompensatedSum implements AggregatorState {
 
         private boolean seen;
 
@@ -156,22 +136,13 @@ class SumDoubleAggregator {
             super(value, delta);
         }
 
-        void toIntermediate(Block[] blocks, int offset) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset) {
             SumDoubleAggregator.evaluateIntermediate(this, blocks, offset);
         }
 
         @Override
-        public long getEstimatedSize() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void close() {}
-
-        @Override
-        public AggregatorStateSerializer<SumState> serializer() {
-            throw new UnsupportedOperationException();
-        }
 
         public boolean seen() {
             return seen;
@@ -182,7 +153,7 @@ class SumDoubleAggregator {
         }
     }
 
-    static class GroupingSumState implements AggregatorState<GroupingSumState> {
+    static class GroupingSumState implements GroupingAggregatorState {
         private final BigArrays bigArrays;
         static final long BYTES_SIZE = Double.BYTES + Double.BYTES;
 
@@ -264,18 +235,9 @@ class SumDoubleAggregator {
             }
         }
 
-        void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
             SumDoubleAggregator.evaluateIntermediate(this, blocks, offset, selected);
-        }
-
-        @Override
-        public long getEstimatedSize() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public AggregatorStateSerializer<GroupingSumState> serializer() {
-            throw new UnsupportedOperationException();
         }
 
         @Override

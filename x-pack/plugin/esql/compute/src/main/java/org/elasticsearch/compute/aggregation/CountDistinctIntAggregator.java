@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -15,7 +16,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 
-@Aggregator({ @IntermediateState(name = "aggstate", type = "UNKNOWN") })
+@Aggregator({ @IntermediateState(name = "hll", type = "BYTES_REF") })
 @GroupingAggregator
 public class CountDistinctIntAggregator {
 
@@ -31,6 +32,10 @@ public class CountDistinctIntAggregator {
         current.merge(0, state.hll, 0);
     }
 
+    public static void combineIntermediate(HllStates.SingleState current, BytesRef inValue) {
+        current.merge(0, inValue, 0);
+    }
+
     public static Block evaluateFinal(HllStates.SingleState state) {
         long result = state.cardinality();
         return LongBlock.newConstantBlockWith(result, 1);
@@ -42,6 +47,10 @@ public class CountDistinctIntAggregator {
 
     public static void combine(HllStates.GroupingState current, int groupId, int v) {
         current.collect(groupId, v);
+    }
+
+    public static void combineIntermediate(HllStates.GroupingState current, int groupId, BytesRef inValue) {
+        current.merge(groupId, inValue, 0);
     }
 
     public static void combineStates(

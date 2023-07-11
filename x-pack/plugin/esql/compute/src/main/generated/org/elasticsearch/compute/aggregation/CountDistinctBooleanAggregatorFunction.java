@@ -9,15 +9,11 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 
 /**
  * {@link AggregatorFunction} implementation for {@link CountDistinctBooleanAggregator}.
@@ -25,7 +21,8 @@ import org.elasticsearch.compute.data.Vector;
  */
 public final class CountDistinctBooleanAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("aggstate", ElementType.UNKNOWN)  );
+      new IntermediateStateDesc("fbit", ElementType.BOOLEAN),
+      new IntermediateStateDesc("tbit", ElementType.BOOLEAN)  );
 
   private final CountDistinctBooleanAggregator.SingleState state;
 
@@ -86,28 +83,18 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   @Override
   public void addIntermediateInput(Page page) {
-    Block block = page.getBlock(channels.get(0));
-    Vector vector = block.asVector();
-    if (vector == null || vector instanceof AggregatorStateVector == false) {
-      throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
-    }
-    @SuppressWarnings("unchecked") AggregatorStateVector<CountDistinctBooleanAggregator.SingleState> blobVector = (AggregatorStateVector<CountDistinctBooleanAggregator.SingleState>) vector;
-    // TODO exchange big arrays directly without funny serialization - no more copying
-    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    CountDistinctBooleanAggregator.SingleState tmpState = CountDistinctBooleanAggregator.initSingle();
-    for (int i = 0; i < block.getPositionCount(); i++) {
-      blobVector.get(i, tmpState);
-      CountDistinctBooleanAggregator.combineStates(state, tmpState);
-    }
-    tmpState.close();
+    assert channels.size() == intermediateBlockCount();
+    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    BooleanVector fbit = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
+    BooleanVector tbit = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    assert fbit.getPositionCount() == 1;
+    assert fbit.getPositionCount() == tbit.getPositionCount();
+    CountDistinctBooleanAggregator.combineIntermediate(state, fbit.getBoolean(0), tbit.getBoolean(0));
   }
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset) {
-    AggregatorStateVector.Builder<AggregatorStateVector<CountDistinctBooleanAggregator.SingleState>, CountDistinctBooleanAggregator.SingleState> builder =
-        AggregatorStateVector.builderOfAggregatorState(CountDistinctBooleanAggregator.SingleState.class, state.getEstimatedSize());
-    builder.add(state, IntVector.range(0, 1));
-    blocks[offset] = builder.build().asBlock();
+    state.toIntermediate(blocks, offset);
   }
 
   @Override

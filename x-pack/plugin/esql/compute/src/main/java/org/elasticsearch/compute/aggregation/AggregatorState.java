@@ -7,13 +7,11 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.Releasable;
 
-@Experimental
-public interface AggregatorState<T extends AggregatorState<T>> extends Releasable {
+public interface AggregatorState extends Releasable {
 
-    long getEstimatedSize();
-
-    AggregatorStateSerializer<T> serializer();
+    /** Extracts an intermediate view of the contents of this state.  */
+    void toIntermediate(Block[] blocks, int offset);
 }

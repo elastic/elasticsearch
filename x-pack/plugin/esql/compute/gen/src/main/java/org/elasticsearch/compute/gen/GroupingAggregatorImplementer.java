@@ -12,7 +12,6 @@ import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
@@ -38,8 +37,6 @@ import static org.elasticsearch.compute.gen.AggregatorImplementer.valueVectorTyp
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
-import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
-import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
@@ -54,7 +51,6 @@ import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
-import static org.elasticsearch.compute.gen.Types.VECTOR;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
@@ -428,19 +424,19 @@ public class GroupingAggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(LONG_VECTOR, "groupIdVector").addParameter(PAGE, "page");
 
-        if (isAggState() == false) {
-            builder.addStatement("assert channels.size() == intermediateBlockCount()");
-            builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
-            int count = 0;
-            for (var interState : intermediateState) {
-                builder.addStatement(
-                    "$T " + interState.name() + " = page.<$T>getBlock(channels.get(" + count + ")).asVector()",
-                    vectorType(interState.elementType()),
-                    blockType(interState.elementType())
-                );
-                count++;
-            }
-            final String first = intermediateState.get(0).name();
+        builder.addStatement("assert channels.size() == intermediateBlockCount()");
+        builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
+        int count = 0;
+        for (var interState : intermediateState) {
+            builder.addStatement(
+                "$T " + interState.name() + " = page.<$T>getBlock(channels.get(" + count + ")).asVector()",
+                vectorType(interState.elementType()),
+                blockType(interState.elementType())
+            );
+            count++;
+        }
+        final String first = intermediateState.get(0).name();
+        if (intermediateState.size() > 1) {
             builder.addStatement(
                 "assert "
                     + intermediateState.stream()
@@ -449,56 +445,46 @@ public class GroupingAggregatorImplementer {
                         .map(s -> first + ".getPositionCount() == " + s + ".getPositionCount()")
                         .collect(joining(" && "))
             );
+        }
+        if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
+            builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+        }
+        builder.beginControlFlow("for (int position = 0; position < groupIdVector.getPositionCount(); position++)");
+        {
+            builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(position))");
             if (hasPrimitiveState()) {
                 assert intermediateState.size() == 2;
                 assert intermediateState.get(1).name().equals("seen");
-                builder.beginControlFlow("for (int position = 0; position < groupIdVector.getPositionCount(); position++)");
+                builder.beginControlFlow("if (seen.getBoolean(position))");
                 {
-                    builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(position))");
-                    builder.beginControlFlow("if (seen.getBoolean(position))");
-                    {
-                        var name = intermediateState.get(0).name();
-                        var m = vectorAccessorName(intermediateState.get(0).elementType());
-                        builder.addStatement(
-                            "state.set($T.combine(state.getOrDefault(groupId), " + name + "." + m + "(position)), groupId)",
-                            declarationType
-                        );
-                        builder.nextControlFlow("else");
-                        builder.addStatement("state.putNull(groupId)");
-                        builder.endControlFlow();
-                    }
+                    var name = intermediateState.get(0).name();
+                    var m = vectorAccessorName(intermediateState.get(0).elementType());
+                    builder.addStatement(
+                        "state.set($T.combine(state.getOrDefault(groupId), " + name + "." + m + "(position)), groupId)",
+                        declarationType
+                    );
+                    builder.nextControlFlow("else");
+                    builder.addStatement("state.putNull(groupId)");
                     builder.endControlFlow();
                 }
             } else {
-                builder.addStatement(
-                    "$T.combineIntermediate(groupIdVector, state, "
-                        + intermediateState.stream().map(IntermediateStateDesc::name).collect(joining(", "))
-                        + ")",
-                    declarationType
-                );
+                builder.addStatement("$T.combineIntermediate(state, groupId, " + intermediateStateRowAccess() + ")", declarationType);
             }
-        } else {
-            builder.addStatement("Block block = page.getBlock(channels.get(0))");
-            builder.addStatement("$T vector = block.asVector()", VECTOR);
-            builder.beginControlFlow("if (vector == null || vector instanceof $T == false)", AGGREGATOR_STATE_VECTOR);
-            {
-                builder.addStatement("throw new RuntimeException($S + block)", "expected AggregatorStateBlock, got:");
-                builder.endControlFlow();
-            }
-            builder.addStatement("@SuppressWarnings($S) $T blobVector = ($T) vector", "unchecked", stateBlockType(), stateBlockType());
-            builder.addComment("TODO exchange big arrays directly without funny serialization - no more copying");
-            builder.addStatement("$T bigArrays = $T.NON_RECYCLING_INSTANCE", BIG_ARRAYS, BIG_ARRAYS);
-            builder.addStatement("$T inState = $L", stateType, callInit());
-            builder.addStatement("blobVector.get(0, inState)");
-            builder.beginControlFlow("for (int position = 0; position < groupIdVector.getPositionCount(); position++)");
-            {
-                builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(position))");
-                combineStates(builder);
-                builder.endControlFlow();
-            }
-            builder.addStatement("inState.close()");
+            builder.endControlFlow();
         }
         return builder.build();
+    }
+
+    String intermediateStateRowAccess() {
+        return intermediateState.stream().map(GroupingAggregatorImplementer::vectorAccess).collect(joining(", "));
+    }
+
+    static String vectorAccess(IntermediateStateDesc isd) {
+        String s = isd.name() + "." + vectorAccessorName(isd.elementType()) + "(position";
+        if (isd.elementType().equals("BYTES_REF")) {
+            s += ", scratch";
+        }
+        return s + ")";
     }
 
     private void combineStates(MethodSpec.Builder builder) {
@@ -534,24 +520,7 @@ public class GroupingAggregatorImplementer {
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
             .addParameter(INT_VECTOR, "selected");
-        if (isAggState() == false) {
-            assert hasPrimitiveState();
-            builder.addStatement("state.toIntermediate(blocks, offset, selected)");
-        } else {
-            ParameterizedTypeName stateBlockBuilderType = ParameterizedTypeName.get(
-                AGGREGATOR_STATE_VECTOR_BUILDER,
-                stateBlockType(),
-                stateType
-            );
-            builder.addStatement(
-                "$T builder =\n$T.builderOfAggregatorState($T.class, state.getEstimatedSize())",
-                stateBlockBuilderType,
-                AGGREGATOR_STATE_VECTOR,
-                stateType
-            );
-            builder.addStatement("builder.add(state, selected)");
-            builder.addStatement("blocks[offset] = builder.build().asBlock()");
-        }
+        builder.addStatement("state.toIntermediate(blocks, offset, selected)");
         return builder.build();
     }
 
@@ -586,14 +555,6 @@ public class GroupingAggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addStatement("state.close()");
         return builder.build();
-    }
-
-    private ParameterizedTypeName stateBlockType() {
-        return ParameterizedTypeName.get(AGGREGATOR_STATE_VECTOR, stateType);
-    }
-
-    private boolean isAggState() {
-        return intermediateState.get(0).name().equals("aggstate");
     }
 
     private boolean hasPrimitiveState() {

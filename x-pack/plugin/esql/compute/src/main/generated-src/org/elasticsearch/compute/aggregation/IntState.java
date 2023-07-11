@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.ConstantIntVector;
  * This class is generated. Do not edit it.
  */
 @Experimental
-final class IntState implements AggregatorState<IntState> {
+final class IntState implements AggregatorState {
     private int value;
     private boolean seen;
 
@@ -46,22 +46,13 @@ final class IntState implements AggregatorState<IntState> {
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
-    void toIntermediate(Block[] blocks, int offset) {
+    @Override
+    public void toIntermediate(Block[] blocks, int offset) {
         assert blocks.length >= offset + 2;
         blocks[offset + 0] = new ConstantIntVector(value, 1).asBlock();
         blocks[offset + 1] = new ConstantBooleanVector(seen, 1).asBlock();
     }
 
     @Override
-    public long getEstimatedSize() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void close() {}
-
-    @Override
-    public AggregatorStateSerializer<IntState> serializer() {
-        throw new UnsupportedOperationException();
-    }
 }

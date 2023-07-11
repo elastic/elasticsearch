@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -14,7 +15,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 
-@Aggregator({ @IntermediateState(name = "aggstate", type = "UNKNOWN") })
+@Aggregator({ @IntermediateState(name = "quart", type = "BYTES_REF") })
 @GroupingAggregator
 class MedianAbsoluteDeviationLongAggregator {
 
@@ -24,6 +25,10 @@ class MedianAbsoluteDeviationLongAggregator {
 
     public static void combine(QuantileStates.SingleState current, long v) {
         current.add(v);
+    }
+
+    public static void combineIntermediate(QuantileStates.SingleState state, BytesRef inValue) {
+        state.add(inValue);
     }
 
     public static void combineStates(QuantileStates.SingleState current, QuantileStates.SingleState state) {
@@ -40,6 +45,10 @@ class MedianAbsoluteDeviationLongAggregator {
 
     public static void combine(QuantileStates.GroupingState state, int groupId, long v) {
         state.add(groupId, v);
+    }
+
+    public static void combineIntermediate(QuantileStates.GroupingState state, int groupId, BytesRef inValue) {
+        state.add(groupId, inValue);
     }
 
     public static void combineStates(

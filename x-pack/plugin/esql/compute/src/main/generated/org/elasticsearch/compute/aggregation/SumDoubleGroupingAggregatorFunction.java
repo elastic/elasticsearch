@@ -191,7 +191,10 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
     DoubleVector delta = page.<DoubleBlock>getBlock(channels.get(1)).asVector();
     BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(2)).asVector();
     assert value.getPositionCount() == delta.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
-    SumDoubleAggregator.combineIntermediate(groupIdVector, state, value, delta, seen);
+    for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
+      int groupId = Math.toIntExact(groupIdVector.getLong(position));
+      SumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(position), delta.getDouble(position), seen.getBoolean(position));
+    }
   }
 
   @Override

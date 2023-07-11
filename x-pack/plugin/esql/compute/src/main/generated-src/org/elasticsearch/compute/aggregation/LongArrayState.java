@@ -23,7 +23,7 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Do not edit it.
  */
 @Experimental
-final class LongArrayState implements AggregatorState<LongArrayState> {
+final class LongArrayState implements GroupingAggregatorState {
     private final BigArrays bigArrays;
     private final long init;
 
@@ -119,7 +119,8 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
-    void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+    @Override
+    public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
         assert blocks.length >= offset + 2;
         var valuesBuilder = LongBlock.newBlockBuilder(selected.getPositionCount());
         var nullsBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
@@ -133,17 +134,7 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
     }
 
     @Override
-    public long getEstimatedSize() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void close() {
         Releasables.close(values, nonNulls);
-    }
-
-    @Override
-    public AggregatorStateSerializer<LongArrayState> serializer() {
-        throw new UnsupportedOperationException();
     }
 }

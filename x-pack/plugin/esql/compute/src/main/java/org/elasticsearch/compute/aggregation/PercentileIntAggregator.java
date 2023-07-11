@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -14,7 +15,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 
-@Aggregator({ @IntermediateState(name = "aggstate", type = "UNKNOWN") })
+@Aggregator({ @IntermediateState(name = "quart", type = "BYTES_REF") })
 @GroupingAggregator
 class PercentileIntAggregator {
 
@@ -30,6 +31,10 @@ class PercentileIntAggregator {
         current.add(state);
     }
 
+    public static void combineIntermediate(QuantileStates.SingleState state, BytesRef inValue) {
+        state.add(inValue);
+    }
+
     public static Block evaluateFinal(QuantileStates.SingleState state) {
         return state.evaluatePercentile();
     }
@@ -40,6 +45,10 @@ class PercentileIntAggregator {
 
     public static void combine(QuantileStates.GroupingState state, int groupId, int v) {
         state.add(groupId, v);
+    }
+
+    public static void combineIntermediate(QuantileStates.GroupingState state, int groupId, BytesRef inValue) {
+        state.add(groupId, inValue);
     }
 
     public static void combineStates(

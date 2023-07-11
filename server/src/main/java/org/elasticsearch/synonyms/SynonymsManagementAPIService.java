@@ -253,7 +253,7 @@ public class SynonymsManagementAPIService {
             // Insert as bulk requests
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             try {
-                if (created == false) {
+                if (created) {
                     // Insert synonym set object
                     bulkRequestBuilder.add(createSynonymSetIndexRequest(synonymSetId));
                 }

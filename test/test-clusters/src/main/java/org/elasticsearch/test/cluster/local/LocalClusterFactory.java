@@ -222,7 +222,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             return name;
         }
 
-        long getPid() {
+        public long getPid() {
             if (process == null) {
                 throw new IllegalStateException("Process has not been started, cannot get pid");
             }

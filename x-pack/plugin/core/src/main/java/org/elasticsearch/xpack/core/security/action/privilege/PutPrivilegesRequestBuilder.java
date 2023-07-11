@@ -35,7 +35,8 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
         super(client, PutPrivilegesAction.INSTANCE, new PutPrivilegesRequest());
     }
 
-    ApplicationPrivilegeDescriptor parsePrivilege(XContentParser parser, String applicationName, String privilegeName) throws IOException {
+    static ApplicationPrivilegeDescriptor parsePrivilege(XContentParser parser, String applicationName, String privilegeName)
+        throws IOException {
         ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, applicationName, privilegeName, false);
         checkPrivilegeName(privilege, applicationName, privilegeName);
         return privilege;
@@ -99,7 +100,7 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
         return this;
     }
 
-    private void checkPrivilegeName(ApplicationPrivilegeDescriptor privilege, String applicationName, String providedName) {
+    private static void checkPrivilegeName(ApplicationPrivilegeDescriptor privilege, String applicationName, String providedName) {
         final String privilegeName = privilege.getName();
         if (Strings.isNullOrEmpty(applicationName) == false && applicationName.equals(privilege.getApplication()) == false) {
             throw new IllegalArgumentException(

@@ -477,7 +477,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     /**
      * Uploads a blob using a single upload request
      */
-    void executeSingleUpload(final S3BlobStore s3BlobStore, final String blobName, final InputStream input, final long blobSize)
+    static void executeSingleUpload(final S3BlobStore s3BlobStore, final String blobName, final InputStream input, final long blobSize)
         throws IOException {
 
         // Extra safety checks
@@ -653,7 +653,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             }
         }
 
-        private int getUploadIndex(String targetUploadId, List<MultipartUpload> multipartUploads) {
+        private static int getUploadIndex(String targetUploadId, List<MultipartUpload> multipartUploads) {
             var uploadIndex = 0;
             var found = false;
             for (MultipartUpload multipartUpload : multipartUploads) {

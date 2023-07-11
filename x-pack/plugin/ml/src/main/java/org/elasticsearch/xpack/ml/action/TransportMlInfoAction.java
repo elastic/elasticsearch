@@ -114,7 +114,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         return defaultLimit;
     }
 
-    private Map<String, Object> datafeedsDefaults() {
+    private static Map<String, Object> datafeedsDefaults() {
         Map<String, Object> anomalyDetectorsDefaults = new HashMap<>();
         anomalyDetectorsDefaults.put(DatafeedConfig.SCROLL_SIZE.getPreferredName(), DatafeedConfig.DEFAULT_SCROLL_SIZE);
         return anomalyDetectorsDefaults;

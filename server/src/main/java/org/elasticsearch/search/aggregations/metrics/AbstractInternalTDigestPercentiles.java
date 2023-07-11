@@ -159,7 +159,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
      * @param digest2 The second histogram to merge
      * @return One of the input histograms such that the one with larger compression is used as the one for merging
      */
-    private TDigestState merge(final TDigestState digest1, final TDigestState digest2) {
+    private static TDigestState merge(final TDigestState digest1, final TDigestState digest2) {
         TDigestState largerCompression = digest1;
         TDigestState smallerCompression = digest2;
         if (digest2.compression() > digest1.compression()) {

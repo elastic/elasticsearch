@@ -637,7 +637,7 @@ public class MetadataIndexTemplateService {
      * @param validate should we throw {@link IllegalArgumentException} if conflicts are found or just compute them
      * @return a map of v2 template names to their index patterns for v2 templates that would overlap with the given template
      */
-    public Map<String, List<String>> v2TemplateOverlaps(
+    public static Map<String, List<String>> v2TemplateOverlaps(
         ClusterState currentState,
         String name,
         final ComposableIndexTemplate template,

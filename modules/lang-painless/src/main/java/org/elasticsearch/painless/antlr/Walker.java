@@ -195,7 +195,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         return parser.source();
     }
 
-    private void setupPicky(PainlessParser parser) {
+    private static void setupPicky(PainlessParser parser) {
         // Diagnostic listener invokes syntaxError on other listeners for ambiguity issues,
         parser.addErrorListener(new DiagnosticErrorListener(true));
         // a second listener to fail the test when the above happens.

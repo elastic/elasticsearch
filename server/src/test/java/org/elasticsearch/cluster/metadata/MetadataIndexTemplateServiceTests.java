@@ -2288,14 +2288,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             );
 
             // when validating is false, we return the conflicts instead of throwing an exception
-            var overlaps = metadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, false);
+            var overlaps = MetadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, false);
 
             assertThat(overlaps, allOf(aMapWithSize(1), hasKey("foo")));
 
             // try now the same thing with validation on
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> metadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, true)
+                () -> MetadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, true)
             );
             assertThat(
                 e.getMessage(),
@@ -2317,7 +2317,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null
             );
 
-            overlaps = metadataIndexTemplateService.v2TemplateOverlaps(state, "no-conflict", nonConflict, true);
+            overlaps = MetadataIndexTemplateService.v2TemplateOverlaps(state, "no-conflict", nonConflict, true);
             assertTrue(overlaps.isEmpty());
         }
 
@@ -2346,7 +2346,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             );
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> metadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, true)
+                () -> MetadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, true)
             );
             assertThat(
                 e.getMessage(),

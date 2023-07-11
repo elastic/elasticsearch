@@ -1679,7 +1679,7 @@ public class RBACEngineTests extends ESTestCase {
         // superuser
         {
             final SimpleRole role = Role.buildFromRoleDescriptor(
-                reservedRolesStore.roleDescriptor("superuser"),
+                ReservedRolesStore.roleDescriptor("superuser"),
                 fieldPermissionsCache,
                 RESTRICTED_INDICES
             );
@@ -1715,7 +1715,7 @@ public class RBACEngineTests extends ESTestCase {
         // kibana_system
         {
             final SimpleRole role = Role.buildFromRoleDescriptor(
-                reservedRolesStore.roleDescriptor("kibana_system"),
+                ReservedRolesStore.roleDescriptor("kibana_system"),
                 fieldPermissionsCache,
                 RESTRICTED_INDICES
             );
@@ -1751,7 +1751,7 @@ public class RBACEngineTests extends ESTestCase {
         // monitoring_user
         {
             final SimpleRole role = Role.buildFromRoleDescriptor(
-                reservedRolesStore.roleDescriptor("monitoring_user"),
+                ReservedRolesStore.roleDescriptor("monitoring_user"),
                 fieldPermissionsCache,
                 RESTRICTED_INDICES
             );

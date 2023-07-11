@@ -279,7 +279,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         killProcess(parentTaskClient, jobId, killJobListener);
     }
 
-    private void killProcess(
+    private static void killProcess(
         ParentTaskAssigningClient parentTaskClient,
         String jobId,
         ActionListener<KillProcessAction.Response> listener
@@ -299,7 +299,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         }
     }
 
-    private void checkJobIsNotOpen(String jobId, ClusterState state) {
+    private static void checkJobIsNotOpen(String jobId, ClusterState state) {
         PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask != null) {

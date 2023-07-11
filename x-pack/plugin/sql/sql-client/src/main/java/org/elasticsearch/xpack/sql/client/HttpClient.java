@@ -152,7 +152,7 @@ public class HttpClient {
                 cfg,
                 con -> con.request(
                     (out) -> out.write(requestBytes),
-                    this::readFrom,
+                    HttpClient::readFrom,
                     "POST",
                     requestBodyContentType.mediaTypeWithoutParameters() // "application/cbor" or "application/json"
                 )
@@ -199,7 +199,7 @@ public class HttpClient {
                 path,
                 "error_trace",
                 cfg,
-                con -> con.request(null, this::readFrom, "GET")
+                con -> con.request(null, HttpClient::readFrom, "GET")
             )
         ).getResponseOrThrowException();
         return fromContent(contentType(response.v1()), response.v2(), responseParser);
@@ -216,7 +216,7 @@ public class HttpClient {
         }
     }
 
-    private Tuple<Function<String, List<String>>, byte[]> readFrom(InputStream inputStream, Function<String, List<String>> headers) {
+    private static Tuple<Function<String, List<String>>, byte[]> readFrom(InputStream inputStream, Function<String, List<String>> headers) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             Streams.copy(inputStream, out);
@@ -227,7 +227,7 @@ public class HttpClient {
 
     }
 
-    private ContentType contentType(Function<String, List<String>> headers) {
+    private static ContentType contentType(Function<String, List<String>> headers) {
         List<String> contentTypeHeaders = headers.apply("Content-Type");
 
         String contentType = contentTypeHeaders == null || contentTypeHeaders.isEmpty() ? null : contentTypeHeaders.get(0);
@@ -239,7 +239,7 @@ public class HttpClient {
         }
     }
 
-    private <Response> Response fromContent(
+    private static <Response> Response fromContent(
         ContentType type,
         byte[] bytesReference,
         CheckedFunction<JsonParser, Response, IOException> responseParser

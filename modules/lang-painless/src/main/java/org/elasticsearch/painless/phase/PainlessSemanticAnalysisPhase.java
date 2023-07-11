@@ -193,7 +193,7 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
     /**
      * Decorates a user expression node with a PainlessCast.
      */
-    public void decorateWithCastForReturn(
+    public static void decorateWithCastForReturn(
         AExpression userExpressionNode,
         AStatement parent,
         SemanticScope semanticScope,

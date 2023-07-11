@@ -57,7 +57,11 @@ public final class TransportSamlPrepareAuthenticationAction extends HandledTrans
         }
     }
 
-    private void prepareAuthentication(SamlRealm realm, String relayState, ActionListener<SamlPrepareAuthenticationResponse> listener) {
+    private static void prepareAuthentication(
+        SamlRealm realm,
+        String relayState,
+        ActionListener<SamlPrepareAuthenticationResponse> listener
+    ) {
         final AuthnRequest authnRequest = realm.buildAuthenticationRequest();
         try {
             String redirectUrl = new SamlRedirect(authnRequest, realm.getSigningConfiguration()).getRedirectUrl(relayState);

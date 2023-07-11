@@ -257,7 +257,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         }, listener::onFailure);
     }
 
-    private void getModelSnapshot(
+    private static void getModelSnapshot(
         RevertModelSnapshotAction.Request request,
         JobResultsProvider provider,
         Consumer<ModelSnapshot> handler,

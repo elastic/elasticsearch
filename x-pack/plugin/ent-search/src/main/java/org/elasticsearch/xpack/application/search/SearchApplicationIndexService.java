@@ -241,7 +241,7 @@ public class SearchApplicationIndexService {
         listener.onResponse(inconsistentIndices);
     }
 
-    private Set<String> findMissingIndices(Set<String> indices, Set<String> toExclude) {
+    private static Set<String> findMissingIndices(Set<String> indices, Set<String> toExclude) {
         Set<String> diff = new HashSet<>(indices);
         diff.removeAll(toExclude);
         return diff;

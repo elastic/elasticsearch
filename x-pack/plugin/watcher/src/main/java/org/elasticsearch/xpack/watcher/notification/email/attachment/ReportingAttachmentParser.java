@@ -80,7 +80,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         key -> Setting.simpleString(key, Setting.Property.NodeScope, Setting.Property.Dynamic)
     );
 
-    private static final ObjectParser<Builder, AuthParseContext> PARSER = new ObjectParser<>("reporting_attachment");
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("reporting_attachment");
     private static final ObjectParser<KibanaReportingPayload, Void> PAYLOAD_PARSER = new ObjectParser<>(
         "reporting_attachment_kibana_payload",
         true,
@@ -98,8 +98,20 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         PARSER.declareBoolean(Builder::inline, ReportingAttachment.INLINE);
         PARSER.declareString(Builder::interval, ReportingAttachment.INTERVAL);
         PARSER.declareString(Builder::url, ReportingAttachment.URL);
-        PARSER.declareObjectOrDefault(Builder::auth, (p, s) -> s.parseAuth(p), () -> null, ReportingAttachment.AUTH);
-        PARSER.declareObjectOrDefault(Builder::proxy, (p, s) -> s.parseProxy(p), () -> null, ReportingAttachment.PROXY);
+        PARSER.declareObjectOrDefault(Builder::auth, (p, s) -> {
+            try {
+                return BasicAuth.parse(p);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }, () -> null, ReportingAttachment.AUTH);
+        PARSER.declareObjectOrDefault(Builder::proxy, (p, s) -> {
+            try {
+                return HttpProxy.parse(p);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }, () -> null, ReportingAttachment.PROXY);
         PAYLOAD_PARSER.declareString(KibanaReportingPayload::setPath, new ParseField("path"));
     }
 
@@ -137,7 +149,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         this.templateEngine = templateEngine;
         this.logger = LogManager.getLogger(getClass());
         clusterSettings.addSettingsUpdateConsumer(REPORT_WARNING_ENABLED_SETTING, this::setWarningEnabled);
-        clusterSettings.addAffixUpdateConsumer(REPORT_WARNING_TEXT, this::addWarningText, this::warningValidator);
+        clusterSettings.addAffixUpdateConsumer(REPORT_WARNING_TEXT, this::addWarningText, ReportingAttachmentParser::warningValidator);
     }
 
     void setWarningEnabled(boolean warningEnabled) {
@@ -148,8 +160,8 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         customWarnings.put(name, value);
     }
 
-    void warningValidator(String name, String value) {
-        if (WARNINGS.keySet().contains(name) == false) {
+    static void warningValidator(String name, String value) {
+        if (WARNINGS.containsKey(name) == false) {
             throw new IllegalArgumentException(
                 format(
                     "Warning [%s] is not supported. Only the following warnings are supported [%s]",
@@ -168,7 +180,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     @Override
     public ReportingAttachment parse(String id, XContentParser parser) throws IOException {
         Builder builder = new Builder(id);
-        PARSER.parse(parser, builder, new AuthParseContext());
+        PARSER.parse(parser, builder, null);
         return builder.build();
     }
 
@@ -285,7 +297,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         );
     }
 
-    private void sleep(long sleepMillis, WatchExecutionContext context, ReportingAttachment attachment) {
+    private static void sleep(long sleepMillis, WatchExecutionContext context, ReportingAttachment attachment) {
         try {
             Thread.sleep(sleepMillis);
         } catch (InterruptedException e) {
@@ -343,7 +355,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     /**
      * Extract the id from JSON payload, so we know which ID to poll for
      */
-    private String extractIdFromJson(String watchId, String attachmentId, BytesReference body) throws IOException {
+    private static String extractIdFromJson(String watchId, String attachmentId, BytesReference body) throws IOException {
         // EMPTY is safe here becaus we never call namedObject
         try (
             InputStream stream = body.streamInput();
@@ -365,29 +377,6 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
                 );
             }
             return path;
-        }
-    }
-
-    /**
-     * A helper class to parse HTTP auth and proxy structures, which is read by an old school pull parser, that is handed over in the ctor.
-     * See the static parser definition at the top
-     */
-    private static class AuthParseContext {
-
-        BasicAuth parseAuth(XContentParser parser) {
-            try {
-                return BasicAuth.parse(parser);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-
-        HttpProxy parseProxy(XContentParser parser) {
-            try {
-                return HttpProxy.parse(parser);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
         }
     }
 

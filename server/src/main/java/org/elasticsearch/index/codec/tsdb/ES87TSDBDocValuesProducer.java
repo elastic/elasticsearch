@@ -158,13 +158,13 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private NumericEntry readNumeric(IndexInput meta) throws IOException {
+    private static NumericEntry readNumeric(IndexInput meta) throws IOException {
         NumericEntry entry = new NumericEntry();
         readNumeric(meta, entry);
         return entry;
     }
 
-    private void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
+    private static void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
         entry.docsWithFieldOffset = meta.readLong();
         entry.docsWithFieldLength = meta.readLong();
         entry.jumpTableEntryCount = meta.readShort();
@@ -184,13 +184,13 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private SortedNumericEntry readSortedNumeric(IndexInput meta) throws IOException {
+    private static SortedNumericEntry readSortedNumeric(IndexInput meta) throws IOException {
         SortedNumericEntry entry = new SortedNumericEntry();
         readSortedNumeric(meta, entry);
         return entry;
     }
 
-    private SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry) throws IOException {
+    private static SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry) throws IOException {
         readNumeric(meta, entry);
         entry.numDocsWithField = meta.readInt();
         if (entry.numDocsWithField != entry.numValues) {

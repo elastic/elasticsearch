@@ -56,7 +56,8 @@ public abstract class TransportBaseUpdateApiKeyAction<Request extends BaseUpdate
 
     abstract void doExecuteUpdate(Task task, Request request, Authentication authentication, ActionListener<Response> listener);
 
-    protected UpdateApiKeyResponse toSingleResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response) throws Exception {
+    protected static UpdateApiKeyResponse toSingleResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response)
+        throws Exception {
         if (response.getTotalResultCount() != 1) {
             throw new IllegalStateException(
                 "single result required for single API key update but result count was [" + response.getTotalResultCount() + "]"
@@ -83,7 +84,7 @@ public abstract class TransportBaseUpdateApiKeyAction<Request extends BaseUpdate
         }
     }
 
-    private void throwIllegalStateExceptionOnIdMismatch(final String requestId, final String responseId) {
+    private static void throwIllegalStateExceptionOnIdMismatch(final String requestId, final String responseId) {
         final String message = "response ID [" + responseId + "] does not match request ID [" + requestId + "] for single API key update";
         assert false : message;
         throw new IllegalStateException(message);

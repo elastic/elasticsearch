@@ -73,7 +73,7 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         }
     }
 
-    private AbstractHyperLogLogPlusPlus resolveBucketValue(
+    private static AbstractHyperLogLogPlusPlus resolveBucketValue(
         MultiBucketsAggregation agg,
         InternalMultiBucketAggregation.InternalBucket bucket,
         String aggPath

@@ -1004,11 +1004,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         return Collections.emptyMap();
     }
 
-    public RoleDescriptor roleDescriptor(String role) {
+    public static RoleDescriptor roleDescriptor(String role) {
         return RESERVED_ROLES.get(role);
     }
 
-    public Collection<RoleDescriptor> roleDescriptors() {
+    public static Collection<RoleDescriptor> roleDescriptors() {
         return RESERVED_ROLES.values();
     }
 

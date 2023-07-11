@@ -426,7 +426,7 @@ public class DiskThresholdSettings {
         this.frozenFloodStageMaxHeadroom = maxHeadroom;
     }
 
-    private ByteSizeValue getFreeBytesThreshold(ByteSizeValue total, RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
+    private static ByteSizeValue getFreeBytesThreshold(ByteSizeValue total, RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
         // If bytes are given, they can be readily returned as free bytes. If percentages are given, we need to calculate the free bytes.
         if (watermark.isAbsolute()) {
             return watermark.getAbsolute();
@@ -450,7 +450,7 @@ public class DiskThresholdSettings {
         return getFreeBytesThreshold(total, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
     }
 
-    private ByteSizeValue getMinimumTotalSizeForBelowWatermark(
+    private static ByteSizeValue getMinimumTotalSizeForBelowWatermark(
         ByteSizeValue used,
         RelativeByteSizeValue watermark,
         ByteSizeValue maxHeadroom
@@ -490,7 +490,7 @@ public class DiskThresholdSettings {
         return rerouteInterval;
     }
 
-    private String describeThreshold(
+    private static String describeThreshold(
         ByteSizeValue total,
         RelativeByteSizeValue watermark,
         ByteSizeValue maxHeadroom,

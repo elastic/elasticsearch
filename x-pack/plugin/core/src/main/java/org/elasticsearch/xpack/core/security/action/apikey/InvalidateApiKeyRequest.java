@@ -249,7 +249,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         return Objects.hash(realmName, userName, ids, name, ownedByAuthenticatedUser);
     }
 
-    private void validateIds(@Nullable String[] idsToValidate) {
+    private static void validateIds(@Nullable String[] idsToValidate) {
         if (idsToValidate != null) {
             if (idsToValidate.length == 0) {
                 final ActionRequestValidationException validationException = new ActionRequestValidationException();

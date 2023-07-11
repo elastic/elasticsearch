@@ -165,7 +165,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
                     }
         }
 
-        private String extractBase64EncodedToken(ElasticsearchSecurityException e) {
+        private static String extractBase64EncodedToken(ElasticsearchSecurityException e) {
             String base64EncodedToken = null;
             List<String> values = e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
             if (values != null && values.size() == 1) {

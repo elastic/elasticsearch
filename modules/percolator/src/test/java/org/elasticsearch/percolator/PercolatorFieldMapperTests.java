@@ -367,7 +367,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-        Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = fieldType.extractTermsAndRanges(indexReader);
+        Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(indexReader);
         assertEquals(1, t.v2().size());
         Map<String, List<byte[]>> rangesMap = t.v2();
         assertEquals(1, rangesMap.size());
@@ -449,7 +449,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-        Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = fieldType.extractTermsAndRanges(indexReader);
+        Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(indexReader);
         assertEquals(0, t.v1().size());
         Map<String, List<byte[]>> rangesMap = t.v2();
         assertEquals(7, rangesMap.size());

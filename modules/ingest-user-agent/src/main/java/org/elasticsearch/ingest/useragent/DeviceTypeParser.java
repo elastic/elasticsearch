@@ -129,7 +129,7 @@ public class DeviceTypeParser {
         return "Other";
     }
 
-    private String findMatch(List<DeviceTypeSubPattern> possiblePatterns, String matchString) {
+    private static String findMatch(List<DeviceTypeSubPattern> possiblePatterns, String matchString) {
         String name;
         for (DeviceTypeSubPattern pattern : possiblePatterns) {
             name = pattern.match(matchString);

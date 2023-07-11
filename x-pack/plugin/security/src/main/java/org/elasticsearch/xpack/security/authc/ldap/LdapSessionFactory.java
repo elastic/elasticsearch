@@ -126,7 +126,7 @@ public class LdapSessionFactory extends SessionFactory {
      * @param username username to insert into the DN template.  Any commas, equals or plus will be escaped.
      * @return DN (distinguished name) build from the template.
      */
-    String buildDnFromTemplate(String username, String template) {
+    static String buildDnFromTemplate(String username, String template) {
         // this value must be escaped to avoid manipulation of the template DN.
         String escapedUsername = escapedRDNValue(username);
         return new MessageFormat(template, Locale.ROOT).format(new Object[] { escapedUsername }, new StringBuffer(), null).toString();

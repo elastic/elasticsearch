@@ -151,7 +151,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         );
     }
 
-    private <T> Iterator<? extends ToXContent> optional(
+    private static <T> Iterator<? extends ToXContent> optional(
         String name,
         Map<String, T> values,
         BiFunction<String, Map<String, T>, Iterator<? extends ToXContent>> supplier

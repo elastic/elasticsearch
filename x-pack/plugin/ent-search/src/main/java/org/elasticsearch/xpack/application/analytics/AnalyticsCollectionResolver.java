@@ -104,7 +104,7 @@ public class AnalyticsCollectionResolver {
         return new ArrayList<>(collections.values());
     }
 
-    private boolean matchExpression(String collectionName, String expression) {
+    private static boolean matchExpression(String collectionName, String expression) {
         if (Strings.isNullOrEmpty(expression)) {
             return false;
         }
@@ -120,7 +120,7 @@ public class AnalyticsCollectionResolver {
         return collectionName.equals(expression);
     }
 
-    private boolean matchAnyExpression(String collectionName, String... expressions) {
+    private static boolean matchAnyExpression(String collectionName, String... expressions) {
         if (expressions.length < 1) {
             return true;
         }
@@ -128,7 +128,7 @@ public class AnalyticsCollectionResolver {
         return Arrays.stream(expressions).anyMatch(expression -> matchExpression(collectionName, expression));
     }
 
-    private boolean matchAnyExpression(AnalyticsCollection collection, String... expressions) {
+    private static boolean matchAnyExpression(AnalyticsCollection collection, String... expressions) {
         return matchAnyExpression(collection.getName(), expressions);
     }
 }

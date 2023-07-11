@@ -644,7 +644,7 @@ public final class SamlRealm extends Realm implements Releasable {
         return tokenMeta;
     }
 
-    private String resolveSingleValueAttribute(SamlAttributes attributes, AttributeParser parser, String name) {
+    private static String resolveSingleValueAttribute(SamlAttributes attributes, AttributeParser parser, String name) {
         final List<String> list = parser.getAttribute(attributes);
         switch (list.size()) {
             case 0:

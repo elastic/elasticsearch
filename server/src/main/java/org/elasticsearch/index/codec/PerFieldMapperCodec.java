@@ -130,11 +130,11 @@ public class PerFieldMapperCodec extends Lucene95Codec {
         return false;
     }
 
-    private boolean isTimestampField(String field) {
+    private static boolean isTimestampField(String field) {
         return "@timestamp".equals(field);
     }
 
-    private boolean isNotSpecialField(String field) {
+    private static boolean isNotSpecialField(String field) {
         return field.startsWith("_") == false;
     }
 }

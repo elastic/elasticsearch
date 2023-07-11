@@ -260,7 +260,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             }
         }
 
-        private List<String> readPortsFile(Path file) {
+        private static List<String> readPortsFile(Path file) {
             try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
                 return lines.map(String::trim).collect(Collectors.toList());
             } catch (IOException e) {

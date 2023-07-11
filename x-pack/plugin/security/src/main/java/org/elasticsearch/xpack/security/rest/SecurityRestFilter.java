@@ -94,7 +94,7 @@ public class SecurityRestFilter implements RestHandler {
             if (secondaryAuthentication != null) {
                 logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
             }
-            workflowService.resolveWorkflowAndStoreInThreadContext(restHandler, threadContext);
+            WorkflowService.resolveWorkflowAndStoreInThreadContext(restHandler, threadContext);
             doHandleRequest(request, channel, client);
         }, e -> handleException(request, channel, e)));
     }

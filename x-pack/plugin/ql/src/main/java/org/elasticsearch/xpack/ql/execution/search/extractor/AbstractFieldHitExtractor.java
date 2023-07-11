@@ -206,7 +206,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return values;
     }
 
-    private boolean isListOfNulls(Object unwrapped) {
+    private static boolean isListOfNulls(Object unwrapped) {
         if (unwrapped instanceof List<?> list) {
             if (list.size() == 0) {
                 return false;

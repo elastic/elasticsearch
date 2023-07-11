@@ -467,7 +467,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
     }
 
-    private boolean hasTemplate(final ClusterState clusterState, final String templateName) {
+    private static boolean hasTemplate(final ClusterState clusterState, final String templateName) {
         final IndexTemplateMetadata template = clusterState.getMetadata().getTemplates().get(templateName);
 
         return template != null && hasValidVersion(template.getVersion(), MonitoringTemplateRegistry.REGISTRY_VERSION);
@@ -480,7 +480,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * @param minimumVersion The minimum version required to be a "valid" version
      * @return {@code true} if the version exists and it's &gt;= to the minimum version. {@code false} otherwise.
      */
-    private boolean hasValidVersion(final Object version, final long minimumVersion) {
+    private static boolean hasValidVersion(final Object version, final long minimumVersion) {
         return version instanceof Number && ((Number) version).intValue() >= minimumVersion;
     }
 

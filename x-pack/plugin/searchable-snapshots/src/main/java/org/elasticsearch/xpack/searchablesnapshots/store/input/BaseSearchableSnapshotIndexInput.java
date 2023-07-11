@@ -251,7 +251,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         }
     }
 
-    protected final boolean assertCurrentThreadMayAccessBlobStore() {
+    protected static boolean assertCurrentThreadMayAccessBlobStore() {
         return ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SNAPSHOT,
             ThreadPool.Names.GENERIC,

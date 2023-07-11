@@ -306,7 +306,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     static class PruneOrderByNestedFields extends OptimizerRule<Project> {
 
-        private void findNested(Expression exp, AttributeMap<Function> functions, Consumer<FieldAttribute> onFind) {
+        private static void findNested(Expression exp, AttributeMap<Function> functions, Consumer<FieldAttribute> onFind) {
             exp.forEachUp(e -> {
                 if (e instanceof ReferenceAttribute) {
                     Function f = functions.resolve(e);
@@ -551,7 +551,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         // normally only the upper projections should survive but since the lower list might have aliases definitions
         // that might be reused by the upper one, these need to be replaced.
         // for example an alias defined in the lower list might be referred in the upper - without replacing it the alias becomes invalid
-        private List<NamedExpression> combineProjections(List<? extends NamedExpression> upper, List<? extends NamedExpression> lower) {
+        private static List<NamedExpression> combineProjections(
+            List<? extends NamedExpression> upper,
+            List<? extends NamedExpression> lower
+        ) {
 
             // TODO: this need rewriting when moving functions of NamedExpression
 
@@ -638,7 +641,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         }
 
-        private boolean canPropagateFoldable(LogicalPlan p) {
+        private static boolean canPropagateFoldable(LogicalPlan p) {
             return p instanceof Project
                 || p instanceof Filter
                 || p instanceof SubQueryAlias
@@ -861,7 +864,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return plan;
         }
 
-        private LocalRelation unfilteredLocalRelation(LogicalPlan plan) {
+        private static LocalRelation unfilteredLocalRelation(LogicalPlan plan) {
             List<LogicalPlan> filterOrLeaves = plan.collectFirstChildren(p -> p instanceof Filter || p instanceof LeafPlan);
 
             if (filterOrLeaves.size() == 1) {
@@ -1206,7 +1209,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return plan;
         }
 
-        private List<Object> extractLiterals(List<? extends NamedExpression> named) {
+        private static List<Object> extractLiterals(List<? extends NamedExpression> named) {
             List<Object> values = new ArrayList<>();
             for (NamedExpression n : named) {
                 if (n instanceof Alias a) {
@@ -1232,14 +1235,16 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(Aggregate plan) {
-            if (plan.groupings().isEmpty() && plan.child() instanceof EsRelation && plan.aggregates().stream().allMatch(this::foldable)) {
+            if (plan.groupings().isEmpty()
+                && plan.child() instanceof EsRelation
+                && plan.aggregates().stream().allMatch(SkipQueryForLiteralAggregations::foldable)) {
                 return plan.replaceChild(new LocalRelation(plan.source(), new SingletonExecutable()));
             }
 
             return plan;
         }
 
-        private boolean foldable(Expression e) {
+        private static boolean foldable(Expression e) {
             if (e instanceof Alias) {
                 e = ((Alias) e).child();
             }

@@ -85,8 +85,8 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
         final ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = new ExternalEnrollmentTokenGenerator(environment, client);
         final URL baseURL = new URL("http://localhost:9200");
-        final URL createAPIKeyURL = externalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
-        final URL getHttpInfoURL = externalEnrollmentTokenGenerator.getHttpInfoUrl(baseURL);
+        final URL createAPIKeyURL = ExternalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
+        final URL getHttpInfoURL = ExternalEnrollmentTokenGenerator.getHttpInfoUrl(baseURL);
 
         final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(client.execute(anyString(), any(URL.class), anyString(), any(SecureString.class), anyCheckedSupplier(), anyCheckedFunction()))
@@ -174,7 +174,7 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
         final URL baseURL = new URL("http://localhost:9200");
         final ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = new ExternalEnrollmentTokenGenerator(environment, client);
-        final URL createAPIKeyURL = externalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
+        final URL createAPIKeyURL = ExternalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
 
         final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<>());
         when(
@@ -200,8 +200,8 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
         final URL baseURL = new URL("http://localhost:9200");
         final ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = new ExternalEnrollmentTokenGenerator(environment, client);
-        final URL createAPIKeyURL = externalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
-        final URL getHttpInfoURL = externalEnrollmentTokenGenerator.getHttpInfoUrl(baseURL);
+        final URL createAPIKeyURL = ExternalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
+        final URL getHttpInfoURL = ExternalEnrollmentTokenGenerator.getHttpInfoUrl(baseURL);
 
         final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(
@@ -278,8 +278,8 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
         final ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = new ExternalEnrollmentTokenGenerator(environment, client);
         final URL baseURL = new URL("http://localhost:9200");
-        final URL createAPIKeyURL = externalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
-        final URL getHttpInfoURL = externalEnrollmentTokenGenerator.getHttpInfoUrl(baseURL);
+        final URL createAPIKeyURL = ExternalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
+        final URL getHttpInfoURL = ExternalEnrollmentTokenGenerator.getHttpInfoUrl(baseURL);
 
         final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(
@@ -362,8 +362,8 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
         final ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = new ExternalEnrollmentTokenGenerator(environment, client);
         final URL baseURL = new URL("http://localhost:9200");
-        final URL createAPIKeyURL = externalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
-        final URL getHttpInfoURL = externalEnrollmentTokenGenerator.getHttpInfoUrl(baseURL);
+        final URL createAPIKeyURL = ExternalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
+        final URL getHttpInfoURL = ExternalEnrollmentTokenGenerator.getHttpInfoUrl(baseURL);
 
         final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(

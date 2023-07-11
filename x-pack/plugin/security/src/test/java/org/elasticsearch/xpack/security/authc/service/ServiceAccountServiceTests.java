@@ -579,7 +579,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         );
 
         final PlainActionFuture<RoleDescriptor> future1 = new PlainActionFuture<>();
-        serviceAccountService.getRoleDescriptor(auth1, future1);
+        ServiceAccountService.getRoleDescriptor(auth1, future1);
         final RoleDescriptor roleDescriptor1 = future1.get();
         assertNotNull(roleDescriptor1);
         assertThat(roleDescriptor1.getName(), equalTo("elastic/fleet-server"));
@@ -594,7 +594,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             Map.of("_token_name", randomAlphaOfLengthBetween(3, 8), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT))
         );
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
-        serviceAccountService.getRoleDescriptor(auth2, future2);
+        ServiceAccountService.getRoleDescriptor(auth2, future2);
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future2::actionGet);
         assertThat(e.getMessage(), containsString("cannot load role for service account [" + username + "] - no such service account"));
     }

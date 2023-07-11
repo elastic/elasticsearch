@@ -265,7 +265,7 @@ public class ClientYamlSuiteRestApiParser {
         return restApi;
     }
 
-    private List<String> getStringsFromArray(XContentParser parser, String key) throws IOException {
+    private static List<String> getStringsFromArray(XContentParser parser, String key) throws IOException {
         return parser.list().stream().filter(Objects::nonNull).map(o -> {
             if (o instanceof String) {
                 return (String) o;

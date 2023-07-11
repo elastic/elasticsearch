@@ -146,13 +146,16 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         );
     }
 
-    private void addSearchApplicationsUsage(ListSearchApplicationAction.Response response, Map<String, Object> searchApplicationsUsage) {
+    private static void addSearchApplicationsUsage(
+        ListSearchApplicationAction.Response response,
+        Map<String, Object> searchApplicationsUsage
+    ) {
         long count = response.queryPage().count();
 
         searchApplicationsUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, count);
     }
 
-    private void addAnalyticsCollectionsUsage(
+    private static void addAnalyticsCollectionsUsage(
         GetAnalyticsCollectionAction.Response response,
         Map<String, Object> analyticsCollectionsUsage
     ) {

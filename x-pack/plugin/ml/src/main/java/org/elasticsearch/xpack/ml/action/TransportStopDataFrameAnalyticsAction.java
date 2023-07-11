@@ -288,7 +288,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         }
     }
 
-    private void sendResponseOrFailure(
+    private static void sendResponseOrFailure(
         String analyticsId,
         ActionListener<StopDataFrameAnalyticsAction.Response> listener,
         AtomicArray<Exception> failures

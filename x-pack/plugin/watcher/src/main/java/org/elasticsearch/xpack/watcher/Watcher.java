@@ -855,7 +855,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         return "Manages Watch definitions and state";
     }
 
-    private Settings getWatchesIndexSettings() {
+    private static Settings getWatchesIndexSettings() {
         return Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
@@ -865,7 +865,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .build();
     }
 
-    private XContentBuilder getWatchesIndexMappings() {
+    private static XContentBuilder getWatchesIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -946,7 +946,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         }
     }
 
-    private Settings getTriggeredWatchesIndexSettings() {
+    private static Settings getTriggeredWatchesIndexSettings() {
         return Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.auto_expand_replicas", "0-1")
@@ -956,7 +956,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .build();
     }
 
-    private XContentBuilder getTriggeredWatchesIndexMappings() {
+    private static XContentBuilder getTriggeredWatchesIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 

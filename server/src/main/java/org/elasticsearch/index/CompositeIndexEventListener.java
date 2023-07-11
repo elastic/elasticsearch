@@ -243,7 +243,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
         }
     }
 
-    private void iterateBeforeIndexShardRecovery(
+    private static void iterateBeforeIndexShardRecovery(
         final IndexShard indexShard,
         final IndexSettings indexSettings,
         final Iterator<IndexEventListener> iterator,

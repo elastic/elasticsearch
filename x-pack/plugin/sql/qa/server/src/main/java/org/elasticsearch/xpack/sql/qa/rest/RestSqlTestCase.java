@@ -1539,7 +1539,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
      * 2. There are at most `expectedValues.size() / pageSize + 1` pages (the last one might or might not be empty)
      * 3. Optionally: That the last page is not empty.
      */
-    private void testFetchAllPages(String format, String query, List<String> expectedValues, int pageSize, boolean emptyLastPage)
+    private static void testFetchAllPages(String format, String query, List<String> expectedValues, int pageSize, boolean emptyLastPage)
         throws IOException {
         int remainingPages = expectedValues.size() / pageSize + 1;
 
@@ -1581,7 +1581,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         expectDataStreamInShowTables(dataStreamName, "SHOW TABLES \\\"" + dataStreamName + "*\\\"");
     }
 
-    private void expectDataStreamInShowTables(String dataStreamName, String sql) throws IOException {
+    private static void expectDataStreamInShowTables(String dataStreamName, String sql) throws IOException {
         try {
             createDataStream(dataStreamName);
 

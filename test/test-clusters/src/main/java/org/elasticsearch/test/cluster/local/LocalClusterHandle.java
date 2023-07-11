@@ -193,7 +193,7 @@ public class LocalClusterHandle implements ClusterHandle {
         return wait;
     }
 
-    private void configureWaitSecurity(WaitForHttpResource wait, Node node) {
+    private static void configureWaitSecurity(WaitForHttpResource wait, Node node) {
         String caFile = node.getSpec().getSetting("xpack.security.http.ssl.certificate_authorities", null);
         if (caFile != null) {
             wait.setCertificateAuthorities(node.getWorkingDir().resolve("config").resolve(caFile).toFile());
@@ -212,7 +212,7 @@ public class LocalClusterHandle implements ClusterHandle {
         }
     }
 
-    private boolean isSecurityAutoConfigured(Node node) {
+    private static boolean isSecurityAutoConfigured(Node node) {
         Path configFile = node.getWorkingDir().resolve("config").resolve("elasticsearch.yml");
         try (Stream<String> lines = Files.lines(configFile)) {
             return lines.anyMatch(l -> l.contains("BEGIN SECURITY AUTO CONFIGURATION"));

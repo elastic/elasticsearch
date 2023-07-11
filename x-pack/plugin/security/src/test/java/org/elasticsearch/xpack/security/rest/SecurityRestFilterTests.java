@@ -310,7 +310,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
-        assertThat(workflowService.readWorkflowFromThreadContext(threadContext), equalTo(workflow.name()));
+        assertThat(WorkflowService.readWorkflowFromThreadContext(threadContext), equalTo(workflow.name()));
     }
 
     public void testProcessWithoutWorkflow() throws Exception {
@@ -337,7 +337,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
-        assertThat(workflowService.readWorkflowFromThreadContext(threadContext), nullValue());
+        assertThat(WorkflowService.readWorkflowFromThreadContext(threadContext), nullValue());
     }
 
     public void testCheckRest() throws Exception {

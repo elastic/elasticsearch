@@ -292,7 +292,7 @@ public class SamlSpMetadataBuilder {
         return name;
     }
 
-    private RequestedAttribute buildRequestedAttribute(String friendlyName, String name) {
+    private static RequestedAttribute buildRequestedAttribute(String friendlyName, String name) {
         final RequestedAttribute attribute = new RequestedAttributeBuilder().buildObject();
         if (Strings.hasText(friendlyName)) {
             attribute.setFriendlyName(friendlyName);
@@ -329,7 +329,7 @@ public class SamlSpMetadataBuilder {
         return keys;
     }
 
-    private KeyDescriptor buildKeyDescriptor(X509Certificate certificate, UsageType usageType) throws CertificateEncodingException {
+    private static KeyDescriptor buildKeyDescriptor(X509Certificate certificate, UsageType usageType) throws CertificateEncodingException {
         final KeyDescriptor descriptor = new KeyDescriptorBuilder().buildObject();
         descriptor.setUse(usageType);
         final KeyInfo keyInfo = new KeyInfoBuilder().buildObject();
@@ -357,7 +357,7 @@ public class SamlSpMetadataBuilder {
         return org;
     }
 
-    private ContactPerson buildContact(ContactInfo contact) {
+    private static ContactPerson buildContact(ContactInfo contact) {
         final GivenName givenName = new GivenNameBuilder().buildObject();
         givenName.setValue(contact.givenName);
         final SurName surName = new SurNameBuilder().buildObject();

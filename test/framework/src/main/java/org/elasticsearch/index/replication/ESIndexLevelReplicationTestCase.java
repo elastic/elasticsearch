@@ -140,7 +140,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         return metadata.build();
     }
 
-    IndexRequest copyIndexRequest(IndexRequest inRequest) throws IOException {
+    static IndexRequest copyIndexRequest(IndexRequest inRequest) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             inRequest.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
@@ -149,7 +149,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
     }
 
-    protected DiscoveryNode getDiscoveryNode(String id) {
+    protected static DiscoveryNode getDiscoveryNode(String id) {
         return DiscoveryNodeUtils.builder(id).name(id).roles(Collections.singleton(DiscoveryNodeRole.DATA_ROLE)).build();
     }
 

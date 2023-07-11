@@ -838,7 +838,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas), index);
     }
 
-    private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
+    private static Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
         String exclude = String.join(",", internalCluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
         return builder;
@@ -1280,7 +1280,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    private void ensureClusterInfoServiceRunning() {
+    private static void ensureClusterInfoServiceRunning() {
         if (isInternalCluster() && cluster().size() > 0) {
             // ensures that the cluster info service didn't leak its async task, which would prevent future refreshes
             refreshClusterInfo();

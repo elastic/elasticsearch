@@ -199,7 +199,7 @@ public class PValueScore extends NXYSignificanceHeuristic {
         return FastMath.max(-FastMath.log(FastMath.max(pValue, Double.MIN_NORMAL)), 0.0);
     }
 
-    private double eps(double value) {
+    private static double eps(double value) {
         return Math.max(0.05 * value + 0.5, 1.0);
     }
 

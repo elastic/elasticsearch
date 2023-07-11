@@ -584,7 +584,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
         }
 
-        StringBuilder appendErrorElements(StringBuilder errorBuilder, float[] vector) {
+        static StringBuilder appendErrorElements(StringBuilder errorBuilder, float[] vector) {
             // Include the first five elements of the invalid vector in the error message
             errorBuilder.append(" Preview of invalid vector: [");
             for (int i = 0; i < Math.min(5, vector.length); i++) {
@@ -600,7 +600,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return errorBuilder;
         }
 
-        StringBuilder appendErrorElements(StringBuilder errorBuilder, byte[] vector) {
+        static StringBuilder appendErrorElements(StringBuilder errorBuilder, byte[] vector) {
             // Include the first five elements of the invalid vector in the error message
             errorBuilder.append(" Preview of invalid vector: [");
             for (int i = 0; i < Math.min(5, vector.length); i++) {
@@ -616,11 +616,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return errorBuilder;
         }
 
-        Function<StringBuilder, StringBuilder> errorFloatElementsAppender(float[] vector) {
+        static Function<StringBuilder, StringBuilder> errorFloatElementsAppender(float[] vector) {
             return sb -> appendErrorElements(sb, vector);
         }
 
-        Function<StringBuilder, StringBuilder> errorByteElementsAppender(byte[] vector) {
+        static Function<StringBuilder, StringBuilder> errorByteElementsAppender(byte[] vector) {
             return sb -> appendErrorElements(sb, vector);
         }
     }
@@ -833,7 +833,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 for (byte b : queryVector) {
                     squaredMagnitude += b * b;
                 }
-                elementType.checkVectorMagnitude(similarity, elementType.errorByteElementsAppender(queryVector), squaredMagnitude);
+                elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
             Query knnQuery = new KnnByteVectorQuery(name(), queryVector, numCands, filter);
             if (similarityThreshold != null) {
@@ -865,7 +865,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 for (float e : queryVector) {
                     squaredMagnitude += e * e;
                 }
-                elementType.checkVectorMagnitude(similarity, elementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
+                elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
             }
             Query knnQuery = switch (elementType) {
                 case BYTE -> {

@@ -242,7 +242,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         }
     }
 
-    private NodesRemovalPrevalidation createPrevalidationResult(DiscoveryNodes nodes, PrevalidateShardPathResponse response) {
+    private static NodesRemovalPrevalidation createPrevalidationResult(DiscoveryNodes nodes, PrevalidateShardPathResponse response) {
         List<NodeResult> nodeResults = new ArrayList<>(response.getNodes().size() + response.failures().size());
         for (NodePrevalidateShardPathResponse nodeResponse : response.getNodes()) {
             Result result;

@@ -468,7 +468,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
 
     // We only use this method in IndexRecoveryWithSnapshotsIT that's located in the x-pack plugin
     // that implements snapshot based recoveries.
-    private void createSnapshotThatCanBeUsedDuringRecovery(String indexName) throws Exception {
+    private static void createSnapshotThatCanBeUsedDuringRecovery(String indexName) throws Exception {
         // Ensure that the safe commit == latest commit
         assertBusy(() -> {
             ShardStats stats = indicesAdmin().prepareStats(indexName)

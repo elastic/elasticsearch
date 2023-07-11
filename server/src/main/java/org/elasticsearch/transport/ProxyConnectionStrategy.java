@@ -272,7 +272,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     if (countDown.countDown()) {
                         if (attemptNumber >= MAX_CONNECT_ATTEMPTS_PER_RUN && connectionManager.size() == 0) {
                             logger.warn(() -> "failed to open any proxy connections to cluster [" + clusterAlias + "]", e);
-                            if (exceptions.values().stream().allMatch(ProxyConnectionStrategy.this::isRetryableException)) {
+                            if (exceptions.values().stream().allMatch(RemoteConnectionStrategy::isRetryableException)) {
                                 finished.onFailure(getNoSeedNodeLeftException(exceptions.values()));
                             } else {
                                 exceptions.values().stream().filter(e1 -> e1 != e).forEach(e::addSuppressed);

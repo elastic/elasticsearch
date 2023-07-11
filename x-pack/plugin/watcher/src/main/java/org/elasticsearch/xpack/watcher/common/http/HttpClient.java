@@ -322,7 +322,7 @@ public class HttpClient implements Closeable {
      *
      * @return An HTTP proxy instance, if no settings are configured this will be an HttpProxy.NO_PROXY instance
      */
-    private HttpProxy getProxyFromSettings(Settings settings) {
+    private static HttpProxy getProxyFromSettings(Settings settings) {
         String proxyHost = HttpSettings.PROXY_HOST.get(settings);
         Scheme proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings)
             ? Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings))

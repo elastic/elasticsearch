@@ -389,7 +389,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return b;
     }
 
-    private void collectSubBuilderNames(Map<String, Object> names, InternalAggregation result) {
+    private static void collectSubBuilderNames(Map<String, Object> names, InternalAggregation result) {
         result.forEachBucket(ia -> {
             for (InternalAggregation a : ia.copyResults()) {
                 @SuppressWarnings("unchecked")

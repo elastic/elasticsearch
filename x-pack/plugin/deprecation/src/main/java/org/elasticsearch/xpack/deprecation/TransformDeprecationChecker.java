@@ -43,7 +43,7 @@ public class TransformDeprecationChecker implements DeprecationChecker {
         return TRANSFORM_DEPRECATION_KEY;
     }
 
-    private void recursiveGetTransformsAndCollectDeprecations(
+    private static void recursiveGetTransformsAndCollectDeprecations(
         Components components,
         List<DeprecationIssue> issues,
         PageParams page,

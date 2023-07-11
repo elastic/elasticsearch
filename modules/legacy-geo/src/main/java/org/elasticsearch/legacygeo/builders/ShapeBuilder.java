@@ -176,7 +176,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
         return result;
     }
 
-    protected JtsGeometry jtsGeometry(Geometry geom) {
+    protected static JtsGeometry jtsGeometry(Geometry geom) {
         // dateline180Check is false because ElasticSearch does it's own dateline wrapping
         JtsGeometry jtsGeometry = new JtsGeometry(geom, SPATIAL_CONTEXT, false, MULTI_POLYGON_MAY_OVERLAP);
         if (AUTO_VALIDATE_JTS_GEOMETRY) jtsGeometry.validate();

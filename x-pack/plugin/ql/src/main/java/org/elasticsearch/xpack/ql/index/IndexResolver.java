@@ -333,7 +333,7 @@ public class IndexResolver {
         }
     }
 
-    private void filterResults(String javaRegex, Set<IndexInfo> indexInfos, ActionListener<Set<IndexInfo>> listener) {
+    private static void filterResults(String javaRegex, Set<IndexInfo> indexInfos, ActionListener<Set<IndexInfo>> listener) {
 
         // since the index name does not support ?, filter the results manually
         Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
@@ -600,7 +600,7 @@ public class IndexResolver {
 
     }
 
-    private GetAliasesRequest createGetAliasesRequest(FieldCapabilitiesResponse response, boolean includeFrozen) {
+    private static GetAliasesRequest createGetAliasesRequest(FieldCapabilitiesResponse response, boolean includeFrozen) {
         return new GetAliasesRequest().local(true)
             .aliases("*")
             .indices(response.getIndices())

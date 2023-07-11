@@ -267,7 +267,7 @@ public class EmailService extends NotificationService<Account> {
         return domains.stream().allMatch(matchesAnyAllowedDomain);
     }
 
-    private EmailSent send(Email email, Authentication auth, Profile profile, Account account) throws MessagingException {
+    private static EmailSent send(Email email, Authentication auth, Profile profile, Account account) throws MessagingException {
         assert account != null;
         try {
             email = account.send(email, auth, profile);

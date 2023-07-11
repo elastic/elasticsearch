@@ -298,7 +298,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("snapshot_user");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("snapshot_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -373,7 +373,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("ingest_admin");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("ingest_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -415,7 +415,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             () -> AuthenticationTestHelper.builder().build()
         );
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_system");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("kibana_system");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -1298,7 +1298,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_admin");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("kibana_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
@@ -1359,7 +1359,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_user");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("kibana_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
@@ -1429,7 +1429,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("monitoring_user");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("monitoring_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -1557,7 +1557,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("remote_monitoring_agent");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("remote_monitoring_agent");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -1736,7 +1736,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("remote_monitoring_collector");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("remote_monitoring_collector");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2005,7 +2005,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("reporting_user");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("reporting_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
@@ -2061,7 +2061,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("superuser");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("superuser");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2188,7 +2188,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("logstash_system");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("logstash_system");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2226,7 +2226,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("beats_admin");
+        final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("beats_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2277,7 +2277,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor(UsernamesField.BEATS_ROLE);
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor(UsernamesField.BEATS_ROLE);
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2319,7 +2319,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor(UsernamesField.APM_ROLE);
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor(UsernamesField.APM_ROLE);
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2372,7 +2372,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("apm_user");
+        final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("apm_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2455,7 +2455,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("machine_learning_admin");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("machine_learning_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2595,7 +2595,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("machine_learning_user");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("machine_learning_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2720,8 +2720,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor[] roleDescriptors = {
-            new ReservedRolesStore().roleDescriptor("data_frame_transforms_admin"),
-            new ReservedRolesStore().roleDescriptor("transform_admin") };
+            ReservedRolesStore.roleDescriptor("data_frame_transforms_admin"),
+            ReservedRolesStore.roleDescriptor("transform_admin") };
 
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
             assertNotNull(roleDescriptor);
@@ -2809,8 +2809,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor[] roleDescriptors = {
-            new ReservedRolesStore().roleDescriptor("data_frame_transforms_user"),
-            new ReservedRolesStore().roleDescriptor("transform_user") };
+            ReservedRolesStore.roleDescriptor("data_frame_transforms_user"),
+            ReservedRolesStore.roleDescriptor("transform_user") };
 
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
             assertNotNull(roleDescriptor);
@@ -2902,7 +2902,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("watcher_admin");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("watcher_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2933,7 +2933,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("watcher_user");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("watcher_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2968,7 +2968,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("viewer");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("viewer");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -3039,7 +3039,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("editor");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("editor");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -3109,7 +3109,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testRemoteIndicesPrivilegesForSuperuserRole() {
-        final RoleDescriptor superuserRoleDescriptor = new ReservedRolesStore().roleDescriptor("superuser");
+        final RoleDescriptor superuserRoleDescriptor = ReservedRolesStore.roleDescriptor("superuser");
         final Role superuserRole = Role.buildFromRoleDescriptor(
             superuserRoleDescriptor,
             new FieldPermissionsCache(Settings.EMPTY),
@@ -3138,7 +3138,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
     public void testRemoteIndicesPrivileges() {
         final List<String> rolesWithRemoteIndicesPrivileges = new ArrayList<>();
 
-        for (RoleDescriptor roleDescriptor : new ReservedRolesStore().roleDescriptors()) {
+        for (RoleDescriptor roleDescriptor : ReservedRolesStore.roleDescriptors()) {
             if (roleDescriptor.getName().equals("superuser")) {
                 continue;  // superuser is tested separately
             }
@@ -3272,7 +3272,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("logstash_admin");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("logstash_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -3373,7 +3373,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 assertThat(roleRetrievalResult.isSuccess(), is(true));
                 assertThat(roleRetrievalResult.getDescriptors().stream().map(RoleDescriptor::getName).toList(), contains(roleName));
 
-                assertThat(reservedRolesStore.roleDescriptor(roleName), notNullValue());
+                assertThat(ReservedRolesStore.roleDescriptor(roleName), notNullValue());
             } else {
                 assertThat(ReservedRolesStore.isReserved(roleName), is(false));
                 assertThat(ReservedRolesStore.names(), not(hasItem(roleName)));
@@ -3383,12 +3383,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 assertThat(roleRetrievalResult.isSuccess(), is(true));
                 assertThat(roleRetrievalResult.getDescriptors(), emptyIterable());
 
-                assertThat(reservedRolesStore.roleDescriptor(roleName), nullValue());
+                assertThat(ReservedRolesStore.roleDescriptor(roleName), nullValue());
             }
         }
 
         assertThat(
-            reservedRolesStore.roleDescriptors().stream().map(RoleDescriptor::getName).collect(Collectors.toUnmodifiableSet()),
+            ReservedRolesStore.roleDescriptors().stream().map(RoleDescriptor::getName).collect(Collectors.toUnmodifiableSet()),
             equalTo(includedRoles)
         );
     }

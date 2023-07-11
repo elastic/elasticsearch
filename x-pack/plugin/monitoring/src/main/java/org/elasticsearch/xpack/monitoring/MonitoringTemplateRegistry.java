@@ -254,7 +254,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         this.ilmPolicies = loadPolicies(nodeSettings);
     }
 
-    private List<LifecyclePolicy> loadPolicies(Settings nodeSettings) {
+    private static List<LifecyclePolicy> loadPolicies(Settings nodeSettings) {
         Map<String, String> templateVars = new HashMap<>();
         if (HISTORY_DURATION.exists(nodeSettings)) {
             templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, HISTORY_DURATION.get(nodeSettings).getStringRep());

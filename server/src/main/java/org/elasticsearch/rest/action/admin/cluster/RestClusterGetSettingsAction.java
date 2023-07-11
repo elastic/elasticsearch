@@ -61,7 +61,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         return "cluster_get_settings_action";
     }
 
-    private void setUpRequestParams(MasterNodeReadRequest<?> clusterRequest, RestRequest request) {
+    private static void setUpRequestParams(MasterNodeReadRequest<?> clusterRequest, RestRequest request) {
         clusterRequest.local(request.paramAsBoolean("local", clusterRequest.local()));
         clusterRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRequest.masterNodeTimeout()));
     }

@@ -70,7 +70,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         }
     }
 
-    private boolean doWithRequest(Request request, RestClient client, Function<Response, Boolean> consumer) {
+    private static boolean doWithRequest(Request request, RestClient client, Function<Response, Boolean> consumer) {
         try {
             return consumer.apply(client.performRequest(request));
         } catch (IOException e) {
@@ -228,7 +228,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
 
     }
 
-    private String eventsToString(List<Map<String, Object>> events) {
+    private static String eventsToString(List<Map<String, Object>> events) {
         StringJoiner sj = new StringJoiner(",", "[", "]");
         for (Map<String, Object> event : events) {
             sj.add(event.get("_id") + "|" + event.get("_index"));
@@ -301,7 +301,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         );
     }
 
-    private String keysToString(List<Object> keys) {
+    private static String keysToString(List<Object> keys) {
         StringJoiner sj = new StringJoiner(",", "[", "]");
         for (Object key : keys) {
             sj.add(key.toString());

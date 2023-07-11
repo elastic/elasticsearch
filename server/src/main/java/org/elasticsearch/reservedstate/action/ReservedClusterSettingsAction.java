@@ -48,7 +48,7 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
     }
 
     @SuppressWarnings("unchecked")
-    private ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
+    private static ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
 
         Map<String, Object> persistentSettings = new HashMap<>();

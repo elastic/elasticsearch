@@ -117,7 +117,7 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
         lastAfterKey = currentRowGroupKey;
     }
 
-    private boolean hasNull(Object[] currentRow) {
+    private static boolean hasNull(Object[] currentRow) {
         for (Object object : currentRow) {
             if (object == null) {
                 return true;

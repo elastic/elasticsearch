@@ -121,9 +121,9 @@ public class AzureBlobStore implements BlobStore {
                 (httpMethod, url) -> httpMethod.equals("GET") && isListRequest(httpMethod, url) == false,
                 stats.getOperations::incrementAndGet
             ),
-            RequestStatsCollector.create(this::isListRequest, stats.listOperations::incrementAndGet),
-            RequestStatsCollector.create(this::isPutBlockRequest, stats.putBlockOperations::incrementAndGet),
-            RequestStatsCollector.create(this::isPutBlockListRequest, stats.putBlockListOperations::incrementAndGet),
+            RequestStatsCollector.create(AzureBlobStore::isListRequest, stats.listOperations::incrementAndGet),
+            RequestStatsCollector.create(AzureBlobStore::isPutBlockRequest, stats.putBlockOperations::incrementAndGet),
+            RequestStatsCollector.create(AzureBlobStore::isPutBlockListRequest, stats.putBlockListOperations::incrementAndGet),
             RequestStatsCollector.create(
                 // https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob#uri-parameters
                 // The only URI parameter allowed for put-blob operation is "timeout", but if a sas token is used,
@@ -157,18 +157,18 @@ public class AzureBlobStore implements BlobStore {
         };
     }
 
-    private boolean isListRequest(String httpMethod, URL url) {
+    private static boolean isListRequest(String httpMethod, URL url) {
         return httpMethod.equals("GET") && url.getQuery() != null && url.getQuery().contains("comp=list");
     }
 
     // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
-    private boolean isPutBlockRequest(String httpMethod, URL url) {
+    private static boolean isPutBlockRequest(String httpMethod, URL url) {
         String queryParams = url.getQuery() == null ? "" : url.getQuery();
         return httpMethod.equals("PUT") && queryParams.contains("comp=block") && queryParams.contains("blockid=");
     }
 
     // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
-    private boolean isPutBlockListRequest(String httpMethod, URL url) {
+    private static boolean isPutBlockListRequest(String httpMethod, URL url) {
         String queryParams = url.getQuery() == null ? "" : url.getQuery();
         return httpMethod.equals("PUT") && queryParams.contains("comp=blocklist");
     }
@@ -502,7 +502,7 @@ public class AzureBlobStore implements BlobStore {
     private static final Base64.Encoder base64Encoder = Base64.getEncoder().withoutPadding();
     private static final Base64.Decoder base64UrlDecoder = Base64.getUrlDecoder();
 
-    private String makeMultipartBlockId() {
+    private static String makeMultipartBlockId() {
         return base64Encoder.encodeToString(base64UrlDecoder.decode(UUIDs.base64UUID()));
     }
 

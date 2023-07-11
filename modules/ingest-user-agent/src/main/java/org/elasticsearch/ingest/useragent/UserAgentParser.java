@@ -111,7 +111,7 @@ final class UserAgentParser {
         }
     }
 
-    private Pattern compilePattern(String regex, String regex_flag) {
+    private static Pattern compilePattern(String regex, String regex_flag) {
         // Only flag present in the current default regexes.yaml
         if (regex_flag != null && regex_flag.equals("i")) {
             return Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
@@ -188,7 +188,7 @@ final class UserAgentParser {
         return details;
     }
 
-    private VersionedName findMatch(List<UserAgentSubpattern> possiblePatterns, String agentString) {
+    private static VersionedName findMatch(List<UserAgentSubpattern> possiblePatterns, String agentString) {
         VersionedName versionedName;
         for (UserAgentSubpattern pattern : possiblePatterns) {
             versionedName = pattern.match(agentString);

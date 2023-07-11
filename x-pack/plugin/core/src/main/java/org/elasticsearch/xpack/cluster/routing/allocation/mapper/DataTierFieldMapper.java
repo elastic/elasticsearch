@@ -86,7 +86,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
          * Retrieve the first tier preference from the index setting. If the setting is not
          * present, then return null.
          */
-        private String getTierPreference(QueryRewriteContext context) {
+        private static String getTierPreference(QueryRewriteContext context) {
             Settings settings = context.getIndexSettings().getSettings();
             String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
 

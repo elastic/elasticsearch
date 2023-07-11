@@ -84,7 +84,7 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
             return error;
         }
 
-        private ActionRequestValidationException checkConfigIdIsValid(
+        private static ActionRequestValidationException checkConfigIdIsValid(
             DataFrameAnalyticsConfig analyticsConfig,
             ActionRequestValidationException error
         ) {
@@ -108,7 +108,7 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
             return error;
         }
 
-        private ActionRequestValidationException checkNoIncludedAnalyzedFieldsAreExcludedBySourceFiltering(
+        private static ActionRequestValidationException checkNoIncludedAnalyzedFieldsAreExcludedBySourceFiltering(
             DataFrameAnalyticsConfig analyticsConfig,
             ActionRequestValidationException error
         ) {

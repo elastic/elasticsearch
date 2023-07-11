@@ -251,7 +251,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         }
     }
 
-    private String docIdForToken(String qualifiedTokenName) {
+    private static String docIdForToken(String qualifiedTokenName) {
         return SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + qualifiedTokenName;
     }
 
@@ -295,7 +295,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         return builder;
     }
 
-    private TokenInfo extractTokenInfo(String docId, ServiceAccountId accountId) {
+    private static TokenInfo extractTokenInfo(String docId, ServiceAccountId accountId) {
         // Prefix is SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/"
         final int prefixLength = SERVICE_ACCOUNT_TOKEN_DOC_TYPE.length() + accountId.asPrincipal().length() + 2;
         return TokenInfo.indexToken(Strings.substring(docId, prefixLength, docId.length()));

@@ -97,7 +97,7 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
         listener.onFailure(e);
     }
 
-    private boolean shouldGenerateNewBasicLicense(License currentLicense) {
+    private static boolean shouldGenerateNewBasicLicense(License currentLicense) {
         return currentLicense == null
             || License.LicenseType.isBasic(currentLicense.type()) == false
             || LicenseSettings.SELF_GENERATED_LICENSE_MAX_NODES != currentLicense.maxNodes()

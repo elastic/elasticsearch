@@ -326,7 +326,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         // This was extracted the method above, because otherwise it is difficult to test what terms are included in
         // the query in case a CoveringQuery is used (it does not have a getter to retrieve the clauses)
-        Tuple<List<BytesRef>, Map<String, List<byte[]>>> extractTermsAndRanges(IndexReader indexReader) throws IOException {
+        static Tuple<List<BytesRef>, Map<String, List<byte[]>>> extractTermsAndRanges(IndexReader indexReader) throws IOException {
             List<BytesRef> extractedTerms = new ArrayList<>();
             Map<String, List<byte[]>> encodedPointValuesByField = new HashMap<>();
 

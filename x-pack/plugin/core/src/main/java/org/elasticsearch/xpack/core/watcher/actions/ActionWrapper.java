@@ -237,7 +237,7 @@ public class ActionWrapper implements ToXContentObject {
         }
     }
 
-    private Map<String, Object> toMap(WatchExecutionContext ctx) {
+    private static Map<String, Object> toMap(WatchExecutionContext ctx) {
         Map<String, Object> model = new HashMap<>();
         model.put("id", ctx.id().value());
         model.put("watch_id", ctx.id().watchId());

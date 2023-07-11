@@ -400,7 +400,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Build a {@link SubSearchContext}s to power {@code top_hits}.
      */
-    private SubSearchContext buildSubSearchContext(
+    private static SubSearchContext buildSubSearchContext(
         IndexSettings indexSettings,
         SearchExecutionContext searchExecutionContext,
         BitsetFilterCache bitsetFilterCache
@@ -812,7 +812,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    private void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {
+    private static void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {
         Map<String, Object> debug = new HashMap<>();
         aggregator.collectDebugInfo((key, value) -> {
             Object old = debug.put(key, value);
@@ -848,7 +848,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    private void verifyMetricNames(
+    private static void verifyMetricNames(
         ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?> aggregationBuilder,
         InternalAggregation agg
     ) {
@@ -1101,7 +1101,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
+    private static ValuesSourceType fieldToVST(MappedFieldType fieldType) {
         return fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null).getValuesSourceType();
     }
 
@@ -1111,7 +1111,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Throws an exception if it encounters an unknown field type, to prevent new ones from sneaking in without
      * being tested.
      */
-    private void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
+    private static void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
 
         String typeName = fieldType.typeName();
         ValuesSourceType vst = fieldToVST(fieldType);

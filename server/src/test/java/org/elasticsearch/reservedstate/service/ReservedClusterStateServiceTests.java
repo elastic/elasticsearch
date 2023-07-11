@@ -641,7 +641,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         );
 
         assertEquals(count, trialRunResult.nonStateTransforms().size());
-        controller.executeNonStateTransformationSteps(trialRunResult.nonStateTransforms(), new ActionListener<>() {
+        ReservedClusterStateService.executeNonStateTransformationSteps(trialRunResult.nonStateTransforms(), new ActionListener<>() {
             @Override
             public void onResponse(Collection<NonStateTransformResult> nonStateTransformResults) {
                 assertEquals(count, nonStateTransformResults.size());

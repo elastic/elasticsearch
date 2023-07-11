@@ -388,7 +388,7 @@ public class OpenIdConnectAuthenticator {
      * @param expectedState The state that was originally generated
      * @param state         The state that was contained in the response
      */
-    private void validateState(State expectedState, State state) {
+    private static void validateState(State expectedState, State state) {
         if (null == state) {
             throw new ElasticsearchSecurityException("Failed to validate the response, the response did not contain a state parameter");
         } else if (null == expectedState) {
@@ -444,7 +444,7 @@ public class OpenIdConnectAuthenticator {
      * of the Id Token and call the provided listener.
      * (This method is package-protected for testing purposes)
      */
-    void handleUserinfoResponse(
+    static void handleUserinfoResponse(
         HttpResponse httpResponse,
         JWTClaimsSet verifiedIdTokenClaims,
         ActionListener<JWTClaimsSet> claimsListener
@@ -518,7 +518,11 @@ public class OpenIdConnectAuthenticator {
     /**
      * Validates that the userinfo response contains a sub Claim and that this claim value is the same as the one returned in the ID Token
      */
-    private void validateUserInfoResponse(JWTClaimsSet userInfoClaims, String expectedSub, ActionListener<JWTClaimsSet> claimsListener) {
+    private static void validateUserInfoResponse(
+        JWTClaimsSet userInfoClaims,
+        String expectedSub,
+        ActionListener<JWTClaimsSet> claimsListener
+    ) {
         if (userInfoClaims.getSubject().isEmpty()) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response did not contain a sub Claim"));
         } else if (userInfoClaims.getSubject().equals(expectedSub) == false) {
@@ -614,7 +618,7 @@ public class OpenIdConnectAuthenticator {
      * Handle the Token Response from the OpenID Connect Provider. If successful, extract the (yet not validated) Id Token
      * and access token and call the provided listener.
      */
-    private void handleTokenResponse(HttpResponse httpResponse, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
+    private static void handleTokenResponse(HttpResponse httpResponse, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
         try {
             final HttpEntity entity = httpResponse.getEntity();
             final Header encodingHeader = entity.getContentEncoding();

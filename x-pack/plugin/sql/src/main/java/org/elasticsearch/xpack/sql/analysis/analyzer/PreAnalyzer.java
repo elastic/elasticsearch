@@ -38,7 +38,7 @@ public class PreAnalyzer {
         return doPreAnalyze(plan);
     }
 
-    private PreAnalysis doPreAnalyze(LogicalPlan plan) {
+    private static PreAnalysis doPreAnalyze(LogicalPlan plan) {
         List<TableInfo> indices = new ArrayList<>();
 
         plan.forEachUp(UnresolvedRelation.class, p -> indices.add(new TableInfo(p.table(), p.frozen())));

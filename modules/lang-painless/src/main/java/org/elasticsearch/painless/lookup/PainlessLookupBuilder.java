@@ -203,7 +203,7 @@ public final class PainlessLookupBuilder {
         return type == def.class || classesToPainlessClassBuilders.containsKey(type);
     }
 
-    private Class<?> loadClass(ClassLoader classLoader, String javaClassName, Supplier<String> errorMessage) {
+    private static Class<?> loadClass(ClassLoader classLoader, String javaClassName, Supplier<String> errorMessage) {
         try {
             return Class.forName(javaClassName, true, classLoader);
         } catch (ClassNotFoundException cnfe) {
@@ -1838,7 +1838,11 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    private void generateFilteredMethod(Class<?> targetClass, PainlessClassBuilder painlessClassBuilder, PainlessMethod painlessMethod) {
+    private static void generateFilteredMethod(
+        Class<?> targetClass,
+        PainlessClassBuilder painlessClassBuilder,
+        PainlessMethod painlessMethod
+    ) {
         String painlessMethodKey = buildPainlessMethodKey(painlessMethod.javaMethod().getName(), painlessMethod.typeParameters().size());
         PainlessMethod filteredPainlessMethod = painlessFilteredCache.get(painlessMethod);
 
@@ -1907,10 +1911,10 @@ public final class PainlessLookupBuilder {
     }
 
     private void cacheRuntimeHandles() {
-        classesToPainlessClassBuilders.values().forEach(this::cacheRuntimeHandles);
+        classesToPainlessClassBuilders.values().forEach(PainlessLookupBuilder::cacheRuntimeHandles);
     }
 
-    private void cacheRuntimeHandles(PainlessClassBuilder painlessClassBuilder) {
+    private static void cacheRuntimeHandles(PainlessClassBuilder painlessClassBuilder) {
         for (Map.Entry<String, PainlessMethod> painlessMethodEntry : painlessClassBuilder.methods.entrySet()) {
             String methodKey = painlessMethodEntry.getKey();
             PainlessMethod painlessMethod = painlessMethodEntry.getValue();

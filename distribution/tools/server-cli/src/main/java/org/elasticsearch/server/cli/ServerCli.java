@@ -112,7 +112,7 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private void printVersion(Terminal terminal) {
+    private static void printVersion(Terminal terminal) {
         final String versionOutput = String.format(
             Locale.ROOT,
             "Version: %s, Build: %s/%s/%s, JVM: %s",
@@ -197,7 +197,7 @@ class ServerCli extends EnvironmentAwareCommand {
         syncPlugins.execute(terminal, syncPlugins.parseOptions(new String[0]), env, processInfo);
     }
 
-    private void validatePidFile(Path pidFile) throws UserException {
+    private static void validatePidFile(Path pidFile) throws UserException {
         Path parent = pidFile.getParent();
         if (parent != null && Files.exists(parent) && Files.isDirectory(parent) == false) {
             throw new UserException(ExitCodes.USAGE, "pid file parent [" + parent + "] exists but is not a directory");

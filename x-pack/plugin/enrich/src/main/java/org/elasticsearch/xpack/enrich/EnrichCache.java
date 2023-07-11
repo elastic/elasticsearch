@@ -91,7 +91,7 @@ public final class EnrichCache {
         return ia.getIndices().get(0).getName();
     }
 
-    List<Map<?, ?>> toCacheValue(SearchResponse response) {
+    static List<Map<?, ?>> toCacheValue(SearchResponse response) {
         List<Map<?, ?>> result = new ArrayList<>(response.getHits().getHits().length);
         for (SearchHit hit : response.getHits()) {
             result.add(deepCopy(hit.getSourceAsMap(), true));

@@ -88,7 +88,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         new AsyncGetCheckpointsFromNodesAction(state, task, nodesAndShards, new OriginalIndices(request), listener).start();
     }
 
-    private Map<String, Set<ShardId>> resolveIndicesToPrimaryShards(ClusterState state, String[] concreteIndices) {
+    private static Map<String, Set<ShardId>> resolveIndicesToPrimaryShards(ClusterState state, String[] concreteIndices) {
         if (concreteIndices.length == 0) {
             return Collections.emptyMap();
         }

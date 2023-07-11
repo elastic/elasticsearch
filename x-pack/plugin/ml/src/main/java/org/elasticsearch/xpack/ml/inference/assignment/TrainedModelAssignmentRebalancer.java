@@ -104,7 +104,7 @@ class TrainedModelAssignmentRebalancer {
         return mergePlans(nodesByZone, planForNormalPriorityModels, planForLowPriorityModels);
     }
 
-    private AssignmentPlan mergePlans(
+    private static AssignmentPlan mergePlans(
         Map<List<String>, List<AssignmentPlan.Node>> nodesByZone,
         AssignmentPlan planForNormalPriorityModels,
         AssignmentPlan planForLowPriorityModels
@@ -246,7 +246,7 @@ class TrainedModelAssignmentRebalancer {
         return new AssignmentPlanner(planNodes, planDeployments).computePlan();
     }
 
-    private Map<String, Integer> findFittingAssignments(
+    private static Map<String, Integer> findFittingAssignments(
         TrainedModelAssignment assignment,
         Set<String> assignableNodeIds,
         Map<String, Long> remainingNodeMemory
@@ -348,7 +348,7 @@ class TrainedModelAssignmentRebalancer {
         return builder;
     }
 
-    private Optional<String> explainAssignments(
+    private static Optional<String> explainAssignments(
         AssignmentPlan assignmentPlan,
         Map<DiscoveryNode, NodeLoad> nodeLoads,
         AssignmentPlan.Deployment deployment
@@ -378,7 +378,7 @@ class TrainedModelAssignmentRebalancer {
         return Optional.empty();
     }
 
-    private Optional<String> explainAssignment(
+    private static Optional<String> explainAssignment(
         AssignmentPlan assignmentPlan,
         DiscoveryNode node,
         NodeLoad load,

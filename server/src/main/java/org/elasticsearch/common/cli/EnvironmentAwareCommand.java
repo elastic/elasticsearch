@@ -54,7 +54,7 @@ public abstract class EnvironmentAwareCommand extends Command {
         execute(terminal, options, createEnv(options, processInfo), processInfo);
     }
 
-    private void putDockerEnvSettings(Map<String, String> settings, Map<String, String> envVars) {
+    private static void putDockerEnvSettings(Map<String, String> settings, Map<String, String> envVars) {
         for (var envVar : envVars.entrySet()) {
             String key = envVar.getKey();
             if (DOCKER_LOWERCASE_SETTING_REGEX.matcher(key).matches()) {

@@ -72,7 +72,7 @@ public class NamedComponentReader {
         return emptyMap();
     }
 
-    private Path findNamedComponentCacheFile(Path pluginDir) throws IOException {
+    private static Path findNamedComponentCacheFile(Path pluginDir) throws IOException {
         try (Stream<Path> list = Files.list(pluginDir)) {
             return list.filter(p -> p.getFileName().toString().equals(NAMED_COMPONENTS_FILE_NAME)).findFirst().orElse(null);
         }

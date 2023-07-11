@@ -528,7 +528,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                         }
                     }
 
-                    private void sendResponseOrFailure(
+                    private static void sendResponseOrFailure(
                         String jobId,
                         ActionListener<CloseJobAction.Response> listener,
                         AtomicArray<Exception> failures

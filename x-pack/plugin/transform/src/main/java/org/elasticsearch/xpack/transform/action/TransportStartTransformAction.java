@@ -375,7 +375,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         // checking for `isNotStopped` as the state COULD be marked as failed for any number of reasons
         // But if it is in a failed state, _stats will show as much and give good reason to the user.
         // If it is not able to be assigned to a node all together, we should just close the task completely
-        private boolean isNotStopped(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+        private static boolean isNotStopped(PersistentTasksCustomMetadata.PersistentTask<?> task) {
             TransformState state = (TransformState) task.getState();
             return state != null && state.getTaskState().equals(TransformTaskState.STOPPED) == false;
         }

@@ -80,7 +80,7 @@ public class LdapMetadataResolver {
         }
     }
 
-    private Attribute findAttribute(Collection<Attribute> attributes, String name) {
+    private static Attribute findAttribute(Collection<Attribute> attributes, String name) {
         return attributes.stream().filter(attr -> attr.getName().equals(name)).findFirst().orElse(null);
     }
 

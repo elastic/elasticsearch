@@ -68,7 +68,7 @@ enum GrokCaptureType {
         };
     }
 
-    protected final GrokCaptureExtracter rawExtracter(int[] backRefs, Consumer<? super String> emit) {
+    protected static GrokCaptureExtracter rawExtracter(int[] backRefs, Consumer<? super String> emit) {
         return (utf8Bytes, offset, region) -> {
             for (int number : backRefs) {
                 if (region.beg[number] >= 0) {

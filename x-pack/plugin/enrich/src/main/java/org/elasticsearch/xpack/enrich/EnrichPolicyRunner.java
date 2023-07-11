@@ -137,7 +137,7 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private List<Map<String, Object>> toMappings(GetIndexResponse response) {
+    private static List<Map<String, Object>> toMappings(GetIndexResponse response) {
         return response.mappings().values().stream().map(MappingMetadata::getSourceAsMap).collect(Collectors.toList());
     }
 

@@ -99,7 +99,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         return super.doRewrite(queryRewriteContext);
     }
 
-    private int[] findSegmentStarts(IndexReader reader, int[] docs) {
+    private static int[] findSegmentStarts(IndexReader reader, int[] docs) {
         int[] starts = new int[reader.leaves().size() + 1];
         starts[starts.length - 1] = docs.length;
         if (starts.length == 2) {

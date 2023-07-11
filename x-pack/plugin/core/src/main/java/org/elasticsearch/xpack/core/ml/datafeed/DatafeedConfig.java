@@ -724,7 +724,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return defaultFrequency;
     }
 
-    private TimeValue defaultFrequencyTarget(TimeValue bucketSpan) {
+    private static TimeValue defaultFrequencyTarget(TimeValue bucketSpan) {
         long bucketSpanSeconds = bucketSpan.seconds();
         if (bucketSpanSeconds <= 0) {
             throw new IllegalArgumentException("Bucket span has to be > 0");

@@ -540,7 +540,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             IndexMetadata indexMetadata = indexMetadata(shard, allocation);
             Set<Decision.Type> decisionTypes = allocation.routingNodes()
                 .stream()
-                .map(node -> DataTierAllocationDecider.shouldFilter(indexMetadata, node.node(), this::highestPreferenceTier, allocation))
+                .map(
+                    node -> DataTierAllocationDecider.shouldFilter(
+                        indexMetadata,
+                        node.node(),
+                        AllocationState::highestPreferenceTier,
+                        allocation
+                    )
+                )
                 .map(Decision::type)
                 .collect(Collectors.toSet());
             if (decisionTypes.contains(Decision.Type.NO)) {
@@ -575,11 +582,15 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return tierPreference.isEmpty() || DataTierAllocationDecider.allocationAllowed(highestPreferenceTier(tierPreference), roles);
         }
 
-        private IndexMetadata indexMetadata(ShardRouting shard, RoutingAllocation allocation) {
+        private static IndexMetadata indexMetadata(ShardRouting shard, RoutingAllocation allocation) {
             return allocation.metadata().getIndexSafe(shard.index());
         }
 
-        private Optional<String> highestPreferenceTier(List<String> preferredTiers, DiscoveryNodes unused, DesiredNodes desiredNodes) {
+        private static Optional<String> highestPreferenceTier(
+            List<String> preferredTiers,
+            DiscoveryNodes unused,
+            DesiredNodes desiredNodes
+        ) {
             return Optional.of(highestPreferenceTier(preferredTiers));
         }
 

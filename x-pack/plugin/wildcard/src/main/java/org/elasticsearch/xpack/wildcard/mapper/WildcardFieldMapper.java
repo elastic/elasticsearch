@@ -809,7 +809,7 @@ public class WildcardFieldMapper extends FieldMapper {
             return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, false, context);
         }
 
-        private String escapeWildcardSyntax(String term) {
+        private static String escapeWildcardSyntax(String term) {
             StringBuilder result = new StringBuilder();
             for (int i = 0; i < term.length();) {
                 final int c = term.codePointAt(i);

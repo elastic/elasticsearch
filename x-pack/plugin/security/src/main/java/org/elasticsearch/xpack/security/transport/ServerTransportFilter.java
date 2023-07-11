@@ -40,7 +40,6 @@ class ServerTransportFilter {
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
-    private final SecurityActionMapper actionMapper = new SecurityActionMapper();
     private final ThreadContext threadContext;
     private final boolean extractClientCert;
     private final DestructiveOperations destructiveOperations;

@@ -49,7 +49,7 @@ public final class TransportSamlCompleteLogoutAction extends HandledTransportAct
         }
     }
 
-    private void processLogoutResponse(
+    private static void processLogoutResponse(
         SamlRealm samlRealm,
         SamlCompleteLogoutRequest request,
         ActionListener<ActionResponse.Empty> listener

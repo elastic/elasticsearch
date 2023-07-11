@@ -430,7 +430,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         });
     }
 
-    private ElasticsearchStatusException createUnlicensedError(
+    private static ElasticsearchStatusException createUnlicensedError(
         final String datafeedId,
         final RemoteClusterLicenseChecker.LicenseCheck licenseCheck
     ) {

@@ -332,7 +332,7 @@ public class SamlServiceProviderIndex implements Closeable {
         }));
     }
 
-    private SamlServiceProviderDocument toDocument(String documentId, BytesReference source) {
+    private static SamlServiceProviderDocument toDocument(String documentId, BytesReference source) {
         try (
             StreamInput in = source.streamInput();
             XContentParser parser = XContentType.JSON.xContent()

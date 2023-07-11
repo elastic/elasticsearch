@@ -521,7 +521,7 @@ public class DatafeedConfigProvider {
 
     }
 
-    private QueryBuilder buildDatafeedIdQuery(String[] tokens) {
+    private static QueryBuilder buildDatafeedIdQuery(String[] tokens) {
         QueryBuilder datafeedQuery = new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE);
         if (Strings.isAllOrWildcard(tokens)) {
             // match all
@@ -556,7 +556,7 @@ public class DatafeedConfigProvider {
         return MlStrings.findMatching(datafeedIdPatterns, MlTasks.startedDatafeedIds(tasksMetadata));
     }
 
-    private QueryBuilder buildDatafeedJobIdsQuery(Collection<String> jobIds) {
+    private static QueryBuilder buildDatafeedJobIdsQuery(Collection<String> jobIds) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE));
         boolQueryBuilder.filter(new TermsQueryBuilder(Job.ID.getPreferredName(), jobIds));

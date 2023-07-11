@@ -104,7 +104,7 @@ public class ConstructingObjectParser<Value, Context> extends AbstractObjectPars
         };
     }
 
-    private boolean isConstructorArg(BiConsumer<?, ?> consumer) {
+    private static boolean isConstructorArg(BiConsumer<?, ?> consumer) {
         return consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER;
     }
 

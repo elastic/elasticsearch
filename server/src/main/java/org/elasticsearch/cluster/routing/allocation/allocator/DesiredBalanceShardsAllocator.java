@@ -313,7 +313,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             return newState;
         }
 
-        private TaskContext<ReconcileDesiredBalanceTask> findLatest(List<? extends TaskContext<ReconcileDesiredBalanceTask>> taskContexts) {
+        private static TaskContext<ReconcileDesiredBalanceTask> findLatest(
+            List<? extends TaskContext<ReconcileDesiredBalanceTask>> taskContexts
+        ) {
             return taskContexts.stream().max(Comparator.comparing(context -> context.getTask().desiredBalance.lastConvergedIndex())).get();
         }
 
@@ -331,7 +333,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
         }
 
-        private void discardSupersededTasks(
+        private static void discardSupersededTasks(
             List<? extends TaskContext<ReconcileDesiredBalanceTask>> taskContexts,
             TaskContext<ReconcileDesiredBalanceTask> latest
         ) {

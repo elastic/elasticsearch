@@ -51,7 +51,7 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
         if (specificRolesRequested) {
             for (String role : requestedRoles) {
                 if (ReservedRolesStore.isReserved(role)) {
-                    RoleDescriptor rd = reservedRolesStore.roleDescriptor(role);
+                    RoleDescriptor rd = ReservedRolesStore.roleDescriptor(role);
                     if (rd != null) {
                         roles.add(rd);
                     } else {
@@ -63,7 +63,7 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
                 }
             }
         } else {
-            roles.addAll(reservedRolesStore.roleDescriptors());
+            roles.addAll(ReservedRolesStore.roleDescriptors());
         }
 
         if (specificRolesRequested && rolesToSearchFor.isEmpty()) {

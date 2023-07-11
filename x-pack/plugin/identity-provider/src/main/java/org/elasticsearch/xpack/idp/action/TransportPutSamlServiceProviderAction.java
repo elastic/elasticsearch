@@ -146,7 +146,7 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
         );
     }
 
-    private String deriveDocumentId(SamlServiceProviderDocument document) {
+    private static String deriveDocumentId(SamlServiceProviderDocument document) {
         final byte[] sha256 = MessageDigests.sha256().digest(document.entityId.getBytes(StandardCharsets.UTF_8));
         return Base64.getUrlEncoder().withoutPadding().encodeToString(sha256);
     }

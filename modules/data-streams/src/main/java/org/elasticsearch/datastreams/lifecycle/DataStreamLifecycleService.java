@@ -632,7 +632,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Returns true if a value has been set for the custom index metadata field "force_merge_completed_timestamp" within the field
      * "data_stream_lifecycle".
      */
-    private boolean isForceMergeComplete(IndexMetadata backingIndex) {
+    private static boolean isForceMergeComplete(IndexMetadata backingIndex) {
         Map<String, String> customMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
         return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
     }

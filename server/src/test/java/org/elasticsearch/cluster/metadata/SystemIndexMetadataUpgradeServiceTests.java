@@ -121,17 +121,17 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .build();
 
         // non-system indices should not require update
-        assertThat(service.hasVisibleAlias(nonSystemHiddenAlias), equalTo(false));
+        assertThat(SystemIndexMetadataUpgradeService.hasVisibleAlias(nonSystemHiddenAlias), equalTo(false));
         assertThat(service.requiresUpdate(nonSystemHiddenAlias), equalTo(false));
-        assertThat(service.hasVisibleAlias(nonSystemVisibleAlias), equalTo(true));
+        assertThat(SystemIndexMetadataUpgradeService.hasVisibleAlias(nonSystemVisibleAlias), equalTo(true));
         assertThat(service.requiresUpdate(nonSystemVisibleAlias), equalTo(false));
 
         // hidden system alias should not require update
-        assertThat(service.hasVisibleAlias(systemHiddenAlias), equalTo(false));
+        assertThat(SystemIndexMetadataUpgradeService.hasVisibleAlias(systemHiddenAlias), equalTo(false));
         assertThat(service.requiresUpdate(systemHiddenAlias), equalTo(false));
 
         // visible system alias should require update
-        assertThat(service.hasVisibleAlias(systemVisibleAlias), equalTo(true));
+        assertThat(SystemIndexMetadataUpgradeService.hasVisibleAlias(systemVisibleAlias), equalTo(true));
         assertThat(service.requiresUpdate(systemVisibleAlias), equalTo(true));
     }
 
@@ -185,17 +185,17 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .build();
 
         // non-system indices should not require update
-        assertThat(service.isVisible(nonSystemHiddenIndex), equalTo(false));
+        assertThat(SystemIndexMetadataUpgradeService.isVisible(nonSystemHiddenIndex), equalTo(false));
         assertThat(service.requiresUpdate(nonSystemHiddenIndex), equalTo(false));
-        assertThat(service.isVisible(nonSystemVisibleIndex), equalTo(true));
+        assertThat(SystemIndexMetadataUpgradeService.isVisible(nonSystemVisibleIndex), equalTo(true));
         assertThat(service.requiresUpdate(nonSystemVisibleIndex), equalTo(false));
 
         // hidden system index should not require update
-        assertThat(service.isVisible(systemHiddenIndex), equalTo(false));
+        assertThat(SystemIndexMetadataUpgradeService.isVisible(systemHiddenIndex), equalTo(false));
         assertThat(service.requiresUpdate(systemHiddenIndex), equalTo(false));
 
         // visible system index should require update
-        assertThat(service.isVisible(systemVisibleIndex), equalTo(true));
+        assertThat(SystemIndexMetadataUpgradeService.isVisible(systemVisibleIndex), equalTo(true));
         assertThat(service.requiresUpdate(systemVisibleIndex), equalTo(true));
     }
 

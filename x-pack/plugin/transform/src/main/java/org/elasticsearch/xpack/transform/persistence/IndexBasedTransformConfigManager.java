@@ -898,7 +898,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         }
     }
 
-    private QueryBuilder buildQueryFromTokenizedIds(String[] idTokens, String resourceName) {
+    private static QueryBuilder buildQueryFromTokenizedIds(String[] idTokens, String resourceName) {
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), resourceName));
         if (Strings.isAllOrWildcard(idTokens) == false) {

@@ -16,7 +16,7 @@ spec:
     apiVersion: buildkite.elastic.dev/v1
     kind: Pipeline
     metadata:
-      description: ':elasticsearch: Update elasticsearch submodule in elasticsearch-serverless'
+      description: ":elasticsearch: Update elasticsearch submodule in elasticsearch-serverless"
       name: elasticsearch / update serverless submodule
     spec:
       repository: elastic/elasticsearch
@@ -30,7 +30,7 @@ spec:
       schedules:
         daily promotion:
           branch: main
-          cronline: '@daily'
+          cronline: "@daily"
 ---
 # yaml-language-server: $schema=https://gist.githubusercontent.com/elasticmachine/988b80dae436cafea07d9a4a460a011d/raw/e57ee3bed7a6f73077a3f55a38e76e40ec87a7cf/rre.schema.json
 apiVersion: backstage.io/v1alpha1
@@ -49,7 +49,7 @@ spec:
     apiVersion: buildkite.elastic.dev/v1
     kind: Pipeline
     metadata:
-      description: ':elasticsearch: Validate elasticsearch changes against serverless'
+      description: ":elasticsearch: Validate elasticsearch changes against serverless"
       name: elasticsearch / check serverless submodule
     spec:
       repository: elastic/elasticsearch
@@ -62,3 +62,41 @@ spec:
       provider_settings:
         build_pull_requests: false
         publish_commit_status: false
+---
+# yaml-language-server: $schema=https://gist.githubusercontent.com/elasticmachine/988b80dae436cafea07d9a4a460a011d/raw/e57ee3bed7a6f73077a3f55a38e76e40ec87a7cf/rre.schema.json
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: buildkite-pipeline-elasticsearch-periodic
+  description: Elasticsearch tests and checks that are run a few times daily
+  links:
+    - title: Pipeline
+      url: https://buildkite.com/elastic/elasticsearch-periodic
+spec:
+  type: buildkite-pipeline
+  system: buildkite
+  owner: group:elasticsearch-team
+  implementation:
+    apiVersion: buildkite.elastic.dev/v1
+    kind: Pipeline
+    metadata:
+      description: ":elasticsearch: tests and checks that are run a few times daily"
+      name: elasticsearch / periodic
+    spec:
+      repository: elastic/elasticsearch
+      pipeline_file: .buildkite/pipelines/periodic.yml
+      branch_configuration: main
+      teams:
+        elasticsearch-team: {}
+        everyone:
+          access_level: READ_ONLY
+      provider_settings:
+        build_branches: false
+        build_pull_requests: false
+        publish_commit_status: false
+        trigger_mode: none
+  schedules:
+    Periodically on main:
+      branch: main
+      cronline: "0 0,8,16  * * America/New_York"
+      message: "Tests and checks that are run 3x daily"

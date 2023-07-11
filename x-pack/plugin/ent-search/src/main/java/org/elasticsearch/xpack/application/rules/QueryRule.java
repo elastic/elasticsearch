@@ -114,28 +114,30 @@ public class QueryRule implements Writeable, ToXContentObject {
 
     private void validate() {
         if (type == QueryRuleType.PINNED) {
-            if (actions.containsKey(IDS_FIELD.getPreferredName()) && actions.containsKey(DOCS_FIELD.getPreferredName())) {
+            boolean ruleContainsPinnedIds = actions.containsKey(IDS_FIELD.getPreferredName());
+            boolean ruleContainsPinnedDocs = actions.containsKey(DOCS_FIELD.getPreferredName());
+            if (ruleContainsPinnedIds && ruleContainsPinnedDocs) {
                 throw new ElasticsearchParseException("pinned query rule actions must contain only one of either ids or docs");
-            } else if (actions.containsKey(IDS_FIELD.getPreferredName()) == false
-                && actions.containsKey(DOCS_FIELD.getPreferredName()) == false) {
-                    throw new ElasticsearchParseException("pinned query rule actions must contain either ids or docs");
-                } else if (actions.containsKey(IDS_FIELD.getPreferredName())) {
-                    validateAction(actions.get(IDS_FIELD.getPreferredName()));
-                } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
-                    validateAction(actions.get(DOCS_FIELD.getPreferredName()));
-                }
+            } else if (ruleContainsPinnedIds == false && ruleContainsPinnedDocs == false) {
+                throw new ElasticsearchParseException("pinned query rule actions must contain either ids or docs");
+            } else {
+                validatePinnedAction(actions.get(IDS_FIELD.getPreferredName()));
+                validatePinnedAction(actions.get(DOCS_FIELD.getPreferredName()));
+            }
         } else {
             throw new IllegalArgumentException("Unsupported QueryRuleType: " + type);
         }
     }
 
-    private void validateAction(Object action) {
-        if (action instanceof List == false) {
-            throw new ElasticsearchParseException("pinned query rule actions must be a list");
-        } else if (((List<?>) action).isEmpty()) {
-            throw new ElasticsearchParseException("pinned query rule actions cannot be empty");
-        } else if (((List<?>) action).size() > MAX_NUM_PINNED_HITS) {
-            throw new ElasticsearchParseException("pinned hits cannot exceed " + MAX_NUM_PINNED_HITS);
+    private void validatePinnedAction(Object action) {
+        if (action != null) {
+            if (action instanceof List == false) {
+                throw new ElasticsearchParseException("pinned query rule actions must be a list");
+            } else if (((List<?>) action).isEmpty()) {
+                throw new ElasticsearchParseException("pinned query rule actions cannot be empty");
+            } else if (((List<?>) action).size() > MAX_NUM_PINNED_HITS) {
+                throw new ElasticsearchParseException("pinned hits cannot exceed " + MAX_NUM_PINNED_HITS);
+            }
         }
     }
 

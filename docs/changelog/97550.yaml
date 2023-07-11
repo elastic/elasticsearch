@@ -1,0 +1,5 @@
+pr: 97550
+summary: Introduce a collector manager for `PartialHitCountCollector`
+area: Search
+type: enhancement
+issues: []

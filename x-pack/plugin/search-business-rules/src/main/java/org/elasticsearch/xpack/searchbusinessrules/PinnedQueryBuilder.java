@@ -52,8 +52,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public static final String NAME = "pinned";
     public static final int MAX_NUM_PINNED_HITS = 100;
 
-    private static final ParseField IDS_FIELD = new ParseField("ids");
-    private static final ParseField DOCS_FIELD = new ParseField("docs");
+    public static final ParseField IDS_FIELD = new ParseField("ids");
+    public static final ParseField DOCS_FIELD = new ParseField("docs");
     public static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
     private final List<String> ids;
@@ -70,8 +70,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public static final class Item implements ToXContentObject, Writeable {
         public static final String NAME = "item";
 
-        private static final ParseField INDEX_FIELD = new ParseField("_index");
-        private static final ParseField ID_FIELD = new ParseField("_id");
+        public static final ParseField INDEX_FIELD = new ParseField("_index");
+        public static final ParseField ID_FIELD = new ParseField("_id");
 
         private final String index;
         private final String id;
@@ -104,7 +104,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         /**
          * Read from a stream.
          */
-        Item(StreamInput in) throws IOException {
+        public Item(StreamInput in) throws IOException {
             index = in.readString();
             id = in.readString();
         }

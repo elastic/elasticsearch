@@ -16,6 +16,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TotalHitCountCollector;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Extension of {@link TotalHitCountCollector} that supports early termination of total hits counting based on a provided threshold.
@@ -24,15 +26,16 @@ import java.io.IOException;
  */
 class PartialHitCountCollector extends TotalHitCountCollector {
 
-    private final int totalHitsThreshold;
-    // we could reuse the counter that TotalHitCountCollector has and exposes through getTotalHits(),
-    // but that would make us early terminate also when retrieving count from Weight#count and would
-    // cause a behaviour that's difficult to explain and test.
-    private int numCollected = 0;
+    private final HitsThresholdChecker hitsThresholdChecker;
     private boolean earlyTerminated;
 
     PartialHitCountCollector(int totalHitsThreshold) {
-        this.totalHitsThreshold = totalHitsThreshold;
+        this(new HitsThresholdChecker(totalHitsThreshold));
+        assert totalHitsThreshold != Integer.MAX_VALUE : "use TotalHitCountCollector for exact total hits tracking";
+    }
+
+    PartialHitCountCollector(HitsThresholdChecker hitsThresholdChecker) {
+        this.hitsThresholdChecker = hitsThresholdChecker;
     }
 
     @Override
@@ -43,26 +46,78 @@ class PartialHitCountCollector extends TotalHitCountCollector {
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-        if (numCollected >= totalHitsThreshold) {
-            earlyTerminateIfNeeded();
-        }
+        earlyTerminateIfNeeded();
         return new FilterLeafCollector(super.getLeafCollector(context)) {
             @Override
             public void collect(int doc) throws IOException {
-                if (++numCollected > totalHitsThreshold) {
-                    earlyTerminateIfNeeded();
-                }
+                earlyTerminateIfNeeded();
+                hitsThresholdChecker.incrementHitCount();
                 super.collect(doc);
             }
         };
     }
 
     private void earlyTerminateIfNeeded() {
-        earlyTerminated = true;
-        throw new CollectionTerminatedException();
+        if (hitsThresholdChecker.isThresholdReached()) {
+            earlyTerminated = true;
+            throw new CollectionTerminatedException();
+        }
     }
 
     boolean hasEarlyTerminated() {
         return earlyTerminated;
+    }
+
+    private static class HitsThresholdChecker {
+        private final int totalHitsThreshold;
+        private final AtomicInteger numCollected = new AtomicInteger();
+
+        HitsThresholdChecker(int totalHitsThreshold) {
+            assert totalHitsThreshold != Integer.MAX_VALUE : "use TotalHitCountCollector for exact total hits tracking";
+            this.totalHitsThreshold = totalHitsThreshold;
+        }
+
+        void incrementHitCount() {
+            numCollected.incrementAndGet();
+        }
+
+        boolean isThresholdReached() {
+            return numCollected.getAcquire() >= totalHitsThreshold;
+        }
+    }
+
+    static class CollectorManager implements org.apache.lucene.search.CollectorManager<PartialHitCountCollector, Void> {
+        private final HitsThresholdChecker hitsThresholdChecker;
+        private boolean earlyTerminated;
+        private int totalHits;
+
+        CollectorManager(int totalHitsThreshold) {
+            this.hitsThresholdChecker = new HitsThresholdChecker(totalHitsThreshold);
+        }
+
+        @Override
+        public PartialHitCountCollector newCollector() {
+            return new PartialHitCountCollector(hitsThresholdChecker);
+        }
+
+        @Override
+        public Void reduce(Collection<PartialHitCountCollector> collectors) throws IOException {
+            assert totalHits == 0;
+            for (PartialHitCountCollector collector : collectors) {
+                this.totalHits += collector.getTotalHits();
+                if (collector.hasEarlyTerminated()) {
+                    earlyTerminated = true;
+                }
+            }
+            return null;
+        }
+
+        public boolean hasEarlyTerminated() {
+            return earlyTerminated;
+        }
+
+        public int getTotalHits() {
+            return totalHits;
+        }
     }
 }

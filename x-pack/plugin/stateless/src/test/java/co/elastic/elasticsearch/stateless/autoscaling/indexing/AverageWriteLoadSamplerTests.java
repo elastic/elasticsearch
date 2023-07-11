@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler.DEFAULT_EWMA_ALPHA;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -33,7 +34,7 @@ public class AverageWriteLoadSamplerTests extends ESTestCase {
     public void testAverageWriteLoadInitialValue() throws Exception {
         var threadpool = new TestThreadPool("test");
         try {
-            var writeLoadSampler = new AverageWriteLoadSampler(threadpool, TimeValue.timeValueSeconds(1));
+            var writeLoadSampler = new AverageWriteLoadSampler(threadpool, TimeValue.timeValueSeconds(1), DEFAULT_EWMA_ALPHA);
             writeLoadSampler.start();
             assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.WRITE).averageLoad(), equalTo(0.0));
             assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_WRITE).averageLoad(), equalTo(0.0));

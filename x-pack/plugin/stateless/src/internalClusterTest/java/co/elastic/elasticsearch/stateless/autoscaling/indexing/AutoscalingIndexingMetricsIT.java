@@ -172,4 +172,78 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         });
         barrier.await(30, TimeUnit.SECONDS);
     }
+
+    public void testAverageWriteLoadSamplerDynamicEwmaAlphaSetting() throws Exception {
+        startMasterOnlyNode();
+        // Reduce the time between publications, so we can expect at least one publication per second.
+        startIndexNode(
+            Settings.builder()
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                .put(AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 0.0)
+                .build()
+        );
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        var ingestMetricsService = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class);
+        final var barrier = new CyclicBarrier(2);
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(PublishNodeIngestLoadAction.NAME)) {
+                    longAwait(barrier);
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+
+        // Wait for a publication of the metrics
+        longAwait(barrier);
+        var loadsBeforeIndexing = ingestMetricsService.getIndexTierMetrics().nodesLoad();
+        assertThat(loadsBeforeIndexing.size(), equalTo(1));
+        assertThat(loadsBeforeIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+        assertThat(loadsBeforeIndexing.get(0).load(), equalTo(0.0));
+
+        // As initial value of the EWMA is 0 and Alpha is 0, the EWMA should not change as we index documents.
+        int bulks = randomIntBetween(3, 5);
+        for (int i = 0; i < bulks; i++) {
+            indexDocs(indexName, randomIntBetween(10, 100));
+            longAwait(barrier);
+        }
+        assertBusy(() -> {
+            var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics().nodesLoad();
+            assertThat(loadsAfterIndexing.size(), equalTo(1));
+            assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(loadsAfterIndexing.get(0).load(), equalTo(0.0));
+        });
+
+        // Updating Alpha means the EWMA would reflect task execution time of new tasks.
+        admin().cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Map.of(AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 1.0))
+            .get();
+
+        for (int i = 0; i < bulks; i++) {
+            indexDocs(indexName, randomIntBetween(10, 100));
+            longAwait(barrier);
+        }
+        assertBusy(() -> {
+            var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics().nodesLoad();
+            assertThat(loadsAfterIndexing.size(), equalTo(1));
+            assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(loadsAfterIndexing.get(0).load(), greaterThan(0.0));
+        });
+    }
+
+    private void longAwait(CyclicBarrier barrier) {
+        try {
+            barrier.await(30, TimeUnit.SECONDS);
+        } catch (BrokenBarrierException | TimeoutException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
 }

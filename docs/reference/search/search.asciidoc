@@ -555,6 +555,7 @@ Period of time used to extend the life of the PIT.
 
 [[request-body-rank]]
 `rank`::
+preview::[]
 (Optional, object) Defines a method for combining and ranking result sets from
 a combination of <<request-body-search-query, query>>,
 <<request-body-sub-searches, sub searches>>, and/or

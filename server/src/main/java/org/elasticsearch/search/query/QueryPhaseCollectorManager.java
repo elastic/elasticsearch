@@ -17,18 +17,25 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-class QueryPhaseCollectorManager<TD, AG> implements CollectorManager<QueryPhaseCollector, QueryPhaseCollectorManager.Result<TD, AG>> {
+/**
+ * {@link CollectorManager} implementation based on {@link QueryPhaseCollector}.
+ * Wraps two {@link CollectorManager}: one required for top docs collection, and one optional for aggs collection.
+ * Applies terminate_after consistently across the different collectors by sharing an atomic counter of collected docs.
+ */
+class QueryPhaseCollectorManager implements CollectorManager<QueryPhaseCollector, Void> {
     private final Weight postFilterWeight;
     private final QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker;
     private final Float minScore;
-    private final CollectorManager<? extends Collector, TD> topDocsCollectorManager;
-    private final CollectorManager<? extends Collector, AG> aggsCollectorManager;
+    private final CollectorManager<? extends Collector, Void> topDocsCollectorManager;
+    private final CollectorManager<? extends Collector, Void> aggsCollectorManager;
+
+    private boolean terminatedEarly;
 
     QueryPhaseCollectorManager(
-        CollectorManager<? extends Collector, TD> topDocsCollectorManager,
+        CollectorManager<? extends Collector, Void> topDocsCollectorManager,
         Weight postFilterWeight,
         QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
-        CollectorManager<? extends Collector, AG> aggsCollectorManager,
+        CollectorManager<? extends Collector, Void> aggsCollectorManager,
         Float minScore
     ) {
         this.topDocsCollectorManager = topDocsCollectorManager;
@@ -51,28 +58,28 @@ class QueryPhaseCollectorManager<TD, AG> implements CollectorManager<QueryPhaseC
     }
 
     @Override
-    public Result<TD, AG> reduce(Collection<QueryPhaseCollector> collectors) throws IOException {
-        boolean terminatedAfter = false;
+    public Void reduce(Collection<QueryPhaseCollector> collectors) throws IOException {
         List<Collector> topDocsCollectors = new ArrayList<>();
         List<Collector> aggsCollectors = new ArrayList<>();
         for (QueryPhaseCollector collector : collectors) {
             topDocsCollectors.add(collector.getTopDocsCollector());
             aggsCollectors.add(collector.getAggsCollector());
             if (collector.isTerminatedAfter()) {
-                terminatedAfter = true;
+                terminatedEarly = true;
             }
         }
         @SuppressWarnings("unchecked")
-        CollectorManager<Collector, TD> topDocsManager = (CollectorManager<Collector, TD>) topDocsCollectorManager;
-        TD topDocs = topDocsManager.reduce(topDocsCollectors);
-        AG aggs = null;
+        CollectorManager<Collector, Void> topDocsManager = (CollectorManager<Collector, Void>) topDocsCollectorManager;
+        topDocsManager.reduce(topDocsCollectors);
         if (aggsCollectorManager != null) {
             @SuppressWarnings("unchecked")
-            CollectorManager<Collector, AG> aggsManager = (CollectorManager<Collector, AG>) aggsCollectorManager;
-            aggs = aggsManager.reduce(aggsCollectors);
+            CollectorManager<Collector, Void> aggsManager = (CollectorManager<Collector, Void>) aggsCollectorManager;
+            aggsManager.reduce(aggsCollectors);
         }
-        return new Result<>(topDocs, aggs, terminatedAfter);
+        return null;
     }
 
-    record Result<T, A>(T topDocs, A aggs, boolean terminatedAfter) {}
+    public boolean isTerminatedEarly() {
+        return terminatedEarly;
+    }
 }

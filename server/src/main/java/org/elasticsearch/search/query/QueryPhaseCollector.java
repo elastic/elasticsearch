@@ -197,7 +197,10 @@ final class QueryPhaseCollector implements Collector {
         // if that the aggs collector early terminates while the top docs collector does not, we still need to wrap the leaf collector
         // to enforce that setMinCompetitiveScore is a no-op. Otherwise we may allow the top docs collector to skip non competitive
         // hits despite the score mode of the Collector did not allow it (because aggs don't support TOP_SCORES).
-        if (aggsLeafCollector == null && postFilterBits == null && terminateAfterChecker == NO_OP_TERMINATE_AFTER_CHECKER && minScore == null) {
+        if (aggsLeafCollector == null
+            && postFilterBits == null
+            && terminateAfterChecker == NO_OP_TERMINATE_AFTER_CHECKER
+            && minScore == null) {
             // special case for early terminated aggs
             return new FilterLeafCollector(topDocsLeafCollector) {
                 @Override
@@ -336,14 +339,14 @@ final class QueryPhaseCollector implements Collector {
         }
     }
 
-    static <T, A> QueryPhaseCollectorManager<T, A> createManager(
-        CollectorManager<? extends Collector, T> topDocsCollectorManager,
+    static QueryPhaseCollectorManager createManager(
+        CollectorManager<? extends Collector, Void> topDocsCollectorManager,
         Weight postFilterWeight,
         int terminateAfter,
-        CollectorManager<? extends Collector, A> aggsCollectorManager,
+        CollectorManager<? extends Collector, Void> aggsCollectorManager,
         Float minScore
     ) {
-        return new QueryPhaseCollectorManager<>(
+        return new QueryPhaseCollectorManager(
             topDocsCollectorManager,
             postFilterWeight,
             resolveTerminateAfterChecker(terminateAfter),

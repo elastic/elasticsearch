@@ -121,7 +121,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
 
     public void testCollectedHitCountEarlyTerminated() throws Exception {
         Query query = new NonCountingTermQuery(new Term("string", "foo"));
-        // there's 3 docs matching the query: any totalHitsThreshold lower than 3 will trigger early termination
+        // there's three docs matching the query: any totalHitsThreshold lower than 3 will trigger early termination
         int totalHitsThreshold = randomInt(2);
         PartialHitCountCollector.CollectorManager collectorManager = new PartialHitCountCollector.CollectorManager(totalHitsThreshold);
         searcher.search(query, collectorManager);

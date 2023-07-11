@@ -215,8 +215,10 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
             assertThat(tasks, hasSize(equalTo(2)));
             for (TaskInfo task : tasks) {
                 assertThat(task.action(), equalTo(DriverTaskRunner.ACTION_NAME));
+                logger.info("{}", task.description());
                 assertThat(task.description(), either(equalTo(READ_DESCRIPTION)).or(equalTo(MERGE_DESCRIPTION)));
                 DriverStatus status = (DriverStatus) task.status();
+                logger.info("{}", status.status());
                 assertThat(status.status(), equalTo(DriverStatus.Status.STARTING));
             }
             foundTasks.addAll(tasks);

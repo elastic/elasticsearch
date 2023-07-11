@@ -456,7 +456,7 @@ public class OperatorTests extends ESTestCase {
             var driver = new Driver(
                 driverContext,
                 new SequenceLongBlockSourceOperator(values, 100),
-                List.of((new LimitOperator.LimitOperatorFactory(limit)).get(driverContext)),
+                List.of((new LimitOperator.Factory(limit)).get(driverContext)),
                 new PageConsumerOperator(page -> {
                     LongBlock block = page.getBlock(0);
                     for (int i = 0; i < page.getPositionCount(); i++) {

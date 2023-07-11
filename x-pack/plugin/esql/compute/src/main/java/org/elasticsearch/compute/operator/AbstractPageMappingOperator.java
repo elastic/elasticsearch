@@ -23,6 +23,10 @@ import java.util.Objects;
 public abstract class AbstractPageMappingOperator implements Operator {
     private Page prev;
     private boolean finished = false;
+
+    /**
+     * Count of pages that have been processed by this operator.
+     */
     private int pagesProcessed;
 
     protected abstract Page process(Page page);
@@ -72,6 +76,9 @@ public abstract class AbstractPageMappingOperator implements Operator {
     protected Status status(int pagesProcessed) {
         return new Status(pagesProcessed);
     }
+
+    @Override
+    public final void close() {}
 
     public static class Status implements Operator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -129,7 +136,4 @@ public abstract class AbstractPageMappingOperator implements Operator {
             return Strings.toString(this);
         }
     }
-
-    @Override
-    public final void close() {}
 }

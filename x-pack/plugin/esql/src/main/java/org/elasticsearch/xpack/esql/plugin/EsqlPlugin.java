@@ -26,6 +26,7 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
@@ -150,6 +151,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 AbstractPageMappingOperator.Status.ENTRY,
                 ExchangeSinkOperator.Status.ENTRY,
                 ExchangeSourceOperator.Status.ENTRY,
+                LimitOperator.Status.ENTRY,
                 LuceneSourceOperator.Status.ENTRY,
                 MvExpandOperator.Status.ENTRY,
                 ValuesSourceReaderOperator.Status.ENTRY,

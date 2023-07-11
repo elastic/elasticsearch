@@ -477,13 +477,7 @@ public class QueryPhaseCollectorManagerTests extends ESTestCase {
             CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollectorManager manager = QueryPhaseCollector.createManager(
-                topDocsAdapter,
-                null,
-                terminateAfter,
-                aggsAdapter,
-                null
-            );
+            QueryPhaseCollectorManager manager = QueryPhaseCollector.createManager(topDocsAdapter, null, terminateAfter, aggsAdapter, null);
             searcher.search(new MatchAllDocsQuery(), manager);
             assertTrue(manager.isTerminatedEarly());
             assertEquals(terminateAfter, topDocsAdapter.getResult().intValue());

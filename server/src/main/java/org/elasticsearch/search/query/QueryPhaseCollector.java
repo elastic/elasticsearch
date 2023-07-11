@@ -364,6 +364,7 @@ final class QueryPhaseCollector implements Collector {
 
     abstract static class TerminateAfterChecker {
         abstract boolean isThresholdReached();
+
         abstract void incrementNumCollected();
     }
 

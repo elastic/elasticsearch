@@ -39,6 +39,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         AtomicBoolean clientGotCalled = new AtomicBoolean();
 
         try (Client client = new NoOpClient(getTestName()) {
+
+            @SuppressWarnings("unchecked")
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

@@ -231,7 +231,7 @@ participate in the `_bulk` request at all.
 [[bulk-security]]
 ===== Security
 
-See <<url-access-control>>.
+See <<api-url-access-control>>.
 
 [[docs-bulk-api-path-params]]
 ==== {api-path-parms-title}

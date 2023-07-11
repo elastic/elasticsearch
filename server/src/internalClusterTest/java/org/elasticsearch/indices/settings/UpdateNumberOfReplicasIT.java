@@ -178,11 +178,9 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.ALL));
+            assertAcked(indicesAdmin().prepareClose("test").setWaitForActiveShards(ActiveShardCount.ALL));
 
-            clusterHealth = client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterHealth = clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForGreenStatus()
                 .setWaitForActiveShards(numShards.numPrimaries * 2)
@@ -301,11 +299,9 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.ALL));
+            assertAcked(indicesAdmin().prepareClose("test").setWaitForActiveShards(ActiveShardCount.ALL));
 
-            clusterHealth = client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterHealth = clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForGreenStatus()
                 .setWaitForActiveShards(numShards.numPrimaries * 2)
@@ -439,7 +435,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
          * time from the number of replicas changed by the allocation service.
          */
         assertThat(
-            client().admin().cluster().prepareState().get().getState().metadata().index("test").getSettingsVersion(),
+            clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion(),
             equalTo(1 + 1 + settingsVersion)
         );
     }
@@ -449,9 +445,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
         final int value = randomIntBetween(-10, -1);
         try {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
+            indicesAdmin().prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, value))
                 .execute()
                 .actionGet();
@@ -459,7 +453,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         } catch (IllegalArgumentException e) {
             assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_replicas] must be >= 0", e.getMessage());
             assertThat(
-                client().admin().cluster().prepareState().get().getState().metadata().index("test").getSettingsVersion(),
+                clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion(),
                 equalTo(settingsVersion)
             );
         }
@@ -472,15 +466,13 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             EnumSet.of(IndicesOptions.WildcardStates.OPEN)
         );
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("non-existent-*")
+            indicesAdmin().prepareUpdateSettings("non-existent-*")
                 .setSettings(Settings.builder().put("index.number_of_replicas", 1))
                 .setIndicesOptions(options)
                 .get()
         );
         final int numberOfReplicas = Integer.parseInt(
-            client().admin().indices().prepareGetSettings("test-index").get().getSetting("test-index", "index.number_of_replicas")
+            indicesAdmin().prepareGetSettings("test-index").get().getSetting("test-index", "index.number_of_replicas")
         );
         assertThat(numberOfReplicas, equalTo(0));
     }

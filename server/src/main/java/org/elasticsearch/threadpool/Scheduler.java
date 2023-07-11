@@ -106,7 +106,9 @@ public interface Scheduler {
      *         not be interrupted.
      */
     default Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-        return new ReschedulingRunnable(command, interval, executor, this, (e) -> {}, (e) -> {});
+        var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {}, (e) -> {});
+        runnable.start();
+        return runnable;
     }
 
     /**
@@ -171,7 +173,7 @@ public interface Scheduler {
         private volatile boolean run = true;
 
         /**
-         * Creates a new rescheduling runnable and schedules the first execution to occur after the interval specified
+         * Creates a new rescheduling runnable
          *
          * @param runnable the {@link Runnable} that should be executed periodically
          * @param interval the time interval between executions
@@ -192,6 +194,12 @@ public interface Scheduler {
             this.scheduler = scheduler;
             this.rejectionConsumer = rejectionConsumer;
             this.failureConsumer = failureConsumer;
+        }
+
+        /**
+         * Schedules the first execution of this runnable
+         */
+        void start() {
             scheduler.schedule(this, interval, executor);
         }
 

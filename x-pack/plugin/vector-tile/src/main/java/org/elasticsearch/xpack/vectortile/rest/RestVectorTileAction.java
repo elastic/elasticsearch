@@ -19,6 +19,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -27,6 +28,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.SearchHit;
@@ -61,6 +64,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexNam
 /**
  * Main class handling a call to the _mvt API.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestVectorTileAction extends BaseRestHandler {
 
     private static final String META_LAYER = "meta";
@@ -414,7 +418,7 @@ public class RestVectorTileAction extends BaseRestHandler {
             final Rectangle tile = request.getBoundingBox();
             featureBuilder.mergeFrom(featureFactory.box(tile.getMinLon(), tile.getMaxLon(), tile.getMinLat(), tile.getMaxLat()));
         }
-        VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, response);
+        VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, ChunkedToXContent.wrapAsToXContent(response));
         metaLayerBuilder.addFeatures(featureBuilder);
         VectorTileUtils.addPropertiesToLayer(metaLayerBuilder, layerProps);
         return metaLayerBuilder;

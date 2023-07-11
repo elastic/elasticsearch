@@ -428,3 +428,328 @@ synthetic _source:
   - match:
       aggregations.page.buckets.1.top_hits.hits.hits.0._source:
         extra: bar
+
+
+---
+"having":
+  - skip:
+      version: " - 8.8.99"
+      reason: fixed in 8.9.0
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { index: { } }
+          - { gender: 1, salary: 1000, birth_date: 1981 }
+          - { index: { } }
+          - { gender: 1, salary: 2000, birth_date: 1982 }
+          - { index: { } }
+          - { gender: 1, salary: 3000, birth_date: 1981 }
+          - { index: { } }
+          - { gender: 1, salary: 4000, birth_date: 1982 }
+          - { index: { } }
+          - { gender: 2, salary: 6000, birth_date: 1982 }
+          - { index: { } }
+          - { gender: 2, salary: 7000, birth_date: 1981 }
+          - { index: { } }
+          - { gender: 2, salary: 8000, birth_date: 1982 }
+          - { index: { } }
+          - { gender: 2, salary: 9000, birth_date: 1981 }
+
+  # Similar to a SQL query for top salaries per birth date, grouped by gender:
+  #
+  # SELECT gender, FIRST(salary, birth_date) as first
+  # FROM test_emp
+  # GROUP BY gender
+  # ORDER BY salary desc
+  - do:
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 1
+
+  - length: { aggregations.genders.buckets: 2}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.total.value: 4}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.gender: 1}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.salary: 4000}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.birth_date: 1982}
+  - match: { aggregations.genders.buckets.1.top_salary_hits.hits.total.value: 4}
+  - match: { aggregations.genders.buckets.1.top_salary_hits.hits.hits.0._source.gender: 2}
+  - match: { aggregations.genders.buckets.1.top_salary_hits.hits.hits.0._source.salary: 9000}
+  - match: { aggregations.genders.buckets.1.top_salary_hits.hits.hits.0._source.birth_date: 1981}
+
+  # Similar to a SQL query with HAVING clause:
+  #
+  # SELECT gender, FIRST(salary, birth_date) as first
+  # FROM test_emp
+  # GROUP BY gender
+  # HAVING first < 80000
+  # ORDER BY salary desc
+  - do:
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[_source.salary]
+                    script: "params.ts < 8000"
+
+  # The bucket for gender '2' gets filtered out by the selector.
+  - length: { aggregations.genders.buckets: 1}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.total.value: 4}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.gender: 1}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.salary: 4000}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.birth_date: 1982}
+
+  - do:
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - birth_date
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[_sort]
+                    script: "params.ts < 8000"
+
+  # Bucket path on sort value works the same.
+  - length: { aggregations.genders.buckets: 1 }
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.total.value: 4 }
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.gender: 1 }
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.birth_date: 1982 }
+
+  - do:
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - birth_date
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[_score]
+                    script: "params.ts < 8000"
+
+  # Bucket path on score is supported. Here, score is NaN so all values are filtered out.
+  - length: { aggregations.genders.buckets: 0 }
+
+  - do:
+      bulk:
+        index: test2
+        body:
+          - { index: { } }
+          - { gender: 3 }
+  - do:
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[_source.salary]
+                    script: "params.ts < 8000"
+
+  # Empty bucket for gender '3' affects nothing.
+  - length: { aggregations.genders.buckets: 1}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.total.value: 4}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.gender: 1}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.salary: 4000}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.birth_date: 1982}
+
+  - do:
+      catch: /path not supported for \[top_salary_hits\]:\ \[_source.nosuchfield\]./
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[_source.nosuchfield]
+                    script: "params.ts < 8000"
+
+  - do:
+      catch: / No aggregation found for path \[nosuchagg\[_source.salary\]\]/
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: nosuchagg[_source.salary]
+                    script: "params.ts < 8000"
+
+  - do:
+      catch: /property paths for top_hits \[top_salary_hits\] require configuring it with size to 1/
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 10
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[salary]
+                    script: "params.ts < 8000"
+
+---
+runtime fields:
+  - skip:
+      version: " - 8.9.1"
+      reason:  "bugfix #97460 added in 8.9.1"
+  - do:
+      search:
+        index: test
+        body:
+          runtime_mappings:
+            runtime_field:
+              type: keyword
+              script:
+                lang: painless
+                source: "emit(params['_source'].toString())"
+          fields: [runtime_field]
+          size: 0
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits: {}
+
+  - match:  { hits.total.value: 3 }
+  - length: { aggregations.page.buckets: 2 }
+  - match:  { aggregations.page.buckets.0.key: 1 }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.0.fields.runtime_field: ["{page=1, text=the quick brown fox}"] }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.1.fields.runtime_field: ["{page=1, text=jumped over the lazy dog}"] }
+  - match:  { aggregations.page.buckets.1.key: 2 }
+  - match:  { aggregations.page.buckets.1.top_hits.hits.hits.0.fields.runtime_field: ["{page=2, text=The vorpal blade went snicker-snack!}"] }

@@ -38,7 +38,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Node level stats about searchable snapshots caches.
@@ -73,9 +72,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             actionFilters,
             NodesRequest::new,
             NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.SAME,
-            NodeCachesStatsResponse.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.frozenCacheService = frozenCacheService;
         this.licenseState = licenseState;
@@ -111,7 +108,6 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             resolvedNodes = Arrays.stream(request.nodesIds())
                 .filter(dataNodes::containsKey)
                 .map(dataNodes::get)
-                .collect(Collectors.toList())
                 .toArray(DiscoveryNode[]::new);
         }
         request.setConcreteNodes(resolvedNodes);

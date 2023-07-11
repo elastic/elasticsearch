@@ -14,16 +14,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.analysis.common.synonyms.SynonymsManagementAPIService.SYNONYMS_INDEX;
 
 public class CommonAnalysisPluginTests extends ESTestCase {
 
@@ -221,16 +217,6 @@ public class CommonAnalysisPluginTests extends ESTestCase {
                 VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT),
                 true
             )
-        );
-    }
-
-    public void testSystemSynonymsIndexName() {
-        assertEquals(
-            List.of(SYNONYMS_INDEX),
-            new CommonAnalysisPlugin().getSystemIndexDescriptors(Settings.EMPTY)
-                .stream()
-                .map(SystemIndexDescriptor::getPrimaryIndex)
-                .toList()
         );
     }
 

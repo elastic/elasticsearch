@@ -179,7 +179,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
                 final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
                 final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
                 final String writeIndex = dataStream.getWriteIndex().getName();
-                final IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(writeIndex).get();
+                final IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(writeIndex).get();
                 for (IndexShardStats indexShardStats : indicesStatsResponse.getIndex(writeIndex).getIndexShards().values()) {
                     for (ShardStats shard : indexShardStats.getShards()) {
                         final IndexingStats.Stats shardIndexingStats = shard.getStats().getIndexing().getTotal();
@@ -190,7 +190,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
                 }
             });
 
-            assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+            assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         }
     }
 

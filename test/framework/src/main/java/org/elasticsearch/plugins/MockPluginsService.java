@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
@@ -23,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -85,14 +87,29 @@ public class MockPluginsService extends PluginsService {
         );
     }
 
+    private static final Map<Class<?>, Collection<Class<?>>> spiClassesByService = ConcurrentCollections.newConcurrentMap();
+
     @Override
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public <T> List<? extends T> loadServiceProviders(Class<T> service) {
         // We use a set here to avoid duplicates because SPIClassIterator will match
         // all plugins in MockNode, because all plugins are loaded by the same class loader.
         Set<T> result = new HashSet<>();
-
         for (LoadedPlugin pluginTuple : plugins()) {
-            result.addAll(createExtensions(service, pluginTuple.instance()));
+            var plugin = pluginTuple.instance();
+            var classLoader = plugin.getClass().getClassLoader();
+            final Collection<? extends T> extension;
+            if (classLoader == ClassLoader.getSystemClassLoader()) {
+                // only determine the spi classes handled by the system classloader that loads most plugins in tests once to save test time;
+                extension = createExtensions(service, plugin, (Iterator) spiClassesByService.computeIfAbsent(service, s -> {
+                    var res = new ArrayList<Class<? extends T>>();
+                    SPIClassIterator.get(service, classLoader).forEachRemaining(res::add);
+                    return List.copyOf(res);
+                }).iterator());
+            } else {
+                extension = createExtensions(service, plugin);
+            }
+            result.addAll(extension);
         }
 
         return List.copyOf(result);
@@ -106,7 +123,11 @@ public class MockPluginsService extends PluginsService {
      * the type and returns an empty list if the plugin class type is incompatible.
      */
     static <T> List<? extends T> createExtensions(Class<T> extensionPointType, Plugin plugin) {
-        SPIClassIterator<T> classIterator = SPIClassIterator.get(extensionPointType, plugin.getClass().getClassLoader());
+        Iterator<Class<? extends T>> classIterator = SPIClassIterator.get(extensionPointType, plugin.getClass().getClassLoader());
+        return createExtensions(extensionPointType, plugin, classIterator);
+    }
+
+    private static <T> List<T> createExtensions(Class<T> extensionPointType, Plugin plugin, Iterator<Class<? extends T>> classIterator) {
         List<T> extensions = new ArrayList<>();
         while (classIterator.hasNext()) {
             Class<? extends T> extensionClass = classIterator.next();

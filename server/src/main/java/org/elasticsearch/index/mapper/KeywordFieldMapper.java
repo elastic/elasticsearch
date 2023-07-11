@@ -33,12 +33,12 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -179,9 +179,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler, Version indexCreatedVersion) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler, IndexVersion indexCreatedVersion) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -210,7 +210,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }).precludesParameters(normalizer, ignoreAbove);
         }
 
-        public Builder(String name, Version indexCreatedVersion) {
+        public Builder(String name, IndexVersion indexCreatedVersion) {
             this(name, null, ScriptCompiler.NONE, indexCreatedVersion);
         }
 
@@ -330,7 +330,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler(), c.indexVersionCreated()),
@@ -530,7 +530,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
-
             Terms terms = null;
             if (isIndexed()) {
                 terms = MultiTerms.getTerms(reader, name());
@@ -541,11 +540,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // Field does not exist on this shard.
                 return null;
             }
-            Automaton a = caseInsensitive ? AutomatonQueries.caseInsensitivePrefix(prefix) : Automata.makeString(prefix);
-            a = Operations.concatenate(a, Automata.makeAnyString());
-            a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+            Automaton a = caseInsensitive
+                ? AutomatonQueries.caseInsensitivePrefix(prefix)
+                : Operations.concatenate(Automata.makeString(prefix), Automata.makeAnyString());
+            assert a.isDeterministic();
+            a = MinimizationOperations.minimize(a, 0);
 
-            CompiledAutomaton automaton = new CompiledAutomaton(a);
+            CompiledAutomaton automaton = new CompiledAutomaton(a, true, true);
 
             BytesRef searchBytes = searchAfter == null ? null : new BytesRef(searchAfter);
 
@@ -811,7 +812,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean splitQueriesOnWhitespace;
     private final Script script;
     private final ScriptCompiler scriptCompiler;
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
     private final boolean storeIgnored;
 
     private final IndexAnalyzers indexAnalyzers;

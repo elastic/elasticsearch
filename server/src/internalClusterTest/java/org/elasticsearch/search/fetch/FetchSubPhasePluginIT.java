@@ -52,9 +52,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -72,7 +70,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         client().index(new IndexRequest("test").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject()))
             .actionGet();
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         SearchResponse response = client().prepareSearch()
             .setSource(new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test"))))

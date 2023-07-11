@@ -9,13 +9,21 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -27,7 +35,11 @@ public final class SearchShardsResponse extends ActionResponse {
     private final Collection<DiscoveryNode> nodes;
     private final Map<String, AliasFilter> aliasFilters;
 
-    SearchShardsResponse(Collection<SearchShardsGroup> groups, Collection<DiscoveryNode> nodes, Map<String, AliasFilter> aliasFilters) {
+    public SearchShardsResponse(
+        Collection<SearchShardsGroup> groups,
+        Collection<DiscoveryNode> nodes,
+        Map<String, AliasFilter> aliasFilters
+    ) {
         this.groups = groups;
         this.nodes = nodes;
         this.aliasFilters = aliasFilters;
@@ -37,7 +49,7 @@ public final class SearchShardsResponse extends ActionResponse {
         super(in);
         this.groups = in.readList(SearchShardsGroup::new);
         this.nodes = in.readList(DiscoveryNode::new);
-        this.aliasFilters = in.readMap(StreamInput::readString, AliasFilter::readFrom);
+        this.aliasFilters = in.readMap(AliasFilter::readFrom);
     }
 
     @Override
@@ -79,5 +91,22 @@ public final class SearchShardsResponse extends ActionResponse {
     @Override
     public int hashCode() {
         return Objects.hash(groups, nodes, aliasFilters);
+    }
+
+    static SearchShardsResponse fromLegacyResponse(ClusterSearchShardsResponse oldResp) {
+        Map<String, Index> indexByNames = new HashMap<>();
+        for (ClusterSearchShardsGroup oldGroup : oldResp.getGroups()) {
+            ShardId shardId = oldGroup.getShardId();
+            indexByNames.put(shardId.getIndexName(), shardId.getIndex());
+        }
+        // convert index_name -> alias_filters to index_uuid -> alias_filters
+        Map<String, AliasFilter> aliasFilters = Maps.newMapWithExpectedSize(oldResp.getIndicesAndFilters().size());
+        for (Map.Entry<String, AliasFilter> e : oldResp.getIndicesAndFilters().entrySet()) {
+            Index index = indexByNames.get(e.getKey());
+            aliasFilters.put(index.getUUID(), e.getValue());
+        }
+        List<SearchShardsGroup> groups = Arrays.stream(oldResp.getGroups()).map(SearchShardsGroup::new).toList();
+        assert groups.stream().noneMatch(SearchShardsGroup::preFiltered) : "legacy responses must not have preFiltered set";
+        return new SearchShardsResponse(groups, Arrays.asList(oldResp.getNodes()), aliasFilters);
     }
 }

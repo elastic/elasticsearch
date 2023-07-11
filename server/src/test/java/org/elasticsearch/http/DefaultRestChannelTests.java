@@ -192,6 +192,35 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertEquals(resp.contentType(), headers.get(DefaultRestChannel.CONTENT_TYPE).get(0));
     }
 
+    public void testNormallyNoConnectionClose() {
+        Settings settings = Settings.builder().build();
+        final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
+        // send a response
+        DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            handlingSettings,
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(settings),
+            httpTracer,
+            tracer
+        );
+
+        RestResponse resp = testRestResponse();
+        channel.sendResponse(resp);
+
+        ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
+        verify(httpChannel).sendResponse(responseCaptor.capture(), any());
+
+        TestHttpResponse httpResponse = responseCaptor.getValue();
+        Map<String, List<String>> headers = httpResponse.headers();
+        assertNull(headers.get(DefaultRestChannel.CONNECTION));
+    }
+
     public void testCookiesSet() {
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_RESET_COOKIES.getKey(), true).build();
         final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");

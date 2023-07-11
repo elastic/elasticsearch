@@ -240,6 +240,39 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return getRemoteClusterConnection(cluster).getConnection();
     }
 
+    /**
+     * Unlike {@link #getConnection(String)} this method might attempt to re-establish a remote connection if there is no connection
+     * available before returning a connection to the remote cluster.
+     *
+     * @param clusterAlias    the remote cluster
+     * @param ensureConnected whether requests should wait for a connection attempt when there isn't available connection
+     * @param listener        a listener that will be notified the connection or failure
+     */
+    public void maybeEnsureConnectedAndGetConnection(
+        String clusterAlias,
+        boolean ensureConnected,
+        ActionListener<Transport.Connection> listener
+    ) {
+        ActionListener<Void> ensureConnectedListener = listener.delegateFailureAndWrap(
+            (l, nullValue) -> ActionListener.completeWith(l, () -> {
+                try {
+                    return getConnection(clusterAlias);
+                } catch (NoSuchRemoteClusterException e) {
+                    if (ensureConnected == false) {
+                        // trigger another connection attempt, but don't wait for it to complete
+                        ensureConnected(clusterAlias, ActionListener.noop());
+                    }
+                    throw e;
+                }
+            })
+        );
+        if (ensureConnected) {
+            ensureConnected(clusterAlias, ensureConnectedListener);
+        } else {
+            ensureConnectedListener.onResponse(null);
+        }
+    }
+
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {
         if (enabled == false) {
             throw new IllegalArgumentException(
@@ -509,7 +542,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 channel.sendResponse(
                     new TransportService.HandshakeResponse(
                         transportService.getLocalNode().getVersion(),
-                        Build.CURRENT.hash(),
+                        Build.current().hash(),
                         transportService.getLocalNode().withTransportAddress(transportService.boundRemoteAccessAddress().publishAddress()),
                         transportService.clusterName
                     )

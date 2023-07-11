@@ -51,9 +51,7 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
                 logger.info("--> excluding index from [{}] and concurrently starting replacement with [{}]", oldNodeName, newNodeName);
 
                 final PlainActionFuture<AcknowledgedResponse> excludeFuture = new PlainActionFuture<>();
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings(INDEX)
+                indicesAdmin().prepareUpdateSettings(INDEX)
                     .setSettings(
                         Settings.builder()
                             .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", oldNodeName)
@@ -64,7 +62,14 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
                 assertAcked(
                     client().execute(
                         PutShutdownNodeAction.INSTANCE,
-                        new PutShutdownNodeAction.Request(oldNodeId, SingleNodeShutdownMetadata.Type.REPLACE, "test", null, newNodeName)
+                        new PutShutdownNodeAction.Request(
+                            oldNodeId,
+                            SingleNodeShutdownMetadata.Type.REPLACE,
+                            "test",
+                            null,
+                            newNodeName,
+                            null
+                        )
                     ).actionGet(10, TimeUnit.SECONDS)
                 );
 

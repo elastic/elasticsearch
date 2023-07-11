@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -43,7 +43,7 @@ public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobActi
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         FlushJobAction.Request request,
         JobTask task,
         ActionListener<FlushJobAction.Response> listener
@@ -51,6 +51,7 @@ public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobActi
         FlushJobParams.Builder paramsBuilder = FlushJobParams.builder();
         paramsBuilder.calcInterim(request.getCalcInterim());
         paramsBuilder.waitForNormalization(request.isWaitForNormalization());
+        paramsBuilder.refreshRequired(request.isRefreshRequired());
         if (request.getAdvanceTime() != null) {
             paramsBuilder.advanceTime(request.getAdvanceTime());
         }

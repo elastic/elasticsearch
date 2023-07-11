@@ -46,9 +46,7 @@ public class UpdateSettingsValidationIT extends ESIntegTestCase {
         assertThat(healthResponse.getIndices().get("test").getActiveShards(), equalTo(test.numPrimaries));
 
         try {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
+            indicesAdmin().prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put("index.refresh_interval", ""))
                 .execute()
                 .actionGet();

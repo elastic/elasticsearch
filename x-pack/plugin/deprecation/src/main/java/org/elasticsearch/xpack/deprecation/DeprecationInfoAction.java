@@ -134,10 +134,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         Map<DeprecationIssue, List<String>> issueToListOfNodesMap = new HashMap<>();
         for (List<Tuple<DeprecationIssue, String>> similarIssues : issuesToMerge) {
             DeprecationIssue leastCommonDenominator = DeprecationIssue.getIntersectionOfRemovableSettings(
-                similarIssues.stream().map(Tuple::v1).collect(Collectors.toList())
+                similarIssues.stream().map(Tuple::v1).toList()
             );
             issueToListOfNodesMap.computeIfAbsent(leastCommonDenominator, (key) -> new ArrayList<>())
-                .addAll(similarIssues.stream().map(Tuple::v2).collect(Collectors.toList()));
+                .addAll(similarIssues.stream().map(Tuple::v2).toList());
         }
         return issueToListOfNodesMap;
     }
@@ -153,13 +153,13 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             super(in);
             clusterSettingsIssues = in.readList(DeprecationIssue::new);
             nodeSettingsIssues = in.readList(DeprecationIssue::new);
-            indexSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
+            indexSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
             if (in.getTransportVersion().before(TransportVersion.V_7_11_0)) {
                 List<DeprecationIssue> mlIssues = in.readList(DeprecationIssue::new);
                 pluginSettingsIssues = new HashMap<>();
                 pluginSettingsIssues.put("ml_settings", mlIssues);
             } else {
-                pluginSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
+                pluginSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
             }
         }
 

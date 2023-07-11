@@ -74,10 +74,9 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(indexExists("test1234565"), equalTo(false));
 
         logger.info("Clearing cache");
-        ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin()
-            .indices()
-            .clearCache(new ClearIndicesCacheRequest("test").fieldDataCache(true).queryCache(true))
-            .actionGet();
+        ClearIndicesCacheResponse clearIndicesCacheResponse = indicesAdmin().clearCache(
+            new ClearIndicesCacheRequest("test").fieldDataCache(true).queryCache(true)
+        ).actionGet();
         assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
@@ -119,7 +118,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.getId(), equalTo("1"));
         logger.info("Refreshing");
-        client().admin().indices().refresh(new RefreshRequest("test")).actionGet();
+        indicesAdmin().refresh(new RefreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] (should be empty)");
         for (int i = 0; i < 5; i++) {
@@ -133,11 +132,11 @@ public class DocumentActionsIT extends ESIntegTestCase {
         client().index(new IndexRequest("test").id("2").source(source("2", "test2"))).actionGet();
 
         logger.info("Flushing");
-        FlushResponse flushResult = client().admin().indices().prepareFlush("test").execute().actionGet();
+        FlushResponse flushResult = indicesAdmin().prepareFlush("test").execute().actionGet();
         assertThat(flushResult.getSuccessfulShards(), equalTo(numShards.totalNumShards));
         assertThat(flushResult.getFailedShards(), equalTo(0));
         logger.info("Refreshing");
-        client().admin().indices().refresh(new RefreshRequest("test")).actionGet();
+        indicesAdmin().refresh(new RefreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] and [type1/2]");
         for (int i = 0; i < 5; i++) {
@@ -223,7 +222,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[5].getIndex(), equalTo(getConcreteIndexName()));
 
         waitForRelocation(ClusterHealthStatus.GREEN);
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().actionGet();
+        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().actionGet();
         assertNoFailures(refreshResponse);
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 

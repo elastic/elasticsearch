@@ -38,7 +38,7 @@ must have the `read` index privilege for the alias's data streams or indices.
 
 Allows you to execute a search query and get back search hits that match the
 query. You can provide search queries using the <<search-api-query-params-q,`q`
-query string parameter>> or <<search-request-body,request body>>.
+query string parameter>> or <<search-search,request body>>.
 
 [[search-search-api-path-params]]
 ==== {api-path-parms-title}
@@ -483,7 +483,6 @@ A boost value greater than `1.0` increases the score. A boost value between
 `0` and `1.0` decreases the score.
 ====
 
-experimental::[]
 [[search-api-knn]]
 `knn`::
 (Optional, object or array of objects)
@@ -557,10 +556,10 @@ Period of time used to extend the life of the PIT.
 [[request-body-rank]]
 `rank`::
 (Optional, object) Defines a method for combining and ranking result sets from
-either:
-+
-* 1 query and 1 or more kNN searches
-* 2 or more kNN searches
+a combination of <<request-body-search-query, query>>,
+<<request-body-sub-searches, sub searches>>, and/or
+<<search-api-knn, knn searches>>. Requires a minimum of 2 results sets for
+ranking from the specified sources.
 +
 .Ranking methods
 [%collapsible%open]
@@ -715,6 +714,29 @@ exclude fields from this subset using the `excludes` property.
 Stats groups to associate with the search. Each group maintains a statistics
 aggregation for its associated searches. You can retrieve these stats using the
 <<indices-stats,indices stats API>>.
+
+[[request-body-sub-searches]]
+`sub_searches`::
+(Optional, array of objects)
+An array of `sub_search` objects where each `sub_search` is evaluated
+independently, and their result sets are later combined as part of
+<<request-body-rank, ranking>>. Each `sub_search` object is required to
+contain a single `query`. `sub_searches` is only allowed with the
+<<request-body-rank,`rank`>> element, and is not allowed in conjunction
+with a top-level <<request-body-search-query, `query`>> element.
++
+`sub_searches` as part of a search:
+[source,js]
+----
+{
+  "sub_searches": [
+    { "query": {...} },
+    { "query": {...} }
+  ]
+  ...
+}
+----
+// NOTCONSOLE
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +

@@ -1,33 +1,27 @@
-entsearch:
+admin:
   cluster:
     - manage_search_application
     - manage_behavioral_analytics
+    - manage
     - monitor
   indices:
     - names: [
-        # indices
-        "test-index",
-        "test-index1",
-        "test-index2",
-        "test-index3",
-        "test-index4",
-        "test-index-does-not-exist",
-        # Search Applications (needed to create aliases)
-        "test-search-application",
-        "test-search-application-1",
-        "test-search-application-2",
-        "another-test-search-application",
-        "test-updated-search-application",
-        "test-error-search-application",
-        "test-re-creating-search-application",
-        "test-search-application-to-delete",
-        "test-nonexistent-search-application",
-        "test-search-application-with-invalid-template"
+        # indices and search applications
+        "test-*",
+        "another-test-search-application"
     ]
-      privileges: [ "manage" ]
+      privileges: [ "manage", "write", "read" ]
+
+user:
+  cluster:
+    - post_behavioral_analytics_event
+    - manage_api_key
+  indices:
     - names: [
-      # indices used for indexing and searching
-      "test-search-index1",
-      "test-search-index2",
+      "test-index1",
+      "test-search-application",
+      "test-search-application-1",
+      "test-search-application-with-list"
     ]
-      privileges: [ "manage", "read", "write" ]
+      privileges: [ "read" ]
+

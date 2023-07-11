@@ -8,13 +8,13 @@
 
 package org.elasticsearch.test.cluster.util.resource;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.function.Supplier;
 
 public interface Resource {
     InputStream asStream();
@@ -23,11 +23,15 @@ public interface Resource {
         return new StringResource(text);
     }
 
+    static Resource fromString(Supplier<String> supplier) {
+        return new StringResource(supplier);
+    }
+
     static Resource fromClasspath(String path) {
         return new ClasspathResource(path);
     }
 
-    static Resource fromFile(File file) {
+    static Resource fromFile(Path file) {
         return new FileResource(file);
     }
 

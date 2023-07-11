@@ -7,7 +7,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search_application', 'xpack'
+    include '_common', 'bulk', 'cluster', 'nodes', 'indices', 'index', 'query_ruleset', 'search_application', 'xpack', 'security', 'search'
   }
 }
 
@@ -16,6 +16,7 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   extraConfigFile 'roles.yml', file('roles.yml')
-  user username: 'entsearch-admin', password: 'entsearch-admin-password', role: 'superuser'
-  user username: 'entsearch-user', password: 'entsearch-user-password', role: 'entsearch'
+  user username: 'entsearch-superuser', password: 'entsearch-superuser-password', role: 'superuser'
+  user username: 'entsearch-admin', password: 'entsearch-admin-password', role: 'admin'
+  user username: 'entsearch-user', password: 'entsearch-user-password', role: 'user'
 }

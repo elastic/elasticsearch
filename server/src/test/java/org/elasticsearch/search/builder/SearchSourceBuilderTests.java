@@ -69,6 +69,7 @@ import static org.hamcrest.Matchers.hasToString;
 
 public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96896")
     public void testFromXContent() throws IOException {
         SearchSourceBuilder testSearchSourceBuilder = createSearchSourceBuilder();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -140,7 +141,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original) throws IOException {
-        return copyBuilder(original, TransportVersion.CURRENT);
+        return copyBuilder(original, TransportVersion.current());
     }
 
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original, TransportVersion version) throws IOException {
@@ -893,9 +894,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     private SearchSourceBuilder rewrite(SearchSourceBuilder searchSourceBuilder) throws IOException {
-        return Rewriteable.rewrite(
-            searchSourceBuilder,
-            new QueryRewriteContext(parserConfig(), writableRegistry(), null, Long.valueOf(1)::longValue)
-        );
+        return Rewriteable.rewrite(searchSourceBuilder, new QueryRewriteContext(parserConfig(), null, Long.valueOf(1)::longValue));
     }
 }

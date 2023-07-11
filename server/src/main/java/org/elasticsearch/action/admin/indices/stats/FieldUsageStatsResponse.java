@@ -35,7 +35,7 @@ public class FieldUsageStatsResponse extends ChunkedBroadcastResponse {
 
     FieldUsageStatsResponse(StreamInput in) throws IOException {
         super(in);
-        stats = in.readMap(StreamInput::readString, i -> i.readList(FieldUsageShardResponse::new));
+        stats = in.readMap(i -> i.readList(FieldUsageShardResponse::new));
     }
 
     @Override

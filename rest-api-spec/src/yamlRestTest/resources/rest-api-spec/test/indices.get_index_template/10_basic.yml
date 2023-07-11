@@ -105,10 +105,10 @@ setup:
   - match: {index_templates.0.name: test}
 
 ---
-"Add data lifecycle":
+"Add data stream lifecycle":
   - skip:
-      version: " - 8.7.99"
-      reason: "Data lifecycle in index templates was added after 8.7"
+      version: " - 8.8.99"
+      reason: "Data stream lifecycle in index templates was added after 8.8"
       features: allowed_warnings
 
   - do:
@@ -139,10 +139,10 @@ setup:
   - match: {index_templates.0.index_template.template.lifecycle.data_retention: "30d"}
 
 ---
-"Get data lifecycle with default rollover":
+"Get data stream lifecycle with default rollover":
   - skip:
-      version: " - 8.7.99"
-      reason: "Data lifecycle in index templates was added after 8.7"
+      version: " - 8.8.99"
+      reason: "Data stream lifecycle in index templates was added after 8.8"
       features: allowed_warnings
 
   - do:
@@ -167,10 +167,10 @@ setup:
   - is_true: index_templates.0.index_template.template.lifecycle.rollover
 
 ---
-"Reject data lifecycle without data stream configuration":
+"Reject data stream lifecycle without data stream configuration":
   - skip:
-      version: " - 8.7.99"
-      reason: "Data lifecycle in index templates was added after 8.7"
+      version: " - 8.8.99"
+      reason: "Data stream lifecycle in index templates was added after 8.8"
   - do:
       catch:  bad_request
       indices.put_index_template:

@@ -12,8 +12,6 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -25,13 +23,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
-import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -436,7 +432,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
     private void stopTransforms() throws IOException {
         for (ContinuousTestCase testCase : transformTestCases) {
-            stopTransform(testCase.getName(), true, null, false);
+            stopTransform(testCase.getName());
         }
     }
 
@@ -543,10 +539,4 @@ public class TransformContinuousIT extends TransformRestTestCase {
         }
     }
 
-    @Override
-    protected Settings restClientSettings() {
-        final String token = "Basic "
-            + Base64.getEncoder().encodeToString(("x_pack_rest_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
 }

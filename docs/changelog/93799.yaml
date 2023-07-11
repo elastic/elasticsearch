@@ -1,5 +1,0 @@
-pr: 93799
-summary: Avoid deserializing responses in proxy node
-area: Network
-type: enhancement
-issues: []

@@ -1,0 +1,94 @@
+setup:
+  - skip:
+      version: " - 8.8.99"
+      reason: Introduced in 8.9.0
+
+---
+"Create synonyms with no ID creates ID automatically":
+  - skip:
+      version: " - 8.9.99"
+      reason: Fixed for 8.10.0
+  - do:
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+            - synonyms: "bye => goodbye"
+
+  - match: { result: "created" }
+
+  - do:
+      synonyms.get:
+        synonyms_set: test-update-synonyms
+
+  - is_true: synonyms_set.0.id
+  - is_true: synonyms_set.1.id
+
+---
+"Create and Update synonyms set":
+  - do:
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+            - synonyms: "bye => goodbye"
+              id: "test-id"
+
+  - match: { result: "created" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
+
+  - do:
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "other, another"
+
+  - match: { result: "updated" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
+
+---
+"Validation fails tests":
+  - do:
+      catch: /\[synonyms\] field can't be empty/
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: ""
+
+  - do:
+      catch: /More than one explicit mapping specified in the same synonyms rule/
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "bye => => goodbye"
+
+  - do:
+      catch: /Incorrect syntax for \[synonyms\]/
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: " => goodbye"
+
+  - do:
+      catch: /Incorrect syntax for \[synonyms\]/
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "bye => "
+
+  - do:
+      catch: /Incorrect syntax for \[synonyms\]/
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "bye, goodbye,  "

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.eql.plugin;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
 
@@ -16,6 +18,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestEqlGetAsyncStatusAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {

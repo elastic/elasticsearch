@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
@@ -265,8 +267,22 @@ public class AuthenticationServiceTests extends ESTestCase {
         client = mock(Client.class);
         threadPool = new ThreadPool(
             settings,
-            new FixedExecutorBuilder(settings, THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool", false),
-            new FixedExecutorBuilder(Settings.EMPTY, SECURITY_CRYPTO_THREAD_POOL_NAME, 1, 1000, "xpack.security.crypto.thread_pool", false)
+            new FixedExecutorBuilder(
+                settings,
+                THREAD_POOL_NAME,
+                1,
+                1000,
+                "xpack.security.authc.token.thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            ),
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                SECURITY_CRYPTO_THREAD_POOL_NAME,
+                1,
+                1000,
+                "xpack.security.crypto.thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
         threadContext = threadPool.getThreadContext();
         when(client.threadPool()).thenReturn(threadPool);
@@ -876,7 +892,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
         }
         User user = new User("username", new String[] { "r1", "r2" }, null, null, Map.of(), false);
-        User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
+        User fallback = randomBoolean() ? InternalUsers.SYSTEM_USER : null;
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         mockAuthenticate(firstRealm, token, user);
@@ -922,7 +938,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final User user = new User("username", "r1", "r2");
         final Consumer<ActionListener<Authentication>> authenticate;
         if (randomBoolean()) {
-            authenticate = listener -> service.authenticate("_action", transportRequest, SystemUser.INSTANCE, listener);
+            authenticate = listener -> service.authenticate("_action", transportRequest, InternalUsers.SYSTEM_USER, listener);
         } else {
             authenticate = listener -> service.authenticate("_action", transportRequest, true, listener);
         }
@@ -990,7 +1006,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             if (requestIdAlreadyPresent) {
                 reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
             }
-            service.authenticate("_action", transportRequest, SystemUser.INSTANCE, ActionListener.wrap(authentication -> {
+            service.authenticate("_action", transportRequest, InternalUsers.SYSTEM_USER, ActionListener.wrap(authentication -> {
                 if (requestIdAlreadyPresent) {
                     assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
                 } else {
@@ -1036,7 +1052,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
             threadContext1.putTransient(AuthenticationField.AUTHENTICATION_KEY, authRef.get());
             threadContext1.putHeader(AuthenticationField.AUTHENTICATION_KEY, authHeaderRef.get());
-            service.authenticate("_action", message1, SystemUser.INSTANCE, ActionListener.wrap(ctxAuth -> {
+            service.authenticate("_action", message1, InternalUsers.SYSTEM_USER, ActionListener.wrap(ctxAuth -> {
                 if (requestIdAlreadyPresent) {
                     assertThat(expectAuditRequestId(threadContext1), is(reqId.get()));
                 } else {
@@ -1101,7 +1117,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 serviceAccountService,
                 operatorPrivilegesService
             );
-            service.authenticate("_action", new InternalRequest(), SystemUser.INSTANCE, ActionListener.wrap(result -> {
+            service.authenticate("_action", new InternalRequest(), InternalUsers.SYSTEM_USER, ActionListener.wrap(result -> {
                 if (requestIdAlreadyPresent) {
                     assertThat(expectAuditRequestId(threadPool2.getThreadContext()), is(reqId.get()));
                 } else {
@@ -1129,7 +1145,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
         }
         try {
-            authenticateBlocking("_action", message, randomBoolean() ? SystemUser.INSTANCE : null, null);
+            authenticateBlocking("_action", message, randomBoolean() ? InternalUsers.SYSTEM_USER : null, null);
         } catch (Exception e) {
             // expected
             if (requestIdAlreadyPresent) {
@@ -1381,13 +1397,13 @@ public class AuthenticationServiceTests extends ESTestCase {
             reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
         }
 
-        authenticateBlocking("_action", message, SystemUser.INSTANCE, result -> {
+        authenticateBlocking("_action", message, InternalUsers.SYSTEM_USER, result -> {
             if (requestIdAlreadyPresent) {
                 assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
             }
             assertThat(result, notNullValue());
             assertThat(expectAuditRequestId(threadContext), is(result.v2()));
-            assertThat(result.v1().getEffectiveSubject().getUser(), sameInstance(SystemUser.INSTANCE));
+            assertThat(result.v1().getEffectiveSubject().getUser(), sameInstance(InternalUsers.SYSTEM_USER));
             assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.INTERNAL));
             assertThat(result.v1().getEffectiveSubject().getRealm().getDomain(), nullValue());
             assertThreadContextContainsAuthentication(result.v1());
@@ -1825,7 +1841,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             listener.onResponse(new User("looked up user", new String[] { "some role" }, null, null, Map.of(), false));
             return null;
         }).when(secondRealm).lookupUser(eq("run_as"), anyActionListener());
-        User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
+        User fallback = randomBoolean() ? InternalUsers.SYSTEM_USER : null;
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
             () -> authenticateBlocking("_action", transportRequest, fallback, null)

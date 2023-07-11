@@ -36,9 +36,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class HiddenIndexIT extends ESIntegTestCase {
 
     public void testHiddenIndexSearch() {
-        assertAcked(
-            client().admin().indices().prepareCreate("hidden-index").setSettings(Settings.builder().put("index.hidden", true).build()).get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("hidden-index").setSettings(Settings.builder().put("index.hidden", true).build()).get());
         client().prepareIndex("hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         // default not visible to wildcard expansion
@@ -64,13 +62,7 @@ public class HiddenIndexIT extends ESIntegTestCase {
         assertTrue(matchedHidden);
 
         // implicit based on use of pattern starting with . and a wildcard
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(".hidden-index")
-                .setSettings(Settings.builder().put("index.hidden", true).build())
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareCreate(".hidden-index").setSettings(Settings.builder().put("index.hidden", true).build()).get());
         client().prepareIndex(".hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         searchResponse = client().prepareSearch(randomFrom(".*", ".hidden-*")).setSize(1000).setQuery(QueryBuilders.matchAllQuery()).get();
         matchedHidden = Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> ".hidden-index".equals(hit.getIndex()));
@@ -87,48 +79,23 @@ public class HiddenIndexIT extends ESIntegTestCase {
     }
 
     public void testGlobalTemplatesDoNotApply() {
+        assertAcked(indicesAdmin().preparePutTemplate("a_global_template").setPatterns(List.of("*")).setMapping("foo", "type=text").get());
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate("a_global_template")
-                .setPatterns(List.of("*"))
-                .setMapping("foo", "type=text")
-                .get()
+            indicesAdmin().preparePutTemplate("not_global_template").setPatterns(List.of("a*")).setMapping("bar", "type=text").get()
         );
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate("not_global_template")
-                .setPatterns(List.of("a*"))
-                .setMapping("bar", "type=text")
-                .get()
-        );
-        assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate("specific_template")
+            indicesAdmin().preparePutTemplate("specific_template")
                 .setPatterns(List.of("a_hidden_index"))
                 .setMapping("baz", "type=text")
                 .get()
         );
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate("unused_template")
-                .setPatterns(List.of("not_used"))
-                .setMapping("foobar", "type=text")
-                .get()
+            indicesAdmin().preparePutTemplate("unused_template").setPatterns(List.of("not_used")).setMapping("foobar", "type=text").get()
         );
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("a_hidden_index")
-                .setSettings(Settings.builder().put("index.hidden", true).build())
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("a_hidden_index").setSettings(Settings.builder().put("index.hidden", true).build()).get());
 
-        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("a_hidden_index").get();
+        GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings("a_hidden_index").get();
         assertThat(mappingsResponse.mappings().size(), is(1));
         MappingMetadata mappingMetadata = mappingsResponse.mappings().get("a_hidden_index");
         assertNotNull(mappingMetadata);
@@ -149,9 +116,7 @@ public class HiddenIndexIT extends ESIntegTestCase {
     public void testGlobalTemplateCannotMakeIndexHidden() {
         InvalidIndexTemplateException invalidIndexTemplateException = expectThrows(
             InvalidIndexTemplateException.class,
-            () -> client().admin()
-                .indices()
-                .preparePutTemplate("a_global_template")
+            () -> indicesAdmin().preparePutTemplate("a_global_template")
                 .setPatterns(List.of("*"))
                 .setSettings(Settings.builder().put("index.hidden", randomBoolean()).build())
                 .get()
@@ -161,16 +126,14 @@ public class HiddenIndexIT extends ESIntegTestCase {
 
     public void testNonGlobalTemplateCanMakeIndexHidden() {
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate("a_global_template")
+            indicesAdmin().preparePutTemplate("a_global_template")
                 .setPatterns(List.of("my_hidden_pattern*"))
                 .setMapping("foo", "type=text")
                 .setSettings(Settings.builder().put("index.hidden", true).build())
                 .get()
         );
-        assertAcked(client().admin().indices().prepareCreate("my_hidden_pattern1").get());
-        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("my_hidden_pattern1").get();
+        assertAcked(indicesAdmin().prepareCreate("my_hidden_pattern1").get());
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("my_hidden_pattern1").get();
         assertThat(getSettingsResponse.getSetting("my_hidden_pattern1", "index.hidden"), is("true"));
     }
 
@@ -180,62 +143,56 @@ public class HiddenIndexIT extends ESIntegTestCase {
         final String hiddenAlias = "alias-hidden";
         final String dotHiddenAlias = ".alias-hidden";
 
-        assertAcked(
-            client().admin().indices().prepareCreate(hiddenIndex).setSettings(Settings.builder().put("index.hidden", true).build()).get()
-        );
+        assertAcked(indicesAdmin().prepareCreate(hiddenIndex).setSettings(Settings.builder().put("index.hidden", true).build()).get());
 
         assertAcked(
-            admin().indices()
-                .prepareAliases()
-                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(visibleAlias))
+            indicesAdmin().prepareAliases().addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(visibleAlias))
         );
 
         // The index should be returned here when queried by name or by wildcard because the alias is visible
-        final GetAliasesRequestBuilder req = client().admin().indices().prepareGetAliases(visibleAlias);
+        final GetAliasesRequestBuilder req = indicesAdmin().prepareGetAliases(visibleAlias);
         GetAliasesResponse response = req.get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(visibleAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), nullValue());
 
-        response = client().admin().indices().prepareGetAliases("alias*").get();
+        response = indicesAdmin().prepareGetAliases("alias*").get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(visibleAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), nullValue());
 
         // Now try with a hidden alias
         assertAcked(
-            admin().indices()
-                .prepareAliases()
+            indicesAdmin().prepareAliases()
                 .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(hiddenIndex).alias(visibleAlias))
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(hiddenAlias).isHidden(true))
         );
 
         // Querying by name directly should get the right result
-        response = client().admin().indices().prepareGetAliases(hiddenAlias).get();
+        response = indicesAdmin().prepareGetAliases(hiddenAlias).get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(hiddenAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), equalTo(true));
 
         // querying by wildcard should get the right result because the indices options include hidden by default
-        response = client().admin().indices().prepareGetAliases("alias*").get();
+        response = indicesAdmin().prepareGetAliases("alias*").get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(hiddenAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), equalTo(true));
 
         // But we should get no results if we specify indices options that don't include hidden
-        response = client().admin().indices().prepareGetAliases("alias*").setIndicesOptions(IndicesOptions.strictExpandOpen()).get();
+        response = indicesAdmin().prepareGetAliases("alias*").setIndicesOptions(IndicesOptions.strictExpandOpen()).get();
         assertThat(response.getAliases().get(hiddenIndex), nullValue());
 
         // Now try with a hidden alias that starts with a dot
         assertAcked(
-            admin().indices()
-                .prepareAliases()
+            indicesAdmin().prepareAliases()
                 .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(hiddenIndex).alias(hiddenAlias))
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(dotHiddenAlias).isHidden(true))
         );
 
         // Check that querying by dot-prefixed pattern returns the alias
-        response = client().admin().indices().prepareGetAliases(".alias*").get();
+        response = indicesAdmin().prepareGetAliases(".alias*").get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(dotHiddenAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), equalTo(true));

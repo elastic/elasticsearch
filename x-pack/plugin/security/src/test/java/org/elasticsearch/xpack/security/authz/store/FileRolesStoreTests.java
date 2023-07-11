@@ -38,7 +38,9 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.junit.BeforeClass;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -73,6 +75,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class FileRolesStoreTests extends ESTestCase {
+
+    @BeforeClass
+    public static void setUpClass() {
+        // Initialize the reserved roles store so that static fields are populated.
+        // In production code, this is guaranteed by how components are initialized by the Security plugin
+        new ReservedRolesStore();
+    }
 
     public RestrictedIndices restrictedIndices = new RestrictedIndices(Automatons.EMPTY);
 
@@ -617,7 +626,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "valid_role" }));
 
-        assertThat(entries, hasSize(6));
+        assertThat(entries, hasSize(7));
         assertThat(
             entries.get(0),
             startsWith("invalid role definition [fóóbár] in roles file [" + path.toAbsolutePath() + "]. invalid role name")
@@ -627,6 +636,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(entries.get(3), startsWith("failed to parse role [role3]"));
         assertThat(entries.get(4), startsWith("failed to parse role [role4]"));
         assertThat(entries.get(5), startsWith("failed to parse indices privileges for role [role5]"));
+        assertThat(entries.get(6), startsWith("failed to parse role [role6]. unexpected field [restriction]"));
     }
 
     public void testThatRoleNamesDoesNotResolvePermissions() throws Exception {
@@ -635,8 +645,8 @@ public class FileRolesStoreTests extends ESTestCase {
         List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         events.clear();
         Set<String> roleNames = FileRolesStore.parseFileForRoleNames(path, logger);
-        assertThat(roleNames.size(), is(6));
-        assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4", "role5"));
+        assertThat(roleNames.size(), is(7));
+        assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4", "role5", "role6"));
 
         assertThat(events, hasSize(1));
         assertThat(

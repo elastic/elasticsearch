@@ -17,7 +17,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -46,6 +45,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
@@ -67,6 +67,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -81,7 +82,9 @@ import static org.elasticsearch.search.internal.ExitableDirectoryReader.Exitable
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ContextIndexSearcherTests extends ESTestCase {
     public void testIntersectScorerAndRoleBits() throws Exception {
@@ -377,6 +380,45 @@ public class ContextIndexSearcherTests extends ESTestCase {
         IOUtils.close(reader, w, dir);
     }
 
+    public void testComputeSlices() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        int numDocs = rarely() ? randomIntBetween(0, 1000) : randomIntBetween(1000, 25000);
+        Document doc = new Document();
+        for (int i = 0; i < numDocs; i++) {
+            w.addDocument(doc);
+        }
+        DirectoryReader reader = w.getReader();
+        List<LeafReaderContext> contexts = reader.leaves();
+        int iter = randomIntBetween(16, 64);
+        for (int i = 0; i < iter; i++) {
+            int numThreads = randomIntBetween(1, 16);
+            IndexSearcher.LeafSlice[] slices = ContextIndexSearcher.computeSlices(contexts, numThreads, 1);
+            assertSlices(slices, numDocs, numThreads);
+        }
+        // expect exception for numThreads < 1
+        int numThreads = randomIntBetween(-16, 0);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ContextIndexSearcher.computeSlices(contexts, numThreads, 1)
+        );
+        assertThat(ex.getMessage(), equalTo("maxSliceNum must be >= 1 (got " + numThreads + ")"));
+        IOUtils.close(reader, w, dir);
+    }
+
+    private void assertSlices(IndexSearcher.LeafSlice[] slices, int numDocs, int numThreads) {
+        // checks that the number of slices is not bigger than the number of available threads
+        // and each slice contains at least 10% of the data (which means the max number of slices is 10)
+        int sumDocs = 0;
+        assertThat(slices.length, lessThanOrEqualTo(numThreads));
+        for (IndexSearcher.LeafSlice slice : slices) {
+            int sliceDocs = Arrays.stream(slice.leaves).mapToInt(l -> l.reader().maxDoc()).sum();
+            assertThat(sliceDocs, greaterThanOrEqualTo((int) (0.1 * numDocs)));
+            sumDocs += sliceDocs;
+        }
+        assertThat(sumDocs, equalTo(numDocs));
+    }
+
     public void testExitableTermsMinAndMax() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(null));
@@ -576,12 +618,12 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
 
         @Override
-        public Query rewrite(IndexReader reader) throws IOException {
-            Query queryRewritten = query.rewrite(reader);
+        public Query rewrite(IndexSearcher searcher) throws IOException {
+            Query queryRewritten = query.rewrite(searcher);
             if (query != queryRewritten) {
                 return new CreateScorerOnceQuery(queryRewritten);
             }
-            return super.rewrite(reader);
+            return super.rewrite(searcher);
         }
 
         @Override

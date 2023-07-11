@@ -9,10 +9,10 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -53,8 +53,8 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
         try {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
-                TransportVersion.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool
             );
 
@@ -62,9 +62,9 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             fieldCapsRequest.indexFilter(new DummyQueryBuilder() {
                 @Override
                 protected void doWriteTo(StreamOutput out) throws IOException {
-                    if (out.getTransportVersion().before(TransportVersion.CURRENT)) {
+                    if (out.getTransportVersion().before(TransportVersion.current())) {
                         throw new IllegalArgumentException(
-                            "This query isn't serializable before transport version " + TransportVersion.CURRENT
+                            "This query isn't serializable before transport version " + TransportVersion.current()
                         );
                     }
                 }
@@ -96,7 +96,10 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
                 containsString("[class org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest] is not compatible with version")
             );
             assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-            assertEquals("This query isn't serializable before transport version " + TransportVersion.CURRENT, ex.getCause().getMessage());
+            assertEquals(
+                "This query isn't serializable before transport version " + TransportVersion.current(),
+                ex.getCause().getMessage()
+            );
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

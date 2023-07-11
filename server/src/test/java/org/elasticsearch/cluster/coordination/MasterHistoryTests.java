@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -237,7 +237,7 @@ public class MasterHistoryTests extends ESTestCase {
         Metadata.Builder metadataBuilder = Metadata.builder();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         if (masterNodeId != null) {
-            DiscoveryNode node = TestDiscoveryNode.create(masterNodeId);
+            DiscoveryNode node = DiscoveryNodeUtils.create(masterNodeId);
             nodesBuilder.masterNodeId(masterNodeId);
             nodesBuilder.add(node);
         }

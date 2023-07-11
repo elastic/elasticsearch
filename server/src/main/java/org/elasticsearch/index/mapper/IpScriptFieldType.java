@@ -198,8 +198,8 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         byte upper[] = addr.getAddress();
         for (int i = prefixLength; i < 8 * lower.length; i++) {
             int m = 1 << (7 - (i & 7));
-            lower[i >> 3] &= ~m;
-            upper[i >> 3] |= m;
+            lower[i >> 3] &= (byte) ~m;
+            upper[i >> 3] |= (byte) m;
         }
         // Force the terms into IPv6
         BytesRef lowerBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(lower)));

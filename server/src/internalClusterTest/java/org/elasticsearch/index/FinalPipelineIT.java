@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -68,7 +69,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
     @After
     public void cleanUpPipelines() {
-        client().admin().indices().prepareDelete("*").get();
+        indicesAdmin().prepareDelete("*").get();
 
         final GetPipelineResponse response = clusterAdmin().prepareGetPipeline("default_pipeline", "final_pipeline", "request_pipeline")
             .get();
@@ -335,15 +336,13 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings defaultPipelineSettings = Settings.builder()
             .put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
             .build();
-        admin().indices()
-            .preparePutTemplate("default")
+        indicesAdmin().preparePutTemplate("default")
             .setPatterns(List.of("index*"))
             .setOrder(defaultPipelineOrder)
             .setSettings(defaultPipelineSettings)
             .get();
         final Settings finalPipelineSettings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
-        admin().indices()
-            .preparePutTemplate("final")
+        indicesAdmin().preparePutTemplate("final")
             .setPatterns(List.of("index*"))
             .setOrder(finalPipelineOrder)
             .setSettings(finalPipelineSettings)
@@ -369,8 +368,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings lowOrderFinalPipelineSettings = Settings.builder()
             .put(IndexSettings.FINAL_PIPELINE.getKey(), "low_order_final_pipeline")
             .build();
-        admin().indices()
-            .preparePutTemplate("low_order")
+        indicesAdmin().preparePutTemplate("low_order")
             .setPatterns(List.of("index*"))
             .setOrder(lowOrder)
             .setSettings(lowOrderFinalPipelineSettings)
@@ -378,8 +376,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings highOrderFinalPipelineSettings = Settings.builder()
             .put(IndexSettings.FINAL_PIPELINE.getKey(), "high_order_final_pipeline")
             .build();
-        admin().indices()
-            .preparePutTemplate("high_order")
+        indicesAdmin().preparePutTemplate("high_order")
             .setPatterns(List.of("index*"))
             .setOrder(highOrder)
             .setSettings(highOrderFinalPipelineSettings)
@@ -409,7 +406,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
             final IndexNameExpressionResolver expressionResolver,
             final Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationService allocationService
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             return List.of();
         }

@@ -87,11 +87,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNodes(2);
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(indexSettings(1, 1).put("index.global_checkpoint_sync.interval", "1s"))
-                .get()
+            indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 1).put("index.global_checkpoint_sync.interval", "1s")).get()
         );
         ensureGreen();
 
@@ -244,19 +240,17 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNodes(2);
         createIndex("test", 1, 1);
         ensureGreen();
-        Set<String> historyUUIDs = Arrays.stream(client().admin().indices().prepareStats("test").clear().get().getShards())
+        Set<String> historyUUIDs = Arrays.stream(indicesAdmin().prepareStats("test").clear().get().getShards())
             .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY))
             .collect(Collectors.toSet());
         createStaleReplicaScenario(master);
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(0));
+            assertAcked(indicesAdmin().prepareClose("test").setWaitForActiveShards(0));
         }
         boolean useStaleReplica = randomBoolean(); // if true, use stale replica, otherwise a completely empty copy
         logger.info("--> explicitly promote old primary shard");
         final String idxName = "test";
-        Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = client().admin()
-            .indices()
-            .prepareShardStores(idxName)
+        Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = indicesAdmin().prepareShardStores(idxName)
             .get()
             .getStoreStatuses()
             .get(idxName);
@@ -305,9 +299,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 () -> assertTrue(clusterAdmin().prepareState().get().getState().routingTable().index(idxName).allPrimaryShardsActive())
             );
         }
-        ShardStats[] shardStats = client().admin()
-            .indices()
-            .prepareStats("test")
+        ShardStats[] shardStats = indicesAdmin().prepareStats("test")
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
             .get()
             .getShards();
@@ -343,9 +335,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final int shardId = 0;
         final List<String> nodeNames = new ArrayList<>(Arrays.asList(internalCluster().getNodeNames()));
         nodeNames.remove(master);
-        client().admin()
-            .indices()
-            .prepareShardStores(idxName)
+        indicesAdmin().prepareShardStores(idxName)
             .get()
             .getStoreStatuses()
             .get(idxName)
@@ -395,9 +385,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
     public void testForcePrimaryShardIfAllocationDecidersSayNoAfterIndexCreation() throws ExecutionException, InterruptedException {
         String node = internalCluster().startNode();
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setWaitForActiveShards(ActiveShardCount.NONE)
             .setSettings(indexSettings(1, 0).put("index.routing.allocation.exclude._name", node))
             .get();
@@ -412,9 +400,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
                 .get()
         );
@@ -445,9 +431,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
                 .get()
         );

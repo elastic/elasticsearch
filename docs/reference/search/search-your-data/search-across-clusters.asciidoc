@@ -17,6 +17,7 @@ The following APIs support {ccs}:
 * <<search-template,Search template>>
 * <<multi-search-template,Multi search template>>
 * <<search-field-caps,Field capabilities>>
+* {painless}/painless-execute-api.html[Painless execute API]
 * experimental:[] <<eql-search-api,EQL search>>
 * experimental:[] <<sql-search-api,SQL search>>
 * experimental:[] <<search-vector-tile-api,Vector tile search>>
@@ -31,6 +32,9 @@ run {es} on your own hardware, see <<remote-clusters>>.
 +
 To ensure your remote cluster configuration supports {ccs}, see
 <<ccs-supported-configurations>>.
+
+* For full {ccs} capabilities, the local and remote cluster must be on the same
+{subscriptions}[subscription level].
 
 * The local coordinating node must have the
 <<remote-node,`remote_cluster_client`>> node role.
@@ -286,6 +290,325 @@ means the document came from the local cluster.
 <2> This document came from `cluster_one`.
 <3> This document came from `cluster_two`.
 
+
+
+
+
+[discrete]
+[[ccs-async-search-minimize-roundtrips-true]]
+=== Using async search for {ccs} with ccs_minimize_roundtrips=true
+
+Remote clusters can be queried asynchronously using the <<async-search,async search>> API.
+Async searches accept a <<ccs-minimize-roundtrips,`ccs_minimize_roundtrips`>> parameter
+that defaults to `false`. See <<ccs-min-roundtrips>> to learn more about this option.
+
+The following request does an asynchronous search of the `my-index-000001` index using
+`ccs_minimize_roundtrips=true` against three clusters:
+
+* The local cluster, with 8 shards
+* Two remote clusters, `cluster_one` and `cluster_two`, with 10 shards each
+
+[source,console]
+--------------------------------------------------
+POST /my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001/_async_search?ccs_minimize_roundtrips=true
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  },
+  "_source": ["user.id", "message", "http.response.status_code"]
+}
+--------------------------------------------------
+// TEST[continued]
+// TEST[s/ccs_minimize_roundtrips=true/ccs_minimize_roundtrips=true&wait_for_completion_timeout=1s&keep_on_completion=true/]
+
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id": "FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=", <1>
+  "is_partial": true,
+  "is_running": true,
+  "start_time_in_millis": 1685563581380,
+  "expiration_time_in_millis": 1685995581380,
+  "response": {
+    "took": 1020,
+    "timed_out": false,
+    "num_reduce_phases": 0,
+    "_shards": {
+      "total": 8,     <2>
+      "successful": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    "_clusters": {    <3>
+      "total" : 3,
+      "successful" : 0,
+      "skipped": 0
+    },
+    "hits": {
+      "total" : {
+          "value": 0,
+          "relation": "eq"
+      },
+      "max_score": null,
+      "hits": []
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=/$body.id/]
+// TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
+// TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
+// TESTRESPONSE[s/1685563581380/$body.start_time_in_millis/]
+// TESTRESPONSE[s/1685995581380/$body.expiration_time_in_millis/]
+// TESTRESPONSE[s/"num_reduce_phases": 0/"num_reduce_phases": "$body.response.num_reduce_phases"/]
+// TESTRESPONSE[s/"took": 1020/"took": "$body.response.took"/]
+// TESTRESPONSE[s/"total": 8/"total": $body.response._shards.total/]
+// TESTRESPONSE[s/"successful": 0/"successful": $body.response._shards.successful/]
+// TESTRESPONSE[s/"successful" : 0/"successful": $body.response._clusters.successful/]
+// TESTRESPONSE[s/"value": 0/"value": "$body.response.hits.total.value"/]
+// TESTRESPONSE[s/"max_score": null/"max_score": "$body.response.hits.max_score"/]
+// TESTRESPONSE[s/"hits": \[\]/"hits": $body.response.hits.hits/]
+
+
+<1> The async search id.
+<2> When `ccs_minimize_roundtrips` = `true` and searches on the remote clusters
+are still running, this section indicates the number of shards in scope for the
+local cluster only. This will be updated to include the total number of shards
+across all clusters only when the search is completed.
+<3> The `_clusters` section indicates that 3 clusters are in scope for the search
+and all are currently running (since `successful` and `skipped` both equal 0).
+
+
+
+If you query the <<get-async-search,get async search>> endpoint while the query is
+still running, you will see an update in the `_clusters` and `_shards` section of
+the response when the local search has finished.
+
+[source,console]
+--------------------------------------------------
+GET /_async_search/FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=
+--------------------------------------------------
+// TEST[skip: terminated_early is absent from final results so is hard to reproduce here]
+
+Response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id": "FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=",
+  "is_partial": true,
+  "is_running": true,
+  "start_time_in_millis": 1685564911108,
+  "expiration_time_in_millis": 1685996911108,
+  "response": {
+    "took": 11164,
+    "timed_out": false,
+    "terminated_early": false,
+    "_shards": {
+      "total": 8,
+      "successful": 8,  <1>
+      "skipped": 0,
+      "failed": 0
+    },
+    "_clusters": {
+      "total": 3,
+      "successful": 1,  <2>
+      "skipped": 0
+    },
+    "hits": {
+      "total": {
+        "value": 167,  <3>
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": []
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip: terminated_early is absent from final results so is hard to reproduce here]
+
+
+<1> All the local cluster shards have completed.
+<2> The local cluster search has completed, so the "successful" clusters entry
+is set to 1. The `_clusters` response section will not be updated for the remote clusters
+until all remote searches have finished (either successfully or been skipped).
+<3> Number of hits from the local cluster search. Final hits are not
+shown until searches on all clusters have been completed and merged.
+
+
+
+
+After searches on all the clusters have completed, when you query the
+<<get-async-search,get async search>> endpoint, you will see the final
+status of the `_clusters` and `_shards` section as well as the hits.
+
+[source,console]
+--------------------------------------------------
+GET /_async_search/FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=
+--------------------------------------------------
+// TEST[continued s/FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=/\${body.id}/]
+
+
+Response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id": "FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=",
+  "is_partial": false,
+  "is_running": false,
+  "start_time_in_millis": 1685564911108,
+  "expiration_time_in_millis": 1685996911108,
+  "response": {
+    "took": 27619,
+    "timed_out": false,
+    "num_reduce_phases": 4,
+    "_shards": {
+      "total": 28,
+      "successful": 28,  <1>
+      "skipped": 0,
+      "failed": 0
+    },
+    "_clusters": {
+      "total": 3,
+      "successful": 3,   <2>
+      "skipped": 0
+    },
+    "hits": {
+      "total": {
+        "value": 1067,
+        "relation": "eq"
+      },
+      "max_score": 1.8293576,
+      "hits": [...list of hits here...]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=/$body.id/]
+// TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
+// TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
+// TESTRESPONSE[s/1685564911108/$body.start_time_in_millis/]
+// TESTRESPONSE[s/1685996911108/$body.expiration_time_in_millis/]
+// TESTRESPONSE[s/"took": 27619/"took": "$body.response.took"/]
+// TESTRESPONSE[s/"total": 28/"total": $body.response._shards.total/]
+// TESTRESPONSE[s/"successful": 28/"successful": $body.response._shards.successful/]
+// TESTRESPONSE[s/"successful": 3/"successful": $body.response._clusters.successful/]
+// TESTRESPONSE[s/"value": 1067/"value": "$body.response.hits.total.value"/]
+// TESTRESPONSE[s/"relation": "eq"/"relation": "$body.response.hits.total.relation"/]
+// TESTRESPONSE[s/"max_score": 1.8293576/"max_score": "$body.response.hits.max_score"/]
+// TESTRESPONSE[s/"hits": \[...list of hits here...\]/"hits": $body.response.hits.hits/]
+
+
+<1> The `_shards` section is now updated to show that 28 total shards
+were searched across all clusters and that all were successful.
+<2> The `_clusters` section shows that searches on all 3 clusters were successful.
+
+
+
+[discrete]
+[[ccs-async-search-minimize-roundtrips-false]]
+=== Using async search for {ccs} with ccs_minimize_roundtrips=false
+
+The `_shards` and `_clusters` section of the response behave differently
+when `ccs_minimize_roundtrips` is `false` in asynchronous searches.
+
+Key differences are:
+
+. The `_shards` section total count will be accurate immediately as the total number
+of shards is gathered from all clusters before the search starts.
+
+. The `_shards` section will be incrementally updated as searches on individual
+shards complete, so you will get a more accurate accounting of progress during a
+long-running search compared to when minimize roundtrips is used.
+
+. The `_cluster` section starts off in its final state, showing which clusters
+were successful or skipped based on gathering shard information before the actual
+search phase against each shard begins.
+
+Example using the same set up as in the previous section (`ccs_minimize_roundtrips=true`):
+
+[source,console]
+--------------------------------------------------
+GET /my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001/_async_search?ccs_minimize_roundtrips=false
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  },
+  "_source": ["user.id", "message", "http.response.status_code"]
+}
+--------------------------------------------------
+// TEST[continued]
+// TEST[s/ccs_minimize_roundtrips=false/ccs_minimize_roundtrips=false&wait_for_completion_timeout=1s&keep_on_completion=true/]
+
+
+The API returns the following response if the query takes longer than
+the `wait_for_completion_timeout` duration (see <<async-search>>).
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id": "FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=",
+  "is_partial": true,
+  "is_running": true,
+  "start_time_in_millis": 1685563581380,
+  "expiration_time_in_millis": 1685995581380,
+  "response": {
+    "took": 1020,
+    "timed_out": false,
+    "num_reduce_phases": 0,
+    "_shards": {
+      "total": 28,     <1>
+      "successful": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    "_clusters": {
+      "total" : 3,
+      "successful": 3,  <2>
+      "skipped": 0
+    },
+    "hits": {
+      "total" : {
+          "value": 0,
+          "relation": "eq"
+      },
+      "max_score": null,
+      "hits": []
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=/$body.id/]
+// TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
+// TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
+// TESTRESPONSE[s/1685563581380/$body.start_time_in_millis/]
+// TESTRESPONSE[s/1685995581380/$body.expiration_time_in_millis/]
+// TESTRESPONSE[s/"num_reduce_phases": 0/"num_reduce_phases": "$body.response.num_reduce_phases"/]
+// TESTRESPONSE[s/"took": 1020/"took": "$body.response.took"/]
+// TESTRESPONSE[s/"total": 28/"total": $body.response._shards.total/]
+// TESTRESPONSE[s/"successful": 0/"successful": $body.response._shards.successful/]
+// TESTRESPONSE[s/"successful": 3/"successful": $body.response._clusters.successful/]
+// TESTRESPONSE[s/"value": 0/"value": "$body.response.hits.total.value"/]
+// TESTRESPONSE[s/"max_score": null/"max_score": "$body.response.hits.max_score"/]
+// TESTRESPONSE[s/"hits": \[\]/"hits": $body.response.hits.hits/]
+
+<1> All shards from all clusters in scope for the search are listed here. Watch this
+section for updates to monitor search progress.
+<2> The `_clusters` section shows that shard information was successfully
+gathered from all 3 clusters and that all will be searched (none are being skipped).
+
+
+
+
 [discrete]
 [[skip-unavailable-clusters]]
 === Optional remote clusters
@@ -355,6 +678,9 @@ See <<ccs-unmin-roundtrips>> to learn how this option works.
 NOTE: The <<search-vector-tile-api,vector tile search API>> always minimizes
 network roundtrips and doesn't include the `ccs_minimize_roundtrips` parameter.
 
+NOTE: The <<approximate-knn, Approximate kNN search>> doesn't support minimizing
+network roundtrips, and sets the parameter `ccs_minimize_roundtrips` to `false`.
+
 [discrete]
 [[ccs-min-roundtrips]]
 ==== Minimize network roundtrips
@@ -392,8 +718,9 @@ cluster receives and parses the request.
 +
 image:images/ccs/ccs-min-roundtrip-client-request.svg[]
 
-. The coordinating node sends a <<search-shards,search shards>> API request to
-each remote cluster.
+. The coordinating node sends a "search shards" transport layer request
+to each remote cluster to have them to perform a "can match" search to determine
+which shards on each cluster should be searched.
 +
 image:images/ccs/ccs-min-roundtrip-cluster-search.svg[]
 

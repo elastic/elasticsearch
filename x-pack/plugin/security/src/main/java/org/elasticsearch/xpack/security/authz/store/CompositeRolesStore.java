@@ -46,10 +46,12 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersecti
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
@@ -102,6 +104,8 @@ public class CompositeRolesStore {
     private final Role superuserRole;
     private final Map<String, Role> internalUserRoles;
     private final RestrictedIndices restrictedIndices;
+    private final WorkflowService workflowService;
+    private final ThreadContext threadContext;
 
     public CompositeRolesStore(
         Settings settings,
@@ -114,7 +118,8 @@ public class CompositeRolesStore {
         ServiceAccountService serviceAccountService,
         DocumentSubsetBitsetCache dlsBitsetCache,
         RestrictedIndices restrictedIndices,
-        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
+        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer,
+        WorkflowService workflowService
     ) {
         this.roleProviders = roleProviders;
         roleProviders.addChangeListener(new RoleProviders.ChangeListener() {
@@ -151,13 +156,17 @@ public class CompositeRolesStore {
             fieldPermissionsCache,
             this.restrictedIndices
         );
-        this.internalUserRoles = InternalUsers.getRoleDescriptors()
-            .entrySet()
+        this.internalUserRoles = InternalUsers.get()
             .stream()
+            .filter(u -> u.getLocalClusterRoleDescriptor().isPresent())
             .collect(
                 Collectors.toMap(
-                    Map.Entry::getKey,
-                    e -> Role.buildFromRoleDescriptor(e.getValue(), fieldPermissionsCache, this.restrictedIndices)
+                    u -> u.principal(),
+                    u -> Role.buildFromRoleDescriptor(
+                        u.getLocalClusterRoleDescriptor().get(),
+                        fieldPermissionsCache,
+                        this.restrictedIndices
+                    )
                 )
             );
         this.roleReferenceResolver = new RoleDescriptorStore(
@@ -170,22 +179,21 @@ public class CompositeRolesStore {
             effectiveRoleDescriptorsConsumer
         );
         this.anonymousUser = new AnonymousUser(settings);
+        this.workflowService = workflowService;
+        this.threadContext = threadContext;
     }
 
     public void getRoles(Authentication authentication, ActionListener<Tuple<Role, Role>> roleActionListener) {
-        getRole(authentication.getEffectiveSubject(), ActionListener.wrap(role -> {
+        getRole(authentication.getEffectiveSubject(), roleActionListener.delegateFailureAndWrap((delegate, role) -> {
             if (authentication.isRunAs()) {
                 getRole(
                     authentication.getAuthenticatingSubject(),
-                    ActionListener.wrap(
-                        authenticatingRole -> roleActionListener.onResponse(new Tuple<>(role, authenticatingRole)),
-                        roleActionListener::onFailure
-                    )
+                    delegate.delegateFailureAndWrap((l, authenticatingRole) -> l.onResponse(new Tuple<>(role, authenticatingRole)))
                 );
             } else {
-                roleActionListener.onResponse(new Tuple<>(role, role));
+                delegate.onResponse(new Tuple<>(role, role));
             }
-        }, roleActionListener::onFailure));
+        }));
     }
 
     public void getRole(Subject subject, ActionListener<Role> roleActionListener) {
@@ -195,10 +203,14 @@ public class CompositeRolesStore {
             return;
         }
 
-        assert false == User.isInternal(subject.getUser()) : "Internal user should not pass here";
+        assert false == subject.getUser() instanceof InternalUser : "Internal user [" + subject.getUser() + "] should not pass here";
 
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
-        roleReferenceIntersection.buildRole(this::buildRoleFromRoleReference, roleActionListener);
+        final String workflow = workflowService.readWorkflowFromThreadContext(threadContext);
+        roleReferenceIntersection.buildRole(
+            this::buildRoleFromRoleReference,
+            roleActionListener.delegateFailureAndWrap((l, role) -> l.onResponse(role.forWorkflow(workflow)))
+        );
     }
 
     // Accessible by tests
@@ -210,18 +222,18 @@ public class CompositeRolesStore {
         // method.
         // The other internal users have directly assigned roles that are handled with special cases here
         final User user = subject.getUser();
-        if (User.isInternal(user)) {
-            return getInternalUserRole(user);
+        if (user instanceof InternalUser internal) {
+            return getInternalUserRole(internal);
         }
         return null;
     }
 
     // Accessible for testing
-    protected Role getInternalUserRole(User user) {
-        String name = InternalUsers.getInternalUserName(user);
+    protected Role getInternalUserRole(InternalUser user) {
+        String name = user.principal();
         final Role role = this.internalUserRoles.get(name);
         if (role == null) {
-            throw new IllegalArgumentException("the internal user [" + user.principal() + "] should never have its roles resolved");
+            throw new IllegalArgumentException("the internal user [" + name + "] should never have its roles resolved");
         }
         return role;
     }
@@ -308,27 +320,33 @@ public class CompositeRolesStore {
             roleKey.getNames(),
             roleKey.getSource()
         );
-        buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegeStore, restrictedIndices, ActionListener.wrap(role -> {
-            if (role != null && tryCache) {
-                try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
-                    /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
-                     * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
-                     * stuff in an async fashion we need to make sure that if the cache got invalidated since we
-                     * started the request we don't put a potential stale result in the cache, hence the
-                     * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
-                     * be on the safe side and don't cache potentially stale results
-                     */
-                    if (invalidationCounter == numInvalidation.get()) {
-                        roleCache.computeIfAbsent(roleKey, (s) -> role);
+        buildRoleFromDescriptors(
+            roleDescriptors,
+            fieldPermissionsCache,
+            privilegeStore,
+            restrictedIndices,
+            listener.delegateFailureAndWrap((delegate, role) -> {
+                if (role != null && tryCache) {
+                    try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
+                        /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
+                         * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
+                         * stuff in an async fashion we need to make sure that if the cache got invalidated since we
+                         * started the request we don't put a potential stale result in the cache, hence the
+                         * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
+                         * be on the safe side and don't cache potentially stale results
+                         */
+                        if (invalidationCounter == numInvalidation.get()) {
+                            roleCache.computeIfAbsent(roleKey, (s) -> role);
+                        }
+                    }
+
+                    for (String missingRole : missing) {
+                        negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
                     }
                 }
-
-                for (String missingRole : missing) {
-                    negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
-                }
-            }
-            listener.onResponse(role);
-        }, listener::onFailure));
+                delegate.onResponse(role);
+            })
+        );
     }
 
     public void getRoleDescriptorsList(Subject subject, ActionListener<Collection<Set<RoleDescriptor>>> listener) {
@@ -341,27 +359,59 @@ public class CompositeRolesStore {
                     listener
                 );
 
-                roleReferences.forEach(roleReference -> {
-                    roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
-                        if (rolesRetrievalResult.isSuccess()) {
-                            groupedActionListener.onResponse(rolesRetrievalResult.getRoleDescriptors());
-                        } else {
-                            groupedActionListener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
-                        }
-                    }, groupedActionListener::onFailure));
-                });
+                roleReferences.forEach(
+                    roleReference -> roleReference.resolve(
+                        roleReferenceResolver,
+                        groupedActionListener.delegateFailureAndWrap((delegate, rolesRetrievalResult) -> {
+                            if (rolesRetrievalResult.isSuccess()) {
+                                delegate.onResponse(rolesRetrievalResult.getRoleDescriptors());
+                            } else {
+                                delegate.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
+                            }
+                        })
+                    )
+                );
             }
         );
     }
 
     // Package private for testing
     static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
-        final User user = subject.getUser();
-        if (User.isInternal(user)) {
-            return Optional.of(InternalUsers.getRoleDescriptor(user));
+        if (subject.getUser() instanceof InternalUser internalUser) {
+            final Optional<RoleDescriptor> roleDescriptor = internalUser.getLocalClusterRoleDescriptor();
+            if (roleDescriptor.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "should never try to get the roles for internal user [" + internalUser.principal() + "]"
+                );
+            }
+            return roleDescriptor;
         } else {
             return Optional.empty();
         }
+    }
+
+    private static IllegalArgumentException validateRoleDescriptorRestrictions(Collection<RoleDescriptor> roleDescriptors) {
+        if (roleDescriptors.size() <= 1) {
+            return null;
+        }
+        long numberOfRoleDescriptorsWithRestriction = roleDescriptors.stream().filter(RoleDescriptor::hasRestriction).count();
+        if (numberOfRoleDescriptorsWithRestriction > 0L) {
+            // It's only allowed to define a single role descriptor with restriction.
+            if (numberOfRoleDescriptorsWithRestriction != 1L) {
+                return new IllegalArgumentException(
+                    "more than one role descriptor with restriction is not allowed: "
+                        + roleDescriptors.stream().map(RoleDescriptor::getName).toList()
+                );
+            }
+            // Combining roles with and without restriction is not allowed either.
+            if (numberOfRoleDescriptorsWithRestriction != roleDescriptors.size()) {
+                return new IllegalArgumentException(
+                    "combining role descriptors with and without restriction is not allowed: "
+                        + roleDescriptors.stream().map(RoleDescriptor::getName).toList()
+                );
+            }
+        }
+        return null;
     }
 
     public static void buildRoleFromDescriptors(
@@ -376,6 +426,12 @@ public class CompositeRolesStore {
             return;
         }
 
+        final IllegalArgumentException validationException = validateRoleDescriptorRestrictions(roleDescriptors);
+        if (validationException != null) {
+            listener.onFailure(validationException);
+            return;
+        }
+
         final Set<String> clusterPrivileges = new HashSet<>();
         final List<ConfigurableClusterPrivilege> configurableClusterPrivileges = new ArrayList<>();
         final Set<String> runAs = new HashSet<>();
@@ -387,7 +443,7 @@ public class CompositeRolesStore {
 
         // Keyed by application + resource
         final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
-
+        final Set<String> workflows = new HashSet<>();
         final List<String> roleNames = new ArrayList<>(roleDescriptors.size());
         for (RoleDescriptor descriptor : roleDescriptors) {
             roleNames.add(descriptor.getName());
@@ -418,6 +474,10 @@ public class CompositeRolesStore {
                         return v;
                     }
                 });
+            }
+
+            if (descriptor.hasWorkflowsRestriction()) {
+                workflows.addAll(List.of(descriptor.getRestriction().getWorkflows()));
             }
         }
 
@@ -458,6 +518,9 @@ public class CompositeRolesStore {
                 )
             );
         });
+        if (false == workflows.isEmpty()) {
+            builder.workflows(workflows);
+        }
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());
         } else {
@@ -466,13 +529,17 @@ public class CompositeRolesStore {
                 .stream()
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet());
-            privilegeStore.getPrivileges(applicationNames, applicationPrivilegeNames, ActionListener.wrap(appPrivileges -> {
-                applicationPrivilegesMap.forEach(
-                    (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
-                        .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
-                );
-                listener.onResponse(builder.build());
-            }, listener::onFailure));
+            privilegeStore.getPrivileges(
+                applicationNames,
+                applicationPrivilegeNames,
+                listener.delegateFailureAndWrap((delegate, appPrivileges) -> {
+                    applicationPrivilegesMap.forEach(
+                        (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
+                            .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
+                    );
+                    delegate.onResponse(builder.build());
+                })
+            );
         }
     }
 

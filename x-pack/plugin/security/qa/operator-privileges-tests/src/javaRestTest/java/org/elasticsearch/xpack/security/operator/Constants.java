@@ -7,11 +7,17 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.transport.TcpTransport;
+
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Constants {
 
-    public static final Set<String> NON_OPERATOR_ACTIONS = Set.of(
+    public static final Set<String> NON_OPERATOR_ACTIONS = Stream.of(
         // "cluster:admin/autoscaling/delete_autoscaling_policy",
         "cluster:admin/autoscaling/get_autoscaling_capacity",
         "cluster:admin/autoscaling/get_autoscaling_policy",
@@ -61,6 +67,13 @@ public class Constants {
         "cluster:admin/script_language/get",
         "cluster:admin/scripts/painless/context",
         "cluster:admin/scripts/painless/execute",
+        "cluster:admin/synonyms/delete",
+        "cluster:admin/synonyms/get",
+        "cluster:admin/synonyms/put",
+        "cluster:admin/synonyms_sets/get",
+        "cluster:admin/synonym_rules/delete",
+        "cluster:admin/synonym_rules/get",
+        "cluster:admin/synonym_rules/put",
         "cluster:admin/settings/update",
         "cluster:admin/slm/delete",
         "cluster:admin/slm/execute",
@@ -103,7 +116,6 @@ public class Constants {
         "cluster:admin/xpack/application/search_application/list",
         "cluster:admin/xpack/application/search_application/put",
         "cluster:admin/xpack/application/search_application/render_query",
-        "cluster:admin/xpack/application/search_application/search",
         "cluster:admin/xpack/ccr/auto_follow_pattern/activate",
         "cluster:admin/xpack/ccr/auto_follow_pattern/delete",
         "cluster:admin/xpack/ccr/auto_follow_pattern/get",
@@ -180,6 +192,10 @@ public class Constants {
         "cluster:admin/xpack/ml/upgrade_mode",
         "cluster:admin/xpack/monitoring/bulk",
         "cluster:admin/xpack/monitoring/migrate/alerts",
+        "cluster:admin/xpack/query_rules/delete",
+        "cluster:admin/xpack/query_rules/get",
+        "cluster:admin/xpack/query_rules/list",
+        "cluster:admin/xpack/query_rules/put",
         "cluster:admin/xpack/rollup/delete",
         "cluster:admin/xpack/rollup/put",
         "cluster:admin/xpack/rollup/start",
@@ -194,7 +210,8 @@ public class Constants {
         "cluster:admin/xpack/security/api_key/update",
         "cluster:admin/xpack/security/api_key/bulk_update",
         "cluster:admin/xpack/security/cache/clear",
-        "cluster:admin/xpack/security/cross_cluster/api_key/create",
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? "cluster:admin/xpack/security/cross_cluster/api_key/create" : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? "cluster:admin/xpack/security/cross_cluster/api_key/update" : null,
         "cluster:admin/xpack/security/delegate_pki",
         "cluster:admin/xpack/security/enroll/node",
         "cluster:admin/xpack/security/enroll/kibana",
@@ -283,6 +300,7 @@ public class Constants {
         "cluster:monitor/nodes/info",
         "cluster:monitor/nodes/stats",
         "cluster:monitor/nodes/usage",
+        "cluster:monitor/profiling/status/get",
         "cluster:monitor/remote/info",
         "cluster:monitor/settings",
         "cluster:monitor/state",
@@ -323,6 +341,7 @@ public class Constants {
         "cluster:monitor/xpack/info/voting_only",
         "cluster:monitor/xpack/info/watcher",
         "cluster:monitor/xpack/license/get",
+        "cluster:monitor/xpack/ml/autoscaling/stats/get",
         "cluster:monitor/xpack/ml/calendars/events/get",
         "cluster:monitor/xpack/ml/calendars/get",
         "cluster:monitor/xpack/ml/data_frame/analytics/get",
@@ -360,6 +379,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/analytics",
         "cluster:monitor/xpack/usage/archive",
         "cluster:monitor/xpack/usage/ccr",
+        DataStreamLifecycle.isEnabled() ? "cluster:monitor/xpack/usage/data_lifecycle" : null,
         "cluster:monitor/xpack/usage/data_streams",
         "cluster:monitor/xpack/usage/data_tiers",
         "cluster:monitor/xpack/usage/enrich",
@@ -404,10 +424,10 @@ public class Constants {
         "indices:admin/data_stream/migrate",
         "indices:admin/data_stream/modify",
         "indices:admin/data_stream/promote",
-        "indices:admin/dlm/delete",
-        "indices:admin/dlm/get",
-        "indices:admin/dlm/put",
-        "indices:admin/dlm/explain",
+        DataStreamLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/delete" : null,
+        DataStreamLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/get" : null,
+        DataStreamLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/put" : null,
+        DataStreamLifecycle.isEnabled() ? "indices:admin/data_stream/lifecycle/explain" : null,
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",
@@ -479,6 +499,7 @@ public class Constants {
         "indices:data/read/sql/translate",
         "indices:data/read/sql/async/get", // org.elasticsearch.xpack.core.sql.SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME
         "indices:data/read/tv",
+        "indices:data/read/xpack/application/search_application/search",
         "indices:data/read/xpack/ccr/shard_changes",
         "indices:data/read/xpack/enrich/coordinate_lookups",
         "indices:data/read/xpack/graph/explore",
@@ -520,5 +541,5 @@ public class Constants {
         "internal:cluster/formation/info",
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path"
-    );
+    ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

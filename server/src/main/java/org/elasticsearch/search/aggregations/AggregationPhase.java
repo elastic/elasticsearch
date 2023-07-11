@@ -44,6 +44,7 @@ public class AggregationPhase {
         if (context.aggregations().factories().context() != null
             && context.aggregations().factories().context().isInSortOrderExecutionRequired()) {
             TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
+            searcher.setMinimumScore(context.minimumScore());
             searcher.setProfiler(context);
             try {
                 searcher.search(context.rewrittenQuery(), bucketCollector);
@@ -56,9 +57,9 @@ public class AggregationPhase {
         }
         if (context.getProfilers() != null) {
             InternalProfileCollector profileCollector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION);
-            context.registerAggsCollectorManager(new InternalProfileCollectorManager(profileCollector));
+            context.aggregations().registerAggsCollectorManager(new InternalProfileCollectorManager(profileCollector));
         } else {
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
+            context.aggregations().registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
         }
     }
 
@@ -103,11 +104,12 @@ public class AggregationPhase {
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
             }
+            // release the aggregator to claim the used bytes as we don't need it anymore
+            aggregator.releaseAggregations();
         }
         context.queryResult().aggregations(InternalAggregations.from(aggregations));
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
-        context.registerAggsCollectorManager(null);
     }
 }

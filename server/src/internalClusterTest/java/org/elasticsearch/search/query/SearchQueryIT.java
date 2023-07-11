@@ -427,7 +427,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testIdsQueryTestsIdIndexed() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test"));
+        assertAcked(indicesAdmin().prepareCreate("test"));
 
         indexRandom(
             true,
@@ -456,7 +456,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testTermIndexQuery() throws Exception {
         String[] indexNames = { "test1", "test2" };
         for (String indexName : indexNames) {
-            assertAcked(client().admin().indices().prepareCreate(indexName));
+            assertAcked(indicesAdmin().prepareCreate(indexName));
 
             indexRandom(true, client().prepareIndex(indexName).setId(indexName + "1").setSource("field1", "value1"));
 
@@ -678,7 +678,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "2");
 
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
         builder = multiMatchQuery("value1", "field1", "field2").operator(Operator.AND); // Operator only applies on terms inside a field!
                                                                                         // Fields are always OR-ed together.
         searchResponse = client().prepareSearch().setQuery(builder).get();
@@ -693,7 +693,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "3", "1");
 
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
         builder = multiMatchQuery("value1").field("field1").field("field3", 1.5f).operator(Operator.AND); // Operator only applies on terms
                                                                                                           // inside a field! Fields are
                                                                                                           // always OR-ed together.
@@ -1661,7 +1661,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testDateProvidedAsNumber() throws InterruptedException {
         createIndex("test");
-        assertAcked(client().admin().indices().preparePutMapping("test").setSource("field", "type=date,format=epoch_millis").get());
+        assertAcked(indicesAdmin().preparePutMapping("test").setSource("field", "type=date,format=epoch_millis").get());
         indexRandom(
             true,
             client().prepareIndex("test").setId("1").setSource("field", 1000000000001L),

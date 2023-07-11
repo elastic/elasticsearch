@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -25,18 +26,18 @@ import java.util.function.Supplier;
  * Parser for {@link Mapping} provided in {@link CompressedXContent} format
  */
 public final class MappingParser {
-    private final MappingParserContext mappingParserContext;
+    private final Supplier<MappingParserContext> mappingParserContextSupplier;
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
 
     MappingParser(
-        MappingParserContext mappingParserContext,
+        Supplier<MappingParserContext> mappingParserContextSupplier,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
         Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
         Function<String, String> documentTypeResolver
     ) {
-        this.mappingParserContext = mappingParserContext;
+        this.mappingParserContextSupplier = mappingParserContextSupplier;
         this.metadataMapperParsers = metadataMapperParsers;
         this.metadataMappersSupplier = metadataMappersSupplier;
         this.documentTypeResolver = documentTypeResolver;
@@ -97,12 +98,13 @@ public final class MappingParser {
     }
 
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
+        final MappingParserContext mappingParserContext = mappingParserContextSupplier.get();
 
-        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mapping, this.mappingParserContext);
+        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mapping, mappingParserContext);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
-        boolean isSourceSynthetic = false;
+        boolean isSourceSynthetic = mappingParserContext.getIndexSettings().getMode().isSyntheticSourceEnabled();
 
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -118,11 +120,15 @@ public final class MappingParser {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, this.mappingParserContext)
+                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, mappingParserContext)
                     .build(MapperBuilderContext.forMetadata());
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 assert fieldNodeMap.isEmpty();
                 if (metadataFieldMapper instanceof SourceFieldMapper sfm) {
+                    // Validation in other places should have failed first
+                    assert sfm.isSynthetic()
+                        || (sfm.isSynthetic() == false && mappingParserContext.getIndexSettings().getMode() != IndexMode.TIME_SERIES)
+                        : "synthetic source can't be disabled in a time series index";
                     isSourceSynthetic = sfm.isSynthetic();
                 }
             }
@@ -147,7 +153,7 @@ public final class MappingParser {
              */
             meta = Collections.unmodifiableMap(new HashMap<>(removed));
         }
-        if (this.mappingParserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
+        if (mappingParserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
             // legacy indices are allowed to have extra definitions that we ignore (we will drop them on import)
             checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
         }

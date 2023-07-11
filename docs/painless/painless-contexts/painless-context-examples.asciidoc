@@ -28,7 +28,7 @@ Each document in the `seat` data contains the following fields:
         The date and time of the play as a date object.
 
 ==== Prerequisites
-Start an {ref}/getting-started-install.html[{es} instance], and then access the
+Start an {ref}/configuring-stack-security.html[{es} instance], and then access the
 {kibana-ref}/console-kibana.html[Console] in {kib}.
 
 ==== Configure the `seat` sample data

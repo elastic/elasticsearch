@@ -259,7 +259,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             IndexResponse indexResponse = client().index(indexRequest).actionGet();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         SearchRequest originalRequest = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -302,8 +302,8 @@ public class TransportSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
         assertAcked(prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
         assertAcked(prepareCreate("test3").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
-        client().admin().indices().prepareAliases().addAlias("test1", "testAlias").get();
-        client().admin().indices().prepareAliases().addAlias(new String[] { "test2", "test3" }, "testFailedAlias").get();
+        indicesAdmin().prepareAliases().addAlias("test1", "testAlias").get();
+        indicesAdmin().prepareAliases().addAlias(new String[] { "test2", "test3" }, "testFailedAlias").get();
 
         long[] validCheckpoints = new long[numberOfShards];
         Arrays.fill(validCheckpoints, SequenceNumbers.UNASSIGNED_SEQ_NO);
@@ -554,7 +554,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             IndexResponse indexResponse = client().prepareIndex(indexName).setSource("number", randomInt()).get();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
-        client().admin().indices().prepareRefresh(indexName).get();
+        indicesAdmin().prepareRefresh(indexName).get();
     }
 
     private long requestBreakerUsed() {
@@ -670,6 +670,9 @@ public class TransportSearchIT extends ESIntegTestCase {
         public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             return new InternalAggregation[] { buildEmptyAggregation() };
         }
+
+        @Override
+        public void releaseAggregations() {}
 
         @Override
         public InternalAggregation buildEmptyAggregation() {

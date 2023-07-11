@@ -1,0 +1,6 @@
+pr: 97488
+summary: Limit `_terms_enum` prefix size
+area: Search
+type: enhancement
+issues:
+ - 96572

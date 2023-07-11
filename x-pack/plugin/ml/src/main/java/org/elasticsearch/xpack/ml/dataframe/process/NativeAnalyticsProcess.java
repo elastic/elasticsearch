@@ -66,19 +66,6 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
     }
 
     @Override
-    public void persistState() {
-        // Nothing to persist
-    }
-
-    @Override
-    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {}
-
-    @Override
-    public void writeEndOfDataMessage() throws IOException {
-        new AnalyticsControlMessageWriter(recordWriter(), numberOfFields()).writeEndOfData();
-    }
-
-    @Override
     public AnalyticsProcessConfig getConfig() {
         return config;
     }

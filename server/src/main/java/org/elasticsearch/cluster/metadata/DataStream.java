@@ -23,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
@@ -68,11 +67,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
-    public static final TimestampField TIMESTAMP_FIELD = new DataStream.TimestampField("@timestamp");
+    public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
-            PointValues points = r.getPointValues(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            PointValues points = r.getPointValues(TIMESTAMP_FIELD_NAME);
             if (points != null) {
                 byte[] sortValue = points.getMaxPackedValue();
                 return LongPoint.decodeDimension(sortValue, 0);
@@ -84,10 +83,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 return Long.MIN_VALUE;
             }
         } catch (IOException e) {
-            throw new ElasticsearchException(
-                "Can't access [" + DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field for the index!",
-                e
-            );
+            throw new ElasticsearchException("Can't access [" + TIMESTAMP_FIELD_NAME + "] field for the index!", e);
         }
     }).reversed();
 
@@ -102,7 +98,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final boolean allowCustomRouting;
     private final IndexMode indexMode;
     @Nullable
-    private final DataLifecycle lifecycle;
+    private final DataStreamLifecycle lifecycle;
 
     public DataStream(
         String name,
@@ -114,7 +110,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean system,
         boolean allowCustomRouting,
         IndexMode indexMode,
-        DataLifecycle lifecycle
+        DataStreamLifecycle lifecycle
     ) {
         this(
             name,
@@ -143,7 +139,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         LongSupplier timeProvider,
         boolean allowCustomRouting,
         IndexMode indexMode,
-        DataLifecycle lifecycle
+        DataStreamLifecycle lifecycle
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
@@ -156,7 +152,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
-        this.lifecycle = DataLifecycle.isEnabled() ? lifecycle : null;
+        this.lifecycle = DataStreamLifecycle.isEnabled() ? lifecycle : null;
         assert assertConsistent(this.indices);
     }
 
@@ -198,11 +194,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Override
     public boolean isDataStreamRelated() {
         return true;
-    }
-
-    public TimestampField getTimeStampField() {
-        // This was always fixed to @timestamp with the idea that one day this field could be configurable. This idea no longer exists.
-        return TIMESTAMP_FIELD;
     }
 
     @Override
@@ -340,7 +331,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     @Nullable
-    public DataLifecycle getLifecycle() {
+    public DataStreamLifecycle getLifecycle() {
         return lifecycle;
     }
 
@@ -607,20 +598,20 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Iterate over the backing indices and return the ones that are managed by DLM and past the configured
+     * Iterate over the backing indices and return the ones that are managed by the data stream lifecycle and past the configured
      * retention in their lifecycle.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
     public List<Index> getIndicesPastRetention(Function<String, IndexMetadata> indexMetadataSupplier, LongSupplier nowSupplier) {
-        if (lifecycle == null || lifecycle.getDataRetention() == null) {
+        if (lifecycle == null || lifecycle.getEffectiveDataRetention() == null) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            lifecycle.getDataRetention(),
+            lifecycle.getEffectiveDataRetention(),
             indexMetadataSupplier,
-            this::isIndexManagedByDLM,
+            this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
         );
         return indicesPastRetention;
@@ -631,7 +622,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * The index age is calculated from the rollover or index creation date (or the origination date if present).
      * If an indices predicate is provided the returned list of indices will be filtered
      * according to the predicate definition. This is useful for things like "return only
-     * the backing indices that are managed by DLM".
+     * the backing indices that are managed by the data stream lifecycle".
      */
     public List<Index> getNonWriteIndicesOlderThan(
         TimeValue age,
@@ -661,11 +652,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Checks if the provided backing index is managed by DLM as part of this data stream.
+     * Checks if the provided backing index is managed by the data stream lifecycle as part of this data stream.
      * If the index is not a backing index of this data stream, or we cannot supply its metadata
      * we return false.
      */
-    public boolean isIndexManagedByDLM(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
+    public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
         if (indices.contains(index) == false) {
             return false;
         }
@@ -674,20 +665,20 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // the index was deleted
             return false;
         }
-        return isIndexManagedByDLM(indexMetadata);
+        return isIndexManagedByDataStreamLifecycle(indexMetadata);
     }
 
     /**
-     * This is the raw defintion of an index being managed by DLM. An index is managed by DLM if it's part of a data stream
-     * that has a DLM lifecycle configured and depending on the value of {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
-     * having an ILM policy configured will play into the decision.
+     * This is the raw defintion of an index being managed by the data stream lifecycle. An index is managed by the data stream lifecycle
+     * if it's part of a data stream that has a data stream lifecycle configured and depending on the value of
+     * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING} having an ILM policy configured will play into the decision.
      * This method also skips any validation to make sure the index is part of this data stream, hence the private
      * access method.
      */
-    private boolean isIndexManagedByDLM(IndexMetadata indexMetadata) {
+    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
         boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
         if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null) {
-            // when both ILM and DLM are configured, choose depending on the configured preference for this backing index
+            // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
             return preferIlm == false;
         }
         return lifecycle != null;
@@ -759,9 +750,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.readBoolean(),
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0) ? in.readBoolean() : false,
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()
-                ? in.readOptionalWriteable(DataLifecycle::new)
-                : null
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null
         );
     }
 
@@ -777,7 +766,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        TIMESTAMP_FIELD.writeTo(out);
+        out.writeString(TIMESTAMP_FIELD_NAME);
         out.writeList(indices);
         out.writeVLong(generation);
         out.writeGenericMap(metadata);
@@ -790,7 +779,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
             out.writeOptionalWriteable(lifecycle);
         }
     }
@@ -808,25 +797,32 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField LIFECYCLE = new ParseField("lifecycle");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
-        assert TIMESTAMP_FIELD == args[1];
-        return new DataStream(
+    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
+        "data_stream",
+        args -> new DataStream(
             (String) args[0],
-            (List<Index>) args[2],
-            (Long) args[3],
-            (Map<String, Object>) args[4],
+            (List<Index>) args[1],
+            (Long) args[2],
+            (Map<String, Object>) args[3],
+            args[4] != null && (boolean) args[4],
             args[5] != null && (boolean) args[5],
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
-            args[8] != null && (boolean) args[8],
-            args[9] != null ? IndexMode.fromString((String) args[9]) : null,
-            DataLifecycle.isEnabled() ? (DataLifecycle) args[10] : null
-        );
-    });
+            args[8] != null ? IndexMode.fromString((String) args[8]) : null,
+            DataStreamLifecycle.isEnabled() ? (DataStreamLifecycle) args[9] : null
+        )
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), TimestampField.PARSER, TIMESTAMP_FIELD_FIELD);
+        final ConstructingObjectParser<String, Void> tsFieldParser = new ConstructingObjectParser<>("timestamp_field", args -> {
+            if (TIMESTAMP_FIELD_NAME.equals(args[0]) == false) {
+                throw new IllegalArgumentException("unexpected timestamp field [" + args[0] + "]");
+            }
+            return TIMESTAMP_FIELD_NAME;
+        });
+        tsFieldParser.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
+        PARSER.declareObject((f, v) -> { assert v == TIMESTAMP_FIELD_NAME; }, tsFieldParser, TIMESTAMP_FIELD_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA_FIELD);
@@ -835,8 +831,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
-        if (DataLifecycle.isEnabled()) {
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataLifecycle.fromXContent(p), LIFECYCLE);
+        if (DataStreamLifecycle.isEnabled()) {
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> DataStreamLifecycle.fromXContent(p),
+                LIFECYCLE
+            );
         }
     }
 
@@ -856,7 +856,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), TIMESTAMP_FIELD);
+        builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName())
+            .startObject()
+            .field(NAME_FIELD.getPreferredName(), TIMESTAMP_FIELD_NAME)
+            .endObject();
         builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
         if (metadata != null) {
@@ -949,7 +952,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
-        Set.of(TimestampField.FIXED_TIMESTAMP_FIELD),
+        Set.of(TIMESTAMP_FIELD_NAME),
         null,
         false
     );
@@ -994,71 +997,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             };
         } catch (Exception e) {
             throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
-        }
-    }
-
-    public static final class TimestampField implements Writeable, ToXContentObject {
-
-        public static final String FIXED_TIMESTAMP_FIELD = "@timestamp";
-
-        static ParseField NAME_FIELD = new ParseField("name");
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<TimestampField, Void> PARSER = new ConstructingObjectParser<>(
-            "timestamp_field",
-            args -> {
-                if (FIXED_TIMESTAMP_FIELD.equals(args[0]) == false) {
-                    throw new IllegalArgumentException("unexpected timestamp field [" + args[0] + "]");
-                }
-                return TIMESTAMP_FIELD;
-            }
-        );
-
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        }
-
-        private final String name;
-
-        public TimestampField(String name) {
-            if (FIXED_TIMESTAMP_FIELD.equals(name) == false) {
-                throw new IllegalArgumentException("unexpected timestamp field [" + name + "]");
-            }
-            this.name = name;
-        }
-
-        public TimestampField(StreamInput in) throws IOException {
-            this(in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(NAME_FIELD.getPreferredName(), name);
-            builder.endObject();
-            return builder;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            TimestampField that = (TimestampField) o;
-            return name.equals(that.name);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name);
         }
     }
 

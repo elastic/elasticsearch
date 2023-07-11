@@ -123,7 +123,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 } else {
                     modelSizeStats = null;
                 }
-                ingestStats = new IngestStats(in);
+                ingestStats = IngestStats.read(in);
                 pipelineCount = in.readVInt();
                 inferenceStats = in.readOptionalWriteable(InferenceStats::new);
                 if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
@@ -304,7 +304,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                                 modelId,
                                 modelSizeStats,
                                 ingestStats,
-                                ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
+                                ingestStats == null ? 0 : ingestStats.pipelineStats().size(),
                                 inferenceStats,
                                 null // no assignment stats for undeployed models
                             )
@@ -327,7 +327,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                                     modelId,
                                     modelSizeStats,
                                     ingestStats,
-                                    ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
+                                    ingestStats == null ? 0 : ingestStats.pipelineStats().size(),
                                     inferenceStats,
                                     assignmentStats
                                 )

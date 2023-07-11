@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.archive.ArchiveFeatureSetUsage;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
+import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
@@ -234,6 +235,8 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 // TODO: merge this into XPackPlugin
 public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
@@ -414,7 +417,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Arrays.asList(
+        return Stream.of(
             // graph
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.GRAPH, GraphFeatureSetUsage::new),
             // logstash
@@ -545,6 +548,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             ),
             // Data Streams
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new),
+            new NamedWriteableRegistry.Entry(
+                XPackFeatureSet.Usage.class,
+                XPackField.DATA_STREAM_LIFECYCLE,
+                DataStreamLifecycleFeatureSetUsage::new
+            ),
             // Data Tiers
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new),
             // Archive
@@ -561,7 +569,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 XPackField.ENTERPRISE_SEARCH,
                 EnterpriseSearchFeatureSetUsage::new
             )
-        );
+        ).filter(Objects::nonNull).toList();
     }
 
     @Override

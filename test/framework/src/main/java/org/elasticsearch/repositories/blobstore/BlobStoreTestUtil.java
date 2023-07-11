@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -187,11 +187,7 @@ public final class BlobStoreTestUtil {
     }
 
     private static void assertIndexUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
-        final List<String> expectedIndexUUIDs = repositoryData.getIndices()
-            .values()
-            .stream()
-            .map(IndexId::getId)
-            .collect(Collectors.toList());
+        final List<String> expectedIndexUUIDs = repositoryData.getIndices().values().stream().map(IndexId::getId).toList();
         final BlobContainer indicesContainer = repository.blobContainer().children().get("indices");
         final List<String> foundIndexUUIDs;
         if (indicesContainer == null) {
@@ -231,7 +227,7 @@ public final class BlobStoreTestUtil {
     ) throws IOException {
         final BlobContainer repoRoot = repository.blobContainer();
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-        final List<String> expectedSnapshotUUIDs = snapshotIds.stream().map(SnapshotId::getUUID).collect(Collectors.toList());
+        final List<String> expectedSnapshotUUIDs = snapshotIds.stream().map(SnapshotId::getUUID).toList();
         for (String prefix : new String[] { BlobStoreRepository.SNAPSHOT_PREFIX, BlobStoreRepository.METADATA_PREFIX }) {
             final Collection<String> foundSnapshotUUIDs = repoRoot.listBlobs()
                 .keySet()
@@ -431,7 +427,7 @@ public final class BlobStoreTestUtil {
         final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
         // Setting local node as master so it may update the repository metadata in the cluster state
-        final DiscoveryNode localNode = TestDiscoveryNode.create("");
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("");
         when(clusterService.localNode()).thenReturn(localNode);
         final AtomicReference<ClusterState> currentState = new AtomicReference<>(
             ClusterState.builder(initialState)

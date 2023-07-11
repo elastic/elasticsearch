@@ -41,7 +41,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -107,7 +106,7 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  */
 public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
-    public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
+    public static final ClusterState EMPTY_STATE = builder(ClusterName.DEFAULT).build();
 
     public interface Custom extends NamedDiffable<Custom>, ChunkedToXContent {
 
@@ -189,7 +188,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             state.metadata(),
             state.routingTable(),
             state.nodes(),
-            state.transportVersions(),
+            state.transportVersions,
             state.blocks(),
             state.customs(),
             false,
@@ -223,7 +222,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
 
-        this.minTransportVersion = transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(TransportVersion.CURRENT);
+        this.minTransportVersion = transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(TransportVersion.current());
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -476,7 +475,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         if (transportVersions.isEmpty() == false) {
             sb.append("transport versions:\n");
             for (var tv : transportVersions.entrySet()) {
-                sb.append(TAB).append(tv.getKey()).append(": ").append(tv.getValue());
+                sb.append(TAB).append(tv.getKey()).append(": ").append(tv.getValue()).append("\n");
             }
         }
         sb.append(routingTable());
@@ -737,7 +736,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.version = state.version();
             this.uuid = state.stateUUID();
             this.nodes = state.nodes();
-            this.transportVersions = new HashMap<>(state.transportVersions());
+            this.transportVersions = new HashMap<>(state.transportVersions);
             this.routingTable = state.routingTable();
             this.metadata = state.metadata();
             this.blocks = state.blocks();
@@ -909,7 +908,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.routingTable = RoutingTable.readFrom(in);
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            builder.transportVersions(in.readMap(StreamInput::readString, TransportVersion::readVersion));
+            builder.transportVersions(in.readMap(TransportVersion::readVersion));
         } else {
             // this clusterstate is from a pre-8.8.0 node
             // infer the versions from discoverynodes for now

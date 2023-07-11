@@ -20,8 +20,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
 
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(project(':modules:lang-painless'))
 
+  clusterModules project(xpackModule('rank-rrf'))
   clusterModules project(':modules:lang-painless')
-  clusterPlugins project(':x-pack:plugin:rank-rrf')
 }

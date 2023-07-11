@@ -113,21 +113,12 @@ public final class Lifecycle {
     }
 
     public synchronized boolean moveToStarted() throws IllegalStateException {
-        return switch (state) {
-            case INITIALIZED -> {
-                state = State.STARTED;
-                yield true;
-            }
-            case STARTED -> false;
-            case STOPPED -> {
-                assert false : "STOPPED -> STARTED";
-                throw new IllegalStateException("Can't move to started state when stopped");
-            }
-            case CLOSED -> {
-                assert false : "CLOSED -> STARTED";
-                throw new IllegalStateException("Can't move to started state when closed");
-            }
-        };
+        if (canMoveToStarted()) {
+            state = State.STARTED;
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public boolean canMoveToStopped() throws IllegalStateException {
@@ -146,21 +137,12 @@ public final class Lifecycle {
     }
 
     public synchronized boolean moveToStopped() throws IllegalStateException {
-        return switch (state) {
-            case INITIALIZED -> {
-                assert false : "INITIALIZED -> STOPPED";
-                throw new IllegalStateException("Can't move to stopped state when not started");
-            }
-            case STARTED -> {
-                state = State.STOPPED;
-                yield true;
-            }
-            case STOPPED -> false;
-            case CLOSED -> {
-                assert false : "CLOSED -> STOPPED";
-                throw new IllegalStateException("Can't move to stopped state when closed");
-            }
-        };
+        if (canMoveToStopped()) {
+            state = State.STOPPED;
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public boolean canMoveToClosed() throws IllegalStateException {
@@ -176,21 +158,12 @@ public final class Lifecycle {
     }
 
     public synchronized boolean moveToClosed() throws IllegalStateException {
-        return switch (state) {
-            case INITIALIZED -> {
-                state = State.CLOSED;
-                yield true;
-            }
-            case STARTED -> {
-                assert false : "STARTED -> CLOSED";
-                throw new IllegalStateException("Can't move directly from STARTED to CLOSED, must move to STOPPED first");
-            }
-            case STOPPED -> {
-                state = State.CLOSED;
-                yield true;
-            }
-            case CLOSED -> false;
-        };
+        if (canMoveToClosed()) {
+            state = State.CLOSED;
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override

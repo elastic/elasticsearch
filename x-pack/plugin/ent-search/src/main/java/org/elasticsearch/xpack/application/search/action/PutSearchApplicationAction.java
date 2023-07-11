@@ -109,11 +109,9 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
-            "put_search_application",
+            "put_search_application_request",
             false,
-            (params, searchAppName) -> {
-                return new Request((SearchApplication) params[0], (boolean) params[1]);
-            }
+            (params) -> new Request((SearchApplication) params[0], (boolean) params[1])
         );
         static {
             PARSER.declareObject(constructorArg(), (p, c) -> SearchApplication.fromXContent(c, p), SEARCH_APPLICATION);

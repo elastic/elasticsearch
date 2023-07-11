@@ -85,11 +85,9 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         }
 
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
-            "put_analytics_request",
+            "put_analytics_collection_request",
             false,
-            (p) -> {
-                return new Request((String) p[0]);
-            }
+            (p) -> new Request((String) p[0])
         );
         static {
             PARSER.declareString(constructorArg(), NAME_FIELD);
@@ -158,7 +156,7 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         }
 
         private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
-            "put_analytics_request",
+            "put_analytics_collection_response",
             false,
             (p) -> {
                 return new Response((boolean) p[0], (String) p[1]);

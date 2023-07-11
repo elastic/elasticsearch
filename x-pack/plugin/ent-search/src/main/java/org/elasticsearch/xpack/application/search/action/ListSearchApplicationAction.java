@@ -111,7 +111,7 @@ public class ListSearchApplicationAction extends ActionType<ListSearchApplicatio
         }
 
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
-            "list_search_application_action_request",
+            "list_search_application_request",
             p -> new Request((String) p[0], (PageParams) p[1])
         );
         static {

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfigTests;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.hamcrest.CoreMatchers;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -29,8 +30,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-
-import org.junit.Before;
 
 public class TransportLoadTrainedModelPackageTests extends ESTestCase {
     private LoadTrainedModelPackageAction.Request loadModelReq;

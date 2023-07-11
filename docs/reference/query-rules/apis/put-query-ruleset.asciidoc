@@ -39,6 +39,8 @@ Each rule must have the following information:
 - `type` (Required, string)
   The type of rule. At this time only `pinned` query rule types are allowed.
 - `criteria` (Required, array of objects)
+- `actions` (Required, object)
+  The actions to take when the rule is matched. The format of this action depends on the rule type.
 
 Criteria must have the following information:
 
@@ -49,6 +51,22 @@ Criteria must have the following information:
 - `value` (Required, string)
   The value to match against the metadata field.
 
+Actions depend on the rule type.
+For `pinned` rules, actions follow the format specified by the <<query-dsl-pinned-query,Pinned Query>>.
+The following actions are allowed:
+
+- `ids` (Optional, array of strings)
+  The The unique <<mapping-id-field, document IDs>> of the documents to pin. Only one of `ids` or `docs` may be specified, and at least one must be specified.
+- `docs` (Optional, array of objects)
+  The documents to pin. Only one of `ids` or `docs` may be specified, and at least one must be specified.
+  You can specify the following attributes for each document:
++
+--
+- `_index` (Required, string)
+  The index of the document to pin.
+- `_id` (Required, string)
+  The unique <<mapping-id-field, document ID>>.
+--
 
 ====
 

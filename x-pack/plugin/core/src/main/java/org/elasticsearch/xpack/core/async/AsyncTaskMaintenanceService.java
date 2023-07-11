@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.EXPIRATION_TIME_FIELD;
 
@@ -62,6 +63,7 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     private final Client clientWithOrigin;
     private final TimeValue delay;
 
+    private final AtomicBoolean isPaused = new AtomicBoolean(false); // allow tests to simulate restarts
     private boolean isCleanupRunning;
     private volatile Scheduler.Cancellable cancellable;
 
@@ -89,6 +91,29 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     protected void doStop() {
         clusterService.removeListener(this);
         stopCleanup();
+    }
+
+    // exposed for tests
+    public void pause() {
+        if (isPaused.compareAndSet(false, true)) {
+            synchronized (lifecycle) {
+                assert lifecycle.started();
+                doStop();
+            }
+        }
+    }
+
+    // exposed for tests
+    public boolean unpause() {
+        if (isPaused.compareAndSet(true, false)) {
+            synchronized (lifecycle) {
+                assert lifecycle.started();
+                doStart();
+            }
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override

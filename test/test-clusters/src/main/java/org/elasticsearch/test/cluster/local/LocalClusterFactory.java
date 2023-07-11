@@ -635,6 +635,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     .map(p -> p.replace("${ES_PATH_CONF}", configDir.toString()))
                     .collect(Collectors.joining(" "));
             }
+            String jvmArgs = String.join(" ", spec.getJvmArgs());
 
             String debugArgs = "";
             if (Boolean.getBoolean(TESTS_CLUSTER_DEBUG_ENABLED_SYSPROP)) {
@@ -649,6 +650,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 + " "
                 + featureFlagProperties
                 + systemProperties
+                + jvmArgs
                 + debugArgs);
 
             return environment;

@@ -17,6 +17,7 @@ The following APIs support {ccs}:
 * <<search-template,Search template>>
 * <<multi-search-template,Multi search template>>
 * <<search-field-caps,Field capabilities>>
+* {painless}/painless-execute-api.html[Painless execute API]
 * experimental:[] <<eql-search-api,EQL search>>
 * experimental:[] <<sql-search-api,SQL search>>
 * experimental:[] <<search-vector-tile-api,Vector tile search>>

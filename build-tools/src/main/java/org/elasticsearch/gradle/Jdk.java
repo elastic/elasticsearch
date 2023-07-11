@@ -14,6 +14,7 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
 
+import java.io.IOException;
 import java.io.File;
 import java.util.Iterator;
 import java.util.List;

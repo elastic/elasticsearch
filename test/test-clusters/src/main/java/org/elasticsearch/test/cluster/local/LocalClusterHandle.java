@@ -160,6 +160,11 @@ public class LocalClusterHandle implements ClusterHandle {
         return nodes.get(index).getName();
     }
 
+    @Override
+    public long getPid(int index) {
+        return nodes.get(index).getPid();
+    }
+
     public void stopNode(int index) {
         nodes.get(index).stop(false);
     }

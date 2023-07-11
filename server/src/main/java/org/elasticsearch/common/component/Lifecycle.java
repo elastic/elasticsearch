@@ -11,9 +11,9 @@ package org.elasticsearch.common.component;
 /**
  * Lifecycle state. Allows the following transitions:
  * <ul>
- * <li>INITIALIZED -&gt; STARTED, STOPPED, CLOSED</li>
+ * <li>INITIALIZED -&gt; STARTED, CLOSED</li>
  * <li>STARTED     -&gt; STOPPED</li>
- * <li>STOPPED     -&gt; STARTED, CLOSED</li>
+ * <li>STOPPED     -&gt; CLOSED</li>
  * <li>CLOSED      -&gt; </li>
  * </ul>
  * <p>
@@ -49,7 +49,7 @@ package org.elasticsearch.common.component;
  * }
  * </pre>
  */
-public class Lifecycle {
+public final class Lifecycle {
 
     public enum State {
         INITIALIZED,
@@ -98,84 +98,99 @@ public class Lifecycle {
     }
 
     public boolean canMoveToStarted() throws IllegalStateException {
-        State localState = this.state;
-        if (localState == State.INITIALIZED || localState == State.STOPPED) {
-            return true;
-        }
-        if (localState == State.STARTED) {
-            return false;
-        }
-        if (localState == State.CLOSED) {
-            throw new IllegalStateException("Can't move to started state when closed");
-        }
-        throw new IllegalStateException("Can't move to started with unknown state");
+        return switch (state) {
+            case INITIALIZED -> true;
+            case STARTED -> false;
+            case STOPPED -> {
+                assert false : "STOPPED -> STARTED";
+                throw new IllegalStateException("Can't move to started state when stopped");
+            }
+            case CLOSED -> {
+                assert false : "CLOSED -> STARTED";
+                throw new IllegalStateException("Can't move to started state when closed");
+            }
+        };
     }
 
     public synchronized boolean moveToStarted() throws IllegalStateException {
-        State localState = this.state;
-        if (localState == State.INITIALIZED || localState == State.STOPPED) {
-            state = State.STARTED;
-            return true;
-        }
-        if (localState == State.STARTED) {
-            return false;
-        }
-        if (localState == State.CLOSED) {
-            throw new IllegalStateException("Can't move to started state when closed");
-        }
-        throw new IllegalStateException("Can't move to started with unknown state");
+        return switch (state) {
+            case INITIALIZED -> {
+                state = State.STARTED;
+                yield true;
+            }
+            case STARTED -> false;
+            case STOPPED -> {
+                assert false : "STOPPED -> STARTED";
+                throw new IllegalStateException("Can't move to started state when stopped");
+            }
+            case CLOSED -> {
+                assert false : "CLOSED -> STARTED";
+                throw new IllegalStateException("Can't move to started state when closed");
+            }
+        };
     }
 
     public boolean canMoveToStopped() throws IllegalStateException {
-        State localState = state;
-        if (localState == State.STARTED) {
-            return true;
-        }
-        if (localState == State.INITIALIZED || localState == State.STOPPED) {
-            return false;
-        }
-        if (localState == State.CLOSED) {
-            throw new IllegalStateException("Can't move to stopped state when closed");
-        }
-        throw new IllegalStateException("Can't move to stopped with unknown state");
+        return switch (state) {
+            case INITIALIZED -> {
+                assert false : "INITIALIZED -> STOPPED";
+                throw new IllegalStateException("Can't move to stopped state when not started");
+            }
+            case STARTED -> true;
+            case STOPPED -> false;
+            case CLOSED -> {
+                assert false : "CLOSED -> STOPPED";
+                throw new IllegalStateException("Can't move to stopped state when closed");
+            }
+        };
     }
 
     public synchronized boolean moveToStopped() throws IllegalStateException {
-        State localState = state;
-        if (localState == State.STARTED) {
-            state = State.STOPPED;
-            return true;
-        }
-        if (localState == State.INITIALIZED || localState == State.STOPPED) {
-            return false;
-        }
-        if (localState == State.CLOSED) {
-            throw new IllegalStateException("Can't move to stopped state when closed");
-        }
-        throw new IllegalStateException("Can't move to stopped with unknown state");
+        return switch (state) {
+            case INITIALIZED -> {
+                assert false : "INITIALIZED -> STOPPED";
+                throw new IllegalStateException("Can't move to stopped state when not started");
+            }
+            case STARTED -> {
+                state = State.STOPPED;
+                yield true;
+            }
+            case STOPPED -> false;
+            case CLOSED -> {
+                assert false : "CLOSED -> STOPPED";
+                throw new IllegalStateException("Can't move to stopped state when closed");
+            }
+        };
     }
 
     public boolean canMoveToClosed() throws IllegalStateException {
-        State localState = state;
-        if (localState == State.CLOSED) {
-            return false;
-        }
-        if (localState == State.STARTED) {
-            throw new IllegalStateException("Can't move to closed before moving to stopped mode");
-        }
-        return true;
+        return switch (state) {
+            case INITIALIZED -> true;
+            case STARTED -> {
+                assert false : "STARTED -> CLOSED";
+                throw new IllegalStateException("Can't move directly from STARTED to CLOSED, must move to STOPPED first");
+            }
+            case STOPPED -> true;
+            case CLOSED -> false;
+        };
     }
 
     public synchronized boolean moveToClosed() throws IllegalStateException {
-        State localState = state;
-        if (localState == State.CLOSED) {
-            return false;
-        }
-        if (localState == State.STARTED) {
-            throw new IllegalStateException("Can't move to closed before moving to stopped mode");
-        }
-        state = State.CLOSED;
-        return true;
+        return switch (state) {
+            case INITIALIZED -> {
+                state = State.CLOSED;
+                yield true;
+            }
+            case STARTED -> {
+                assert false : "STARTED -> CLOSED";
+                throw new IllegalStateException("Can't move directly from STARTED to CLOSED, must move to STOPPED first");
+            }
+            case STOPPED -> {
+                state = State.CLOSED;
+                yield true;
+            }
+            case CLOSED -> false;
+        };
     }
 
     @Override

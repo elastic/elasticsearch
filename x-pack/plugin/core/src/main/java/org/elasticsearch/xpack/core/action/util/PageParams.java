@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
-
 import java.io.IOException;
 import java.util.Objects;
 
@@ -107,7 +106,8 @@ public class PageParams implements ToXContentObject, Writeable {
         PageParams other = (PageParams) obj;
         return Objects.equals(from, other.from) && Objects.equals(size, other.size);
     }
-        public static PageParams fromXContent( XContentParser contentParser) {
-        return PARSER.apply(contentParser,null);
+
+    public static PageParams fromXContent(XContentParser contentParser) {
+        return PARSER.apply(contentParser, null);
     }
 }

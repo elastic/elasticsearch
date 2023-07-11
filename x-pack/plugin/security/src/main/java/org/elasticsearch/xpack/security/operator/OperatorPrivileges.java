@@ -96,7 +96,11 @@ public class OperatorPrivileges {
             final User user = authentication.getEffectiveSubject().getUser();
             // Let internal users pass, they are exempt from marking and checking
             // Also check run_as, it is impossible to run_as internal users, but just to be extra safe
+            // mark internalUser with operator privileges
             if (user instanceof InternalUser && false == authentication.isRunAs()) {
+                if (threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY) == null) {
+                    threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
+                }
                 return;
             }
             // The header is already set by previous authentication either on this node or a remote node

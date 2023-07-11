@@ -11,7 +11,6 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.FilterScorable;
@@ -25,6 +24,9 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -119,15 +121,7 @@ final class QueryPhaseCollector implements Collector {
     }
 
     private boolean shouldCollectTopDocs(int doc, Scorable scorer, Bits postFilterBits) throws IOException {
-        if (isDocWithinMinScore(scorer)) {
-            if (doesDocMatchPostFilter(doc, postFilterBits)) {
-                // terminate_after is purposely applied after post_filter, and terminates aggs collection based on number of filtered
-                // top hits that have been collected. Strange feature, but that has been behaviour for a long time.
-                applyTerminateAfter();
-                return true;
-            }
-        }
-        return false;
+        return isDocWithinMinScore(scorer) && doesDocMatchPostFilter(doc, postFilterBits);
     }
 
     private boolean isDocWithinMinScore(Scorable scorer) throws IOException {
@@ -138,11 +132,9 @@ final class QueryPhaseCollector implements Collector {
         return postFilterBits == null || postFilterBits.get(doc);
     }
 
-    private void applyTerminateAfter() {
-        if (terminateAfterChecker.isThresholdReached()) {
-            terminatedAfter = true;
-            throw new CollectionTerminatedException();
-        }
+    private void earlyTerminate() {
+        terminatedAfter = true;
+        throw new CollectionTerminatedException();
     }
 
     private Bits getPostFilterBits(LeafReaderContext context) throws IOException {
@@ -155,7 +147,9 @@ final class QueryPhaseCollector implements Collector {
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-        applyTerminateAfter();
+        if (terminateAfterChecker.isThresholdReached()) {
+            earlyTerminate();
+        }
         Bits postFilterBits = getPostFilterBits(context);
 
         if (aggsCollector == null) {
@@ -250,7 +244,11 @@ final class QueryPhaseCollector implements Collector {
         @Override
         public void collect(int doc) throws IOException {
             if (shouldCollectTopDocs(doc, scorer, postFilterBits)) {
-                terminateAfterChecker.incrementNumCollected();
+                // terminate_after is purposely applied after post_filter, and terminates aggs collection based on number of filtered
+                // top hits that have been collected. Strange feature, but that has been behaviour for a long time.
+                if (terminateAfterChecker.incrementHitCountAndCheckThreshold()) {
+                    earlyTerminate();
+                }
                 topDocsLeafCollector.collect(doc);
             }
         }
@@ -296,7 +294,9 @@ final class QueryPhaseCollector implements Collector {
             if (shouldCollectTopDocs(doc, scorer, postFilterBits)) {
                 // we keep on counting and checking the terminate_after threshold so that we can terminate aggs collection
                 // even if top docs collection early terminated
-                terminateAfterChecker.incrementNumCollected();
+                if (terminateAfterChecker.incrementHitCountAndCheckThreshold()) {
+                    earlyTerminate();
+                }
                 if (topDocsLeafCollector != null) {
                     try {
                         topDocsLeafCollector.collect(doc);
@@ -339,14 +339,14 @@ final class QueryPhaseCollector implements Collector {
         }
     }
 
-    static QueryPhaseCollectorManager createManager(
-        CollectorManager<? extends Collector, Void> topDocsCollectorManager,
+    static CollectorManager createManager(
+        org.apache.lucene.search.CollectorManager<? extends Collector, Void> topDocsCollectorManager,
         Weight postFilterWeight,
         int terminateAfter,
-        CollectorManager<? extends Collector, Void> aggsCollectorManager,
+        org.apache.lucene.search.CollectorManager<? extends Collector, Void> aggsCollectorManager,
         Float minScore
     ) {
-        return new QueryPhaseCollectorManager(
+        return new CollectorManager(
             topDocsCollectorManager,
             postFilterWeight,
             resolveTerminateAfterChecker(terminateAfter),
@@ -365,7 +365,7 @@ final class QueryPhaseCollector implements Collector {
     abstract static class TerminateAfterChecker {
         abstract boolean isThresholdReached();
 
-        abstract void incrementNumCollected();
+        abstract boolean incrementHitCountAndCheckThreshold();
     }
 
     private static final class GlobalTerminateAfterChecker extends TerminateAfterChecker {
@@ -381,8 +381,8 @@ final class QueryPhaseCollector implements Collector {
             return numCollected.getAcquire() >= terminateAfter;
         }
 
-        void incrementNumCollected() {
-            numCollected.incrementAndGet();
+        boolean incrementHitCountAndCheckThreshold() {
+            return numCollected.incrementAndGet() > terminateAfter;
         }
     }
 
@@ -393,6 +393,79 @@ final class QueryPhaseCollector implements Collector {
         }
 
         @Override
-        void incrementNumCollected() {}
+        boolean incrementHitCountAndCheckThreshold() {
+            return false;
+        }
     };
+
+    /**
+     * {@link org.apache.lucene.search.CollectorManager} implementation based on {@link QueryPhaseCollector}.
+     * Wraps two {@link org.apache.lucene.search.CollectorManager}: one required for top docs collection, and one optional for aggs collection.
+     * Applies terminate_after consistently across the different collectors by sharing an atomic counter of collected docs.
+     */
+    static class CollectorManager implements org.apache.lucene.search.CollectorManager<QueryPhaseCollector, Void> {
+        private final Weight postFilterWeight;
+        private final TerminateAfterChecker terminateAfterChecker;
+        private final Float minScore;
+        private final org.apache.lucene.search.CollectorManager<? extends Collector, Void> topDocsCollectorManager;
+        private final org.apache.lucene.search.CollectorManager<? extends Collector, Void> aggsCollectorManager;
+
+        private boolean terminatedEarly;
+
+        CollectorManager(
+            org.apache.lucene.search.CollectorManager<? extends Collector, Void> topDocsCollectorManager,
+            Weight postFilterWeight,
+            TerminateAfterChecker terminateAfterChecker,
+            org.apache.lucene.search.CollectorManager<? extends Collector, Void> aggsCollectorManager,
+            Float minScore
+        ) {
+            this.topDocsCollectorManager = topDocsCollectorManager;
+            this.postFilterWeight = postFilterWeight;
+            this.terminateAfterChecker = terminateAfterChecker;
+            this.aggsCollectorManager = aggsCollectorManager;
+            this.minScore = minScore;
+        }
+
+        @Override
+        public QueryPhaseCollector newCollector() throws IOException {
+            Collector aggsCollector = aggsCollectorManager == null ? null : aggsCollectorManager.newCollector();
+            return new QueryPhaseCollector(
+                topDocsCollectorManager.newCollector(),
+                postFilterWeight,
+                terminateAfterChecker,
+                aggsCollector,
+                minScore
+            );
+        }
+
+        @Override
+        public Void reduce(Collection<QueryPhaseCollector> collectors) throws IOException {
+            List<Collector> topDocsCollectors = new ArrayList<>();
+            List<Collector> aggsCollectors = new ArrayList<>();
+            for (QueryPhaseCollector collector : collectors) {
+                topDocsCollectors.add(collector.getTopDocsCollector());
+                aggsCollectors.add(collector.getAggsCollector());
+                if (collector.isTerminatedAfter()) {
+                    terminatedEarly = true;
+                }
+            }
+            @SuppressWarnings("unchecked")
+            org.apache.lucene.search.CollectorManager<Collector, Void> topDocsManager = (org.apache.lucene.search.CollectorManager<
+                Collector,
+                Void>) topDocsCollectorManager;
+            topDocsManager.reduce(topDocsCollectors);
+            if (aggsCollectorManager != null) {
+                @SuppressWarnings("unchecked")
+                org.apache.lucene.search.CollectorManager<Collector, Void> aggsManager = (org.apache.lucene.search.CollectorManager<
+                    Collector,
+                    Void>) aggsCollectorManager;
+                aggsManager.reduce(aggsCollectors);
+            }
+            return null;
+        }
+
+        public boolean isTerminatedEarly() {
+            return terminatedEarly;
+        }
+    }
 }

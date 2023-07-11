@@ -1,0 +1,5 @@
+pr: 97561
+summary: Add index forecasts to /_cat/allocation output
+area: Allocation
+type: enhancement
+issues: []

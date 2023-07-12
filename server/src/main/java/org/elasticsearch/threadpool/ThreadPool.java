@@ -523,11 +523,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     @Override
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-        return new ReschedulingRunnable(command, interval, executor, this, (e) -> {
+        var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("scheduled task [%s] was rejected on thread pool [%s]", command, executor), e);
             }
         }, (e) -> logger.warn(() -> format("failed to run scheduled task [%s] on thread pool [%s]", command, executor), e));
+        runnable.start();
+        return runnable;
     }
 
     protected final void stopCachedTimeThread() {

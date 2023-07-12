@@ -19,16 +19,23 @@ import org.elasticsearch.xpack.core.XPackField;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
+public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
+
+    public static final DataStreamLifecycleFeatureSetUsage DISABLED = new DataStreamLifecycleFeatureSetUsage();
     final LifecycleStats lifecycleStats;
 
-    public DataLifecycleFeatureSetUsage(StreamInput input) throws IOException {
+    public DataStreamLifecycleFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
-        this.lifecycleStats = new LifecycleStats(input);
+        this.lifecycleStats = LifecycleStats.read(input);
     }
 
-    public DataLifecycleFeatureSetUsage(LifecycleStats stats) {
-        super(XPackField.DATA_LIFECYCLE, true, true);
+    private DataStreamLifecycleFeatureSetUsage() {
+        super(XPackField.DATA_STREAM_LIFECYCLE, true, false);
+        this.lifecycleStats = LifecycleStats.INITIAL;
+    }
+
+    public DataStreamLifecycleFeatureSetUsage(LifecycleStats stats) {
+        super(XPackField.DATA_STREAM_LIFECYCLE, true, true);
         this.lifecycleStats = stats;
     }
 
@@ -46,13 +53,15 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
-        builder.field("count", lifecycleStats.dataStreamsWithLifecyclesCount);
-        builder.field("default_rollover_used", lifecycleStats.defaultRolloverUsed);
-        builder.startObject("retention");
-        builder.field("minimum_millis", lifecycleStats.minRetentionMillis);
-        builder.field("maximum_millis", lifecycleStats.maxRetentionMillis);
-        builder.field("average_millis", lifecycleStats.averageRetentionMillis);
-        builder.endObject();
+        if (enabled) {
+            builder.field("count", lifecycleStats.dataStreamsWithLifecyclesCount);
+            builder.field("default_rollover_used", lifecycleStats.defaultRolloverUsed);
+            builder.startObject("retention");
+            builder.field("minimum_millis", lifecycleStats.minRetentionMillis);
+            builder.field("maximum_millis", lifecycleStats.maxRetentionMillis);
+            builder.field("average_millis", lifecycleStats.averageRetentionMillis);
+            builder.endObject();
+        }
     }
 
     @Override
@@ -62,7 +71,7 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public int hashCode() {
-        return lifecycleStats.hashCode();
+        return Objects.hash(available, enabled, lifecycleStats);
     }
 
     @Override
@@ -73,11 +82,14 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         if (obj.getClass() != getClass()) {
             return false;
         }
-        DataLifecycleFeatureSetUsage other = (DataLifecycleFeatureSetUsage) obj;
-        return Objects.equals(lifecycleStats, other.lifecycleStats);
+        DataStreamLifecycleFeatureSetUsage other = (DataStreamLifecycleFeatureSetUsage) obj;
+        return available == other.available && enabled == other.enabled && Objects.equals(lifecycleStats, other.lifecycleStats);
     }
 
     public static class LifecycleStats implements Writeable {
+
+        public static final LifecycleStats INITIAL = new LifecycleStats(0, 0, 0, 0, true);
+
         final long dataStreamsWithLifecyclesCount;
         final long minRetentionMillis;
         final long maxRetentionMillis;
@@ -98,19 +110,11 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             this.defaultRolloverUsed = defaultRolloverUsed;
         }
 
-        public LifecycleStats(StreamInput in) throws IOException {
+        public static LifecycleStats read(StreamInput in) throws IOException {
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_006)) {
-                this.dataStreamsWithLifecyclesCount = in.readVLong();
-                this.minRetentionMillis = in.readVLong();
-                this.maxRetentionMillis = in.readVLong();
-                this.averageRetentionMillis = in.readDouble();
-                this.defaultRolloverUsed = in.readBoolean();
+                return new LifecycleStats(in.readVLong(), in.readVLong(), in.readVLong(), in.readDouble(), in.readBoolean());
             } else {
-                this.dataStreamsWithLifecyclesCount = 0;
-                this.minRetentionMillis = 0;
-                this.maxRetentionMillis = 0;
-                this.averageRetentionMillis = 0.0;
-                this.defaultRolloverUsed = false;
+                return INITIAL;
             }
         }
 

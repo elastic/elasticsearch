@@ -209,7 +209,7 @@ public final class TokenService {
     static final TransportVersion VERSION_ACCESS_TOKENS_AS_UUIDS = TransportVersion.V_7_2_0;
     static final TransportVersion VERSION_MULTIPLE_CONCURRENT_REFRESHES = TransportVersion.V_7_2_0;
     static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersion.V_8_2_0;
-    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersion.V_8_500_032;
+    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersion.V_8_500_033;
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
@@ -313,7 +313,7 @@ public final class TokenService {
     // public for testing
     public void createOAuth2Tokens(
         byte[] accessTokenBytes,
-        byte[] refreshTokenBytes,
+        @Nullable byte[] refreshTokenBytes,
         Authentication authentication,
         Authentication originatingClientAuth,
         Map<String, Object> metadata,

@@ -558,16 +558,17 @@ public class AuthorizationService {
             } else {
                 Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
                 final RequestInfo aliasesRequestInfo = new RequestInfo(authentication, request, IndicesAliasesAction.NAME, authzContext);
-                authzEngine.authorizeIndexAction(aliasesRequestInfo, authzInfo, ril -> {
-                    resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
+                authzEngine.authorizeIndexAction(
+                    aliasesRequestInfo,
+                    authzInfo,
+                    ril -> resolvedIndicesAsyncSupplier.getAsync(ril.delegateFailureAndWrap((l, resolvedIndices) -> {
                         List<String> aliasesAndIndices = new ArrayList<>(resolvedIndices.getLocal());
                         for (Alias alias : aliases) {
                             aliasesAndIndices.add(alias.name());
                         }
                         ResolvedIndices withAliases = new ResolvedIndices(aliasesAndIndices, Collections.emptyList());
-                        ril.onResponse(withAliases);
-                    }, ril::onFailure));
-                },
+                        l.onResponse(withAliases);
+                    })),
                     metadata.getIndicesLookup(),
                     wrapPreservingContext(
                         new AuthorizationResultListener<>(

@@ -198,6 +198,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false
         );
         List<ShardStats> shardsStats = new ArrayList<>();
+        var queryCacheStatsMemoized = new CommonStats.QueryCacheStatsMemoized(indicesService.getIndicesQueryCache());
+
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 cancellableTask.ensureNotCancelled();
@@ -220,7 +222,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                         new ShardStats(
                             indexShard.routingEntry(),
                             indexShard.shardPath(),
-                            CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
+                            CommonStats.getShardLevelStats(queryCacheStatsMemoized, indexShard, SHARD_STATS_FLAGS),
                             commitStats,
                             seqNoStats,
                             retentionLeaseStats,

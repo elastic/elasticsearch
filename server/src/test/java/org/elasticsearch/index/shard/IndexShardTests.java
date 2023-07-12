@@ -72,7 +72,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -110,6 +109,7 @@ import org.elasticsearch.index.store.StoreUtils;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -1611,7 +1611,11 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardStats stats = new ShardStats(
             shard.routingEntry(),
             shard.shardPath(),
-            CommonStats.getShardLevelStats(QueryCacheStats::new, shard, new CommonStatsFlags()),
+            CommonStats.getShardLevelStats(
+                new CommonStats.QueryCacheStatsMemoized(new IndicesQueryCache(Settings.EMPTY)),
+                shard,
+                new CommonStatsFlags()
+            ),
             shard.commitStats(),
             shard.seqNoStats(),
             shard.getRetentionLeaseStats(),

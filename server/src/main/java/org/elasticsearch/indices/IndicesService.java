@@ -85,7 +85,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
-import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -170,7 +169,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -489,25 +487,12 @@ public class IndicesService extends AbstractLifecycleComponent
 
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
         final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
-
-        Function<IndexShard, Supplier<QueryCacheStats>> queryCacheStatsCreator = indexShard -> () -> null;
-
-        if (flags.isSet(Flag.QueryCache)) {
-            var generalStats = indicesService.getIndicesQueryCache().getGeneralStats();
-            queryCacheStatsCreator = indexShard -> () -> Objects.requireNonNullElseGet(
-                generalStats.get(indexShard.shardId()),
-                QueryCacheStats::new
-            );
-        }
+        final var queryCacheStatsMemoized = new CommonStats.QueryCacheStatsMemoized(indicesService.getIndicesQueryCache());
 
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
                 try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(
-                        queryCacheStatsCreator.apply(indexShard),
-                        indexShard,
-                        flags
-                    );
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(queryCacheStatsMemoized, indexShard, flags);
 
                     if (indexShardStats == null) {
                         continue;
@@ -529,7 +514,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     IndexShardStats indexShardStats(
-        final Supplier<QueryCacheStats> queryCacheStatsSupplier,
+        final CommonStats.QueryCacheStatsMemoized queryCacheStatsMemoized,
         final IndexShard indexShard,
         final CommonStatsFlags flags
     ) {
@@ -557,7 +542,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 new ShardStats(
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
-                    CommonStats.getShardLevelStats(queryCacheStatsSupplier, indexShard, flags),
+                    CommonStats.getShardLevelStats(queryCacheStatsMemoized, indexShard, flags),
                     commitStats,
                     seqNoStats,
                     retentionLeaseStats,

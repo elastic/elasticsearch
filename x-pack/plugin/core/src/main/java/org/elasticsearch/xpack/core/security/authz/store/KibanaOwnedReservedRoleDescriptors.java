@@ -302,8 +302,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // SLO observability solution internal indices
                 // Kibana system user uses them to read / write slo data.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*")
-                    .privileges("all").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("kibana-*")),

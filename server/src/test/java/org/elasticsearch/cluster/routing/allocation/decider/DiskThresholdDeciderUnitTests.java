@@ -928,7 +928,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
                 @Override
                 public ShardRouting.Role newReplicaRole() {
-                    return ShardRouting.Role.DEFAULT;
+                    throw new AssertionError("should not be called");
                 }
             }).addAsNew(metadata.index("test")).build())
             .nodes(DiscoveryNodes.builder().add(node))

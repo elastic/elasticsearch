@@ -38,7 +38,7 @@ a last resort, once the disk usage reaches the _flood-stage_ watermark {es}
 will block writes to indices with a shard on the affected node. It will also
 continue to move shards onto the other nodes in the cluster. When disk usage
 on the affected node drops below the high watermark, {es} automatically removes
-the write block. Refer to <<fix-watermark-errors,Fix watermark errors>> to 
+the write block. Refer to <<fix-watermark-errors,Fix watermark errors>> to
 resolve persistent watermark errors.
 
 [[disk-based-shard-allocation-does-not-balance]]
@@ -78,7 +78,9 @@ Controls the low watermark for disk usage. It defaults to `85%`, meaning that {e
 
 `cluster.routing.allocation.disk.watermark.low.max_headroom`::
 (<<dynamic-cluster-setting,Dynamic>>) Controls the max headroom for the low watermark (in case of a percentage/ratio value).
-Defaults to 200GB when `cluster.routing.allocation.disk.watermark.low` is not explicitly set.
+Defaults to 200GB when `cluster.routing.allocation.disk.watermark.low`
+and `cluster.routing.allocation.disk.watermark.high` and
+`cluster.routing.allocation.disk.watermark.flood_stage` are not explicitly set.
 This caps the amount of free space required.
 
 [[cluster-routing-watermark-high]]
@@ -90,7 +92,9 @@ Controls the high watermark. It defaults to `90%`, meaning that {es} will attemp
 
 `cluster.routing.allocation.disk.watermark.high.max_headroom`::
 (<<dynamic-cluster-setting,Dynamic>>) Controls the max headroom for the high watermark (in case of a percentage/ratio value).
-Defaults to 150GB when `cluster.routing.allocation.disk.watermark.high` is not explicitly set.
+Defaults to 150GB when `cluster.routing.allocation.disk.watermark.low`
+and `cluster.routing.allocation.disk.watermark.high` and
+`cluster.routing.allocation.disk.watermark.flood_stage` are not explicitly set.
 This caps the amount of free space required.
 
 `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`::
@@ -123,8 +127,9 @@ PUT /my-index-000001/_settings
 
 `cluster.routing.allocation.disk.watermark.flood_stage.max_headroom`::
 (<<dynamic-cluster-setting,Dynamic>>) Controls the max headroom for the flood stage watermark (in case of a percentage/ratio value).
-Defaults to 100GB when
-`cluster.routing.allocation.disk.watermark.flood_stage` is not explicitly set.
+Defaults to 100GB when `cluster.routing.allocation.disk.watermark.low`
+and `cluster.routing.allocation.disk.watermark.high` and
+`cluster.routing.allocation.disk.watermark.flood_stage` are not explicitly set.
 This caps the amount of free space required.
 
 NOTE: You cannot mix the usage of percentage/ratio values and byte values across
@@ -193,7 +198,7 @@ of free space, since 5GB is smaller than the 100GB max headroom value.
 That is because the 95% flood watermark alone would require 5TB of free disk space, but
 that is capped by the max headroom setting to 100GB.
 
-Finally, the max headroom settings have their default values only if their respective watermark
+Finally, the max headroom settings have their default values only if the watermark
 settings are not explicitly set (thus, they have their default percentage values).
-If watermarks are explicitly set, then the max headroom settings do not have their default values,
+If any watermark is explicitly set, then the max headroom settings do not have their default values,
 and would need to be explicitly set if they are desired.

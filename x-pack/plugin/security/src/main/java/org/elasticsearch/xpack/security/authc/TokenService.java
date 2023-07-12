@@ -2214,15 +2214,10 @@ public final class TokenService {
         return bytes;
     }
 
-    byte[] concatenateByteArrays(byte[]... byteArrays) {
-        // TODO
+    byte[] concatenateByteArrays(byte[]... byteArrays) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try {
-            for (byte[] byteArray : Objects.requireNonNull(byteArrays)) {
-                baos.write(byteArray);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        for (byte[] byteArray : byteArrays) {
+            baos.write(byteArray);
         }
         return baos.toByteArray();
     }

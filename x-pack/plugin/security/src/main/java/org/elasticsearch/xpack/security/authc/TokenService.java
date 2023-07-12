@@ -296,7 +296,7 @@ public final class TokenService {
     // public for testing
     public void createOAuth2Tokens(
         String accessToken,
-        String refreshToken,
+        @Nullable String refreshToken,
         Authentication authentication,
         Authentication originatingClientAuth,
         Map<String, Object> metadata,
@@ -340,7 +340,7 @@ public final class TokenService {
      */
     private void createOAuth2Tokens(
         String accessToken,
-        String refreshToken,
+        @Nullable String refreshToken,
         TransportVersion tokenVersion,
         SecurityIndexManager tokensIndex,
         Authentication authentication,

@@ -138,7 +138,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
             new ActionHandler<>(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
             new ActionHandler<>(PostAnalyticsEventAction.INSTANCE, TransportPostAnalyticsEventAction.class),
-            
+
             // Search Applications
             new ActionHandler<>(DeleteSearchApplicationAction.INSTANCE, TransportDeleteSearchApplicationAction.class),
             new ActionHandler<>(GetSearchApplicationAction.INSTANCE, TransportGetSearchApplicationAction.class),
@@ -146,7 +146,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new ActionHandler<>(PutSearchApplicationAction.INSTANCE, TransportPutSearchApplicationAction.class),
             new ActionHandler<>(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class),
             new ActionHandler<>(RenderSearchApplicationQueryAction.INSTANCE, TransportRenderSearchApplicationQueryAction.class),
-            
+
             // Query rules
             new ActionHandler<>(DeleteQueryRulesetAction.INSTANCE, TransportDeleteQueryRulesetAction.class),
             new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
@@ -178,7 +178,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new RestGetAnalyticsCollectionAction(getLicenseState()),
             new RestDeleteAnalyticsCollectionAction(getLicenseState()),
             new RestPostAnalyticsEventAction(getLicenseState()),
-            
+
             // Search Applications
             new RestDeleteSearchApplicationAction(getLicenseState()),
             new RestGetSearchApplicationAction(getLicenseState()),
@@ -186,7 +186,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new RestPutSearchApplicationAction(getLicenseState()),
             new RestQuerySearchApplicationAction(getLicenseState()),
             new RestRenderSearchApplicationQueryAction(getLicenseState()),
-            
+
             // Query rules
             new RestDeleteQueryRulesetAction(getLicenseState()),
             new RestGetQueryRulesetAction(getLicenseState()),

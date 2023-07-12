@@ -188,6 +188,7 @@ public class QueryPhase {
                 searchContext,
                 searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null
             );
+            LOGGER.warn("EEE: QueryPhase DEBUG 1: class: {}", topDocsFactory.getClass().getSimpleName());
 
             CollectorManager<Collector, Void> topDocsCollectorManager = topDocsFactory.collectorManager();
             if (searchContext.getProfilers() != null) {

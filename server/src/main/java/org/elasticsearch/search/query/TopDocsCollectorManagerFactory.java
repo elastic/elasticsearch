@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -69,6 +71,7 @@ import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEAR
  * Once the returned collector has been used to collect hits, allows to enrich the collected top docs to be set to the search context.
  */
 abstract class TopDocsCollectorManagerFactory {
+    private static final Logger logger = LogManager.getLogger(TopDocsCollectorManagerFactory.class);
     final String profilerName;
     final DocValueFormat[] sortValueFormats;
 
@@ -172,10 +175,17 @@ abstract class TopDocsCollectorManagerFactory {
 
             MaxScoreCollector maxScoreCollector;
             if (trackMaxScore) {
+                logger.warn("EEE: CollapsingTopDocsCollectorManagerFactory - setting maxScoreCollector DEBUG1");
                 maxScoreCollector = new MaxScoreCollector();
                 maxScoreSupplier = maxScoreCollector::getMaxScore;
             } else {
+                logger.warn("EEE: CollapsingTopDocsCollectorManagerFactory - setting maxScoreCollector to Float.NaN DEBUG2");
                 maxScoreSupplier = () -> Float.NaN;
+            }
+            try {
+                throw new RuntimeException("EEE trackMaxScore: " + trackMaxScore);
+            } catch (RuntimeException e) {
+                logger.warn(e.getMessage() + " stack trace ", e);
             }
         }
 
@@ -453,6 +463,9 @@ abstract class TopDocsCollectorManagerFactory {
         } else if (searchContext.collapse() != null) {
             boolean trackScores = searchContext.sort() == null || searchContext.trackScores();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
+            if (searchContext.collapse() != null) {
+                throw new RuntimeException("EEE Hit the TopDocsCollectoryManagerFactory Point. DEBUG 1");
+            }
             return new CollapsingTopDocsCollectorManagerFactory(
                 searchContext.collapse(),
                 searchContext.sort(),

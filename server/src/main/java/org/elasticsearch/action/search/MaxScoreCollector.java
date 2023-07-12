@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
@@ -18,6 +20,7 @@ import java.io.IOException;
  * A collector that computes the maximum score.
  */
 public class MaxScoreCollector extends SimpleCollector {
+    private static final Logger logger = LogManager.getLogger(MaxScoreCollector.class);
 
     private Scorable scorer;
     private float maxScore = Float.NEGATIVE_INFINITY;
@@ -38,6 +41,10 @@ public class MaxScoreCollector extends SimpleCollector {
     public void collect(int doc) throws IOException {
         hasHits = true;
         maxScore = Math.max(maxScore, scorer.score());
+        logger.warn("EEE: MaxScoreCollector collect maxScore: {} for doc: {}", maxScore, doc);
+        if ("EEE" instanceof String) {
+            throw new RuntimeException("EEE: MaxScoreCollector collect called");
+        }
     }
 
     /**
@@ -45,7 +52,10 @@ public class MaxScoreCollector extends SimpleCollector {
      * collected.
      */
     public float getMaxScore() {
+        logger.warn("EEE: MaxScoreCollector getMaxScore: hasHits: {}, maxScore: {}", hasHits, (hasHits ? maxScore : Float.NaN));
+        if ("EEE" instanceof String) {
+            throw new RuntimeException("EEE: MaxScoreCollector getMaxScore called");
+        }
         return hasHits ? maxScore : Float.NaN;
     }
-
 }

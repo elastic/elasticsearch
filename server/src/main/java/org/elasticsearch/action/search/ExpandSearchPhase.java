@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -30,6 +32,7 @@ import java.util.function.Supplier;
  * forwards to the next phase immediately.
  */
 final class ExpandSearchPhase extends SearchPhase {
+    private static final Logger logger = LogManager.getLogger(ExpandSearchPhase.class);
     private final SearchPhaseContext context;
     private final InternalSearchResponse searchResponse;
     private final Supplier<SearchPhase> nextPhase;
@@ -53,6 +56,7 @@ final class ExpandSearchPhase extends SearchPhase {
 
     @Override
     public void run() {
+        logger.warn("EEE ExpandSearchPhase run");
         if (isCollapseRequest() && searchResponse.hits().getHits().length > 0) {
             SearchRequest searchRequest = context.getRequest();
             CollapseBuilder collapseBuilder = searchRequest.source().collapse();

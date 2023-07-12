@@ -121,7 +121,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -503,7 +502,12 @@ public final class TokenService {
      * Gets the {@link UserToken} with the given {@code userTokenId} and {@code tokenVersion} by fetching and parsing the corresponding
      * token document.
      */
-    private void getUserTokenFromId(String userTokenId, TransportVersion tokenVersion, ActionListener<UserToken> listener) {
+    private void getUserTokenFromId(
+        String userTokenId,
+        @Nullable String accessToken,
+        TransportVersion tokenVersion,
+        ActionListener<UserToken> listener
+    ) {
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
         final SecurityIndexManager frozenTokensIndex = tokensIndex.freeze();
         if (frozenTokensIndex.isAvailable() == false) {
@@ -526,11 +530,15 @@ public final class TokenService {
                                 onFailure.accept(new IllegalStateException("token document is missing the access_token field"));
                             } else if (accessTokenSource.containsKey("user_token") == false) {
                                 onFailure.accept(new IllegalStateException("token document is missing the user_token field"));
-                            } else {
-                                @SuppressWarnings("unchecked")
-                                Map<String, Object> userTokenSource = (Map<String, Object>) accessTokenSource.get("user_token");
-                                listener.onResponse(UserToken.fromSourceMap(userTokenSource));
-                            }
+                            } else if ((accessToken == null && accessTokenSource.containsKey("token"))
+                                || (accessToken != null && accessToken.equals(accessTokenSource.get("token")) == false)) {
+                                    logger.trace("The access token [{}] is invalid", userTokenId);
+                                    listener.onResponse(null);
+                                } else {
+                                    @SuppressWarnings("unchecked")
+                                    Map<String, Object> userTokenSource = (Map<String, Object>) accessTokenSource.get("user_token");
+                                    listener.onResponse(UserToken.fromSourceMap(userTokenSource));
+                                }
                         } else {
                             // The chances of a random token string decoding to something that we can read is minimal, so
                             // we assume that this was a token we have created but is now expired/revoked and deleted
@@ -587,7 +595,23 @@ public final class TokenService {
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
             final TransportVersion version = TransportVersion.readVersion(in);
             in.setTransportVersion(version);
-            if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                byte[] accessTokenBytes = in.readByteArray();
+                if (accessTokenBytes.length != RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH) {
+                    logger.debug(
+                        "invalid token, received size [{}] bytes is different from expect size [{}]",
+                        accessTokenBytes.length,
+                        RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH
+                    );
+                    listener.onResponse(null);
+                    return;
+                }
+                MessageDigest userTokenIdDigest = sha256();
+                userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
+                final String userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
+                final String accessToken = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes));
+                getUserTokenFromId(userTokenId, accessToken, version, listener);
+            } else if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 // The token was created in a > VERSION_ACCESS_TOKENS_UUIDS cluster
                 if (in.available() < MINIMUM_BYTES) {
                     logger.debug("invalid token, smaller than [{}] bytes", MINIMUM_BYTES);
@@ -595,13 +619,8 @@ public final class TokenService {
                     return;
                 }
                 final String accessToken = in.readString();
-                // TODO Remove this conditional after backporting to 7.x
-                if (version.onOrAfter(VERSION_HASHED_TOKENS)) {
-                    final String userTokenId = hashTokenString(accessToken);
-                    getUserTokenFromId(userTokenId, version, listener);
-                } else {
-                    getUserTokenFromId(accessToken, version, listener);
-                }
+                final String userTokenId = hashTokenString(accessToken);
+                getUserTokenFromId(userTokenId, null, version, listener);
             } else {
                 // The token was created in a < VERSION_ACCESS_TOKENS_UUIDS cluster so we need to decrypt it to get the tokenId
                 if (in.available() < LEGACY_MINIMUM_BYTES) {
@@ -622,7 +641,7 @@ public final class TokenService {
                             try {
                                 final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
                                 final String tokenId = decryptTokenId(encryptedTokenId, cipher, version);
-                                getUserTokenFromId(tokenId, version, listener);
+                                getUserTokenFromId(tokenId, null, version, listener);
                             } catch (IOException | GeneralSecurityException e) {
                                 // could happen with a token that is not ours
                                 logger.warn("invalid token", e);
@@ -631,7 +650,6 @@ public final class TokenService {
                         } else {
                             // could happen with a token that is not ours
                             listener.onResponse(null);
-                            return;
                         }
                     }, listener::onFailure));
                 } else {
@@ -2129,7 +2147,6 @@ public final class TokenService {
             final TransportVersion version = TransportVersion.readVersion(in);
             in.setTransportVersion(version);
             final String payload = in.readString();
-            in.readByteArray();
             return new Tuple<>(version, payload);
         }
     }

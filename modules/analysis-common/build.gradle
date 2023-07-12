@@ -19,7 +19,7 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
+    include '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count', 'synonyms.put', 'synonyms.delete', 'synonym_rule.put'
   }
 }
 

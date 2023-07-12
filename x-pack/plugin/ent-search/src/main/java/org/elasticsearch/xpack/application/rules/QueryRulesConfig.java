@@ -9,10 +9,18 @@ package org.elasticsearch.xpack.application.rules;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 
 import java.util.List;
 
 public class QueryRulesConfig {
+
+    public static final LicensedFeature.Momentary QUERY_RULES_LICENSE_FEATURE = LicensedFeature.momentary(
+        null,
+        "query-rules",
+        License.OperationMode.PLATINUM
+    );
 
     static final String SETTING_ROOT_PATH = "xpack.applications.rules";
 

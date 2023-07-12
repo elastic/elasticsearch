@@ -215,6 +215,29 @@ setup:
           fields: [lon]
 
 ---
+"runtime_fields label position":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          runtime_mappings:
+            label_position_lat:
+              script:
+                GeoPoint point = doc['location'].getLabelPosition();
+                emit(point.getLat());
+              type: double
+            label_position_lon:
+              script:
+                GeoPoint point = doc['location'].getLabelPosition();
+                emit(point.getLon());
+              type: double
+          fields: [label_position_lat, label_position_lon]
+
+---
 "query field":
   - do:
       search_mvt:

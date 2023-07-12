@@ -47,9 +47,11 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.security.InvalidParameterException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -396,24 +398,46 @@ public class SynonymsManagementAPIService {
     }
 
     public void deleteSynonymsSet(String synonymSetId, ActionListener<SynonymsReloadResult<AcknowledgedResponse>> listener) {
-        deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteObjectsListener, bulkByScrollResponse) -> {
-            if (bulkByScrollResponse.getDeleted() == 0) {
-                // If nothing was deleted, synonym set did not exist
-                deleteObjectsListener.onFailure(new ResourceNotFoundException("Synonym set [" + synonymSetId + "] not found"));
-                return;
-            }
-            final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
-            if (bulkFailures.isEmpty() == false) {
-                deleteObjectsListener.onFailure(
-                    new ElasticsearchException(
-                        "Error deleting synonym set: "
-                            + bulkFailures.stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.joining("\n"))
+
+        // Checks reloading the analyzer to understand usage. We can iterate on this solution to target the specific analyzer
+        reloadAnalyzers(synonymSetId, listener.delegateFailure((reloadListener, reloadResult) -> {
+            Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadDetails = reloadResult.reloadAnalyzersResponse.getReloadDetails();
+            if (reloadDetails.isEmpty() == false) {
+                Set<String> indices = reloadDetails.entrySet()
+                    .stream()
+                    .map(entry -> entry.getValue().getIndexName())
+                    .collect(Collectors.toSet());
+                reloadListener.onFailure(
+                    new IllegalArgumentException(
+                        "Synonym set ["
+                            + synonymSetId
+                            + "] cannot be deleted as it is used in the following indices: "
+                            + String.join(", ", indices)
                     )
                 );
                 return;
             }
-            reloadAnalyzers(synonymSetId, deleteObjectsListener, AcknowledgedResponse.of(true));
-        }));
+
+            deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteObjectsListener, bulkByScrollResponse) -> {
+                if (bulkByScrollResponse.getDeleted() == 0) {
+                    // If nothing was deleted, synonym set did not exist
+                    deleteObjectsListener.onFailure(new ResourceNotFoundException("Synonym set [" + synonymSetId + "] not found"));
+                    return;
+                }
+                final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
+                if (bulkFailures.isEmpty() == false) {
+                    deleteObjectsListener.onFailure(
+                        new InvalidParameterException(
+                            "Error deleting synonym set: "
+                                + bulkFailures.stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.joining("\n"))
+                        )
+                    );
+                    return;
+                }
+                reloadAnalyzers(synonymSetId, deleteObjectsListener, AcknowledgedResponse.of(true));
+            }));
+        }), null);
+
     }
 
     private <T> void reloadAnalyzers(String synonymSetId, ActionListener<SynonymsReloadResult<T>> listener, T synonymsOperationResult) {

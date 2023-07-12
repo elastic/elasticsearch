@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -99,7 +100,9 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
             // Needed for scaled_float
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            // Needed for wildcard fields
+            Wildcard.class
         );
     }
 

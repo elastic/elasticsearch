@@ -392,21 +392,23 @@ public class SynonymsManagementAPIService {
     }
 
     public void deleteSynonymsSet(String synonymSetId, ActionListener<SynonymsReloadResult<AcknowledgedResponse>> listener) {
-        // Check it exists to simplify code paths
-        checkSynonymSetExists(synonymSetId, listener.delegateFailure((checkListener, response) -> {
-            deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteRulesListener, bulkByScrollResponse) -> {
-                final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
-                if (bulkFailures.isEmpty() == false) {
-                    deleteRulesListener.onFailure(
-                        new ElasticsearchException(
-                            "Error deleting synonym set: "
-                                + bulkFailures.stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.joining("\n"))
-                        )
-                    );
-                    return;
-                }
-                reloadAnalyzers(synonymSetId, deleteRulesListener, AcknowledgedResponse.of(true));
-            }));
+        deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteObjectsListener, bulkByScrollResponse) -> {
+            if (bulkByScrollResponse.getDeleted() == 0) {
+                // If nothing was deleted, synonym set did not exist
+                deleteObjectsListener.onFailure(new ResourceNotFoundException("Synonym set [" + synonymSetId + "] not found"));
+                return;
+            }
+            final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
+            if (bulkFailures.isEmpty() == false) {
+                deleteObjectsListener.onFailure(
+                    new ElasticsearchException(
+                        "Error deleting synonym set: "
+                            + bulkFailures.stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.joining("\n"))
+                    )
+                );
+                return;
+            }
+            reloadAnalyzers(synonymSetId, deleteObjectsListener, AcknowledgedResponse.of(true));
         }));
     }
 

@@ -287,11 +287,6 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
         out.writeVInt(version.id);
     }
 
-    @Deprecated(forRemoval = true)
-    public org.elasticsearch.Version toVersion() {
-        return org.elasticsearch.Version.fromId(id);
-    }
-
     /**
      * Returns the minimum version of {@code version1} and {@code version2}
      */

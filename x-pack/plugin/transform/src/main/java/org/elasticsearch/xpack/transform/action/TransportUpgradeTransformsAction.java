@@ -28,6 +28,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Request;
@@ -95,13 +96,9 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         TransformNodes.warnIfNoTransformNodes(state);
 
         // do not allow in mixed clusters
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
             listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Cannot upgrade transforms. All nodes must be the same version [{}]",
-                    RestStatus.CONFLICT,
-                    state.nodes().getMaxNodeVersion().toString()
-                )
+                new ElasticsearchStatusException("Cannot upgrade transforms while cluster upgrade is in progress.", RestStatus.CONFLICT)
             );
             return;
         }

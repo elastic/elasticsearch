@@ -288,10 +288,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         if (names == null || names.isEmpty()) {
             getMappings(listener);
         } else {
-            getMappings(listener.delegateFailure((l, mappings) -> {
-                final List<ExpressionRoleMapping> filtered = mappings.stream().filter(m -> names.contains(m.getName())).toList();
-                l.onResponse(filtered);
-            }));
+            getMappings(listener.safeMap(mappings -> mappings.stream().filter(m -> names.contains(m.getName())).toList()));
         }
     }
 

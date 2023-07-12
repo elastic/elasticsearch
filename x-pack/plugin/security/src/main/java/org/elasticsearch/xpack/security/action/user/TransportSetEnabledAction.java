@@ -61,7 +61,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
             username,
             request.enabled(),
             request.getRefreshPolicy(),
-            listener.delegateFailure((l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE))
+            listener.safeMap(v -> ActionResponse.Empty.INSTANCE)
         );
     }
 

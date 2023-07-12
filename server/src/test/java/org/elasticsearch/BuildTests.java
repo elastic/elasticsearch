@@ -36,33 +36,38 @@ public class BuildTests extends ESTestCase {
         // throws exception if does not exist, or we cannot access it
         try (InputStream ignored = FileSystemUtils.openFileURLStream(url)) {}
         // these should never be null
-        assertNotNull(Build.CURRENT.date());
-        assertNotNull(Build.CURRENT.hash());
+        assertNotNull(Build.current().date());
+        assertNotNull(Build.current().hash());
     }
 
     public void testIsProduction() {
         Build build = new Build(
-            Build.CURRENT.type(),
-            Build.CURRENT.hash(),
-            Build.CURRENT.date(),
-            Build.CURRENT.isSnapshot(),
+            Build.current().type(),
+            Build.current().hash(),
+            Build.current().date(),
+            Build.current().isSnapshot(),
             Math.abs(randomInt()) + "." + Math.abs(randomInt()) + "." + Math.abs(randomInt())
         );
         assertTrue(build.qualifiedVersion(), build.isProductionRelease());
 
         assertFalse(
-            new Build(Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot(), "7.0.0-SNAPSHOT")
-                .isProductionRelease()
+            new Build(
+                Build.current().type(),
+                Build.current().hash(),
+                Build.current().date(),
+                Build.current().isSnapshot(),
+                "7.0.0-SNAPSHOT"
+            ).isProductionRelease()
         );
 
         assertFalse(
-            new Build(Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot(), "Unknown")
+            new Build(Build.current().type(), Build.current().hash(), Build.current().date(), Build.current().isSnapshot(), "Unknown")
                 .isProductionRelease()
         );
     }
 
     public void testEqualsAndHashCode() {
-        Build build = Build.CURRENT;
+        Build build = Build.current();
 
         Build another = new Build(build.type(), build.hash(), build.date(), build.isSnapshot(), build.qualifiedVersion());
         assertEquals(build, another);

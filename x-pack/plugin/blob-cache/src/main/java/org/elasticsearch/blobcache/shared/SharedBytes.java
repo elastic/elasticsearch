@@ -300,7 +300,6 @@ public class SharedBytes extends AbstractRefCounted {
             if (mmap) {
                 bytesWritten = src.remaining();
                 mappedByteBuffer.put(Math.toIntExact(position - pageStart), src, src.position(), bytesWritten);
-                mappedByteBuffer.force();
                 src.position(src.position() + bytesWritten);
             } else {
                 bytesWritten = fileChannel.write(src, position);

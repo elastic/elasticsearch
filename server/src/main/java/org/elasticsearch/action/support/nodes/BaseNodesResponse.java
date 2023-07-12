@@ -111,19 +111,4 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
      * Write the {@link #nodes} to the stream.
      */
     protected abstract void writeNodesTo(StreamOutput out, List<TNodeResponse> nodes) throws IOException;
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BaseNodesResponse<?> that = (BaseNodesResponse<?>) o;
-        return Objects.equals(clusterName, that.clusterName)
-            && Objects.equals(failures, that.failures)
-            && Objects.equals(nodes, that.nodes);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(clusterName, failures, nodes);
-    }
 }

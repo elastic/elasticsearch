@@ -52,7 +52,8 @@ public class FailedNodeException extends ElasticsearchException {
         FailedNodeException that = (FailedNodeException) o;
         return Objects.equals(nodeId, that.nodeId)
             && getMessage().equals(that.getMessage())
-            && getStackTrace().length == that.getStackTrace().length;
+            && getStackTrace().length == that.getStackTrace().length; // Could check elements individually, though there can be slight
+                                                                      // differences when serialized.
     }
 
     @Override
@@ -60,9 +61,8 @@ public class FailedNodeException extends ElasticsearchException {
         return Objects.hash(
             nodeId,
             getMessage(),
-            getClass().getName(), // subclasses should not have the same hash as their parent.
-            getStackTrace().length  // Could check uniqueness via mapping to list of strings, but there are different module path prefixes
-                                    // when serialized.
+            getClass().getName(),
+            getStackTrace().length // Could check elements individually, though there can be slight differences when serialized.
         );
     }
 }

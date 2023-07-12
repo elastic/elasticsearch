@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -16,7 +15,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
-@Experimental
 public class TopNExec extends UnaryExec {
 
     private final Expression limit;

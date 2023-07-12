@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -50,7 +49,6 @@ import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
 
-@Experimental
 public class Mapper {
 
     private final FunctionRegistry functionRegistry;

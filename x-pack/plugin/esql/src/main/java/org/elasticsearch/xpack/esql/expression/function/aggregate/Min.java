@@ -12,7 +12,6 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
-@Experimental
 public class Min extends NumericAggregate {
 
     public Min(Source source, Expression field) {

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.QuantileStates;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -23,7 +22,6 @@ import java.util.List;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-@Experimental
 public class Median extends AggregateFunction implements SurrogateExpression {
     // TODO: Add the compression parameter
     public Median(Source source, Expression field) {

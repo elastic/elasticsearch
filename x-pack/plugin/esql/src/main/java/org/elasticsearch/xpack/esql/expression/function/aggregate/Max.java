@@ -12,7 +12,6 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
-@Experimental
 public class Max extends NumericAggregate {
 
     public Max(Source source, Expression field) {

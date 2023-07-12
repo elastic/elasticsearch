@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-@Experimental
 public class ExchangeExec extends UnaryExec {
 
     public ExchangeExec(Source source, PhysicalPlan child) {

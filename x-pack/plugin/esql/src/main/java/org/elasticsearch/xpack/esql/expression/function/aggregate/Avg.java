@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -22,7 +21,6 @@ import java.util.List;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-@Experimental
 public class Avg extends AggregateFunction implements SurrogateExpression {
 
     public Avg(Source source, Expression field) {

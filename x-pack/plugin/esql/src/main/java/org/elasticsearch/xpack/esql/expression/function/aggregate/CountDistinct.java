@@ -14,7 +14,6 @@ import org.elasticsearch.compute.aggregation.CountDistinctBytesRefAggregatorFunc
 import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -29,7 +28,6 @@ import java.util.List;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 
-@Experimental
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator {
     private static final int DEFAULT_PRECISION = 3000;
     private final Expression precision;

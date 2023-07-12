@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -18,7 +17,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-@Experimental
 public class EvalExec extends UnaryExec {
 
     private final List<NamedExpression> fields;

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -27,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-@Experimental
 public class EsQueryExec extends LeafExec {
     public static final DataType DOC_DATA_TYPE = new DataType("_doc", Integer.BYTES * 3, false, false, false);
 

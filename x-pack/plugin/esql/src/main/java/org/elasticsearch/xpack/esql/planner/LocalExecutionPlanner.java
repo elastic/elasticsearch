@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -101,7 +100,6 @@ import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperator
  * The local execution planner takes a plan (represented as PlanNode tree / digraph) as input and creates the corresponding
  * drivers that are used to execute the given plan.
  */
-@Experimental
 public class LocalExecutionPlanner {
 
     private final String sessionId;

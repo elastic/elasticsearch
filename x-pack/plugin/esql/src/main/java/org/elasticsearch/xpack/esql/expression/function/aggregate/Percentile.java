@@ -12,7 +12,6 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -24,7 +23,6 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-@Experimental
 public class Percentile extends NumericAggregate {
     private final Expression percentile;
 

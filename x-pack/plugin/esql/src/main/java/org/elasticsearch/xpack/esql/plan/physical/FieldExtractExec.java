@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
@@ -17,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-@Experimental
 public class FieldExtractExec extends UnaryExec {
 
     private final List<Attribute> attributesToExtract;

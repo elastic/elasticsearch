@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.$Type$Array;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 $if(long)$
@@ -27,7 +26,6 @@ import org.elasticsearch.core.Releasables;
  * Aggregator state for an array of $type$s.
  * This class is generated. Do not edit it.
  */
-@Experimental
 final class $Type$ArrayState implements GroupingAggregatorState {
     private final BigArrays bigArrays;
     private final $type$ init;

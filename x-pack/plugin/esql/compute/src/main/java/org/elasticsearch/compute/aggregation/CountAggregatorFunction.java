@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -19,7 +18,6 @@ import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
 
-@Experimental
 public class CountAggregatorFunction implements AggregatorFunction {
     public static AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> channels) {
         return new AggregatorFunctionSupplier() {

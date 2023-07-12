@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -22,7 +21,6 @@ import org.elasticsearch.core.Releasables;
  * Aggregator state for an array of longs.
  * This class is generated. Do not edit it.
  */
-@Experimental
 final class LongArrayState implements GroupingAggregatorState {
     private final BigArrays bigArrays;
     private final long init;

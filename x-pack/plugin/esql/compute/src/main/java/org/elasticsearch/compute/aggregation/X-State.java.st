@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantBooleanVector;
 import org.elasticsearch.compute.data.Constant$Type$Vector;
@@ -16,7 +15,6 @@ import org.elasticsearch.compute.data.Constant$Type$Vector;
  * Aggregator state for a single $type$.
  * This class is generated. Do not edit it.
  */
-@Experimental
 final class $Type$State implements AggregatorState {
     private $type$ value;
     private boolean seen;

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantBooleanVector;
 import org.elasticsearch.compute.data.ConstantDoubleVector;
@@ -16,7 +15,6 @@ import org.elasticsearch.compute.data.ConstantDoubleVector;
  * Aggregator state for a single double.
  * This class is generated. Do not edit it.
  */
-@Experimental
 final class DoubleState implements AggregatorState {
     private double value;
     private boolean seen;

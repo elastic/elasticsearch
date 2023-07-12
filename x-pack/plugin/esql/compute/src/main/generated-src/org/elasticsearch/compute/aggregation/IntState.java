@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantBooleanVector;
 import org.elasticsearch.compute.data.ConstantIntVector;
@@ -16,7 +15,6 @@ import org.elasticsearch.compute.data.ConstantIntVector;
  * Aggregator state for a single int.
  * This class is generated. Do not edit it.
  */
-@Experimental
 final class IntState implements AggregatorState {
     private int value;
     private boolean seen;

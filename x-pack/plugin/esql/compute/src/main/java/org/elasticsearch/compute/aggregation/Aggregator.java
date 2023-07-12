@@ -8,14 +8,12 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 
 import java.util.function.Supplier;
 
-@Experimental
 public class Aggregator implements Releasable {
 
     public static final Object[] EMPTY_PARAMS = new Object[] {};

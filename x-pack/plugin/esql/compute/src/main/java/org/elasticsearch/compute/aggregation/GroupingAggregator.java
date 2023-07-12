@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -19,7 +18,6 @@ import org.elasticsearch.core.Releasable;
 
 import java.util.function.Function;
 
-@Experimental
 public class GroupingAggregator implements Releasable {
     private final GroupingAggregatorFunction aggregatorFunction;
 

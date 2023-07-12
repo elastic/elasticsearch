@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -21,7 +20,6 @@ import org.elasticsearch.compute.data.Vector;
 
 import java.util.List;
 
-@Experimental
 public class CountGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
     private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(

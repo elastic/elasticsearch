@@ -904,9 +904,9 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
     }
 
-    public void testDecidesYesIfPromotableShardRole() {
+    public void testDecidesYesForIndexOnlyShard() {
         final Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.V_8_10_0)).numberOfShards(1).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         final Index index = metadata.index("test").getIndex();
         ShardRouting shardRouting = ShardRouting.newUnassigned(
@@ -944,10 +944,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             Map.of()
         );
 
-        DiskThresholdDecider decider = new DiskThresholdDecider(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
+        DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, ClusterSettings.createBuiltInClusterSettings());
 
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),

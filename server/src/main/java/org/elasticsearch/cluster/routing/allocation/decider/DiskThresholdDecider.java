@@ -191,7 +191,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (ignoreDiskWatermarksForShard(allocation, shardRouting)) {
+        if (ignoreDiskWatermarksForShard(shardRouting, allocation)) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -349,7 +349,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (ignoreDiskWatermarksForShard(allocation, shardRouting)) {
+        if (ignoreDiskWatermarksForShard(shardRouting, allocation)) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -389,7 +389,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (ignoreDiskWatermarksForShard(allocation, indexMetadata, shardRouting)) {
+        if (ignoreDiskWatermarksForShard(shardRouting, indexMetadata)) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -466,16 +466,12 @@ public class DiskThresholdDecider extends AllocationDecider {
         );
     }
 
-    private static boolean ignoreDiskWatermarksForShard(
-        RoutingAllocation allocation,
-        IndexMetadata indexMetadata,
-        ShardRouting shardRouting
-    ) {
-        return indexMetadata.ignoreDiskWatermarks() || ignoreDiskWatermarksForShard(allocation, shardRouting);
+    private static boolean ignoreDiskWatermarksForShard(ShardRouting shardRouting, IndexMetadata indexMetadata) {
+        return shardRouting.role() == Role.INDEX_ONLY || indexMetadata.ignoreDiskWatermarks();
     }
 
-    private static boolean ignoreDiskWatermarksForShard(RoutingAllocation allocation, ShardRouting shardRouting) {
-        return shardRouting.role() == Role.INDEX_ONLY || allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks();
+    private static boolean ignoreDiskWatermarksForShard(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return ignoreDiskWatermarksForShard(shardRouting, allocation.metadata().index(shardRouting.index()));
     }
 
     private static DiskUsageWithRelocations getDiskUsage(

@@ -199,27 +199,32 @@ public class SynonymsManagementAPIService {
     }
 
     public void getSynonymSetRules(String synonymSetId, int from, int size, ActionListener<PagedResult<SynonymRule>> listener) {
-        checkSynonymSetExists(synonymSetId, listener.delegateFailure((existsListener, response) -> {
-            // Retrieves synonym rules, excluding the synonym set object type
-            client.prepareSearch(SYNONYMS_ALIAS_NAME)
-                .setQuery(
-                    QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
-                        .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
-                )
-                .setFrom(from)
-                .setSize(size)
-                .addSort("id", SortOrder.ASC)
-                .setPreference(Preference.LOCAL.type())
-                .setTrackTotalHits(true)
-                .execute(new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (l, searchResponse) -> {
-                    final long totalSynonymRules = searchResponse.getHits().getTotalHits().value;
-                    final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
-                        .map(hit -> sourceMapToSynonymRule(hit.getSourceAsMap()))
-                        .toArray(SynonymRule[]::new);
-                    l.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
-                }));
-        }));
+        // Retrieves synonym rules, excluding the synonym set object type
+        client.prepareSearch(SYNONYMS_ALIAS_NAME)
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
+                    .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+            )
+            .setFrom(from)
+            .setSize(size)
+            .addSort("id", SortOrder.ASC)
+            .setPreference(Preference.LOCAL.type())
+            .setTrackTotalHits(true)
+            .execute(new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (searchListener, searchResponse) -> {
+                final long totalSynonymRules = searchResponse.getHits().getTotalHits().value;
+                // If there are no rules, check that the synonym set actually exists to return the proper error
+                if (totalSynonymRules == 0) {
+                    checkSynonymSetExists(synonymSetId, searchListener.delegateFailure((existsListener, response) -> {
+                        searchListener.onResponse(new PagedResult<>(0, new SynonymRule[0]));
+                    }));
+                    return;
+                }
+                final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
+                    .map(hit -> sourceMapToSynonymRule(hit.getSourceAsMap()))
+                    .toArray(SynonymRule[]::new);
+                searchListener.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
+            }));
     }
 
     private static SynonymRule sourceMapToSynonymRule(Map<String, Object> docSourceAsMap) {

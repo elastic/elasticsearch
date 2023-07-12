@@ -57,9 +57,9 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * A cluster setting to enable/disable the {@link HighlightFlag#WEIGHT_MATCHES} mode of the unified highlighter.
      */
     public static final Setting<Boolean> WEIGHT_MATCHES_MODE_ENABLE_SETTING = Setting.boolSetting(
-            "search.highlight.weight_matches_mode.enabled",
-            true,
-            Setting.Property.NodeScope
+        "search.highlight.weight_matches_mode.enabled",
+        true,
+        Setting.Property.NodeScope
     );
 
     public static final char MULTIVAL_SEP_CHAR = (char) 0;
@@ -112,8 +112,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.noMatchSize = noMatchSize;
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         this.queryMaxAnalyzedOffset = queryMaxAnalyzedOffset;
-        if (WEIGHT_MATCHES_MODE_ENABLE_SETTING.get(settings) == false ||
-                requireFieldMatch == false || weightMatchesUnsupported(query)) {
+        if (WEIGHT_MATCHES_MODE_ENABLE_SETTING.get(settings) == false || requireFieldMatch == false || weightMatchesUnsupported(query)) {
             getFlags(field).remove(HighlightFlag.WEIGHT_MATCHES);
         }
         fieldHighlighter = (CustomFieldHighlighter) getFieldHighlighter(field, query, extractTerms(query), maxPassages);

@@ -159,7 +159,6 @@ public class IngestLoadSampler implements ClusterStateListener {
 
     void start() {
         if (isIndexNode) {
-            writeLoadSampler.start();
             var newSamplingTask = new SamplingTask();
             samplingTask = newSamplingTask;
             newSamplingTask.run();
@@ -169,7 +168,6 @@ public class IngestLoadSampler implements ClusterStateListener {
     void stop() {
         if (isIndexNode) {
             samplingTask = null;
-            writeLoadSampler.stop();
         }
     }
 
@@ -241,6 +239,7 @@ public class IngestLoadSampler implements ClusterStateListener {
             }
 
             try {
+                writeLoadSampler.sample();
                 sampleIngestionLoad();
             } finally {
                 threadPool.scheduleUnlessShuttingDown(samplingFrequency, ThreadPool.Names.GENERIC, SamplingTask.this);

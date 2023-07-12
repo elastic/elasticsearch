@@ -381,10 +381,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         }
 
         @Override
-        public void start() {}
-
-        @Override
-        public void stop() {}
+        public void sample() {}
 
         @Override
         public ExecutorStats getExecutorStats(String executor) {

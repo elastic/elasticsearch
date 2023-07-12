@@ -35,7 +35,7 @@ public class AverageWriteLoadSamplerTests extends ESTestCase {
         var threadpool = new TestThreadPool("test");
         try {
             var writeLoadSampler = new AverageWriteLoadSampler(threadpool, TimeValue.timeValueSeconds(1), DEFAULT_EWMA_ALPHA);
-            writeLoadSampler.start();
+            writeLoadSampler.sample();
             assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.WRITE).averageLoad(), equalTo(0.0));
             assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_WRITE).averageLoad(), equalTo(0.0));
             assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_CRITICAL_WRITE).averageLoad(), equalTo(0.0));
@@ -48,11 +48,10 @@ public class AverageWriteLoadSamplerTests extends ESTestCase {
             var writeExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadpool.executor(ThreadPool.Names.WRITE);
             writeExecutor.execute(() -> safeSleep(randomLongBetween(50, 200)));
             assertBusy(() -> assertThat(writeExecutor.getCompletedTaskCount(), equalTo(1L)));
-            assertBusy(() -> {
-                assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.WRITE).averageLoad(), greaterThan(0.0));
-                assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_WRITE).averageLoad(), equalTo(0.0));
-                assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_CRITICAL_WRITE).averageLoad(), equalTo(0.0));
-            });
+            writeLoadSampler.sample();
+            assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.WRITE).averageLoad(), greaterThan(0.0));
+            assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_WRITE).averageLoad(), equalTo(0.0));
+            assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_CRITICAL_WRITE).averageLoad(), equalTo(0.0));
         } finally {
             terminate(threadpool);
         }

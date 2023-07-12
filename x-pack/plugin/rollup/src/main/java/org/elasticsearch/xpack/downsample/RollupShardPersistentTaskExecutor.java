@@ -13,19 +13,23 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
@@ -47,9 +51,20 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
 
     @Override
     protected void nodeOperation(final AllocatedPersistentTask task, final RollupShardTaskParams params, final PersistentTaskState state) {
-        final RollupShardPersistentTaskState taskState = state == null
+        // NOTE: query the downsampling target index so that we can start the downsampling task from the latest indexed tsid.
+        final SearchHit[] lastRollupTsidHits = client.prepareSearch(params.rollupIndex())
+            .addSort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC)
+            .setSize(1)
+            .setQuery(new MatchAllQueryBuilder()) // TODO: can we do better then querying all documents?
+            .get()
+            .getHits()
+            .getHits();
+        final RollupShardPersistentTaskState initialState = lastRollupTsidHits.length == 0
             ? new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
-            : (RollupShardPersistentTaskState) state;
+            : new RollupShardPersistentTaskState(
+                RollupShardIndexerStatus.STARTED,
+                Arrays.stream(lastRollupTsidHits).findFirst().get().field("_tsid").getValue()
+            );
         final RollupShardIndexer rollupShardIndexer = new RollupShardIndexer(
             (RollupShardTask) task,
             client,
@@ -59,7 +74,7 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
             params.downsampleConfig(),
             params.metrics(),
             params.labels(),
-            taskState
+            initialState
         );
         try {
             rollupShardIndexer.execute();

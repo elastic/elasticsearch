@@ -81,6 +81,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
 
     @Override
     public final Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+        return innerTermsQuery(values, context);
+    }
+
+    public final Query innerTermsQuery(Collection<?> values, QueryRewriteContext context) {
         for (Object value : values) {
             String pattern = valueToString(value);
             if (matches(pattern, false, context)) {

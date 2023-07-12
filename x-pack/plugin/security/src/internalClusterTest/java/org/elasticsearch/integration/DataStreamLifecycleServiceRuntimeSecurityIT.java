@@ -29,6 +29,7 @@ import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -38,6 +39,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -70,7 +72,13 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateSecurity.class, DataStreamsPlugin.class, SystemDataStreamTestPlugin.class);
+        return List.of(
+            LocalStateSecurity.class,
+            DataStreamsPlugin.class,
+            SystemDataStreamTestPlugin.class,
+            MapperExtrasPlugin.class,
+            Wildcard.class
+        );
     }
 
     @Override

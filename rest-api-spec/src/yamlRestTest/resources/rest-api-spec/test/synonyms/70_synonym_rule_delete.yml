@@ -89,3 +89,27 @@ setup:
           id: "test-id-1"
         - synonyms: "test => check"
           id: "test-id-2"
+
+---
+"Delete synonym rules - delete all synonym rules leave an empty synonym set":
+  - do:
+      synonym_rule.delete:
+        synonyms_set: test-synonyms
+        synonym_rule: test-id-1
+
+  - do:
+      synonym_rule.delete:
+        synonyms_set: test-synonyms
+        synonym_rule: test-id-2
+
+  - do:
+      synonym_rule.delete:
+        synonyms_set: test-synonyms
+        synonym_rule: test-id-3
+
+  - do:
+      synonyms.get:
+        synonyms_set: test-synonyms
+
+  - match: { count: 0 }
+  - match: { synonyms_set: [] }

@@ -20,16 +20,16 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.datastreams.DataLifecycleFeatureSetUsage;
+import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsage;
 
 import java.util.Collection;
 import java.util.LongSummaryStatistics;
 import java.util.stream.Collectors;
 
-public class DataLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     @Inject
-    public DataLifecycleUsageTransportAction(
+    public DataStreamLifecycleUsageTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -37,7 +37,7 @@ public class DataLifecycleUsageTransportAction extends XPackUsageFeatureTranspor
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            XPackUsageFeatureAction.DATA_LIFECYCLE.name(),
+            XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -53,6 +53,11 @@ public class DataLifecycleUsageTransportAction extends XPackUsageFeatureTranspor
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
+        if (DataStreamLifecycle.isEnabled() == false) {
+            listener.onResponse(new XPackUsageFeatureResponse(DataStreamLifecycleFeatureSetUsage.DISABLED));
+            return;
+        }
+
         final Collection<DataStream> dataStreams = state.metadata().dataStreams().values();
         LongSummaryStatistics retentionStats = dataStreams.stream()
             .filter(ds -> ds.getLifecycle() != null)
@@ -64,7 +69,7 @@ public class DataLifecycleUsageTransportAction extends XPackUsageFeatureTranspor
         RolloverConfiguration rolloverConfiguration = clusterService.getClusterSettings()
             .get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         String rolloverConfigString = rolloverConfiguration.toString();
-        final DataLifecycleFeatureSetUsage.LifecycleStats stats = new DataLifecycleFeatureSetUsage.LifecycleStats(
+        final DataStreamLifecycleFeatureSetUsage.LifecycleStats stats = new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
             dataStreamsWithLifecycles,
             minRetention,
             maxRetention,
@@ -72,7 +77,7 @@ public class DataLifecycleUsageTransportAction extends XPackUsageFeatureTranspor
             DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(null).toString().equals(rolloverConfigString)
         );
 
-        final DataLifecycleFeatureSetUsage usage = new DataLifecycleFeatureSetUsage(stats);
+        final DataStreamLifecycleFeatureSetUsage usage = new DataStreamLifecycleFeatureSetUsage(stats);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -208,6 +209,23 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             );
             assertThat(exception.getMessage(), equalTo("Downsampling configuration should have at least one round configured."));
         }
+        {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DataStreamLifecycle.Downsampling(
+                    Stream.iterate(1, i -> i * 2)
+                        .limit(12)
+                        .map(
+                            i -> new DataStreamLifecycle.Downsampling.Round(
+                                TimeValue.timeValueDays(i),
+                                new DownsampleConfig(new DateHistogramInterval(i + "h"))
+                            )
+                        )
+                        .toList()
+                )
+            );
+            assertThat(exception.getMessage(), equalTo("Downsampling configuration supports maximum 10 configured rounds. Found: 12"));
+        }
     }
 
     @Nullable
@@ -230,7 +248,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             case 0 -> null;
             case 1 -> DataStreamLifecycle.Downsampling.NULL;
             default -> {
-                var count = randomIntBetween(0, 10);
+                var count = randomIntBetween(0, 9);
                 List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
                 var previous = new DataStreamLifecycle.Downsampling.Round(
                     TimeValue.timeValueDays(randomIntBetween(1, 365)),

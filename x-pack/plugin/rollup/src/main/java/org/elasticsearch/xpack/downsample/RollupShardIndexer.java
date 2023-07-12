@@ -150,8 +150,8 @@ class RollupShardIndexer {
         task.updatePersistentTaskState(
             new RollupShardPersistentTaskState(RollupShardIndexerStatus.STARTED, null),
             ActionListener.wrap(response -> task.setRollupShardIndexerStatus(RollupShardIndexerStatus.STARTED), e -> {
-                logger.error("error while updating downsampling persistent task state", e);
-                throw new ElasticsearchException("error while updating downsampling persistent task state", e);
+                logger.error("Error while updating downsampling persistent task state", e);
+                throw new ElasticsearchException("Error while updating downsampling persistent task state", e);
             })
         );
         BulkProcessor2 bulkProcessor = createBulkProcessor();
@@ -176,9 +176,13 @@ class RollupShardIndexer {
         if (task.getNumIndexed() != task.getNumSent()) {
             task.updatePersistentTaskState(
                 new RollupShardPersistentTaskState(RollupShardIndexerStatus.FAILED, null),
-                ActionListener.wrap(response -> task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED), e -> {
-                    logger.error("error while updating downsampling persistent task state", e);
-                    throw new ElasticsearchException("error while updating downsampling persistent task state", e);
+                ActionListener.wrap(response -> {
+                    task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED);
+                    task.markAsFailed(new ElasticsearchException("Invalid number of indexed documents"));
+                }, e -> {
+                    logger.error("Error while updating downsampling persistent task state", e);
+                    task.markAsFailed(e);
+                    throw new ElasticsearchException("Error while updating downsampling persistent task state", e);
                 })
             );
             throw new ElasticsearchException(
@@ -196,8 +200,8 @@ class RollupShardIndexer {
             task.updatePersistentTaskState(
                 new RollupShardPersistentTaskState(RollupShardIndexerStatus.FAILED, null),
                 ActionListener.wrap(response -> task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED), e -> {
-                    logger.error("error while updating downsampling persistent task state", e);
-                    throw new ElasticsearchException("error while updating downsampling persistent task state", e);
+                    logger.error("Error while updating downsampling persistent task state", e);
+                    throw new ElasticsearchException("Error while updating downsampling persistent task state", e);
                 })
             );
             throw new ElasticsearchException(
@@ -213,8 +217,11 @@ class RollupShardIndexer {
 
         task.updatePersistentTaskState(
             new RollupShardPersistentTaskState(RollupShardIndexerStatus.COMPLETED, null),
-            ActionListener.wrap(response -> task.setRollupShardIndexerStatus(RollupShardIndexerStatus.COMPLETED), e -> {
-                logger.error("error while updating downsampling persistent task state", e);
+            ActionListener.wrap(response -> {
+                task.setRollupShardIndexerStatus(RollupShardIndexerStatus.COMPLETED);
+                task.markAsCompleted();
+            }, e -> {
+                logger.error("Error while updating downsampling persistent task state", e);
                 throw new ElasticsearchException("error while updating downsampling persistent task state", e);
             })
         );
@@ -260,9 +267,13 @@ class RollupShardIndexer {
             );
             task.updatePersistentTaskState(
                 new RollupShardPersistentTaskState(RollupShardIndexerStatus.CANCELLED, null),
-                ActionListener.wrap(response -> task.setRollupShardIndexerStatus(RollupShardIndexerStatus.CANCELLED), e -> {
-                    logger.error("error while updating downsampling persistent task state", e);
-                    throw new ElasticsearchException("error while updating downsampling persistent task state", e);
+                ActionListener.wrap(response -> {
+                    task.setRollupShardIndexerStatus(RollupShardIndexerStatus.CANCELLED);
+                    task.markAsFailed(new ElasticsearchException("Downsamplig task cancelled"));
+                }, e -> {
+                    logger.error("Error while updating downsampling persistent task state", e);
+                    task.markAsFailed(e);
+                    throw new ElasticsearchException("Error while updating downsampling persistent task state", e);
                 })
             );
             throw new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId()));
@@ -552,7 +563,6 @@ class RollupShardIndexer {
                 builder.endObject();
                 return builder;
             }
-
             builder.field(timestampField.name(), timestampFormat.format(timestamp));
             builder.field(DocCountFieldMapper.NAME, docCount);
             // Extract dimension values from _tsid field, so we avoid loading them from doc_values

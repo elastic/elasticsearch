@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
@@ -40,7 +42,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        return new DownsampleStep(stepKey, nextStepKey, null, client, fixedInterval);
+        return new DownsampleStep(stepKey, nextStepKey, null, client, fixedInterval, DownsampleConfig.DEFAULT_TIMEOUT);
     }
 
     @Override
@@ -56,12 +58,19 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new DownsampleStep(key, nextKey, null, instance.getClient(), fixedInterval);
+        return new DownsampleStep(key, nextKey, null, instance.getClient(), fixedInterval, DownsampleConfig.DEFAULT_TIMEOUT);
     }
 
     @Override
     public DownsampleStep copyInstance(DownsampleStep instance) {
-        return new DownsampleStep(instance.getKey(), instance.getNextStepKey(), null, instance.getClient(), instance.getFixedInterval());
+        return new DownsampleStep(
+            instance.getKey(),
+            instance.getNextStepKey(),
+            null,
+            instance.getClient(),
+            instance.getFixedInterval(),
+            instance.getTimeout()
+        );
     }
 
     private IndexMetadata getIndexMetadata(String index, String lifecycleName, DownsampleStep step) {
@@ -273,12 +282,14 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+                TimeValue timeout = DownsampleConfig.DEFAULT_TIMEOUT;
                 DownsampleStep completeStep = new DownsampleStep(
                     randomStepKey(),
                     nextKeyOnComplete,
                     nextKeyOnIncomplete,
                     client,
-                    fixedInterval
+                    fixedInterval,
+                    timeout
                 ) {
                     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
                         listener.onResponse(null);
@@ -293,12 +304,14 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+                TimeValue timeout = DownsampleConfig.DEFAULT_TIMEOUT;
                 DownsampleStep doubleInvocationStep = new DownsampleStep(
                     randomStepKey(),
                     nextKeyOnComplete,
                     nextKeyOnIncomplete,
                     client,
-                    fixedInterval
+                    fixedInterval,
+                    timeout
                 ) {
                     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
                         listener.onFailure(

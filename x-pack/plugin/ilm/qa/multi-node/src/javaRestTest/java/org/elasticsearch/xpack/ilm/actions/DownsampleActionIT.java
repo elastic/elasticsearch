@@ -56,6 +56,7 @@ import static org.hamcrest.Matchers.is;
 
 public class DownsampleActionIT extends ESRestTestCase {
 
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
     private String index;
     private String policy;
     private String alias;
@@ -152,7 +153,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String phaseName = randomFrom("warm", "cold");
-        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(ConfigTestHelpers.randomInterval()));
+        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(ConfigTestHelpers.randomInterval(), DEFAULT_TIMEOUT));
         updatePolicy(client(), index, policy);
 
         String rollupIndex = waitAndGetRollupIndexName(client(), index);
@@ -180,7 +181,12 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> createNewSingletonPolicy(client(), policy, "hot", new DownsampleAction(ConfigTestHelpers.randomInterval()))
+            () -> createNewSingletonPolicy(
+                client(),
+                policy,
+                "hot",
+                new DownsampleAction(ConfigTestHelpers.randomInterval(), DEFAULT_TIMEOUT)
+            )
         );
         assertTrue(
             e.getMessage()
@@ -196,7 +202,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             RolloverAction.NAME,
             new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
             DownsampleAction.NAME,
-            new DownsampleAction(ConfigTestHelpers.randomInterval())
+            new DownsampleAction(ConfigTestHelpers.randomInterval(), DEFAULT_TIMEOUT)
         );
         Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
@@ -252,7 +258,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
     public void testTsdbDataStreams() throws Exception {
         // Create the ILM policy
-        createNewSingletonPolicy(client(), policy, "warm", new DownsampleAction(ConfigTestHelpers.randomInterval()));
+        createNewSingletonPolicy(client(), policy, "warm", new DownsampleAction(ConfigTestHelpers.randomInterval(), DEFAULT_TIMEOUT));
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
@@ -292,7 +298,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String phaseName = randomFrom("warm", "cold");
-        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(ConfigTestHelpers.randomInterval()));
+        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(ConfigTestHelpers.randomInterval(), DEFAULT_TIMEOUT));
         updatePolicy(client(), index, policy);
 
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())));

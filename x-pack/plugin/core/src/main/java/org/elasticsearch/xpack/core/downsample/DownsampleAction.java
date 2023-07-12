@@ -41,7 +41,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
         private String targetIndex;
         private DownsampleConfig downsampleConfig;
 
-        public Request(String sourceIndex, String targetIndex, DownsampleConfig downsampleConfig) {
+        public Request(final String sourceIndex, final String targetIndex, final DownsampleConfig downsampleConfig) {
             this.sourceIndex = sourceIndex;
             this.targetIndex = targetIndex;
             this.downsampleConfig = downsampleConfig;

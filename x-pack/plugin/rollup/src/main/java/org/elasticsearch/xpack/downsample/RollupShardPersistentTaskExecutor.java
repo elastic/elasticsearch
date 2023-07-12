@@ -27,6 +27,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
+import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -113,11 +114,6 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
     }
 
     @Override
-    public String getExecutor() {
-        return Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME;
-    }
-
-    @Override
     public PersistentTasksCustomMetadata.Assignment getAssignment(
         final RollupShardTaskParams params,
         final Collection<DiscoveryNode> candidateNodes,
@@ -139,5 +135,10 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
                 )
             )
             .orElse(NO_NODE_FOUND);
+    }
+
+    @Override
+    public String getExecutor() {
+        return Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME;
     }
 }

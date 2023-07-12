@@ -8,15 +8,19 @@ package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DownsampleActionConfigTests extends AbstractXContentSerializingTestCase<DownsampleConfig> {
+
+    public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     @Override
     protected DownsampleConfig createTestInstance() {
@@ -29,7 +33,7 @@ public class DownsampleActionConfigTests extends AbstractXContentSerializingTest
     }
 
     public static DownsampleConfig randomConfig() {
-        return new DownsampleConfig(ConfigTestHelpers.randomInterval());
+        return new DownsampleConfig(ConfigTestHelpers.randomInterval(), TIMEOUT);
     }
 
     @Override
@@ -43,12 +47,20 @@ public class DownsampleActionConfigTests extends AbstractXContentSerializingTest
     }
 
     public void testEmptyFixedInterval() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new DownsampleConfig((DateHistogramInterval) null));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DownsampleConfig((DateHistogramInterval) null, TIMEOUT)
+        );
         assertThat(e.getMessage(), equalTo("Parameter [fixed_interval] is required."));
     }
 
+    public void testEmptyTimeout() {
+        DownsampleConfig config = new DownsampleConfig(ConfigTestHelpers.randomInterval(), null);
+        assertEquals(DownsampleConfig.DEFAULT_TIMEOUT, config.getTimeout());
+    }
+
     public void testEmptyTimezone() {
-        DownsampleConfig config = new DownsampleConfig(ConfigTestHelpers.randomInterval());
+        DownsampleConfig config = new DownsampleConfig(ConfigTestHelpers.randomInterval(), TIMEOUT);
         assertEquals("UTC", config.getTimeZone());
     }
 }

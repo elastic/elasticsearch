@@ -37,6 +37,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -141,6 +142,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
+    private static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     private String sourceIndex, rollupIndex;
     private long startTime;
@@ -235,7 +237,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRollupIndex() throws IOException {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -295,7 +297,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testRollupOfRollups() throws IOException {
         int intervalMinutes = randomIntBetween(10, 120);
-        DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes));
+        DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes), TIMEOUT);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -331,7 +333,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         // Downsample the rollup index. The downsampling interval is a multiple of the previous downsampling interval.
         String rollupIndex2 = rollupIndex + "-2";
-        DownsampleConfig config2 = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes * randomIntBetween(2, 50)));
+        DownsampleConfig config2 = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes * randomIntBetween(2, 50)), TIMEOUT);
         rollup(rollupIndex, rollupIndex2, config2);
         assertRollupIndex(sourceIndex, rollupIndex2, config2);
     }
@@ -365,7 +367,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         var updateSettingsReq = new UpdateSettingsRequest(settings, sourceIndex);
         assertAcked(indicesAdmin().updateSettings(updateSettingsReq).actionGet());
 
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             return XContentFactory.jsonBuilder()
@@ -387,7 +389,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testNullSourceIndexName() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         ActionRequestValidationException exception = expectThrows(
             ActionRequestValidationException.class,
             () -> rollup(null, rollupIndex, config)
@@ -396,7 +398,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testNullRollupIndexName() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         ActionRequestValidationException exception = expectThrows(
             ActionRequestValidationException.class,
             () -> rollup(sourceIndex, null, config)
@@ -413,7 +415,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRollupSparseMetrics() throws IOException {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         SourceSupplier sourceSupplier = () -> {
             XContentBuilder builder = XContentFactory.jsonBuilder()
                 .startObject()
@@ -434,7 +436,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testCannotRollupToExistingIndex() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         prepareSourceIndex(sourceIndex);
 
         // Create an empty index with the same name as the rollup index
@@ -447,7 +449,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRollupEmptyIndex() throws IOException {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         // Source index has been created in the setup() method
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
@@ -474,28 +476,28 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             )
             .get();
 
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
     public void testCannotRollupWriteableIndex() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         // Source index has been created in the setup() method and is empty and still writable
         Exception exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("Rollup requires setting [index.blocks.write = true] for index"));
     }
 
     public void testCannotRollupMissingIndex() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         IndexNotFoundException exception = expectThrows(IndexNotFoundException.class, () -> rollup("missing-index", rollupIndex, config));
         assertEquals("missing-index", exception.getIndex().getName());
         assertThat(exception.getMessage(), containsString("no such index [missing-index]"));
     }
 
     public void testCannotRollupWhileOtherRollupInProgress() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -539,7 +541,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRollupDatastream() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         String dataStreamName = createDataStream();
 
         final Instant now = Instant.now();
@@ -572,7 +574,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testCancelRollupIndexer() throws IOException {
         // create rollup config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -622,7 +624,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testRollupBulkFailed() throws IOException {
         // create rollup config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -646,7 +648,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testTooManyBytesInFlight() throws IOException {
         // create rollup config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -697,7 +699,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRollupStats() throws IOException {
-        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         final SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -1219,7 +1221,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testConcurrentRollup() throws IOException, InterruptedException {
-        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);

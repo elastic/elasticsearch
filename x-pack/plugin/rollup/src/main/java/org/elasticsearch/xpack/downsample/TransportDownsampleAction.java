@@ -48,7 +48,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -87,7 +86,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
@@ -327,20 +325,23 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                     RollupShardPersistentTaskState runningPersistentTaskState = (RollupShardPersistentTaskState) runningTask
                                         .getState();
                                     return runningPersistentTaskState != null && runningPersistentTaskState.done();
-                                }, new TimeValue(1, TimeUnit.DAYS), new PersistentTasksService.WaitForPersistentTaskListener<>() {
-                                    @Override
-                                    public void onResponse(
-                                        PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask
-                                    ) {
-                                        finalizeRollup(request, listener, sourceIndexMetadata, rollupIndexName, parentTask);
-                                    }
+                                },
+                                    request.getDownsampleConfig().getTimeout(),
+                                    new PersistentTasksService.WaitForPersistentTaskListener<>() {
+                                        @Override
+                                        public void onResponse(
+                                            PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask
+                                        ) {
+                                            finalizeRollup(request, listener, sourceIndexMetadata, rollupIndexName, parentTask);
+                                        }
 
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        logger.error("error while starting downsampling persistent task", e);
-                                        listener.onFailure(e);
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            logger.error("error while starting downsampling persistent task", e);
+                                            listener.onFailure(e);
+                                        }
                                     }
-                                }),
+                                ),
                                 e -> {
                                     if (e instanceof ResourceAlreadyExistsException) {
                                         logger.warn("Downsampling persistent task [" + task.getId() + "] already exists. Waiting...");
@@ -378,7 +379,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 .getState();
             return existingPersistentTaskState.done();
         },
-            new TimeValue(1, TimeUnit.DAYS), // TODO: should we support a downsampling timeout, maybe with a default?
+            request.getDownsampleConfig().getTimeout(),
             ActionListener.wrap(
                 response -> finalizeRollup(request, listener, sourceIndexMetadata, rollupIndexName, parentTask),
                 listener::onFailure
@@ -594,7 +595,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             String interval = meta.get(config.getIntervalType());
             if (interval != null) {
                 try {
-                    DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval));
+                    DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval), config.getTimeout());
                     DownsampleConfig.validateSourceAndTargetIntervals(sourceConfig, config);
                 } catch (IllegalArgumentException exception) {
                     e.addValidationError("Source index is a downsampled index. " + exception.getMessage());

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -14,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -41,10 +43,11 @@ public class DownsampleAction implements LifecycleAction {
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
     public static final String GENERATE_DOWNSAMPLE_STEP_NAME = "generate-downsampled-index-name";
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(DownsampleConfig.FIXED_INTERVAL);
+    private static final ParseField TIMEOUT_FIELD = new ParseField(DownsampleConfig.TIMEOUT);
 
     private static final ConstructingObjectParser<DownsampleAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new DownsampleAction((DateHistogramInterval) a[0])
+        a -> new DownsampleAction((DateHistogramInterval) a[0], (TimeValue) a[1])
     );
 
     static {
@@ -54,34 +57,53 @@ public class DownsampleAction implements LifecycleAction {
             FIXED_INTERVAL_FIELD,
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareField(
+            constructorArg(),
+            p -> TimeValue.parseTimeValue(p.textOrNull(), TIMEOUT_FIELD.getPreferredName()),
+            TIMEOUT_FIELD,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     private final DateHistogramInterval fixedInterval;
+    private final TimeValue timeout;
 
     public static DownsampleAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public DownsampleAction(DateHistogramInterval fixedInterval) {
+    public DownsampleAction(final DateHistogramInterval fixedInterval, final TimeValue timeout) {
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL_FIELD.getPreferredName() + "] is required.");
         }
         this.fixedInterval = fixedInterval;
+        this.timeout = timeout == null ? DownsampleConfig.DEFAULT_TIMEOUT : timeout;
     }
 
     public DownsampleAction(StreamInput in) throws IOException {
-        this(new DateHistogramInterval(in));
+        this(
+            new DateHistogramInterval(in),
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)
+                ? TimeValue.parseTimeValue(in.readString(), TIMEOUT_FIELD.getPreferredName())
+                : DownsampleConfig.DEFAULT_TIMEOUT
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
+            out.writeString(timeout.getStringRep());
+        } else {
+            out.writeString(DownsampleConfig.DEFAULT_TIMEOUT.getStringRep());
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), fixedInterval.toString());
+        builder.field(TIMEOUT_FIELD.getPreferredName(), timeout.getStringRep());
         builder.endObject();
         return builder;
     }
@@ -93,6 +115,10 @@ public class DownsampleAction implements LifecycleAction {
 
     public DateHistogramInterval fixedInterval() {
         return fixedInterval;
+    }
+
+    public TimeValue timeout() {
+        return timeout;
     }
 
     @Override
@@ -163,7 +189,8 @@ public class DownsampleAction implements LifecycleAction {
             waitForDownsampleIndexKey,
             cleanupDownsampleIndexKey,
             client,
-            fixedInterval
+            fixedInterval,
+            timeout
         );
 
         // Wait until the downsampled index is recovered. We again wait until the configured threshold is breached and

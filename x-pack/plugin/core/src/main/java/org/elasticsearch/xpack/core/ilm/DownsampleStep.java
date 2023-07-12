@@ -34,21 +34,24 @@ public class DownsampleStep extends AsyncActionStep {
     private static final Logger logger = LogManager.getLogger(DownsampleStep.class);
 
     private final DateHistogramInterval fixedInterval;
+    private final TimeValue timeout;
     private final StepKey nextStepOnSuccess;
     private final StepKey nextStepOnFailure;
     private volatile boolean downsampleFailed;
 
     public DownsampleStep(
-        StepKey key,
-        StepKey nextStepOnSuccess,
-        StepKey nextStepOnFailure,
-        Client client,
-        DateHistogramInterval fixedInterval
+        final StepKey key,
+        final StepKey nextStepOnSuccess,
+        final StepKey nextStepOnFailure,
+        final Client client,
+        final DateHistogramInterval fixedInterval,
+        final TimeValue timeout
     ) {
         super(key, null, client);
         this.nextStepOnSuccess = nextStepOnSuccess;
         this.nextStepOnFailure = nextStepOnFailure;
         this.fixedInterval = fixedInterval;
+        this.timeout = timeout;
     }
 
     @Override
@@ -127,7 +130,7 @@ public class DownsampleStep extends AsyncActionStep {
     }
 
     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
-        DownsampleConfig config = new DownsampleConfig(fixedInterval);
+        DownsampleConfig config = new DownsampleConfig(fixedInterval, timeout);
         DownsampleAction.Request request = new DownsampleAction.Request(indexName, downsampleIndexName, config).masterNodeTimeout(
             TimeValue.MAX_VALUE
         );
@@ -142,6 +145,10 @@ public class DownsampleStep extends AsyncActionStep {
 
     public DateHistogramInterval getFixedInterval() {
         return fixedInterval;
+    }
+
+    public TimeValue getTimeout() {
+        return timeout;
     }
 
     @Override

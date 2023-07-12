@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xcontent.XContentParser;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.CONDITIONAL_DATASTREAM_CHECK_KEY;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.CONDITIONAL_TIME_SERIES_CHECK_KEY;
@@ -22,8 +24,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DownsampleActionTests extends AbstractActionTestCase<DownsampleAction> {
 
+    public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
+
     static DownsampleAction randomInstance() {
-        return new DownsampleAction(ConfigTestHelpers.randomInterval());
+        return new DownsampleAction(ConfigTestHelpers.randomInterval(), TIMEOUT);
     }
 
     @Override
@@ -53,7 +57,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
     @Override
     public void testToSteps() {
-        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval());
+        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), TIMEOUT);
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -126,11 +130,11 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
     }
 
     DownsampleAction copy(DownsampleAction downsampleAction) {
-        return new DownsampleAction(downsampleAction.fixedInterval());
+        return new DownsampleAction(downsampleAction.fixedInterval(), downsampleAction.timeout());
     }
 
     DownsampleAction notCopy(DownsampleAction downsampleAction) {
         DateHistogramInterval fixedInterval = randomValueOtherThan(downsampleAction.fixedInterval(), ConfigTestHelpers::randomInterval);
-        return new DownsampleAction(fixedInterval);
+        return new DownsampleAction(fixedInterval, TIMEOUT);
     }
 }

@@ -50,6 +50,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -58,6 +59,8 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 public class DownsampleTransportFailureTests extends ESIntegTestCase {
 
     public static final String ROLLUP_INDEXER_SHARD_ACTION = DownsampleIndexerAction.NAME + "[s]";
+
+    private static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     private static class TestClusterHelper {
         private final InternalTestCluster cluster;
@@ -281,7 +284,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
-            new DownsampleConfig(DateHistogramInterval.MINUTE)
+            new DownsampleConfig(DateHistogramInterval.MINUTE, TIMEOUT)
         );
 
         // WHEN nothing happens
@@ -307,7 +310,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
-            new DownsampleConfig(DateHistogramInterval.HOUR)
+            new DownsampleConfig(DateHistogramInterval.HOUR, TIMEOUT)
         );
 
         // WHEN (disruption)
@@ -346,7 +349,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
-            new DownsampleConfig(DateHistogramInterval.HOUR)
+            new DownsampleConfig(DateHistogramInterval.HOUR, TIMEOUT)
         );
 
         // WHEN (disruption)

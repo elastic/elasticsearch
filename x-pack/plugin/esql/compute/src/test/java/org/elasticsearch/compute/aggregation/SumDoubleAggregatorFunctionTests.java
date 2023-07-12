@@ -60,7 +60,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
                 () -> {}
             )
         ) {
-            d.run();
+            runDriver(d);
         }
         assertThat(results.get(0).<DoubleBlock>getBlock(0).getDouble(0), equalTo(Double.MAX_VALUE + 1));
         assertDriverContext(driverContext);
@@ -80,7 +80,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
                 () -> {}
             )
         ) {
-            d.run();
+            runDriver(d);
         }
         assertEquals(15.3, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), Double.MIN_NORMAL);
         assertDriverContext(driverContext);
@@ -106,7 +106,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
                 () -> {}
             )
         ) {
-            d.run();
+            runDriver(d);
         }
         assertEquals(sum, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), 1e-10);
         assertDriverContext(driverContext);
@@ -128,7 +128,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
                 () -> {}
             )
         ) {
-            d.run();
+            runDriver(d);
         }
         assertEquals(Double.POSITIVE_INFINITY, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), 0d);
         assertDriverContext(driverContext);
@@ -147,7 +147,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
                 () -> {}
             )
         ) {
-            d.run();
+            runDriver(d);
         }
         assertEquals(Double.NEGATIVE_INFINITY, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), 0d);
         assertDriverContext(driverContext);

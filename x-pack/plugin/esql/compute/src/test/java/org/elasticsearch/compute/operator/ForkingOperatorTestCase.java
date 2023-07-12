@@ -67,7 +67,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 () -> {}
             )
         ) {
-            d.run();
+            runDriver(d);
         }
         assertSimpleOutput(input, results);
         assertDriverContext(driverContext);
@@ -88,7 +88,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 () -> {}
             )
         ) {
-            d.run();
+            runDriver(d);
         }
         assertSimpleOutput(input, results);
         assertDriverContext(driverContext);
@@ -113,7 +113,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 () -> {}
             )
         ) {
-            d.run();
+            runDriver(d);
         }
         assertSimpleOutput(input, results);
         assertDriverContext(driverContext);
@@ -141,7 +141,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 () -> {}
             )
         ) {
-            d.run();
+            runDriver(d);
         }
         assertSimpleOutput(input, results);
         assertDriverContext(driverContext);
@@ -158,7 +158,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         var runner = new DriverRunner() {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor("esql_test_executor"), driver, listener);
+                Driver.start(threadPool.executor("esql_test_executor"), driver, between(1, 10000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -180,7 +180,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         var runner = new DriverRunner() {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor("esql_test_executor"), driver, listener);
+                Driver.start(threadPool.executor("esql_test_executor"), driver, between(1, 1000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();

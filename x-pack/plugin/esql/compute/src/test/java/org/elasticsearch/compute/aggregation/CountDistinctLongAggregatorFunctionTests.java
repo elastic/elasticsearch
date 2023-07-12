@@ -73,7 +73,7 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
                 () -> {}
             )
         ) {
-            expectThrows(Exception.class, d::run);  // ### find a more specific exception type
+            expectThrows(Exception.class, () -> runDriver(d));  // ### find a more specific exception type
         }
     }
 }

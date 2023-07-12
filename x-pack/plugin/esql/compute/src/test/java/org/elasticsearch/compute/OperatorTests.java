@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -59,6 +58,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
@@ -74,12 +74,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ql.util.Holder;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,13 +84,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongUnaryOperator;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
-import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
 import static org.elasticsearch.compute.operator.OperatorTestCase.randomPageSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -103,43 +96,25 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class OperatorTests extends ESTestCase {
 
-    private ThreadPool threadPool;
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        int numThreads = randomBoolean() ? 1 : between(2, 16);
-        threadPool = new TestThreadPool(
-            "OperatorTests",
-            new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
-        );
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        super.tearDown();
-    }
-
     public void testLuceneOperatorsLimit() throws IOException {
         final int numDocs = randomIntBetween(10_000, 100_000);
         try (Directory dir = newDirectory(); RandomIndexWriter w = writeTestDocs(dir, numDocs, "value", null)) {
             try (IndexReader reader = w.getReader()) {
                 AtomicInteger rowCount = new AtomicInteger();
-                final int limit = randomIntBetween(1, numDocs);
+                final int limit = randomIntBetween(1, numDocs * 2);
                 DriverContext driverContext = new DriverContext();
                 try (
                     Driver driver = new Driver(
                         driverContext,
-                        new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), randomIntBetween(1, numDocs), limit),
+                        new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), randomPageSize(), limit),
                         Collections.emptyList(),
                         new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount())),
                         () -> {}
                     )
                 ) {
-                    driver.run();
+                    OperatorTestCase.runDriver(driver);
                 }
-                assertEquals(limit, rowCount.get());
+                assertEquals(Math.min(limit, numDocs), rowCount.get());
                 assertDriverContext(driverContext);
             }
         }
@@ -189,7 +164,7 @@ public class OperatorTests extends ESTestCase {
                         () -> {}
                     )
                 ) {
-                    driver.run();
+                    OperatorTestCase.runDriver(driver);
                 }
                 assertEquals(Math.min(limit, numDocs), rowCount.get());
                 assertDriverContext(driverContext);
@@ -239,7 +214,7 @@ public class OperatorTests extends ESTestCase {
                             )
                         );
                     }
-                    runToCompletion(threadPool, drivers);
+                    OperatorTestCase.runDriver(drivers);
                 } finally {
                     Releasables.close(drivers);
                 }
@@ -304,7 +279,7 @@ public class OperatorTests extends ESTestCase {
                     });
                     drivers.add(new Driver(new DriverContext(), queryOperator, List.of(), docCollector, () -> {}));
                 }
-                runToCompletion(threadPool, drivers);
+                OperatorTestCase.runDriver(drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
                 assertThat("query=" + query + ", partition=" + partition, actualDocIds, equalTo(expectedDocIds));
                 drivers.stream().map(Driver::driverContext).forEach(OperatorTests::assertDriverContext);
@@ -450,7 +425,7 @@ public class OperatorTests extends ESTestCase {
                     }),
                     () -> {}
                 );
-                driver.run();
+                OperatorTestCase.runDriver(driver);
                 assertThat(actualCounts, equalTo(expectedCounts));
                 assertDriverContext(driverContext);
             }
@@ -478,7 +453,7 @@ public class OperatorTests extends ESTestCase {
                 () -> {}
             )
         ) {
-            driver.run();
+            OperatorTestCase.runDriver(driver);
         }
 
         assertThat(results, contains(values.stream().limit(limit).toArray()));

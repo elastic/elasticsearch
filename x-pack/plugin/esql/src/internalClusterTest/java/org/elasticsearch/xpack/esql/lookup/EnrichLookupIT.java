@@ -129,6 +129,7 @@ public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
 
         DriverRunner.runToCompletion(
             internalCluster().getInstance(TransportService.class).getThreadPool(),
+            between(1, 10_000),
             List.of(new Driver(new DriverContext(), sourceOperator, List.of(enrichOperator), outputOperator, () -> {}))
         );
         transportService.getTaskManager().unregister(parentTask);

@@ -291,7 +291,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 () -> {}
             )
         ) {
-            driver.run();
+            runDriver(driver);
         }
 
         assertMap(actualTop, matchesList(expectedTop));
@@ -359,7 +359,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 () -> {}
             )
         ) {
-            driver.run();
+            runDriver(driver);
         }
 
         assertMap(actualTop, matchesList(expectedTop));
@@ -388,7 +388,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 () -> {}
             )
         ) {
-            driver.run();
+            runDriver(driver);
         }
         assertThat(outputValues, hasSize(Math.min(limit, inputValues.size())));
         assertDriverContext(driverContext);

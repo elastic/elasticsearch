@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -367,8 +368,9 @@ public class CsvTests extends ESTestCase {
                 exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3));
                 LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
                 drivers.addAll(dataNodeExecutionPlan.createDrivers(sessionId));
+                Randomness.shuffle(drivers);
             }
-            responseHeaders = runToCompletion(threadPool, drivers);
+            responseHeaders = runToCompletion(threadPool, between(1, 10_000), drivers);
         } finally {
             Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
         }

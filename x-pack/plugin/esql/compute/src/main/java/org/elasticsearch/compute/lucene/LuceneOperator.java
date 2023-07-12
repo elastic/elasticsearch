@@ -59,6 +59,7 @@ public abstract class LuceneOperator extends SourceOperator {
     int currentLeaf = 0;
     LuceneSourceOperator.PartialLeafReaderContext currentLeafReaderContext = null;
     BulkScorer currentScorer = null;
+    private Thread createdScorerThread = null;
 
     int currentPagePos;
     int currentScorerPos;
@@ -252,6 +253,16 @@ public abstract class LuceneOperator extends SourceOperator {
     }
 
     boolean maybeReturnEarlyOrInitializeScorer() {
+        // Reset the Scorer if the operator is run by a different thread
+        if (currentLeafReaderContext != null && createdScorerThread != Thread.currentThread()) {
+            try {
+                currentScorer = weight.bulkScorer(currentLeafReaderContext.leafReaderContext);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            createdScorerThread = Thread.currentThread();
+            return false;
+        }
         if (currentLeafReaderContext == null) {
             assert currentScorer == null : "currentScorer wasn't reset";
             do {
@@ -270,6 +281,7 @@ public abstract class LuceneOperator extends SourceOperator {
                     }
                 }
             } while (currentScorer == null);
+            createdScorerThread = Thread.currentThread();
         }
         return false;
     }

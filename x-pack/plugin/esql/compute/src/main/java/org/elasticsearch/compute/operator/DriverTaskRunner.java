@@ -121,7 +121,7 @@ public class DriverTaskRunner {
         @Override
         public void messageReceived(DriverRequest request, TransportChannel channel, Task task) {
             var listener = new ChannelActionListener<TransportResponse.Empty>(channel);
-            Driver.start(executor, request.driver, listener.map(unused -> TransportResponse.Empty.INSTANCE));
+            Driver.start(executor, request.driver, Driver.DEFAULT_MAX_ITERATIONS, listener.map(unused -> TransportResponse.Empty.INSTANCE));
         }
     }
 }

@@ -254,7 +254,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 () -> {}
             )
         ) {
-            d.run();
+            runDriver(d);
         }
         assertThat(results, hasSize(input.size()));
         for (Page p : results) {
@@ -388,7 +388,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 () -> {}
             )
         ) {
-            driver.run();
+            runDriver(driver);
         }
         assertDriverContext(driverContext);
     }

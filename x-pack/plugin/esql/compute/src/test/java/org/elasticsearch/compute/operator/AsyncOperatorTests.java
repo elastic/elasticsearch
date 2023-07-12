@@ -120,7 +120,7 @@ public class AsyncOperatorTests extends ESTestCase {
             outputOperator,
             () -> assertFalse(it.hasNext())
         );
-        Driver.start(threadPool.executor("esql_test_executor"), driver, future);
+        Driver.start(threadPool.executor("esql_test_executor"), driver, between(1, 10000), future);
         future.actionGet();
     }
 

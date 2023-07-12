@@ -278,7 +278,7 @@ public class ExchangeServiceTests extends ESTestCase {
         new DriverRunner() {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor("esql_test_executor"), driver, listener);
+                Driver.start(threadPool.executor("esql_test_executor"), driver, between(1, 10000), listener);
             }
         }.runToCompletion(drivers, future);
         future.actionGet(TimeValue.timeValueMinutes(1));

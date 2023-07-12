@@ -216,7 +216,7 @@ public class EnrichLookupService {
                 String reason = Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled");
                 driver.cancel(reason);
             });
-            Driver.start(executor, driver, listener.map(ignored -> {
+            Driver.start(executor, driver, Driver.DEFAULT_MAX_ITERATIONS, listener.map(ignored -> {
                 Page out = result.get();
                 if (out == null) {
                     out = createNullResponse(inputPage.getPositionCount(), extractFields);

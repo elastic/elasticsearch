@@ -95,11 +95,11 @@ public abstract class DriverRunner {
      * Run all the of the listed drivers in the supplier {@linkplain ThreadPool}.
      * @return the headers added to the context while running the drivers
      */
-    public static Map<String, List<String>> runToCompletion(ThreadPool threadPool, List<Driver> drivers) {
+    public static Map<String, List<String>> runToCompletion(ThreadPool threadPool, int maxIterations, List<Driver> drivers) {
         DriverRunner runner = new DriverRunner() {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.executor("esql"), driver, driverListener);
+                Driver.start(threadPool.executor("esql"), driver, maxIterations, driverListener);
             }
         };
         AtomicReference<Map<String, List<String>>> responseHeaders = new AtomicReference<>();

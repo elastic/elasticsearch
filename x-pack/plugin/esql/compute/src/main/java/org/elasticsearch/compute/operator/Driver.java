@@ -36,8 +36,10 @@ import java.util.stream.Collectors;
  * More details on how this integrates with other components can be found in the package documentation of
  * {@link org.elasticsearch.compute}
  */
-public class Driver implements Runnable, Releasable, Describable {
+
+public class Driver implements Releasable, Describable {
     public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMillis(200);
+    public static final int DEFAULT_MAX_ITERATIONS = 10_000;
 
     private final String sessionId;
     private final DriverContext driverContext;
@@ -101,27 +103,11 @@ public class Driver implements Runnable, Releasable, Describable {
     }
 
     /**
-     * Convenience method to run the chain of operators to completion. Does not leverage
-     * the non-blocking nature of operators, but keeps busy-spinning when an operator is
-     * blocked.
-     */
-    @Override
-    public void run() {
-        try {
-            while (run(TimeValue.MAX_VALUE, Integer.MAX_VALUE) != Operator.NOT_BLOCKED)
-                ;
-        } catch (Exception e) {
-            close();
-            throw e;
-        }
-    }
-
-    /**
      * Runs computations on the chain of operators for a given maximum amount of time or iterations.
      * Returns a blocked future when the chain of operators is blocked, allowing the caller
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
-    public ListenableActionFuture<Void> run(TimeValue maxTime, int maxIterations) {
+    private ListenableActionFuture<Void> run(TimeValue maxTime, int maxIterations) {
         long maxTimeNanos = maxTime.nanos();
         long startTime = System.nanoTime();
         int iter = 0;
@@ -240,8 +226,7 @@ public class Driver implements Runnable, Releasable, Describable {
         }
     }
 
-    public static void start(Executor executor, Driver driver, ActionListener<Void> listener) {
-        int maxIterations = 10000;
+    public static void start(Executor executor, Driver driver, int maxIterations, ActionListener<Void> listener) {
         driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));  // Report status for the tasks API
         schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, executor, driver, listener);
     }

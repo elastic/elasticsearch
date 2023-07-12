@@ -7,23 +7,30 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AssumptionViolatedException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -182,7 +189,7 @@ public abstract class OperatorTestCase extends ESTestCase {
                     () -> {}
                 )
             ) {
-                d.run();
+                runDriver(d);
             }
         }
         return result;
@@ -205,13 +212,46 @@ public abstract class OperatorTestCase extends ESTestCase {
                 new DriverContext(),
                 new CannedSourceOperator(input),
                 operators,
-                new PageConsumerOperator(page -> results.add(page)),
+                new PageConsumerOperator(results::add),
                 () -> {}
             )
         ) {
-            d.run();
+            runDriver(d);
         }
         return results;
+    }
+
+    public static void runDriver(Driver driver) {
+        runDriver(List.of(driver));
+    }
+
+    public static void runDriver(List<Driver> drivers) {
+        drivers = new ArrayList<>(drivers);
+        int dummyDrivers = between(0, 10);
+        for (int i = 0; i < dummyDrivers; i++) {
+            drivers.add(
+                new Driver(
+                    "dummy-session",
+                    new DriverContext(),
+                    () -> "dummy-driver",
+                    new SequenceLongBlockSourceOperator(LongStream.range(0, between(1, 100)), between(1, 100)),
+                    List.of(),
+                    new PageConsumerOperator(page -> {}),
+                    () -> {}
+                )
+            );
+        }
+        Randomness.shuffle(drivers);
+        int numThreads = between(1, 16);
+        ThreadPool threadPool = new TestThreadPool(
+            getTestClass().getSimpleName(),
+            new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+        );
+        try {
+            DriverRunner.runToCompletion(threadPool, between(1, 10000), drivers);
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

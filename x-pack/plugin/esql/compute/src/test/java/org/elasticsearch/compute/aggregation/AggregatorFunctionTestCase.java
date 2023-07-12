@@ -103,7 +103,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
                 () -> {}
             )
         ) {
-            d.run();
+            runDriver(d);
         }
         assertSimpleOutput(input, results);
     }

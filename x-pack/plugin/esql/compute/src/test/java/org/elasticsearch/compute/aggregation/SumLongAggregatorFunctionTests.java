@@ -59,7 +59,7 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
                 () -> {}
             )
         ) {
-            Exception e = expectThrows(ArithmeticException.class, d::run);
+            Exception e = expectThrows(ArithmeticException.class, () -> runDriver(d));
             assertThat(e.getMessage(), equalTo("long overflow"));
         }
     }
@@ -75,7 +75,7 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
                 () -> {}
             )
         ) {
-            expectThrows(Exception.class, d::run);  // ### find a more specific exception type
+            expectThrows(Exception.class, () -> runDriver(d));  // ### find a more specific exception type
         }
     }
 }

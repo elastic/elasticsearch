@@ -9,7 +9,7 @@
         "pipeline": {
           "default_name": "ent-search-generic-ingestion",
           "default_extract_binary_content": true,
-          "default_run_ml_inference": true,
+          "default_run_ml_inference": false,
           "default_reduce_whitespace": true
         },
         "version": ${xpack.application.connector.template.version}

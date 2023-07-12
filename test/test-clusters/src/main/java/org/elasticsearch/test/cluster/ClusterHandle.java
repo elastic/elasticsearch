@@ -11,6 +11,7 @@ package org.elasticsearch.test.cluster;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.Closeable;
+import java.nio.file.Path;
 
 /**
  * A handle to an {@link ElasticsearchCluster}.
@@ -75,6 +76,11 @@ public interface ClusterHandle extends Closeable {
      * Get the pid of the node for the given index.
      */
     long getPid(int index);
+
+    /**
+     * Return the log directory of the node for the given index.
+     */
+    Path getLogsDir(int index);
 
     /**
      * Returns a comma-separated list of TCP transport endpoints for cluster. If this method is called on an unstarted cluster, the cluster

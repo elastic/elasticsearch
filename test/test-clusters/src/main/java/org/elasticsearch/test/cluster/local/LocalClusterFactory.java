@@ -229,6 +229,10 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             return process.pid();
         }
 
+        public Path getLogsDir() {
+            return logsDir;
+        }
+
         public LocalNodeSpec getSpec() {
             return spec;
         }

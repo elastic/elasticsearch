@@ -12,6 +12,7 @@ import org.elasticsearch.test.cluster.util.Version;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
+import java.nio.file.Path;
 import java.util.function.Supplier;
 
 public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends ClusterHandle> implements ElasticsearchCluster {
@@ -99,6 +100,12 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     public long getPid(int index) {
         checkHandle();
         return handle.getPid(index);
+    }
+
+    @Override
+    public Path getLogsDir(int index) {
+        checkHandle();
+        return handle.getLogsDir(index);
     }
 
     @Override

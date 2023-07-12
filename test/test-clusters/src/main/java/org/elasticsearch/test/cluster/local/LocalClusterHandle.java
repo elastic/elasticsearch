@@ -165,6 +165,11 @@ public class LocalClusterHandle implements ClusterHandle {
         return nodes.get(index).getPid();
     }
 
+    @Override
+    public Path getLogsDir(int index) {
+        return nodes.get(index).getLogsDir();
+    }
+
     public void stopNode(int index) {
         nodes.get(index).stop(false);
     }

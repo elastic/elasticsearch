@@ -41,7 +41,7 @@ public class QueryRulesConfigTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[xpack.applications.rules.max_rules_per_ruleset] must be >= 1"));
     }
 
-    private Settings createCustomSettings(String key, String value) {
+    private static Settings createCustomSettings(String key, String value) {
         key = QueryRulesConfig.SETTING_ROOT_PATH + "." + key;
         return Settings.builder().put(key, value).build();
     }

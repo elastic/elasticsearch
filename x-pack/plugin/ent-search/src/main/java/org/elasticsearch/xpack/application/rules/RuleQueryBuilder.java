@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -29,6 +30,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
@@ -104,9 +106,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         Supplier<List<Item>> pinnedDocsSupplier
 
     ) {
-        // if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
-        // throw LicenseUtils.newComplianceException(NAME);
-        // }
+        if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException(NAME);
+        }
 
         if (organicQuery == null) {
             throw new IllegalArgumentException("organicQuery must not be null");

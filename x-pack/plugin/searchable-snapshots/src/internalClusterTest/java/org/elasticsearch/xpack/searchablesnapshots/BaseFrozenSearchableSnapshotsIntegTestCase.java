@@ -32,7 +32,7 @@ public abstract class BaseFrozenSearchableSnapshotsIntegTestCase extends BaseSea
                         : new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.BYTES).getStringRep()
                     : randomBoolean() ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB).getStringRep()
                     : new RatioValue(randomDoubleBetween(0.0d, 0.1d, false)).toString() // only use up to 0.1% disk to be friendly.
-            );
+            ).put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), randomBoolean());
         }
 
         return builder.build();

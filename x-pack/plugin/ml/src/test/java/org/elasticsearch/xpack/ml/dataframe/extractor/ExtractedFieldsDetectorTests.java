@@ -885,7 +885,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
     public void testDetect_GivenMultiFieldAndParentIsRequired() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder().addAggregatableField("field_1", "keyword")
-            .addAggregatableField("field_1.keyword", "keyword")
+            .addAggregatableField("field_1.keyword", "keyword")// causing exception for assertion on line 900 below because it is not a multifield anymore due both this field and its parent above being aggregatable
             .addAggregatableField("field_2", "float")
             .build();
 
@@ -915,7 +915,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
     public void testDetect_GivenMultiFieldAndMultiFieldIsRequired() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder().addAggregatableField("field_1", "keyword")
-            .addAggregatableField("field_1.keyword", "keyword")
+            .addAggregatableField("field_1.keyword", "keyword") // causing exception for assertion on line 930 below because it is not a multifield anymore due both this field and its parent above being aggregatable
             .addAggregatableField("field_2", "float")
             .build();
 
@@ -1028,7 +1028,12 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             fieldCapabilities,
             Collections.emptyMap()
         );
-        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();// causing java.lang.IllegalArgumentException: cannot retrieve field [field_2] because it has no mappings
+        /*
+        at org.elasticsearch.xpack.ml.extractor.ExtractedFields$ExtractionMethodDetector.isAggregatable(ExtractedFields.java:196)
+        at org.elasticsearch.xpack.ml.extractor.ExtractedFields$ExtractionMethodDetector.isMultiField(ExtractedFields.java:223)
+        at org.elasticsearch.xpack.ml.extractor.ExtractedFields$ExtractionMethodDetector.detect(ExtractedFields.java:160)
+        */
 
         assertThat(fieldExtraction.v1().getAllFields(), hasSize(3));
         List<String> extractedFieldNames = fieldExtraction.v1()

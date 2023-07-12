@@ -220,11 +220,15 @@ public class ExtractedFields {
             if (Objects.equals(field, parent)) {
                 return false;
             }
+            if (isAggregatable(parent) && isAggregatable(field)) {
+                return false;
+            }
             Map<String, FieldCapabilities> parentFieldCaps = fieldsCapabilities.getField(parent);
             if (parentFieldCaps == null || (parentFieldCaps.size() == 1 && isNestedOrObject(parentFieldCaps))) {
                 // We check if the parent is an object or nested field. If so, it's not a multi field.
                 return false;
             }
+
             return true;
         }
 

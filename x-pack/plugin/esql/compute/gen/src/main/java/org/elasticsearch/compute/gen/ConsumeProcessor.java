@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.gen;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.ann.Fixed;
 
 import java.util.List;
@@ -24,7 +23,7 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 
 /**
- * Consumes the "Nullable" and {@link Experimental} annotations and does nothing with them
+ * Consumes the "Nullable" and "Inject" annotations and does nothing with them
  * to prevent warnings when running annotation processors.
  */
 public class ConsumeProcessor implements Processor {
@@ -35,12 +34,7 @@ public class ConsumeProcessor implements Processor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        return Set.of(
-            "org.elasticsearch.core.Nullable",
-            Experimental.class.getName(),
-            "org.elasticsearch.common.inject.Inject",
-            Fixed.class.getName()
-        );
+        return Set.of("org.elasticsearch.core.Nullable", "org.elasticsearch.common.inject.Inject", Fixed.class.getName());
     }
 
     @Override

@@ -446,7 +446,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ReaderContext readerContext = createOrGetReaderContext(request);
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false, true)
+            SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
             dfsPhase.execute(context);
             return context.dfsResult();
@@ -613,7 +613,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         try (
             Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, ResultsType.QUERY, true, false)
+            SearchContext context = createContext(readerContext, request, task, ResultsType.QUERY, true)
         ) {
             tracer.startTrace("executeQueryPhase", Map.of());
             final long afterQueryTime;
@@ -685,7 +685,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (
-                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, false, false);
+                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, false);
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
             ) {
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
@@ -717,7 +717,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             runAsync(getExecutor(readerContext.indexShard()), () -> {
                 readerContext.setAggregatedDfs(request.dfs());
                 try (
-                    SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true, false);
+                    SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);
                     SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
                 ) {
                     searchContext.searcher().setAggregatedDfs(request.dfs());
@@ -775,7 +775,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (
-                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false, false);
+                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false);
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
             ) {
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(null));
@@ -800,7 +800,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
-            try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false, false)) {
+            try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false)) {
                 if (request.lastEmittedDoc() != null) {
                     searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
                 }
@@ -973,17 +973,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         });
     }
 
-    // this seems to be the main entry point
     protected SearchContext createContext(
         ReaderContext readerContext,
         ShardSearchRequest request,
         SearchShardTask task,
         ResultsType resultsType,
-        boolean includeAggregations,
-        boolean parallelize
+        boolean includeAggregations
     ) throws IOException {
         checkCancelled(task);
-        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, parallelize);
+        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, resultsType);
         resultsType.addResultsObject(context);
         try {
             if (request.scroll() != null) {
@@ -1015,7 +1013,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
-            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, false);
+            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, null);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
             return searchContext;
         }
@@ -1026,7 +1024,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ReaderContext reader,
         ShardSearchRequest request,
         TimeValue timeout,
-        boolean parallelize
+        ResultsType resultsType
     ) throws IOException {
         boolean success = false;
         DefaultSearchContext searchContext = null;
@@ -1044,7 +1042,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 timeout,
                 fetchPhase,
                 lowLevelCancellation,
-                parallelize
+                concurrentSearch(resultsType, request.source())
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -1062,6 +1060,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return searchContext;
+    }
+
+    private static boolean concurrentSearch(ResultsType resultsType, SearchSourceBuilder source) {
+        // TODO this can be extended with more complex logic taking into account phase, builder properties etc...
+        // e.g. source.profile() == true;
+        return resultsType == ResultsType.DFS;
     }
 
     private void freeAllContextForIndex(Index index) {

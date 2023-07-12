@@ -21,33 +21,33 @@ import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
-import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction.Request;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
 /**
  * A helper class for abstracting out the use of the ModelLoaderUtils to make dependency injection testing easier.
  */
-class ModelUploader {
+class ModelImporter {
     private static final int DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024; // 4MB
-    private static final Logger logger = LogManager.getLogger(ModelUploader.class);
+    private static final Logger logger = LogManager.getLogger(ModelImporter.class);
     private final Client client;
     private final String modelId;
     private final ModelPackageConfig config;
 
-    ModelUploader(Client client, Request request) {
+    ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig) {
         this.client = client;
-        this.modelId = request.getModelId();
-        this.config = request.getModelPackageConfig();
+        this.modelId = Objects.requireNonNull(modelId);
+        this.config = packageConfig;
     }
 
-    public void upload() throws URISyntaxException, IOException, ElasticsearchStatusException {
+    public void doImport() throws URISyntaxException, IOException, ElasticsearchStatusException {
         long size = config.getSize();
 
         // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
@@ -55,7 +55,7 @@ class ModelUploader {
         if (Strings.isNullOrEmpty(config.getVocabularyFile()) == false) {
             uploadVocabulary();
 
-            writeDebugNotification(modelId, format("uploaded model vocabulary [%s]", config.getVocabularyFile()));
+            writeDebugNotification(modelId, format("imported model vocabulary [%s]", config.getVocabularyFile()));
         }
 
         URI uri = ModelLoaderUtils.resolvePackageLocation(
@@ -116,7 +116,7 @@ class ModelUploader {
         );
 
         client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
-        logger.debug(format("finished uploading model [%s] using [%d] parts", modelId, totalParts));
+        logger.debug(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
     }
 
     private void uploadVocabulary() throws URISyntaxException {

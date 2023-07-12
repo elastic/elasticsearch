@@ -14,17 +14,15 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfigTests;
-import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.hamcrest.CoreMatchers;
-import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -32,97 +30,100 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 public class TransportLoadTrainedModelPackageTests extends ESTestCase {
-    private LoadTrainedModelPackageAction.Request loadModelReq;
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
-        loadModelReq = createRequest("abc");
-    }
-
-    private LoadTrainedModelPackageAction.Request createRequest(String vocabFile) {
-        ModelPackageConfig config = new ModelPackageConfig.Builder(ModelPackageConfigTests.randomModulePackageConfig()).setVocabularyFile(
-            vocabFile
-        ).build();
-
-        return new LoadTrainedModelPackageAction.Request("id1", config, false);
-    }
+    private static final String MODEL_IMPORT_FAILURE_MSG_FORMAT = "Model importing failed due to %s [%s]";
 
     public void testSendsFinishedUploadNotification() {
-        LoadTrainedModelPackageAction.Request req = createRequest(null);
-        ModelUploader uploader = mock(ModelUploader.class);
+        ModelImporter uploader = mock(ModelImporter.class);
         Client client = mock(Client.class);
 
-        TransportLoadTrainedModelPackage.uploadModel(client, req, uploader, ActionListener.noop());
+        TransportLoadTrainedModelPackage.importModel(client, "id", uploader, ActionListener.noop());
 
-        ArgumentCaptor<AuditMlNotificationAction.Request> argument = ArgumentCaptor.forClass(AuditMlNotificationAction.Request.class);
-        verify(client).execute(eq(AuditMlNotificationAction.INSTANCE), argument.capture(), any());
-        assertThat(argument.getValue().getMessage(), CoreMatchers.containsString("finished model upload after"));
+        var notificationArg = ArgumentCaptor.forClass(AuditMlNotificationAction.Request.class);
+        verify(client).execute(eq(AuditMlNotificationAction.INSTANCE), notificationArg.capture(), any());
+        assertThat(notificationArg.getValue().getMessage(), CoreMatchers.containsString("finished model import after"));
     }
 
     public void testSendsErrorNotificationForInternalError() throws URISyntaxException, IOException {
         ElasticsearchStatusException exception = new ElasticsearchStatusException("exception", RestStatus.INTERNAL_SERVER_ERROR);
 
-        assertUploadCallsOnFailure(exception, "exception");
-    }
-
-    private void assertUploadCallsOnFailure(Exception exception, String message) throws URISyntaxException, IOException {
-        Client client = mock(Client.class);
-        ModelUploader uploader = createUploader(exception);
-
-        @SuppressWarnings("unchecked")
-        ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) mock(ActionListener.class);
-        TransportLoadTrainedModelPackage.uploadModel(client, loadModelReq, uploader, listener);
-
-        ArgumentCaptor<AuditMlNotificationAction.Request> argument = ArgumentCaptor.forClass(AuditMlNotificationAction.Request.class);
-        verify(client).execute(eq(AuditMlNotificationAction.INSTANCE), argument.capture(), any());
-        assertThat(argument.getValue().getMessage(), CoreMatchers.containsString(message));
-
-        verify(listener).onFailure(exception);
-    }
-
-    private ModelUploader createUploader(Exception exception) throws URISyntaxException, IOException {
-        ModelUploader uploader = mock(ModelUploader.class);
-        if (exception != null) {
-            doThrow(exception).when(uploader).upload();
-        }
-
-        return uploader;
+        assertUploadCallsOnFailure(exception, exception.toString());
     }
 
     public void testSendsErrorNotificationForMalformedURL() throws URISyntaxException, IOException {
         MalformedURLException exception = new MalformedURLException("exception");
+        String message = format(MODEL_IMPORT_FAILURE_MSG_FORMAT, "an invalid URL", exception.toString());
 
-        assertUploadCallsOnFailure(exception, "Invalid URL");
+        assertUploadCallsOnFailure(exception, message, RestStatus.INTERNAL_SERVER_ERROR);
     }
 
     public void testSendsErrorNotificationForURISyntax() throws URISyntaxException, IOException {
         URISyntaxException exception = mock(URISyntaxException.class);
+        String message = format(MODEL_IMPORT_FAILURE_MSG_FORMAT, "an invalid URL syntax", exception.toString());
 
-        assertUploadCallsOnFailure(exception, "Invalid URL syntax");
+        assertUploadCallsOnFailure(exception, message, RestStatus.INTERNAL_SERVER_ERROR);
     }
 
     public void testSendsErrorNotificationForIOException() throws URISyntaxException, IOException {
         IOException exception = mock(IOException.class);
+        String message = format(MODEL_IMPORT_FAILURE_MSG_FORMAT, "an IOException", exception.toString());
 
-        assertUploadCallsOnFailure(exception, "IOException");
+        assertUploadCallsOnFailure(exception, message, RestStatus.SERVICE_UNAVAILABLE);
     }
 
     public void testSendsErrorNotificationForException() throws URISyntaxException, IOException {
         RuntimeException exception = mock(RuntimeException.class);
+        String message = format(MODEL_IMPORT_FAILURE_MSG_FORMAT, "an Exception", exception.toString());
 
-        assertUploadCallsOnFailure(exception, "Exception");
+        assertUploadCallsOnFailure(exception, message, RestStatus.INTERNAL_SERVER_ERROR);
     }
 
     public void testCallsOnResponseWithAcknowledgedResponse() throws URISyntaxException, IOException {
         Client client = mock(Client.class);
-        ModelUploader uploader = createUploader(null);
+        ModelImporter uploader = createUploader(null);
 
         @SuppressWarnings("unchecked")
-        ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) mock(ActionListener.class);
-        TransportLoadTrainedModelPackage.uploadModel(client, loadModelReq, uploader, listener);
+        var listener = (ActionListener<AcknowledgedResponse>) mock(ActionListener.class);
+        TransportLoadTrainedModelPackage.importModel(client, "id", uploader, listener);
 
         verify(listener).onResponse(AcknowledgedResponse.TRUE);
+    }
+
+    private void assertUploadCallsOnFailure(Exception exception, String message, RestStatus status) throws URISyntaxException, IOException {
+        var esStatusException = new ElasticsearchStatusException(message, status, exception);
+
+        assertNotificationAndOnFailure(exception, esStatusException, message);
+    }
+
+    private void assertUploadCallsOnFailure(ElasticsearchStatusException exception, String message) throws URISyntaxException, IOException {
+        assertNotificationAndOnFailure(exception, exception, message);
+    }
+
+    private void assertNotificationAndOnFailure(Exception thrownException, ElasticsearchStatusException onFailureException, String message)
+        throws URISyntaxException, IOException {
+        Client client = mock(Client.class);
+        ModelImporter uploader = createUploader(thrownException);
+
+        @SuppressWarnings("unchecked")
+        var listener = (ActionListener<AcknowledgedResponse>) mock(ActionListener.class);
+        TransportLoadTrainedModelPackage.importModel(client, "id", uploader, listener);
+
+        var notificationArg = ArgumentCaptor.forClass(AuditMlNotificationAction.Request.class);
+        verify(client).execute(eq(AuditMlNotificationAction.INSTANCE), notificationArg.capture(), any());
+        assertThat(notificationArg.getValue().getMessage(), is(message));
+
+        var listenerArg = ArgumentCaptor.forClass(ElasticsearchStatusException.class);
+        verify(listener).onFailure(listenerArg.capture());
+        assertThat(listenerArg.getValue().toString(), is(onFailureException.toString()));
+        assertThat(listenerArg.getValue().status(), is(onFailureException.status()));
+        assertThat(listenerArg.getValue().getCause(), is(onFailureException.getCause()));
+    }
+
+    private ModelImporter createUploader(Exception exception) throws URISyntaxException, IOException {
+        ModelImporter uploader = mock(ModelImporter.class);
+        if (exception != null) {
+            doThrow(exception).when(uploader).doImport();
+        }
+
+        return uploader;
     }
 }

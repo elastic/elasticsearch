@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.packageloader.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,12 +22,14 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction.Request;
 import org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader;
@@ -72,9 +75,12 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
-        ModelUploader modelUploader = new ModelUploader(client, request);
+        String modelId = request.getModelId();
+        ModelPackageConfig packageConfig = request.getModelPackageConfig();
+        ModelImporter modelImporter = new ModelImporter(client, modelId, packageConfig);
+
         threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME)
-            .execute(() -> uploadModel(client, request, modelUploader, listener));
+            .execute(() -> importModel(client, modelId, modelImporter, listener));
 
         if (request.isWaitForCompletion() == false) {
             listener.onResponse(AcknowledgedResponse.TRUE);
@@ -85,31 +91,30 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
      * This is package scope so that we can test the logic directly.
      * This should only be called from the masterOperation method and the tests
      */
-    static void uploadModel(Client client, Request request, ModelUploader modelUploader, ActionListener<AcknowledgedResponse> listener) {
-        String modelId = request.getModelId();
+    static void importModel(Client client, String modelId, ModelImporter modelImporter, ActionListener<AcknowledgedResponse> listener) {
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
         try {
             final long relativeStartNanos = System.nanoTime();
 
-            modelUploader.upload();
+            modelImporter.doImport();
 
             final long totalRuntimeNanos = System.nanoTime() - relativeStartNanos;
             logAndWriteNotificationAtInfo(
                 client,
                 modelId,
-                format("finished model upload after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos))
+                format("finished model import after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos))
             );
-        } catch (ElasticsearchStatusException e) {
-            recordError(client, modelId, "%s", exceptionRef, e);
+        } catch (ElasticsearchException e) {
+            recordError(client, modelId, exceptionRef, e);
         } catch (MalformedURLException e) {
-            recordError(client, modelId, "Invalid URL [%s]", exceptionRef, e);
+            recordError(client, modelId, "an invalid URL", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
         } catch (URISyntaxException e) {
-            recordError(client, modelId, "Invalid URL syntax [%s]", exceptionRef, e);
+            recordError(client, modelId, "an invalid URL syntax", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
         } catch (IOException e) {
-            recordError(client, modelId, "IOException [%s]", exceptionRef, e);
+            recordError(client, modelId, "an IOException", exceptionRef, e, RestStatus.SERVICE_UNAVAILABLE);
         } catch (Exception e) {
-            recordError(client, modelId, "Exception [%s]", exceptionRef, e);
+            recordError(client, modelId, "an Exception", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
         } finally {
             if (exceptionRef.get() != null) {
                 listener.onFailure(exceptionRef.get());
@@ -119,15 +124,22 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         }
     }
 
+    private static void recordError(Client client, String modelId, AtomicReference<Exception> exceptionRef, Exception e) {
+        logAndWriteNotificationAtError(client, modelId, e.toString());
+        exceptionRef.set(e);
+    }
+
     private static void recordError(
         Client client,
         String modelId,
-        String messageFormatting,
+        String failureType,
         AtomicReference<Exception> exceptionRef,
-        Exception e
+        Exception e,
+        RestStatus status
     ) {
-        logAndWriteNotificationAtError(client, modelId, format(messageFormatting, e));
-        exceptionRef.set(e);
+        String message = format("Model importing failed due to %s [%s]", failureType, e);
+        logAndWriteNotificationAtError(client, modelId, message);
+        exceptionRef.set(new ElasticsearchStatusException(message, status, e));
     }
 
     private static void logAndWriteNotificationAtError(Client client, String modelId, String message) {

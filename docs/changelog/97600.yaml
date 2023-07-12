@@ -1,0 +1,6 @@
+pr: 97600
+summary: Makes lineal the calculation of `IndicesQueryCache`
+area: Stats
+type: bug
+issues:
+ - 97222

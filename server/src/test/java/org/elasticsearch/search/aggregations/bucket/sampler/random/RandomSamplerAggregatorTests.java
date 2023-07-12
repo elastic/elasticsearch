@@ -8,8 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
-import org.apache.commons.math3.distribution.NormalDistribution;
-import org.apache.commons.math3.distribution.TDistribution;
+import org.apache.commons.math3.distribution.*;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -30,20 +29,16 @@ import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notANumber;
+import static org.hamcrest.Matchers.*;
 
 public class RandomSamplerAggregatorTests extends AggregatorTestCase {
 
@@ -185,6 +180,50 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSampleBuilder() throws Exception {
+
+        enum DistributionType {
+            UniformSparse("uniform_sparse_10M", () -> getUniformDistribution(), false),
+            Gaussian("gaussian_30_70_10M", () -> new NormalDistribution(randomIntBetween(30, 70), 25), true),
+            Gamma("gamma_20_40_10M", () -> getGammaDistribution(), true);
+
+            private static AbstractRealDistribution getGammaDistribution() {
+                double r = randomDoubleBetween(4, 8, true);
+                return new GammaDistribution(r, r - 2);
+            }
+
+            private static AbstractRealDistribution getUniformDistribution() {
+                return new UniformRealDistribution(INPUT_SIZE, INPUT_SIZE * INPUT_SIZE);
+            }
+
+            private DistributionType(String name, Supplier<AbstractRealDistribution> internalDistribution, boolean isPercent) {
+                this.name = name;
+                this.internalDistribution = internalDistribution;
+                this.isPercent = isPercent;
+            }
+
+            AbstractRealDistribution distribution() {
+                return internalDistribution.get();
+            }
+
+            double next(AbstractRealDistribution distribution) {
+                double result = distribution.sample();
+                if (isPercent) {
+                    return Math.min(Math.max(0, result), 100);
+                }
+                return result;
+            }
+
+            String distname() {
+                return name;
+            }
+
+            private final String name;
+            private final Supplier<AbstractRealDistribution> internalDistribution;
+            private final boolean isPercent;
+
+            static final long INPUT_SIZE = 10_000_000;
+        }
+
         class SampleBuilder implements AutoCloseable {
 
             SampleBuilder(String path, double p) throws IOException {
@@ -283,7 +322,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 for (var entry : bootstrapsPerName.entrySet()) {
                     DescriptiveStatistics stats = new DescriptiveStatistics();
                     for (int i = 0; i < BOOTSTRAP_COUNT; i++) {
-                        stats.addValue(entry.getValue().get(i).get() * 100);
+                        stats.addValue(entry.getValue().get(i).get());
                     }
 
                     double mean = stats.getMean();
@@ -295,12 +334,14 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
 
                     double count = entry.getValue().get(0).count();
                     TDistribution tDistribution = new TDistribution(count - 1);
-                    // alpha = (1 - alpha) / 2;
-                    alpha = normalZero.cumulativeProbability(
-                        Math.sqrt(count / (count - 1)) * tDistribution.inverseCumulativeProbability((1 - alpha) / 2)
-                    );
+                    alpha = (1 - alpha) / 4;
+//                    alpha = normalZero.cumulativeProbability(
+//                        Math.sqrt(count / (count - 1)) * tDistribution.inverseCumulativeProbability((1 - alpha) / 2)
+//                    );
 
-                    double z = normalFitted.inverseCumulativeProbability(sampledResults.get(entry.getKey()));
+                    double z = normalZero.inverseCumulativeProbability(
+                        normalFitted.cumulativeProbability(sampledResults.get(entry.getKey()))
+                    );
                     double zl = normalZero.inverseCumulativeProbability(alpha);
                     double zu = normalZero.inverseCumulativeProbability(1 - alpha);
                     double pl = normalZero.cumulativeProbability(z + (z + zl) / (1 - a * (z + zl)));
@@ -320,10 +361,12 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         }
 
         final String BASE_DIR = "/Users/kkrik/IdeaProjects/elasticsearch/server/build/testrun/test/temp/";
-        final String BASE_PATH = BASE_DIR + "container_cpu_usage_24h";
+        String BASE_PATH = BASE_DIR + "container_memory_usage_24h";
         final String[] TIER_PATHS = { "_1", "_0_2", "_0_04", "_0_008", "_0_002" };
         final double[] TIER_SAMPLING = { 1, 0.2, 0.04, 0.008, 0.002 };
         final boolean USE_NESTED_SAMPLING = true;
+        final boolean USE_SYNTHETIC_DATA = true;
+        final int GROUP_SIZE = 20;
 
         assert TIER_SAMPLING.length == TIER_PATHS.length;
         for (int iteration = 0; iteration < 100; iteration++) {
@@ -337,31 +380,60 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 }
             }
 
-            try (
-                BufferedReader br = new BufferedReader(new FileReader(BASE_PATH));
-                BufferedWriter bw = new BufferedWriter(new FileWriter(BASE_PATH + TIER_PATHS[0]));
-                SampleBuilder sb1 = new SampleBuilder(BASE_PATH + TIER_PATHS[1], tierAppliedSampling[1]);
-                SampleBuilder sb2 = new SampleBuilder(BASE_PATH + TIER_PATHS[2], tierAppliedSampling[2]);
-                SampleBuilder sb3 = new SampleBuilder(BASE_PATH + TIER_PATHS[3], tierAppliedSampling[3]);
-                SampleBuilder sb4 = new SampleBuilder(BASE_PATH + TIER_PATHS[4], tierAppliedSampling[4]);
-            ) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    if (tempDate == null) {
-                        tempDate = line;
-                    } else if (tempName == null) {
-                        tempName = line;
-                    } else {
-                        String out = tempDate + " " + tempName + " " + line + "\n";
-                        tempName = tempDate = null;
-
+            if (USE_SYNTHETIC_DATA) {
+                DistributionType distributionType = DistributionType.Gamma;
+                AbstractRealDistribution distribution = distributionType.distribution();
+                BASE_PATH = BASE_DIR + distributionType.distname();
+                try (
+                    BufferedWriter bw = new BufferedWriter(new FileWriter(BASE_PATH + TIER_PATHS[0]));
+                    SampleBuilder sb1 = new SampleBuilder(BASE_PATH + TIER_PATHS[1], tierAppliedSampling[1]);
+                    SampleBuilder sb2 = new SampleBuilder(BASE_PATH + TIER_PATHS[2], tierAppliedSampling[2]);
+                    SampleBuilder sb3 = new SampleBuilder(BASE_PATH + TIER_PATHS[3], tierAppliedSampling[3]);
+                    SampleBuilder sb4 = new SampleBuilder(BASE_PATH + TIER_PATHS[4], tierAppliedSampling[4]);
+                ) {
+                    for (int i = 0; i < DistributionType.INPUT_SIZE; i++) {
+                        String out = "D "
+                            + Integer.toString(randomInt(GROUP_SIZE))
+                            + " "
+                            + Double.toString(distributionType.next(distribution))
+                            + "\n";
                         bw.write(out);
-                        if (!USE_NESTED_SAMPLING) {
+                        if (USE_NESTED_SAMPLING == false) {
                             sb1.maybeWrite(out);
                             sb2.maybeWrite(out);
                             sb3.maybeWrite(out);
                             sb4.maybeWrite(out);
                         } else if (sb1.maybeWrite(out) && sb2.maybeWrite(out) && sb3.maybeWrite(out) && sb4.maybeWrite(out)) {
+                        }
+                    }
+                }
+            } else {
+                try (
+                    BufferedReader br = new BufferedReader(new FileReader(BASE_PATH));
+                    BufferedWriter bw = new BufferedWriter(new FileWriter(BASE_PATH + TIER_PATHS[0]));
+                    SampleBuilder sb1 = new SampleBuilder(BASE_PATH + TIER_PATHS[1], tierAppliedSampling[1]);
+                    SampleBuilder sb2 = new SampleBuilder(BASE_PATH + TIER_PATHS[2], tierAppliedSampling[2]);
+                    SampleBuilder sb3 = new SampleBuilder(BASE_PATH + TIER_PATHS[3], tierAppliedSampling[3]);
+                    SampleBuilder sb4 = new SampleBuilder(BASE_PATH + TIER_PATHS[4], tierAppliedSampling[4]);
+                ) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        if (tempDate == null) {
+                            tempDate = line;
+                        } else if (tempName == null) {
+                            tempName = line;
+                        } else {
+                            String out = tempDate + " " + tempName + " " + line + "\n";
+                            tempName = tempDate = null;
+
+                            bw.write(out);
+                            if (USE_NESTED_SAMPLING == false) {
+                                sb1.maybeWrite(out);
+                                sb2.maybeWrite(out);
+                                sb3.maybeWrite(out);
+                                sb4.maybeWrite(out);
+                            } else if (sb1.maybeWrite(out) && sb2.maybeWrite(out) && sb3.maybeWrite(out) && sb4.maybeWrite(out)) {
+                            }
                         }
                     }
                 }
@@ -375,14 +447,14 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 try (BufferedReader br = new BufferedReader(new FileReader(BASE_PATH + path))) {
                     String line;
                     while ((line = br.readLine()) != null) {
-                        String[] tokens = line.split(" ");
+                        String[] tokens = line.split(" ", 3);
                         assert tokens.length == 3;
                         aggs.computeIfAbsent(tokens[1], (s) -> new AvgCalculator()).add(Double.parseDouble(tokens[2]));
                     }
                 }
 
                 names.addAll(aggs.keySet());
-                results.add(aggs.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get() * 100)));
+                results.add(aggs.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get())));
             }
 
             BootstrapAggregation bootstrapAggregation = new BootstrapAggregation(names, BASE_PATH + TIER_PATHS[TIER_PATHS.length - 1]);
@@ -393,7 +465,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             double[] upper = new double[results.size()];
             double SQRT_5 = Math.sqrt(5.0);
 
-            try (PrintWriter writer = new PrintWriter(BASE_PATH + "_result_" + iteration)) {
+            try (PrintWriter writer = new PrintWriter(BASE_PATH + "_results_" + iteration)) {
                 for (String key : names) {
                     for (int i = 0; i < results.size(); i++) {
                         sampled[i] = results.get(i).get(key);
@@ -407,13 +479,126 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                     lower[results.size() - 1] = bootstrapAggregation.getLowerConfidence(key);
                     upper[results.size() - 1] = bootstrapAggregation.getUpperConfidence(key);
 
-                    writer.printf("%30s   %.6f", key, sampled[0]);
+                    writer.printf("%30s   %.10f", key, sampled[0]);
                     for (int i = 1; i < results.size(); i++) {
                         boolean found = sampled[0] > lower[i] && sampled[0] < upper[i];
-                        writer.printf("    %.6f [%.6f  %.6f] %s", sampled[i], lower[i], upper[i], found ? "Y" : "N");
+                        writer.printf("    %.10f [%.10f  %.10f] %s", sampled[i], lower[i], upper[i], found ? "Y" : "N");
                     }
                     writer.printf("%n");
                 }
+            }
+        }
+    }
+
+    public void testProcessResults() throws IOException {
+        final String BASE_DIR = "/Users/kkrik/IdeaProjects/elasticsearch/server/build/testrun/test/temp/";
+        String RESULT_DIR = BASE_DIR + "gamma_20_40_10M_results/nested/";
+
+        Map<String, Double> actualValues = new TreeMap<>();
+        Map<String, List<DescriptiveStatistics>> errorStatsPerValue = new TreeMap<>();
+        Map<String, List<DescriptiveStatistics>> widthStatsPerValue = new TreeMap<>();
+        Map<String, List<Integer>> matchCountPerValue = new TreeMap<>();
+
+        List<Path> files = Files.list(Path.of(RESULT_DIR)).toList();
+        for (Path file : files) {
+            if (file.toString().contains("summary")) {
+                continue;
+            }
+            System.out.println("Processing " + file.toString());
+            try (BufferedReader br = new BufferedReader(new FileReader(file.toAbsolutePath().toString()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    String[] tokens = line
+                            .replace("[", " ")
+                            .replace("]", " ")
+                            .replace(",", ".")
+                            .trim()
+                            .split("\\s+");
+                    assert tokens.length == 18;
+                    List<Double> aggs = List.of(
+                        Double.parseDouble(tokens[1]),
+                        Double.parseDouble(tokens[2]),
+                        Double.parseDouble(tokens[6]),
+                        Double.parseDouble(tokens[10]),
+                        Double.parseDouble(tokens[14])
+                    );
+                    actualValues.put(tokens[0], aggs.get(0));
+
+                    List<DescriptiveStatistics> errorStats = errorStatsPerValue.computeIfAbsent(tokens[0], (s) -> new ArrayList<>());
+                    if (errorStats.isEmpty()) {
+                        for (int i = 0; i < 4; i++) {
+                            errorStats.add(new DescriptiveStatistics());
+                        }
+                    }
+                    for (int i = 0; i < 4; i++) {
+                        errorStats.get(i).addValue(Math.abs(aggs.get(i + 1) - aggs.get(0)) / aggs.get(0) * 100.0);
+                    }
+
+                    List<Boolean> matches = List.of(
+                        tokens[5].equals("Y"),
+                        tokens[9].equals("Y"),
+                        tokens[13].equals("Y"),
+                        tokens[17].equals("Y")
+                    );
+                    List<Integer> matchCounts = matchCountPerValue.computeIfAbsent(tokens[0], (s) -> new ArrayList<>());
+                    if (matchCounts.isEmpty()) {
+                        for (int i = 0; i < 4; i++) {
+                            matchCounts.add(0);
+                        }
+                    }
+                    for (int i = 0; i < 4; i++) {
+                        if (matches.get(i)) {
+                            matchCounts.set(i, matchCounts.get(i) + 1);
+                        }
+                    }
+
+                    List<Double> widths = List.of(
+                        (Double.parseDouble(tokens[4]) - Double.parseDouble(tokens[3])) / aggs.get(0) * 100.0,
+                        (Double.parseDouble(tokens[8]) - Double.parseDouble(tokens[7])) / aggs.get(0) * 100.0,
+                        (Double.parseDouble(tokens[12]) - Double.parseDouble(tokens[11])) / aggs.get(0) * 100.0,
+                        (Double.parseDouble(tokens[16]) - Double.parseDouble(tokens[15])) / aggs.get(0) * 100.0
+                    );
+                    List<DescriptiveStatistics> widthStats = widthStatsPerValue.computeIfAbsent(tokens[0], (s) -> new ArrayList<>());
+                    if (widthStats.isEmpty()) {
+                        for (int i = 0; i < 4; i++) {
+                            widthStats.add(new DescriptiveStatistics());
+                        }
+                    }
+                    for (int i = 0; i < 4; i++) {
+                        widthStats.get(i).addValue(widths.get(i));
+                    }
+                }
+            }
+        }
+
+        System.out.println("Writing " + RESULT_DIR + "summary");
+        try (PrintWriter writer = new PrintWriter(RESULT_DIR + "summary")) {
+            for (var entry : errorStatsPerValue.entrySet()) {
+                writer.printf(
+                    "%30s      %8.4f %8.4f %8.4f %8.4f %8.4f      %8.4f %8.4f %8.4f %8.4f %8.4f      "
+                        + "%8.4f %8.4f %8.4f %8.4f %8.4f      %8.4f %8.4f %8.4f %8.4f %8.4f  %n",
+                    entry.getKey(),
+                    entry.getValue().get(0).getMean(),
+                    entry.getValue().get(0).getStandardDeviation(),
+                    widthStatsPerValue.get(entry.getKey()).get(0).getMean(),
+                    widthStatsPerValue.get(entry.getKey()).get(0).getStandardDeviation(),
+                    matchCountPerValue.get(entry.getKey()).get(0) / (double) entry.getValue().get(0).getN() * 100,
+                    entry.getValue().get(1).getMean(),
+                    entry.getValue().get(1).getStandardDeviation(),
+                    widthStatsPerValue.get(entry.getKey()).get(1).getMean(),
+                    widthStatsPerValue.get(entry.getKey()).get(1).getStandardDeviation(),
+                    matchCountPerValue.get(entry.getKey()).get(1) / (double) entry.getValue().get(1).getN() * 100,
+                    entry.getValue().get(2).getMean(),
+                    entry.getValue().get(2).getStandardDeviation(),
+                    widthStatsPerValue.get(entry.getKey()).get(2).getMean(),
+                    widthStatsPerValue.get(entry.getKey()).get(2).getStandardDeviation(),
+                    matchCountPerValue.get(entry.getKey()).get(2) / (double) entry.getValue().get(2).getN() * 100,
+                    entry.getValue().get(3).getMean(),
+                    entry.getValue().get(3).getStandardDeviation(),
+                    widthStatsPerValue.get(entry.getKey()).get(3).getMean(),
+                    widthStatsPerValue.get(entry.getKey()).get(3).getStandardDeviation(),
+                    matchCountPerValue.get(entry.getKey()).get(3) / (double) entry.getValue().get(3).getN() * 100
+                );
             }
         }
     }

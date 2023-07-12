@@ -1048,26 +1048,35 @@ public final class TokenService {
             );
             findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
         } else {
-            logger.debug("Assuming a refresh token [{}] provided from a client", refreshToken);
-            final TransportVersion refreshTokenVersion;
-            final String unencodedRefreshToken;
-            final Tuple<TransportVersion, String> versionAndRefreshTokenTuple;
-            try {
-                versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
-                refreshTokenVersion = versionAndRefreshTokenTuple.v1();
-                unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
+            final byte[] bytes = refreshToken.getBytes(StandardCharsets.UTF_8);
+            try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
+                final TransportVersion version = TransportVersion.readVersion(in);
+                in.setTransportVersion(version);
+                if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                    final byte[] unencodedRefreshToken = in.readByteArray();
+                    if (unencodedRefreshToken.length != RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH) {
+                        listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+                    } else {
+                        final String hashedRefreshToken = Base64.getUrlEncoder()
+                            .withoutPadding()
+                            .encodeToString(sha256().digest(unencodedRefreshToken));
+                        findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
+                    }
+                } else if (version.onOrAfter(VERSION_HASHED_TOKENS)) {
+                    final String unencodedRefreshToken = in.readString();
+                    if (unencodedRefreshToken.length() != TOKEN_LENGTH) {
+                        logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, version);
+                        listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+                    } else {
+                        final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
+                        findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
+                    }
+                } else {
+                    listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+                }
             } catch (IOException e) {
                 logger.debug(() -> "Could not decode refresh token [" + refreshToken + "].", e);
                 listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
-                return;
-            }
-            if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
-                logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
-                listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
-            } else {
-                assert refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS);
-                final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
-                findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
             }
         }
     }
@@ -2134,20 +2143,6 @@ public final class TokenService {
                 out.writeString(Base64.getUrlEncoder().withoutPadding().encodeToString(refreshTokenBytes));
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
-        }
-    }
-
-    // public for testing
-    /**
-     * Unpacks a base64 encoded pair of a version tag and String payload.
-     */
-    public static Tuple<TransportVersion, String> unpackVersionAndPayload(String encodedPack) throws IOException {
-        final byte[] bytes = encodedPack.getBytes(StandardCharsets.UTF_8);
-        try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
-            final TransportVersion version = TransportVersion.readVersion(in);
-            in.setTransportVersion(version);
-            final String payload = in.readString();
-            return new Tuple<>(version, payload);
         }
     }
 

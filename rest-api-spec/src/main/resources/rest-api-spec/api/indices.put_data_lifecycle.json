@@ -1,8 +1,8 @@
 {
   "indices.put_data_lifecycle":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/dlm-put-lifecycle.html",
-      "description":"Updates the data lifecycle of the selected data streams."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams-put-lifecycle.html",
+      "description":"Updates the data stream lifecycle of the selected data streams."
     },
     "stability":"experimental",
     "visibility":"public",
@@ -48,7 +48,7 @@
       }
     },
     "body":{
-      "description":"The data lifecycle configuration that consist of the data retention",
+      "description":"The data stream lifecycle configuration that consist of the data retention",
       "required":false
     }
   }

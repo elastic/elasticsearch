@@ -638,7 +638,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             updatedVisibleClosedIndices,
             null,
             updatedMappingsByHash,
-            IndexVersion.min(IndexVersion.fromId(index.getCompatibilityVersion().id), oldestIndexVersion),
+            IndexVersion.min(index.getCompatibilityVersion(), oldestIndexVersion),
             reservedStateMetadata
         );
     }
@@ -1270,7 +1270,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     /**
      * Indicates if the provided index is managed by ILM. This takes into account if the index is part of
-     * data stream that's potentially managed by DLM and the value of the {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
+     * data stream that's potentially managed by data stream lifecycle and the value of the
+     * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
      */
     public boolean isIndexManagedByILM(IndexMetadata indexMetadata) {
         if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false) {
@@ -1286,7 +1287,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
         DataStream parentDataStream = indexAbstraction.getParentDataStream();
         if (parentDataStream != null && parentDataStream.getLifecycle() != null) {
-            // index has both ILM and DLM configured so let's check which is preferred
+            // index has both ILM and data stream lifecycle configured so let's check which is preferred
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
         }
 
@@ -2272,7 +2273,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             final List<String> visibleClosedIndices = new ArrayList<>();
             final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
 
-            int oldestIndexVersionId = IndexVersion.CURRENT.id();
+            int oldestIndexVersionId = IndexVersion.current().id();
             int totalNumberOfShards = 0;
             int totalOpenIndexShards = 0;
 
@@ -2300,7 +2301,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                         visibleClosedIndices.add(name);
                     }
                 }
-                oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id);
+                oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id());
                 if (sha256HashesInUse != null) {
                     final var mapping = indexMetadata.mapping();
                     if (mapping != null) {
@@ -2567,7 +2568,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             if (isNonEmpty(groupedBySystemStatus.get(false)) && isNonEmpty(groupedBySystemStatus.get(true))) {
                 final List<String> newVersionSystemIndices = groupedBySystemStatus.get(true)
                     .stream()
-                    .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION))
+                    .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION))
                     .map(i -> i.getIndex().getName())
                     .sorted() // reliable error message for testing
                     .toList();

@@ -167,7 +167,7 @@ public class IndexSettingsTests extends ESTestCase {
                     "index",
                     Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
-                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersion.CURRENT.id())
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersion.current().id())
                         .put("index.test.setting.int", 42)
                         .build()
                 )
@@ -344,14 +344,15 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testStatelessFastRefreshDefaultRefreshInterval() {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
-                .put(INDEX_FAST_REFRESH_SETTING.getKey(), true)
-                .build()
-        );
+        IndexMetadata metadata = IndexMetadata.builder("index")
+            .system(true)
+            .settings(
+                indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
+                    .put(INDEX_FAST_REFRESH_SETTING.getKey(), true)
+                    .build()
+            )
+            .build();
         IndexSettings settings = new IndexSettings(metadata, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build());
         assertEquals(DEFAULT_REFRESH_INTERVAL, settings.getRefreshInterval());
     }

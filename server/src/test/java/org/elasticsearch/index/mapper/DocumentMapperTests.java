@@ -284,7 +284,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     }
 
     public void testEmptyDocumentMapper() {
-        MapperService mapperService = createMapperService(IndexVersion.CURRENT, Settings.EMPTY, () -> false);
+        MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> false);
         DocumentMapper documentMapper = DocumentMapper.createEmpty(mapperService);
         assertEquals("{\"_doc\":{}}", Strings.toString(documentMapper.mapping()));
         assertTrue(documentMapper.mappers().hasMappings());
@@ -428,7 +428,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 builders[i].endObject().endObject().endObject();
             }
 
-            final MapperService mapperService = createMapperService(IndexVersion.CURRENT, Settings.EMPTY, () -> false);
+            final MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> false);
             final CountDownLatch latch = new CountDownLatch(1);
             final Thread[] threads = new Thread[numThreads];
             for (int i = 0; i < threads.length; i++) {

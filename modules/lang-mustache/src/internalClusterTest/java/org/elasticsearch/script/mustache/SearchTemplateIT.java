@@ -8,7 +8,6 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
@@ -365,14 +364,22 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             ExecutionException.class,
             () -> client().execute(SearchTemplateAction.INSTANCE, request).get()
         );
+
+        Throwable primary = ex.getCause();
+        assertNotNull(primary);
+
+        Throwable underlying = primary.getCause();
+        assertNotNull(underlying);
+
         assertThat(
-            ex.getCause().getMessage(),
+            primary.getMessage(),
             containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
         );
-        assertThat(ex.getCause().getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
-        assertEquals(
-            "This query isn't serializable with transport versions before " + TransportVersion.current(),
-            ex.getCause().getCause().getMessage()
-        );
+        assertThat(primary.getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
+
+        String expectedCause = "[fail_before_current_version] was released first in version XXXXXXX, failed compatibility check trying to"
+            + " send it to node with version XXXXXXX";
+        String actualCause = underlying.getMessage().replaceAll("\\d{7,}", "XXXXXXX");
+        assertEquals(expectedCause, actualCause);
     }
 }

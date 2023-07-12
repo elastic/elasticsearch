@@ -16,6 +16,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
@@ -31,6 +32,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -87,6 +89,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.TransportVersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.TransportVersionUtils.randomVersion;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -151,8 +154,64 @@ public class StoreTests extends ESTestCase {
     }
 
     public void testNewChecksums() throws IOException {
+
+        class CorruptibleInput extends FilterIndexInput {
+
+            private final long corruptionPosition;
+
+            CorruptibleInput(IndexInput in, long corruptionPosition) {
+                super(in.toString(), in);
+                this.corruptionPosition = corruptionPosition;
+            }
+
+            private static byte maybeCorruptionMask(boolean doCorrupt) {
+                return (byte) ((doCorrupt ? 1 : 0) << between(0, Byte.SIZE - 1));
+            }
+
+            @Override
+            public byte readByte() throws IOException {
+                return (byte) (super.readByte() ^ maybeCorruptionMask(in.getFilePointer() == corruptionPosition));
+            }
+
+            @Override
+            public void readBytes(byte[] b, int offset, int len) throws IOException {
+                final var startPointer = in.getFilePointer();
+                super.readBytes(b, offset, len);
+                if (startPointer <= corruptionPosition && corruptionPosition < in.getFilePointer()) {
+                    b[Math.toIntExact(offset + corruptionPosition - startPointer)] ^= maybeCorruptionMask(true);
+                }
+            }
+        }
+
+        class CorruptibleDirectory extends FilterDirectory {
+            String corruptFileName;
+            int openCount;
+            long corruptionPosition;
+
+            CorruptibleDirectory() {
+                super(StoreTests.newDirectory(random()));
+            }
+
+            @Override
+            public IndexInput openInput(String name, IOContext context) throws IOException {
+                if (name.equals(corruptFileName)) {
+                    // the files whose checksums are validated are opened once by Lucene and then once again by ES to copy their contents
+                    // into memory, and we want to make sure that we detect a corruption in ES so we make sure that Lucene sees the correct
+                    // contents
+                    assert openCount < 2;
+                    openCount += 1;
+                    if (openCount == 2) {
+                        return new CorruptibleInput(super.openInput(name, context), corruptionPosition);
+                    }
+                }
+                return super.openInput(name, context);
+            }
+        }
+
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        final CorruptibleDirectory directory = new CorruptibleDirectory();
+
+        Store store = new Store(shardId, INDEX_SETTINGS, directory, new DummyShardLock(shardId));
         // set default codec - all segments need checksums
         IndexWriter writer = new IndexWriter(
             store.directory(),
@@ -202,21 +261,38 @@ public class StoreTests extends ESTestCase {
         }
         writer.commit();
         writer.close();
-        metadata = store.getMetadata(null);
+
+        final IndexCommit indexCommit;
+        try (var reader = DirectoryReader.open(store.directory())) {
+            indexCommit = reader.getIndexCommit();
+        }
+
+        metadata = store.getMetadata(randomBoolean() ? indexCommit : null);
         assertThat(metadata.fileMetadataMap().isEmpty(), is(false));
         for (StoreFileMetadata meta : metadata) {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                 assertThat(meta.writtenBy(), equalTo(Version.LATEST.toString()));
-                if (meta.name().endsWith(".si") || meta.name().startsWith("segments_")) {
-                    assertThat(meta.hash().length, greaterThan(0));
+                if (Store.MetadataSnapshot.isReadAsHash(meta.name())) {
+                    assertThat(meta.hash().length, allOf(greaterThan(CodecUtil.footerLength()), equalTo(Math.toIntExact(meta.length()))));
+                } else {
+                    assertThat(meta.hash().length, equalTo(0));
                 }
             }
         }
         assertConsistent(store, metadata);
 
         TestUtil.checkIndex(store.directory());
+
+        final var metaToCorrupt = randomFrom(
+            metadata.fileMetadataMap().values().stream().filter(meta -> Store.MetadataSnapshot.isReadAsHash(meta.name())).toList()
+        );
+        directory.corruptFileName = metaToCorrupt.name();
+        directory.openCount = 0;
+        directory.corruptionPosition = randomLongBetween(0, metaToCorrupt.length() - 1);
+        expectThrows(CorruptIndexException.class, () -> store.getMetadata(randomBoolean() ? indexCommit : null));
+
         assertDeleteContent(store, store.directory());
         IOUtils.close(store);
     }

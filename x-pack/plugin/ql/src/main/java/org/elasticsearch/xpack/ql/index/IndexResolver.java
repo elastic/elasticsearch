@@ -704,7 +704,7 @@ public class IndexResolver {
                     for (String concreteIndex : concreteIndices) {
                         if (aliases.containsKey(concreteIndex)) {
                             List<AliasMetadata> concreteIndexAliases = aliases.get(concreteIndex);
-                            concreteIndexAliases.stream().forEach(e -> uniqueAliases.add(e.alias()));
+                            concreteIndexAliases.forEach(e -> uniqueAliases.add(e.alias()));
                         }
                     }
                     concreteIndices.addAll(uniqueAliases);

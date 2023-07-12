@@ -35,6 +35,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class EsExecutors {
 
+    // although the available processors may technically change, for node sizing we use the number available at launch
+    private static final int MAX_NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
+
     /**
      * Setting to manually control the number of allocated processors. This setting is used to adjust thread pool sizes per node. The
      * default value is {@link Runtime#availableProcessors()} but should be manually controlled if not all processors on the machine are
@@ -43,7 +46,7 @@ public class EsExecutors {
      */
     public static final Setting<Processors> NODE_PROCESSORS_SETTING = new Setting<>(
         "node.processors",
-        Double.toString(Runtime.getRuntime().availableProcessors()),
+        Double.toString(MAX_NUM_PROCESSORS),
         textValue -> {
             double numberOfProcessors = Double.parseDouble(textValue);
             if (Double.isNaN(numberOfProcessors) || Double.isInfinite(numberOfProcessors)) {
@@ -56,9 +59,8 @@ public class EsExecutors {
                 throw new IllegalArgumentException(err);
             }
 
-            final int maxNumberOfProcessors = Runtime.getRuntime().availableProcessors();
-            if (numberOfProcessors > maxNumberOfProcessors) {
-                String err = "Failed to parse value [" + textValue + "] for setting [node.processors] must be <= " + maxNumberOfProcessors;
+            if (numberOfProcessors > MAX_NUM_PROCESSORS) {
+                String err = "Failed to parse value [" + textValue + "] for setting [node.processors] must be <= " + MAX_NUM_PROCESSORS;
                 throw new IllegalArgumentException(err);
             }
             return Processors.of(numberOfProcessors);
@@ -122,7 +124,7 @@ public class EsExecutors {
         int queueCapacity,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        boolean trackExecutionTime
+        TaskTrackingConfig config
     ) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
@@ -130,7 +132,7 @@ public class EsExecutors {
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
-        if (trackExecutionTime) {
+        if (config.trackExecutionTime()) {
             return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
                 size,
@@ -141,7 +143,8 @@ public class EsExecutors {
                 TimedRunnable::new,
                 threadFactory,
                 new EsAbortPolicy(),
-                contextHolder
+                contextHolder,
+                config.getEwmaAlpha()
             );
         } else {
             return new EsThreadPoolExecutor(
@@ -382,6 +385,34 @@ public class EsExecutors {
         private void reject(ThreadPoolExecutor executor, Runnable task) {
             incrementRejections();
             throw newRejectedException(task, executor, true);
+        }
+    }
+
+    public static class TaskTrackingConfig {
+        // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
+        public static double DEFAULT_EWMA_ALPHA = 0.3;
+
+        private final boolean trackExecutionTime;
+        private final double ewmaAlpha;
+
+        public static TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(false, DEFAULT_EWMA_ALPHA);
+        public static TaskTrackingConfig DEFAULT = new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA);
+
+        public TaskTrackingConfig(double ewmaAlpha) {
+            this(true, ewmaAlpha);
+        }
+
+        private TaskTrackingConfig(boolean trackExecutionTime, double EWMAAlpha) {
+            this.trackExecutionTime = trackExecutionTime;
+            this.ewmaAlpha = EWMAAlpha;
+        }
+
+        public boolean trackExecutionTime() {
+            return trackExecutionTime;
+        }
+
+        public double getEwmaAlpha() {
+            return ewmaAlpha;
         }
     }
 

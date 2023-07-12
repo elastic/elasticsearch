@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -61,6 +62,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private final SetOnce<ProfilingIndexTemplateRegistry> registry = new SetOnce<>();
 
     private final SetOnce<ProfilingIndexManager> indexManager = new SetOnce<>();
+    private final SetOnce<ProfilingDataStreamManager> dataStreamManager = new SetOnce<>();
 
     public ProfilingPlugin(Settings settings) {
         this.settings = settings;
@@ -81,18 +83,21 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         logger.info("Profiling is {}", enabled ? "enabled" : "disabled");
         registry.set(new ProfilingIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry));
         indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService));
+        dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService));
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);
         if (enabled) {
             registry.get().initialize();
             indexManager.get().initialize();
-            return List.of(registry.get(), indexManager.get());
+            dataStreamManager.get().initialize();
+            return List.of(registry.get(), indexManager.get(), dataStreamManager.get());
         } else {
             return Collections.emptyList();
         }
@@ -104,6 +109,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         }
         registry.get().setTemplatesEnabled(newValue);
         indexManager.get().setTemplatesEnabled(newValue);
+        dataStreamManager.get().setTemplatesEnabled(newValue);
     }
 
     @Override
@@ -160,5 +166,6 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     public void close() {
         registry.get().close();
         indexManager.get().close();
+        dataStreamManager.get().close();
     }
 }

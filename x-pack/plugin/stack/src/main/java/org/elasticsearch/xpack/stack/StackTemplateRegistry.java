@@ -84,6 +84,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     public static final String METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "metrics-mappings";
     public static final String METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics-settings";
+    public static final String METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics-tsdb-settings";
     public static final String METRICS_ILM_POLICY_NAME = "metrics";
     public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics";
 
@@ -184,6 +185,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/metrics-settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics-tsdb-settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE
             ),

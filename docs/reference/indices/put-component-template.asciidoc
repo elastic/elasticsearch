@@ -95,6 +95,7 @@ Name of the component template to create.
 - `logs-settings`
 - `metrics-mappings`
 - `metrics-settings`
+- `metrics-tsdb-settings`
 - `synthetics-mapping`
 - `synthetics-settings`
 // end::built-in-component-templates[]

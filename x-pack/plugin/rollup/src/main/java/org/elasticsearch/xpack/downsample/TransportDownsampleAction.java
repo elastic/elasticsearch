@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -390,89 +388,18 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                                                             }
                                                                         )
                                                                     );
-                                                                } else {
-                                                                    deleteRollupIndex(
-                                                                        sourceIndexName,
-                                                                        rollupIndexName,
-                                                                        parentTask,
-                                                                        listener,
-                                                                        new ElasticsearchException(
-                                                                            "Failed to publish new cluster state with rollup metadata"
-                                                                        )
-                                                                    );
                                                                 }
-                                                            },
-                                                                e -> deleteRollupIndex(
-                                                                    sourceIndexName,
-                                                                    rollupIndexName,
-                                                                    parentTask,
-                                                                    listener,
-                                                                    new ElasticsearchException(
-                                                                        "Failed to publish new cluster state with rollup metadata",
-                                                                        e
-                                                                    )
-                                                                )
-                                                            ));
-                                                        } else {
-                                                            deleteRollupIndex(
-                                                                sourceIndexName,
-                                                                rollupIndexName,
-                                                                parentTask,
-                                                                listener,
-                                                                new ElasticsearchException(
-                                                                    "Failed to refresh rollup index [" + rollupIndexName + "]"
-                                                                )
-                                                            );
+                                                            }, listener::onFailure));
                                                         }
-                                                    },
-                                                        e -> deleteRollupIndex(
-                                                            sourceIndexName,
-                                                            rollupIndexName,
-                                                            parentTask,
-                                                            listener,
-                                                            new ElasticsearchException(
-                                                                "Failed to refresh rollup index [" + rollupIndexName + "]",
-                                                                e
-                                                            )
-                                                        )
-                                                    ));
-                                                } else {
-                                                    deleteRollupIndex(
-                                                        sourceIndexName,
-                                                        rollupIndexName,
-                                                        parentTask,
-                                                        listener,
-                                                        new ElasticsearchException(
-                                                            "Unable to update settings of rollup index [" + rollupIndexName + "]"
-                                                        )
-                                                    );
+                                                    }, listener::onFailure));
                                                 }
-                                            },
-                                                e -> deleteRollupIndex(
-                                                    sourceIndexName,
-                                                    rollupIndexName,
-                                                    parentTask,
-                                                    listener,
-                                                    new ElasticsearchException(
-                                                        "Unable to update settings of rollup index [" + rollupIndexName + "]",
-                                                        e
-                                                    )
-                                                )
-                                            ));
+                                            }, listener::onFailure));
                                     }
 
                                     @Override
                                     public void onFailure(Exception e) {
-                                        deleteRollupIndex(
-                                            sourceIndexName,
-                                            rollupIndexName,
-                                            parentTask,
-                                            listener,
-                                            new ElasticsearchException(
-                                                "Error while starting downsampling persistent task [" + persistentRollupTaskId + "]",
-                                                e
-                                            )
-                                        );
+                                        logger.error("error while starting downsampling persistent task", e);
+                                        listener.onFailure(e);
                                     }
                                 }),
                                 e -> {
@@ -845,32 +772,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         request.maxNumSegments(1);
         request.setParentTask(parentTask);
         client.admin().indices().forceMerge(request, listener);
-    }
-
-    private void deleteRollupIndex(
-        String sourceIndex,
-        String rollupIndex,
-        TaskId parentTask,
-        ActionListener<AcknowledgedResponse> listener,
-        Exception e
-    ) {
-        DeleteIndexRequest request = new DeleteIndexRequest(rollupIndex);
-        request.setParentTask(parentTask);
-        client.admin().indices().delete(request, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                if (e == null && acknowledgedResponse.isAcknowledged()) {
-                    listener.onResponse(acknowledgedResponse);
-                } else {
-                    listener.onFailure(new ElasticsearchException("Unable to rollup index [" + sourceIndex + "]", e));
-                }
-            }
-
-            @Override
-            public void onFailure(Exception deleteException) {
-                listener.onFailure(new ElasticsearchException("Unable to delete rollup index [" + rollupIndex + "]", e));
-            }
-        });
     }
 
     /**

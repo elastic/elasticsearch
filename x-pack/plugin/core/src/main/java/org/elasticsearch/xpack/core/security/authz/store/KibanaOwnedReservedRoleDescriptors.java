@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.getRemoteIndicesReadPrivileges;
@@ -33,7 +34,28 @@ import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesSto
  * This exists in a separate file so it can be assigned to the Kibana security team in the CODEOWNERS file
  */
 class KibanaOwnedReservedRoleDescriptors {
-    static RoleDescriptor kibanaSystemRoleDescriptor(String name) {
+
+    // package-private to expose to ReservedRoleStore
+    static RoleDescriptor kibanaAdminUser(String name, Map<String, Object> metadata) {
+        return new RoleDescriptor(
+            name,
+            null,
+            null,
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.kibana")
+                    .resources("*")
+                    .privileges("all")
+                    .build() },
+            null,
+            null,
+            metadata,
+            null
+        );
+    }
+
+    // package-private to expose to ReservedRoleStore
+    static RoleDescriptor kibanaSystem(String name) {
         return new RoleDescriptor(
             name,
             new String[] {

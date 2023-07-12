@@ -699,25 +699,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     private static RoleDescriptor kibanaAdminUser(String name, Map<String, Object> metadata) {
-        return new RoleDescriptor(
-            name,
-            null,
-            null,
-            new RoleDescriptor.ApplicationResourcePrivileges[] {
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
-                    .application("kibana-.kibana")
-                    .resources("*")
-                    .privileges("all")
-                    .build() },
-            null,
-            null,
-            metadata,
-            null
-        );
+        return KibanaOwnedReservedRoleDescriptors.kibanaAdminUser(name, metadata);
     }
 
     public static RoleDescriptor kibanaSystemRoleDescriptor(String name) {
-        return KibanaOwnedReservedRoleDescriptors.kibanaSystemRoleDescriptor(name);
+        return KibanaOwnedReservedRoleDescriptors.kibanaSystem(name);
     }
 
     public static boolean isReserved(String role) {

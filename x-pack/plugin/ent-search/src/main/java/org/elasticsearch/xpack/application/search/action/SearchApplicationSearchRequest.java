@@ -133,7 +133,7 @@ public class SearchApplicationSearchRequest extends ActionRequest implements Ind
         builder.startObject();
 
         builder.field(NAME_FIELD.getPreferredName(), name);
-        if (queryParams.isEmpty()==false) {
+        if (queryParams.isEmpty() == false) {
             builder.field(QUERY_PARAMS_FIELD.getPreferredName(), queryParams);
         }
         builder.endObject();

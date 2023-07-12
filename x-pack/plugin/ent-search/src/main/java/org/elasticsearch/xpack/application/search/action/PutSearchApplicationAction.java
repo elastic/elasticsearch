@@ -45,7 +45,6 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
         private final SearchApplication searchApp;
         private final boolean create;
 
-
         public Request(StreamInput in) throws IOException {
             super(in);
             this.searchApp = new SearchApplication(in);

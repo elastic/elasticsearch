@@ -178,11 +178,9 @@ public class InternalUsers {
             UsernamesField.SYNONYMS_ROLE_NAME,
             null,
             new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build()
-            // Need manage privilege to be able to reload index analyzers for all indices
-            // RoleDescriptor.IndicesPrivileges.builder()
-            // .indices("*").privileges("manage").build(),
-            },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build(),
+                // Need manage privilege to be able to reload index analyzers for all indices
+                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("manage").build(), },
             null,
             null,
             null,

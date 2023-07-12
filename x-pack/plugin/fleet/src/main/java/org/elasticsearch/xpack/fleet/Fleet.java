@@ -104,6 +104,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             client,
             xContentRegistry
         );
+
         registry.initialize();
         return List.of();
     }

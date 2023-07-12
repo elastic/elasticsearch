@@ -1,0 +1,5 @@
+pr: 97124
+summary: Add `evictAll` to blob cache
+area: Search
+type: enhancement
+issues: []

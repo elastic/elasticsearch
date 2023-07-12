@@ -23,7 +23,6 @@ import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -43,7 +42,6 @@ import java.util.stream.Collectors;
 /**
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
  */
-@Experimental
 public class LuceneTopNSourceOperator extends LuceneOperator {
 
     private Thread currentThread;

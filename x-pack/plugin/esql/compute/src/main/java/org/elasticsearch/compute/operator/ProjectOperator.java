@@ -7,14 +7,12 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.Arrays;
 import java.util.BitSet;
 
-@Experimental
 public class ProjectOperator extends AbstractPageMappingOperator {
 
     private final BitSet bs;

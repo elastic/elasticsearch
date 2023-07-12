@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -36,7 +35,6 @@ import java.util.TreeMap;
  * field values. This allows for a more uniform way of extracting data compared to deciding the correct doc_values
  * loader for different field types.
  */
-@Experimental
 public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     /**
      * Creates a new extractor that uses ValuesSources load data

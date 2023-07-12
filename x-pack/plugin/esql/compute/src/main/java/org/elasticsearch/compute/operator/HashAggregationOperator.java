@@ -12,7 +12,6 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
@@ -29,7 +28,6 @@ import java.util.function.Supplier;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
-@Experimental
 public class HashAggregationOperator implements Operator {
 
     public record GroupSpec(int channel, ElementType elementType) {}

@@ -18,7 +18,6 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.Factory;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
@@ -49,7 +48,6 @@ import static java.util.stream.Collectors.joining;
 /**
  * Unlike {@link HashAggregationOperator}, this hash operator also extracts values or ordinals of the input documents.
  */
-@Experimental
 public class OrdinalsGroupingOperator implements Operator {
     public record OrdinalsGroupingOperatorFactory(
         List<ValueSourceInfo> sources,

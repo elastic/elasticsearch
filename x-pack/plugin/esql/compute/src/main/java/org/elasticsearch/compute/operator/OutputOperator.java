@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -20,7 +19,6 @@ import static java.util.stream.Collectors.joining;
  * Sink operator that calls a given listener for each page received. The listener receives both the page as well as schema information,
  * i.e. the names of the rows that are outputted.
  */
-@Experimental
 public class OutputOperator extends SinkOperator {
 
     private final List<String> columns;

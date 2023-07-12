@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -16,7 +15,6 @@ import org.elasticsearch.compute.data.Page;
 
 import java.util.function.Supplier;
 
-@Experimental
 public class ColumnExtractOperator extends AbstractPageMappingOperator {
 
     public record Factory(

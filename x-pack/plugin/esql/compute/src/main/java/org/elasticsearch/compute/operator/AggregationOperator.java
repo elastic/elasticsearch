@@ -10,7 +10,6 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.Aggregator.Factory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
@@ -30,7 +29,6 @@ import static java.util.stream.Collectors.joining;
  * The operator is blocking in the sense that it only produces output once all possible input has
  * been added, that is, when the {@link #finish} method has been called.
  */
-@Experimental
 public class AggregationOperator implements Operator {
 
     private boolean finished;

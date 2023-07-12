@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.function.Consumer;
@@ -15,7 +14,6 @@ import java.util.function.Consumer;
 /**
  * Sink operator that's useful for passing off pages to a {@link Consumer}.
  */
-@Experimental
 public class PageConsumerOperator extends SinkOperator {
 
     private final Consumer<Page> pageConsumer;

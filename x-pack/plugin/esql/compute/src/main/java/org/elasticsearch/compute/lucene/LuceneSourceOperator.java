@@ -13,7 +13,6 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -30,7 +29,6 @@ import java.util.stream.Collectors;
 /**
  * Source operator that incrementally runs Lucene searches
  */
-@Experimental
 public class LuceneSourceOperator extends LuceneOperator {
 
     private int numCollectedDocs = 0;

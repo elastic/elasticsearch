@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -26,7 +25,6 @@ import java.util.function.Supplier;
 /**
  * Sink operator implementation that pushes data to an {@link ExchangeSink}
  */
-@Experimental
 public class ExchangeSinkOperator extends SinkOperator {
 
     private final ExchangeSink sink;

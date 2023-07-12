@@ -10,7 +10,6 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -25,7 +24,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
  * More details on how this integrates with other components can be found in the package documentation of
  * {@link org.elasticsearch.compute}
  */
-@Experimental
 public interface Operator extends Releasable {
     /**
      * whether the given operator can accept more input pages

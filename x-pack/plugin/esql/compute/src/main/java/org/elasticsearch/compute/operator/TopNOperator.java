@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -27,7 +26,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-@Experimental
 public class TopNOperator implements Operator {
 
     /**

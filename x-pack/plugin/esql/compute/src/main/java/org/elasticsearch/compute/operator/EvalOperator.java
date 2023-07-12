@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
@@ -17,7 +16,6 @@ import java.util.function.Supplier;
  * Evaluates a tree of functions for every position in the block, resulting in a
  * new block which is appended to the page.
  */
-@Experimental
 public class EvalOperator extends AbstractPageMappingOperator {
 
     public record EvalOperatorFactory(Supplier<ExpressionEvaluator> evaluator) implements OperatorFactory {

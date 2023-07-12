@@ -23,16 +23,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
-// TODO: Use the same scheduled task for IngestLoadSampler and AverageWriteLoadSampler
 public class AverageWriteLoadSampler {
 
     static final Set<String> WRITE_EXECUTORS = Set.of(Names.WRITE, Names.SYSTEM_WRITE, Names.SYSTEM_CRITICAL_WRITE);
@@ -47,9 +44,7 @@ public class AverageWriteLoadSampler {
     );
 
     private final ThreadPool threadPool;
-    private final TimeValue samplingFrequency;
     private final Map<String, AverageLoad> averageLoadPerExector = new HashMap<>();
-    private volatile Scheduler.Cancellable cancellable;
 
     public static AverageWriteLoadSampler create(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         assert WRITE_EXECUTORS.stream()
@@ -63,24 +58,12 @@ public class AverageWriteLoadSampler {
 
     AverageWriteLoadSampler(ThreadPool threadPool, TimeValue samplingFrequency, double ewmaAlpha) {
         this.threadPool = threadPool;
-        this.samplingFrequency = samplingFrequency;
         WRITE_EXECUTORS.forEach(
             name -> averageLoadPerExector.put(name, new AverageLoad(threadPool.info(name).getMax(), samplingFrequency, ewmaAlpha))
         );
     }
 
-    public void start() {
-        assert Objects.isNull(cancellable);
-        cancellable = threadPool.scheduleWithFixedDelay(this::sampleAverageLoad, samplingFrequency, Names.GENERIC);
-    }
-
-    public void stop() {
-        assert Objects.nonNull(cancellable);
-        cancellable.cancel();
-        cancellable = null;
-    }
-
-    private void sampleAverageLoad() {
+    public void sample() {
         for (var name : WRITE_EXECUTORS) {
             long currentTotalNanos = ((TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(name))
                 .getTotalTaskExecutionTime();

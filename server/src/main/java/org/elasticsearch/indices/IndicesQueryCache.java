@@ -100,7 +100,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             stats.put(entry.getKey(), stat);
         }
 
-        for (var entry: stats.entrySet()) {
+        for (var entry : stats.entrySet()) {
             final var shardStats = entry.getValue();
             final var weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
             final var additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);

@@ -231,15 +231,8 @@ public class QueryRulesIndexService {
     }
 
     private void validateQueryRuleset(QueryRuleset queryRuleset) {
-
-        // clusterSettings.applySettings(
-        // Settings.builder()
-        // .put(QueryRulesConfig.MAX_RULE_LIMIT_SETTING.getKey(), queryRuleset.rules().size())
-        // .build());
-
         @SuppressWarnings("unchecked")
         Setting<Integer> maxRuleLimitSetting = (Setting<Integer>) clusterSettings.get(QueryRulesConfig.MAX_RULE_LIMIT_SETTING.getKey());
-
         int maxRuleLimit = clusterSettings.get(Objects.requireNonNull(maxRuleLimitSetting));
         if (queryRuleset.rules().size() > maxRuleLimit) {
             throw new IllegalArgumentException(

@@ -97,30 +97,31 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             }
             builder.endArray();
             builder.startArray("coordinator_stats");
-            if (params.paramAsBoolean("show_node_info", true)) {
+            boolean redactNodeInfo = "serverless".equals(params.param("responseRestricted"));
+            if (redactNodeInfo) {
+                builder.startObject();
+                rollupCoordinatorStats(coordinatorStats).toXContent(builder, params);
+                builder.endObject();
+            } else {
                 for (CoordinatorStats entry : coordinatorStats) {
                     builder.startObject();
                     entry.toXContent(builder, params);
                     builder.endObject();
                 }
-            } else {
-                builder.startObject();
-                rollupCoordinatorStats(coordinatorStats).toXContent(builder, params);
-                builder.endObject();
             }
             builder.endArray();
             if (cacheStats != null) {
                 builder.startArray("cache_stats");
-                if (params.paramAsBoolean("show_node_info", true)) {
+                if (redactNodeInfo) {
+                    builder.startObject();
+                    rollupCacheStats(cacheStats).toXContent(builder, params);
+                    builder.endObject();
+                } else {
                     for (CacheStats cacheStat : cacheStats) {
                         builder.startObject();
                         cacheStat.toXContent(builder, params);
                         builder.endObject();
                     }
-                } else {
-                    builder.startObject();
-                    rollupCacheStats(cacheStats).toXContent(builder, params);
-                    builder.endObject();
                 }
                 builder.endArray();
             }

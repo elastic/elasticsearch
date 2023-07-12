@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -37,11 +36,6 @@ public class RestEnrichStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) throws IOException {
         final EnrichStatsAction.Request request = new EnrichStatsAction.Request();
         return channel -> client.execute(EnrichStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
-    }
-
-    @Override
-    protected Set<String> responseParams() {
-        return Set.of("show_node_info");
     }
 
 }

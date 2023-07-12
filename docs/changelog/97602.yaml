@@ -1,0 +1,5 @@
+pr: 97602
+summary: Add tsdb metrics builtin component template
+area: "TSDB, Indices APIs"
+type: enhancement
+issues: []

@@ -55,7 +55,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
             type == ApiKey.Type.CROSS_CLUSTER
                 ? List.of(randomCrossClusterAccessRoleDescriptor())
-                : (randomBoolean() ? null : randomUniquelyNamedRoleDescriptors(0, 3)),
+                : randomFrom(randomUniquelyNamedRoleDescriptors(0, 3), null),
             type == ApiKey.Type.CROSS_CLUSTER ? null : randomUniquelyNamedRoleDescriptors(1, 3)
         );
         GetApiKeyResponse response = new GetApiKeyResponse(Collections.singletonList(apiKeyInfo));

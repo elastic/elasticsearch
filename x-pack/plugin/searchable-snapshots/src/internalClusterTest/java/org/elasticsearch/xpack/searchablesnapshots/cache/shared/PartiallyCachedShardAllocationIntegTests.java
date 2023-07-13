@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.FrozenCacheInfoN
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -103,11 +104,22 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93868")
     public void testPartialSearchableSnapshotNotAllocatedToNodesWithoutCache() throws Exception {
         final MountSearchableSnapshotRequest req = prepareMountRequest();
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(0));
+        try {
+            assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(0));
+        } catch (NullPointerException | AssertionError e) {
+            var explain = client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex(req.mountedIndexName())
+                .setShard(0)
+                .setPrimary(true)
+                .get();
+            logger.info("Failed to allocate: {}", Strings.toString(explain.getExplanation()));
+            throw e;
+        }
         final ClusterState state = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState();
         assertTrue(state.toString(), state.routingTable().index(req.mountedIndexName()).allPrimaryShardsUnassigned());
 
@@ -190,7 +202,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91800")
+    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91800")
     public void testPartialSearchableSnapshotDelaysAllocationUntilNodeCacheStatesKnown() throws Exception {
 
         updateClusterSettings(
@@ -318,6 +330,8 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
             Math.abs(shardCountsByNodeName.get(newNodes.get(0)) - shardCountsByNodeName.get(newNodes.get(1))),
             lessThanOrEqualTo(1)
         );
+        logger.info("--> shardCountsByNodeName {}, new nodes {}", shardCountsByNodeName, newNodes);
+        logger.info("--> nodes {}", Arrays.asList(internalCluster().getNodeNames()));
     }
 
     @After

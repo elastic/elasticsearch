@@ -42,8 +42,14 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93271")
     public void testSnapshotBasedRecovery() throws Exception {
+
+        assumeFalse(
+            "Cancel shard allocation command is broken for initial desired balance versions and might allocate shard "
+                + "on the node where it is not supposed to be. Fixed by https://github.com/elastic/elasticsearch/pull/93635",
+            UPGRADE_FROM_VERSION == Version.V_8_6_0 || UPGRADE_FROM_VERSION == Version.V_8_6_1 || UPGRADE_FROM_VERSION == Version.V_8_7_0
+        );
+
         final String indexName = "snapshot_based_recovery";
         final String repositoryName = "snapshot_based_recovery_repo";
         final int numDocs = 200;

@@ -46,8 +46,10 @@ final class MergePositionsOperator implements Operator {
     private final int positionCount;
     private final int positionChannel;
 
-    private final Block.Builder[] builders;
+    private final Block.Builder[] outputBuilders;
     private final int[] mergingChannels;
+    private final ElementType[] mergingTypes;
+    private PositionBuilder positionBuilder = null;
 
     private Page outputPage;
 
@@ -60,16 +62,14 @@ final class MergePositionsOperator implements Operator {
                     + Arrays.toString(mergingTypes)
             );
         }
-        if (singleMode == false) {
-            throw new UnsupportedOperationException("Enrich indices should have single segment");
-        }
         this.singleMode = singleMode;
         this.positionCount = positionCount;
         this.positionChannel = positionChannel;
         this.mergingChannels = mergingChannels;
-        this.builders = new Block.Builder[mergingTypes.length];
+        this.mergingTypes = mergingTypes;
+        this.outputBuilders = new Block.Builder[mergingTypes.length];
         for (int i = 0; i < mergingTypes.length; i++) {
-            builders[i] = mergingTypes[i].newBlockBuilder(positionCount);
+            outputBuilders[i] = mergingTypes[i].newBlockBuilder(positionCount);
         }
     }
 
@@ -80,37 +80,74 @@ final class MergePositionsOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
+        final IntBlock positions = page.getBlock(positionChannel);
+        final int currentPosition = positions.getInt(0);
         if (singleMode) {
-            mergePage(page);
-            return;
+            fillNullUpToPosition(currentPosition);
+            for (int i = 0; i < mergingChannels.length; i++) {
+                int channel = mergingChannels[i];
+                outputBuilders[i].appendAllValuesToCurrentPosition(page.getBlock(channel));
+            }
+            filledPositions++;
+        } else {
+            if (positionBuilder != null && positionBuilder.position != currentPosition) {
+                flushPositionBuilder();
+            }
+            if (positionBuilder == null) {
+                positionBuilder = new PositionBuilder(currentPosition, mergingTypes);
+            }
+            positionBuilder.combine(page, mergingChannels);
         }
-        throw new UnsupportedOperationException("Enrich indices should have single segment");
+    }
+
+    static final class PositionBuilder {
+        private final int position;
+        private final Block.Builder[] builders;
+
+        PositionBuilder(int position, ElementType[] elementTypes) {
+            this.position = position;
+            this.builders = new Block.Builder[elementTypes.length];
+            for (int i = 0; i < builders.length; i++) {
+                builders[i] = elementTypes[i].newBlockBuilder(1);
+            }
+        }
+
+        void combine(Page page, int[] channels) {
+            for (int i = 0; i < channels.length; i++) {
+                builders[i].appendAllValuesToCurrentPosition(page.getBlock(channels[i]));
+            }
+        }
+
+        void buildTo(Block.Builder[] output) {
+            for (int i = 0; i < output.length; i++) {
+                output[i].appendAllValuesToCurrentPosition(builders[i].build());
+            }
+        }
+    }
+
+    private void flushPositionBuilder() {
+        fillNullUpToPosition(positionBuilder.position);
+        filledPositions++;
+        positionBuilder.buildTo(outputBuilders);
+        positionBuilder = null;
     }
 
     private void fillNullUpToPosition(int position) {
         while (filledPositions < position) {
-            for (Block.Builder builder : builders) {
+            for (Block.Builder builder : outputBuilders) {
                 builder.appendNull();
             }
             filledPositions++;
         }
     }
 
-    private void mergePage(Page page) {
-        IntBlock positions = page.getBlock(positionChannel);
-        int currentPosition = positions.getInt(0);
-        fillNullUpToPosition(currentPosition);
-        for (int i = 0; i < mergingChannels.length; i++) {
-            int channel = mergingChannels[i];
-            builders[i].appendAllValuesToCurrentPosition(page.getBlock(channel));
-        }
-        filledPositions++;
-    }
-
     @Override
     public void finish() {
+        if (positionBuilder != null) {
+            flushPositionBuilder();
+        }
         fillNullUpToPosition(positionCount);
-        Block[] blocks = Arrays.stream(builders).map(Block.Builder::build).toArray(Block[]::new);
+        Block[] blocks = Arrays.stream(outputBuilders).map(Block.Builder::build).toArray(Block[]::new);
         outputPage = new Page(blocks);
         finished = true;
         assert outputPage.getPositionCount() == positionCount;

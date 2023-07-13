@@ -24,7 +24,7 @@ public class MergePositionsOperatorTests extends ESTestCase {
 
     public void testSimple() {
         MergePositionsOperator mergeOperator = new MergePositionsOperator(
-            true,
+            randomBoolean(),
             7,
             0,
             new int[] { 1, 2 },

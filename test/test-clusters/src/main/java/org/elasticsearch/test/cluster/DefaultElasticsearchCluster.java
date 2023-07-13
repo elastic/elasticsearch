@@ -96,6 +96,12 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     }
 
     @Override
+    public long getPid(int index) {
+        checkHandle();
+        return handle.getPid(index);
+    }
+
+    @Override
     public String getTransportEndpoints() {
         checkHandle();
         return handle.getTransportEndpoints();

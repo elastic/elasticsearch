@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.XPackField;
 
@@ -46,7 +45,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction ENRICH = new XPackUsageFeatureAction(XPackField.ENRICH);
     public static final XPackUsageFeatureAction SEARCHABLE_SNAPSHOTS = new XPackUsageFeatureAction(XPackField.SEARCHABLE_SNAPSHOTS);
     public static final XPackUsageFeatureAction DATA_STREAMS = new XPackUsageFeatureAction(XPackField.DATA_STREAMS);
-    public static final XPackUsageFeatureAction DATA_LIFECYCLE = new XPackUsageFeatureAction(XPackField.DATA_LIFECYCLE);
+    public static final XPackUsageFeatureAction DATA_STREAM_LIFECYCLE = new XPackUsageFeatureAction(XPackField.DATA_STREAM_LIFECYCLE);
     public static final XPackUsageFeatureAction DATA_TIERS = new XPackUsageFeatureAction(XPackField.DATA_TIERS);
     public static final XPackUsageFeatureAction AGGREGATE_METRIC = new XPackUsageFeatureAction(XPackField.AGGREGATE_METRIC);
     public static final XPackUsageFeatureAction ARCHIVE = new XPackUsageFeatureAction(XPackField.ARCHIVE);
@@ -59,7 +58,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         ANALYTICS,
         CCR,
         DATA_STREAMS,
-        DataStreamLifecycle.isEnabled() ? DATA_LIFECYCLE : null,
+        DATA_STREAM_LIFECYCLE,
         DATA_TIERS,
         EQL,
         FROZEN_INDICES,

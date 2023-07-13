@@ -124,7 +124,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         false,
         false,
         RestStatus.FORBIDDEN,
-        EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ)
+        EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.DELETE)
     );
     public static final ClusterBlock INDEX_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(
         12,
@@ -135,6 +135,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         RestStatus.TOO_MANY_REQUESTS,
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
+    public static final ClusterBlock INDEX_DELETE_ALLOW_WRITE_BLOCK = new ClusterBlock(
+        13,
+        "index deletion",
+        false,
+        false,
+        false,
+        RestStatus.FORBIDDEN,
+        EnumSet.of(ClusterBlockLevel.DELETE)
+    )
 
     // TODO: refactor this method after adding more downsampling metadata
     public boolean isDownsampledIndex() {
@@ -268,7 +277,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         READ("read", INDEX_READ_BLOCK),
         WRITE("write", INDEX_WRITE_BLOCK),
         METADATA("metadata", INDEX_METADATA_BLOCK),
-        READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+        READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK),
+        DELETE_ALLOW_WRITE("delete_allow_write", INDEX_DELETE_ALLOW_WRITE_BLOCK);
 
         final String name;
         final String settingName;
@@ -336,6 +346,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_READ_ONLY_ALLOW_DELETE = APIBlock.READ_ONLY_ALLOW_DELETE.settingName();
     public static final Setting<Boolean> INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING = APIBlock.READ_ONLY_ALLOW_DELETE.setting();
+    public static final String SETTING_DELETE_ALLOW_WRITE = APIBlock.DELETE_ALLOW_WRITE.settingName();
+    public static final Setting<Boolean> INDEX_BLOCKS_DELETE_ALLOW_WRITE_SETTING = APIBlock.DELETE_ALLOW_WRITE.setting();
 
     public static final String SETTING_VERSION_CREATED = "index.version.created";
 

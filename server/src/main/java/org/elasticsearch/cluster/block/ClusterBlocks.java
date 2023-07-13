@@ -229,12 +229,12 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
      */
 
     public ClusterBlockException indicesAllowReleaseResources(String[] indices) {
-        Set<ClusterBlock> globalBlocks = global(ClusterBlockLevel.METADATA_WRITE).stream()
+        Set<ClusterBlock> globalBlocks = global(ClusterBlockLevel.DELETE).stream()
             .filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false)
             .collect(toSet());
         Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
         for (String index : indices) {
-            Set<ClusterBlock> blocks = Sets.union(globalBlocks, blocksForIndex(ClusterBlockLevel.METADATA_WRITE, index))
+            Set<ClusterBlock> blocks = Sets.union(globalBlocks, blocksForIndex(ClusterBlockLevel.DELETE, index))
                 .stream()
                 .filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false)
                 .collect(toSet());

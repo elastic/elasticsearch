@@ -438,16 +438,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final ActionListener<AcknowledgedResponse> listener,
         final String persistentRollupTaskId
     ) {
-        logger.info("Downsampling persistent task [" + persistentRollupTaskId + "] already exists. Waiting...");
         persistentTasksService.waitForPersistentTasksCondition(existingTask -> {
             PersistentTasksCustomMetadata.PersistentTask<?> existingPersistentTask = existingTask.getTask(persistentRollupTaskId);
             final RollupShardPersistentTaskState existingPersistentTaskState = (RollupShardPersistentTaskState) existingPersistentTask
                 .getState();
             return existingPersistentTaskState.done();
-        },
-            request.getDownsampleConfig().getTimeout(),
-            ActionListener.wrap(response -> logger.info("Downsampling task [" + persistentRollupTaskId + " completed"), listener::onFailure)
-        );
+        }, request.getDownsampleConfig().getTimeout(), ActionListener.wrap(response -> {}, listener::onFailure));
     }
 
     private static RollupShardTaskParams createRollupShardTaskParams(

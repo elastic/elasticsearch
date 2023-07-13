@@ -31,12 +31,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DataLifecycleTests extends AbstractXContentSerializingTestCase<DataLifecycle> {
+
+    public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     @Override
     protected Writeable.Reader<DataLifecycle> instanceReader() {
@@ -151,11 +154,11 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                     List.of(
                         new DataLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(10),
-                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                            new DownsampleConfig(new DateHistogramInterval("2h"), TIMEOUT)
                         ),
                         new DataLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(3),
-                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                            new DownsampleConfig(new DateHistogramInterval("2h"), TIMEOUT)
                         )
                     )
                 )
@@ -172,11 +175,11 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                     List.of(
                         new DataLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(10),
-                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                            new DownsampleConfig(new DateHistogramInterval("2h"), TIMEOUT)
                         ),
                         new DataLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(30),
-                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                            new DownsampleConfig(new DateHistogramInterval("2h"), TIMEOUT)
                         )
                     )
                 )
@@ -190,11 +193,11 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                     List.of(
                         new DataLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(10),
-                            new DownsampleConfig(new DateHistogramInterval("2h"))
+                            new DownsampleConfig(new DateHistogramInterval("2h"), TIMEOUT)
                         ),
                         new DataLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(30),
-                            new DownsampleConfig(new DateHistogramInterval("3h"))
+                            new DownsampleConfig(new DateHistogramInterval("3h"), TIMEOUT)
                         )
                     )
                 )
@@ -234,7 +237,7 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                 List<DataLifecycle.Downsampling.Round> rounds = new ArrayList<>();
                 var previous = new DataLifecycle.Downsampling.Round(
                     TimeValue.timeValueDays(randomIntBetween(1, 365)),
-                    new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+                    new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"), TIMEOUT)
                 );
                 rounds.add(previous);
                 for (int i = 0; i < count; i++) {
@@ -250,7 +253,8 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
     private static DataLifecycle.Downsampling.Round nextRound(DataLifecycle.Downsampling.Round previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
         var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
+            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms"),
+            TIMEOUT
         );
         return new DataLifecycle.Downsampling.Round(after, fixedInterval);
     }

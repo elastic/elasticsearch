@@ -50,7 +50,7 @@ public class VectorTileUtilTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, "invalid", new Object())
         );
-        assertThat(ex.getMessage(), containsString("Unsupported vector tile property type"));
+        assertThat(ex.getMessage(), containsString("Unsupported vector tile type for field [invalid]"));
     }
 
     private void assertPropertyToFeature(MvtLayerProps layerProps, VectorTile.Tile.Feature.Builder featureBuilder, int numProps) {

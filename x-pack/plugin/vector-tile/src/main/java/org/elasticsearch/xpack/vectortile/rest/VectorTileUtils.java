@@ -71,7 +71,7 @@ class VectorTileUtils {
         feature.addTags(layerProps.addKey(key));
         int valIndex = layerProps.addValue(value);
         if (valIndex < 0) {
-            throw new IllegalArgumentException("Unsupported vector tile property type: " + value.getClass().getName());
+            throw new IllegalArgumentException("Unsupported vector tile type for field [" + key + "] : " + value.getClass().getName());
         }
         feature.addTags(valIndex);
     }

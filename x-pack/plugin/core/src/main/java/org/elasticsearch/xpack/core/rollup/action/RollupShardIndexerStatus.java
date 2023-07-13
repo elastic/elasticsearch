@@ -24,14 +24,14 @@ public enum RollupShardIndexerStatus implements Writeable {
     COMPLETED(3),
     CANCELLED(4);
 
-    private final int ordinal;
+    private final byte ordinal;
 
     RollupShardIndexerStatus(int ordinal) {
-        this.ordinal = ordinal;
+        this.ordinal = (byte) ordinal;
     }
 
     public static RollupShardIndexerStatus readFromStream(final StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
+        int ordinal = in.readByte();
         return switch (ordinal) {
             case 0 -> RollupShardIndexerStatus.INITIALIZED;
             case 1 -> RollupShardIndexerStatus.STARTED;
@@ -52,6 +52,6 @@ public enum RollupShardIndexerStatus implements Writeable {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeVInt(this.ordinal);
+        out.writeByte(this.ordinal);
     }
 }

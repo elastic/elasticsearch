@@ -49,16 +49,16 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var nodeIngestLoad = randomIngestionLoad(numProcessors);
 
         var publishedMetrics = new ArrayList<>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(Tuple.tuple(deterministicTaskQueue.getCurrentTimeMillis(), ingestionLoad));
                 listener.onResponse(null);
             }
         };
         var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
-        new IngestLoadSampler(
+        var sampler = new IngestLoadSampler(
             threadPool,
             writeLoadSampler,
             ingestLoadPublisher,
@@ -68,7 +68,10 @@ public class IngestLoadSamplerTests extends ESTestCase {
             samplingFrequency,
             maxTimeBetweenMetricPublications,
             numProcessors
-        ).start();
+        );
+        sampler.setMinTransportVersion(TransportVersion.current());
+        sampler.setNodeId(randomIdentifier());
+        sampler.start();
 
         runFor(deterministicTaskQueue, maxTimeBetweenMetricPublications.millis());
 
@@ -92,16 +95,16 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var currentIndexLoadSupplier = indexLoadOverTime.iterator();
 
         var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
         };
         var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
-        new IngestLoadSampler(
+        var sampler = new IngestLoadSampler(
             threadPool,
             writeLoadSampler,
             ingestLoadPublisher,
@@ -111,7 +114,10 @@ public class IngestLoadSamplerTests extends ESTestCase {
             samplingFrequency,
             maxTimeBetweenMetricPublications,
             numProcessors
-        ).start();
+        );
+        sampler.setMinTransportVersion(TransportVersion.current());
+        sampler.setNodeId(randomIdentifier());
+        sampler.start();
 
         runFor(deterministicTaskQueue, maxTimeBetweenMetricPublications.millis());
 
@@ -153,16 +159,16 @@ public class IngestLoadSamplerTests extends ESTestCase {
             return latestPublishedMetric;
         };
 
-        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
         };
         var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
-        new IngestLoadSampler(
+        var sampler = new IngestLoadSampler(
             threadPool,
             writeLoadSampler,
             ingestLoadPublisher,
@@ -172,7 +178,10 @@ public class IngestLoadSamplerTests extends ESTestCase {
             samplingFrequency,
             maxTimeBetweenMetricPublications,
             numProcessors
-        ).start();
+        );
+        sampler.setMinTransportVersion(TransportVersion.current());
+        sampler.setNodeId(randomIdentifier());
+        sampler.start();
 
         // Run for less than maxTimeBetweenMetricPublications to ensure that we only account
         // for the metrics published due to a significant change
@@ -195,16 +204,16 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var readingIter = ingestLoadsOverTime.iterator();
 
         var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
         };
         var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
-        new IngestLoadSampler(
+        var sampler = new IngestLoadSampler(
             threadPool,
             writeLoadSampler,
             ingestLoadPublisher,
@@ -214,7 +223,10 @@ public class IngestLoadSamplerTests extends ESTestCase {
             samplingFrequency,
             maxTimeBetweenMetricPublications,
             numProcessors
-        ).start();
+        );
+        sampler.setMinTransportVersion(TransportVersion.current());
+        sampler.setNodeId(randomIdentifier());
+        sampler.start();
 
         runFor(deterministicTaskQueue, maxTimeBetweenMetricPublications.millis());
 
@@ -265,16 +277,16 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 : Math.max(previousReading - loadChangeBelowSensitivity, 0);
         };
 
-        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
         };
         var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
-        new IngestLoadSampler(
+        var sampler = new IngestLoadSampler(
             threadPool,
             writeLoadSampler,
             ingestLoadPublisher,
@@ -284,7 +296,10 @@ public class IngestLoadSamplerTests extends ESTestCase {
             samplingFrequency,
             maxTimeBetweenMetricPublications,
             numProcessors
-        ).start();
+        );
+        sampler.setMinTransportVersion(TransportVersion.current());
+        sampler.setNodeId(randomIdentifier());
+        sampler.start();
 
         runFor(deterministicTaskQueue, maxTimeBetweenMetricPublications.millis());
 
@@ -298,9 +313,9 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var indexLoad = randomIngestionLoad(randomIntBetween(2, 32));
 
         var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
@@ -308,6 +323,8 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
         var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, true, Settings.EMPTY);
+        sampler.setMinTransportVersion(TransportVersion.current());
+        sampler.setNodeId(randomIdentifier());
 
         // The sampler does not schedule any task before starting the service or publish any metrics
         assertThat(publishedMetrics, is(empty()));
@@ -335,9 +352,9 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var indexLoad = randomIngestionLoad(randomIntBetween(2, 32));
 
         var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null, ESTestCase::randomIdentifier, TransportVersion::current, null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null) {
             @Override
-            public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
                 listener.onResponse(null);
             }
@@ -345,6 +362,8 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
         var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, false, Settings.EMPTY);
+        sampler.setMinTransportVersion(TransportVersion.current());
+        sampler.setNodeId(randomIdentifier());
 
         // The sampler does not schedule any task before starting the service or publish any metrics
         assertThat(publishedMetrics, is(empty()));

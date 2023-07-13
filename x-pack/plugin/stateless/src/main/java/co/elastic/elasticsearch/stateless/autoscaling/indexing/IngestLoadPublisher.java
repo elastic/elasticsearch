@@ -17,64 +17,22 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 
 public class IngestLoadPublisher {
-    private static final TransportVersion REQUIRED_VERSION = TransportVersion.V_8_500_025;
     private final NodeClient client;
-    private final Supplier<String> nodeIdSupplier;
-    private final ThreadPool threadPool;
-    private final Supplier<TransportVersion> minTransportVersionSupplier;
-
     private final AtomicLong seqNoSupplier = new AtomicLong();
 
-    public IngestLoadPublisher(Client client, ClusterService clusterService, ThreadPool threadPool) {
-        this(
-            client,
-            () -> clusterService.state().nodes().getLocalNodeId(),
-            () -> clusterService.state().getMinTransportVersion(),
-            threadPool
-        );
-    }
-
-    public IngestLoadPublisher(
-        Client client,
-        Supplier<String> nodeIdSupplier,
-        Supplier<TransportVersion> minTransportVersionSupplier,
-        ThreadPool threadPool
-    ) {
+    public IngestLoadPublisher(Client client) {
         this.client = (NodeClient) client;
-        this.nodeIdSupplier = nodeIdSupplier;
-        this.minTransportVersionSupplier = minTransportVersionSupplier;
-        this.threadPool = threadPool;
     }
 
-    public void publishIngestionLoad(double ingestionLoad, ActionListener<Void> listener) {
-        var minTransportVersion = minTransportVersionSupplier.get();
-        if (minTransportVersion.onOrAfter(REQUIRED_VERSION)) {
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                var request = new PublishNodeIngestLoadRequest(nodeIdSupplier.get(), seqNoSupplier.incrementAndGet(), ingestionLoad);
-                client.execute(PublishNodeIngestLoadAction.INSTANCE, request, listener.map(unused -> null));
-            });
-        } else {
-            listener.onFailure(
-                new ElasticsearchException(
-                    "Cannot publish ingest load metric until entire cluster is: ["
-                        + REQUIRED_VERSION
-                        + "], found: ["
-                        + minTransportVersion
-                        + "]"
-                )
-            );
-        }
+    public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
+        var request = new PublishNodeIngestLoadRequest(nodeId, seqNoSupplier.incrementAndGet(), ingestionLoad);
+        client.execute(PublishNodeIngestLoadAction.INSTANCE, request, listener.map(unused -> null));
     }
 }

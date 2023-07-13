@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -58,6 +59,9 @@ public class IngestLoadSampler implements ClusterStateListener {
         Setting.Property.NodeScope
     );
 
+    // Minimum transport version required for master to be able to handle the metric publications
+    private static final TransportVersion REQUIRED_VERSION = TransportVersion.V_8_500_025;
+
     private final Logger logger = LogManager.getLogger(IngestLoadSampler.class);
     private final ThreadPool threadPool;
     private final AverageWriteLoadSampler writeLoadSampler;
@@ -74,6 +78,8 @@ public class IngestLoadSampler implements ClusterStateListener {
     private volatile SamplingTask samplingTask;
     private final AtomicLong lastPublicationRelativeTimeInMillis = new AtomicLong();
     private final AtomicReference<Object> inFlightPublicationTicket = new AtomicReference<>();
+    private volatile TransportVersion minTransportVersion = TransportVersion.MINIMUM_COMPATIBLE;
+    private volatile String nodeId;
 
     public IngestLoadSampler(
         ThreadPool threadPool,
@@ -173,13 +179,28 @@ public class IngestLoadSampler implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        assert nodeId == null || nodeId.equals(event.state().nodes().getLocalNodeId());
+        if (nodeId == null) {
+            setNodeId(event.state().nodes().getLocalNodeId());
+        }
+        setMinTransportVersion(event.state().getMinTransportVersion());
         if (isIndexNode && event.nodesDelta().masterNodeChanged()) {
             clearInFlightPublicationTicket();
-            publishCurrentLoad();
+            publishCurrentLoad(nodeId);
         }
     }
 
-    private void sampleIngestionLoad() {
+    // Visible for testing
+    void setMinTransportVersion(TransportVersion minTransportVersion) {
+        this.minTransportVersion = minTransportVersion;
+    }
+
+    // Visible for testing
+    public void setNodeId(String nodeId) {
+        this.nodeId = nodeId;
+    }
+
+    private void sampleIngestionLoad(String nodeId) {
         double previousReading = latestPublishedIngestionLoad;
         double currentReading = currentIndexLoadSupplier.getAsDouble();
         this.ingestionLoad = currentReading;
@@ -188,7 +209,7 @@ public class IngestLoadSampler implements ClusterStateListener {
         var currentRatio = currentReading / numProcessors;
         if (currentRatio - previousRatio >= minSensitivityRatio
             || timeSinceLastPublicationInMillis() >= maxTimeBetweenPublications.getMillis()) {
-            publishCurrentLoad();
+            publishCurrentLoad(nodeId);
         }
     }
 
@@ -196,12 +217,19 @@ public class IngestLoadSampler implements ClusterStateListener {
         return getRelativeTimeInMillis() - lastPublicationRelativeTimeInMillis.get();
     }
 
-    private void publishCurrentLoad() {
+    private void publishCurrentLoad(String nodeId) {
+        if (nodeId == null) {
+            return;
+        }
+        if (minTransportVersion.before(REQUIRED_VERSION)) {
+            logger.warn("Cannot publish ingest load metric until cluster is: [{}], found: [{}]", REQUIRED_VERSION, minTransportVersion);
+            return;
+        }
         try {
             var ticket = new Object();
             if (inFlightPublicationTicket.compareAndSet(null, ticket)) {
                 final var publishedLoad = ingestionLoad;
-                ingestionLoadPublisher.publishIngestionLoad(publishedLoad, new ActionListener<>() {
+                ingestionLoadPublisher.publishIngestionLoad(publishedLoad, nodeId, new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
                         var previousPublicationTime = lastPublicationRelativeTimeInMillis.get();
@@ -240,7 +268,7 @@ public class IngestLoadSampler implements ClusterStateListener {
 
             try {
                 writeLoadSampler.sample();
-                sampleIngestionLoad();
+                sampleIngestionLoad(nodeId);
             } finally {
                 threadPool.scheduleUnlessShuttingDown(samplingFrequency, ThreadPool.Names.GENERIC, SamplingTask.this);
             }

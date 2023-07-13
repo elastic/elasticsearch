@@ -27,7 +27,7 @@ public class ShardsAcknowledgedResponseTests extends ESTestCase {
             testInstance,
             new NamedWriteableRegistry(List.of()),
             in -> new TestImpl(in, true),
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         assertThat(result.isAcknowledged(), is(true));
         assertThat(result.isShardsAcknowledged(), is(true));
@@ -36,7 +36,7 @@ public class ShardsAcknowledgedResponseTests extends ESTestCase {
             testInstance,
             new NamedWriteableRegistry(List.of()),
             in -> new TestImpl(in, false),
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         assertThat(result.isAcknowledged(), is(true));
         assertThat(result.isShardsAcknowledged(), is(false));

@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -74,7 +75,8 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationService allocationService
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             return List.of(service);
         }
@@ -129,7 +131,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateSettingsStepRetriesOnError() throws InterruptedException {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().build()).get());
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(Settings.builder().build()).get());
 
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         ClusterState state = clusterService.state();

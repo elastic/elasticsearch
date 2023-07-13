@@ -188,7 +188,7 @@ public class FsBlobContainerTests extends ESTestCase {
             expectedValue.set(newValue);
         }
 
-        container.writeBlob(key, new BytesArray(new byte[9]), false);
+        container.writeBlob(key, new BytesArray(new byte[17]), false);
         expectThrows(
             IllegalStateException.class,
             () -> getBytesAsync(l -> container.compareAndExchangeRegister(key, expectedValue.get(), BytesArray.EMPTY, l))

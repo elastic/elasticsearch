@@ -385,7 +385,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     public void testUpdateLifecycle() {
         String dataStream = randomAlphaOfLength(5);
-        DataLifecycle dataLifecycle = new DataLifecycle(randomMillisUpToYear9999());
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle(randomMillisUpToYear9999());
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
         {
             // Remove lifecycle
@@ -398,10 +398,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
         {
             // Set lifecycle
-            ClusterState after = MetadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), dataLifecycle);
+            ClusterState after = MetadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), lifecycle);
             DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
-            assertThat(updatedDataStream.getLifecycle(), equalTo(dataLifecycle));
+            assertThat(updatedDataStream.getLifecycle(), equalTo(lifecycle));
         }
     }
 

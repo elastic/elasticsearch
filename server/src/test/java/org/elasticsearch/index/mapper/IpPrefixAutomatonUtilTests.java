@@ -12,7 +12,6 @@ import org.apache.commons.codec.binary.Hex;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESTestCase;
@@ -224,7 +223,6 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
     }
 
     private static CompiledAutomaton compileAutomaton(Automaton automaton) {
-        automaton = MinimizationOperations.minimize(automaton, Integer.MAX_VALUE);
         CompiledAutomaton compiledAutomaton = new CompiledAutomaton(
             automaton,
             null,

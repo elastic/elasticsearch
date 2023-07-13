@@ -22,7 +22,6 @@
 package org.elasticsearch.tdigest;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -42,7 +41,8 @@ public abstract class TDigest {
     double max = Double.NEGATIVE_INFINITY;
 
     /**
-     * Creates an {@link MergingDigest}.  This is generally the best known implementation right now.
+     * Creates an {@link MergingDigest}.  This is the fastest implementation for large sample populations, with constant memory
+     * allocation while delivering relating accuracy close to 1%.
      *
      * @param compression The compression parameter.  100 is a common value for normal uses.  1000 is extremely large.
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
@@ -53,7 +53,9 @@ public abstract class TDigest {
     }
 
     /**
-     * Creates an AVLTreeDigest.  AVLTreeDigest is nearly the best known implementation right now.
+     * Creates an {@link AVLTreeDigest}.  This is the most accurate implementation, delivering relative accuracy close to 0.01% for large
+     * sample populations. Still, its construction takes 2x-10x longer than {@link MergingDigest}, while its memory footprint increases
+     * (slowly) with the sample population size.
      *
      * @param compression The compression parameter.  100 is a common value for normal uses.  1000 is extremely large.
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
@@ -61,6 +63,29 @@ public abstract class TDigest {
      */
     public static TDigest createAvlTreeDigest(double compression) {
         return new AVLTreeDigest(compression);
+    }
+
+    /**
+     * Creates a {@link SortingDigest}.  SortingDigest is the most accurate and an extremely fast implementation but stores all samples
+     * internally so it uses much more memory than the rest, for sample populations of 1000 or higher.
+     *
+     * @return the SortingDigest
+     */
+    public static TDigest createSortingDigest() {
+        return new SortingDigest();
+    }
+
+    /**
+     * Creates a {@link HybridDigest}.  HybridDigest uses a SortingDigest for small sample populations, then switches to a MergingDigest,
+     * thus combining the best of both implementations:  fastest overall, small footprint and perfect accuracy for small populations,
+     * constant memory footprint and acceptable accuracy for larger ones.
+     *
+     * @param compression The compression parameter.  100 is a common value for normal uses.  1000 is extremely large.
+     *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
+     * @return the HybridDigest
+     */
+    public static TDigest createHybridDigest(double compression) {
+        return new HybridDigest(compression);
     }
 
     /**
@@ -85,8 +110,6 @@ public abstract class TDigest {
             throw new IllegalArgumentException("Invalid value: " + x);
         }
     }
-
-    public abstract void add(List<? extends TDigest> others);
 
     /**
      * Re-examines a t-digest to determine whether some centroids are redundant.  If your data are
@@ -163,19 +186,17 @@ public abstract class TDigest {
 
     public abstract int centroidCount();
 
+    /**
+     * Prepare internal structure for loading the requested number of samples.
+     * @param size number of samples to be loaded
+     */
+    public void reserve(long size) {}
+
     public double getMin() {
         return min;
     }
 
     public double getMax() {
         return max;
-    }
-
-    /**
-     * Override the min and max values for testing purposes
-     */
-    void setMinMax(double min, double max) {
-        this.min = min;
-        this.max = max;
     }
 }

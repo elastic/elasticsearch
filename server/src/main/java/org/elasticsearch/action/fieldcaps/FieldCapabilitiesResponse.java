@@ -76,7 +76,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
+        this.responseMap = in.readMap(FieldCapabilitiesResponse::readField);
         this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
         this.failures = in.readList(FieldCapabilitiesFailure::new);
     }
@@ -136,7 +136,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     }
 
     private static Map<String, FieldCapabilities> readField(StreamInput in) throws IOException {
-        return in.readMap(StreamInput::readString, FieldCapabilities::new);
+        return in.readMap(FieldCapabilities::new);
     }
 
     @Override

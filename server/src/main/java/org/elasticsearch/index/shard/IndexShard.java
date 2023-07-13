@@ -70,6 +70,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -1030,58 +1031,61 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine.IndexResult index(Engine engine, Engine.Index index) throws IOException {
-        active.set(true);
-        final Engine.IndexResult result;
-        final Engine.Index preIndex = indexingOperationListeners.preIndex(shardId, index);
         try {
-            if (logger.isTraceEnabled()) {
-                // don't use index.source().utf8ToString() here source might not be valid UTF-8
-                logger.trace(
-                    "index [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
-                    preIndex.id(),
-                    preIndex.seqNo(),
-                    routingEntry().allocationId(),
-                    preIndex.primaryTerm(),
-                    getOperationPrimaryTerm(),
-                    preIndex.origin()
-                );
-            }
-            result = engine.index(preIndex);
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] "
-                        + "result-seq# [{}] result-term [{}] failure [{}]",
-                    preIndex.id(),
-                    preIndex.seqNo(),
-                    routingEntry().allocationId(),
-                    preIndex.primaryTerm(),
-                    getOperationPrimaryTerm(),
-                    preIndex.origin(),
-                    result.getSeqNo(),
-                    result.getTerm(),
-                    result.getFailure()
-                );
-            }
-        } catch (Exception e) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    () -> format(
-                        "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s]",
+            final Engine.IndexResult result;
+            final Engine.Index preIndex = indexingOperationListeners.preIndex(shardId, index);
+            try {
+                if (logger.isTraceEnabled()) {
+                    // don't use index.source().utf8ToString() here source might not be valid UTF-8
+                    logger.trace(
+                        "index [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
                         preIndex.id(),
                         preIndex.seqNo(),
                         routingEntry().allocationId(),
                         preIndex.primaryTerm(),
                         getOperationPrimaryTerm(),
                         preIndex.origin()
-                    ),
-                    e
-                );
+                    );
+                }
+                result = engine.index(preIndex);
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] "
+                            + "result-seq# [{}] result-term [{}] failure [{}]",
+                        preIndex.id(),
+                        preIndex.seqNo(),
+                        routingEntry().allocationId(),
+                        preIndex.primaryTerm(),
+                        getOperationPrimaryTerm(),
+                        preIndex.origin(),
+                        result.getSeqNo(),
+                        result.getTerm(),
+                        result.getFailure()
+                    );
+                }
+            } catch (Exception e) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        () -> format(
+                            "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s]",
+                            preIndex.id(),
+                            preIndex.seqNo(),
+                            routingEntry().allocationId(),
+                            preIndex.primaryTerm(),
+                            getOperationPrimaryTerm(),
+                            preIndex.origin()
+                        ),
+                        e
+                    );
+                }
+                indexingOperationListeners.postIndex(shardId, preIndex, e);
+                throw e;
             }
-            indexingOperationListeners.postIndex(shardId, preIndex, e);
-            throw e;
+            indexingOperationListeners.postIndex(shardId, preIndex, result);
+            return result;
+        } finally {
+            active.set(true);
         }
-        indexingOperationListeners.postIndex(shardId, preIndex, result);
-        return result;
     }
 
     public Engine.NoOpResult markSeqNoAsNoop(long seqNo, long opPrimaryTerm, String reason) throws IOException {
@@ -1099,11 +1103,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine.NoOpResult noOp(Engine engine, Engine.NoOp noOp) throws IOException {
-        active.set(true);
-        if (logger.isTraceEnabled()) {
-            logger.trace("noop (seq# [{}])", noOp.seqNo());
+        try {
+            if (logger.isTraceEnabled()) {
+                logger.trace("noop (seq# [{}])", noOp.seqNo());
+            }
+            return engine.noOp(noOp);
+        } finally {
+            active.set(true);
         }
-        return engine.noOp(noOp);
     }
 
     public Engine.IndexResult getFailedIndexResult(Exception e, long version, String id) {
@@ -1163,23 +1170,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert opPrimaryTerm <= getOperationPrimaryTerm()
             : "op term [ " + opPrimaryTerm + " ] > shard term [" + getOperationPrimaryTerm() + "]";
         ensureWriteAllowed(origin);
-        active.set(true);
-        Engine.Delete delete = indexingOperationListeners.preDelete(
-            shardId,
-            prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm)
-        );
-        final Engine.DeleteResult result;
         try {
-            if (logger.isTraceEnabled()) {
-                logger.trace("delete [{}] (seq no [{}])", delete.uid().text(), delete.seqNo());
+            Engine.Delete delete = indexingOperationListeners.preDelete(
+                shardId,
+                prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm)
+            );
+            final Engine.DeleteResult result;
+            try {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("delete [{}] (seq no [{}])", delete.uid().text(), delete.seqNo());
+                }
+                result = engine.delete(delete);
+            } catch (Exception e) {
+                indexingOperationListeners.postDelete(shardId, delete, e);
+                throw e;
             }
-            result = engine.delete(delete);
-        } catch (Exception e) {
-            indexingOperationListeners.postDelete(shardId, delete, e);
-            throw e;
+            indexingOperationListeners.postDelete(shardId, delete, result);
+            return result;
+        } finally {
+            active.set(true);
         }
-        indexingOperationListeners.postDelete(shardId, delete, result);
-        return result;
     }
 
     public static Engine.Delete prepareDelete(
@@ -2067,7 +2077,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mapperService() == null) {
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
-        final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TIMESTAMP_FIELD_NAME);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
             return ShardLongFieldRange.UNKNOWN; // field missing or not a date
         }
@@ -2077,7 +2087,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         final ShardLongFieldRange rawTimestampFieldRange;
         try {
-            rawTimestampFieldRange = getEngine().getRawFieldRange(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            rawTimestampFieldRange = getEngine().getRawFieldRange(DataStream.TIMESTAMP_FIELD_NAME);
             assert rawTimestampFieldRange != null;
         } catch (IOException | AlreadyClosedException e) {
             logger.debug("exception obtaining range for timestamp field", e);
@@ -2227,6 +2237,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     @Override
                     public void onFailure(Exception e) {
                         if (state != IndexShardState.CLOSED) {
+                            active.set(true);
                             logger.warn("failed to flush shard on inactive", e);
                         }
                     }
@@ -3168,7 +3179,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         assert assertPrimaryMode();
         // only needed for BWC reasons involving rolling upgrades from versions that do not support PRRLs:
-        assert indexSettings.getIndexVersionCreated().before(Version.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
+        assert indexSettings.getIndexVersionCreated().before(IndexVersion.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
         return replicationTracker.addPeerRecoveryRetentionLease(nodeId, globalCheckpoint, listener);
     }
 
@@ -3322,6 +3333,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquired), executorOnDelay, forceExecution);
     }
 
+    public boolean isPrimaryMode() {
+        assert indexShardOperationPermits.getActiveOperationsCount() != 0 : "must hold permit to check primary mode";
+        return replicationTracker.isPrimaryMode();
+    }
+
     /**
      * Acquire all primary operation permits. Once all permits are acquired, the provided ActionListener is called.
      * It is the responsibility of the caller to close the {@link Releasable}.
@@ -3342,7 +3358,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private ActionListener<Releasable> wrapPrimaryOperationPermitListener(final ActionListener<Releasable> listener) {
         return listener.delegateFailure((l, r) -> {
-            if (replicationTracker.isPrimaryMode()) {
+            if (isPrimaryMode()) {
                 l.onResponse(r);
             } else {
                 r.close();
@@ -3608,15 +3624,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Syncs the given location with the underlying storage unless already synced. This method might return immediately without
-     * actually fsyncing the location until the sync listener is called. Yet, unless there is already another thread fsyncing
-     * the transaction log the caller thread will be hijacked to run the fsync for all pending fsync operations.
-     * This method allows indexing threads to continue indexing without blocking on fsync calls. We ensure that there is only
-     * one thread blocking on the sync an all others can continue indexing.
+     * Syncs the given location with the underlying storage, unless already synced, as part of a write operation.
+     * <p>
+     * This method might return immediately without actually fsyncing the location until the sync listener is called. Yet, unless there is
+     * already another thread fsyncing the transaction log the caller thread will be hijacked to run the fsync for all pending fsync
+     * operations.
+     * <p>
+     * This method allows indexing threads to continue indexing without blocking on fsync calls. We ensure that there is only one thread
+     * blocking on the sync an all others can continue indexing.
+     * <p>
      * NOTE: if the syncListener throws an exception when it's processed the exception will only be logged. Users should make sure that the
      * listener handles all exception cases internally.
      */
-    public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
+    public final void syncAfterWrite(Translog.Location location, Consumer<Exception> syncListener) {
+        // TODO AwaitsFix https://github.com/elastic/elasticsearch/issues/97183
+        // assert indexShardOperationPermits.getActiveOperationsCount() != 0;
         verifyNotClosed();
         getEngine().asyncEnsureTranslogSynced(location, syncListener);
     }
@@ -3738,31 +3760,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Executes a scheduled refresh if necessary. Completes the listener with true if a refreshed was performed otherwise false.
+     * Executes a scheduled refresh if necessary. Completes the listener with true if a refresh was performed otherwise false.
      */
     public void scheduledRefresh(ActionListener<Boolean> listener) {
-        verifyNotClosed();
-        boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
-        if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
-            if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
-                && isSearchIdle()
-                && indexSettings.isExplicitRefresh() == false
-                && active.get()) { // it must be active otherwise we might not free up segment memory once the shard became inactive
-                // lets skip this refresh since we are search idle and
-                // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
-                // cause the next schedule to refresh.
-                final Engine engine = getEngine();
-                engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
-                setRefreshPending(engine);
-                ActionListener.completeWith(listener, () -> false);
-            } else {
-                logger.trace("refresh with source [schedule]");
-                getEngine().maybeRefresh("schedule", listener.map(Engine.RefreshResult::refreshed));
+        ActionListener.run(listener, l -> {
+            verifyNotClosed();
+            boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
+            final Engine engine = getEngine();
+            if (isReadAllowed() && (listenerNeedsRefresh || engine.refreshNeeded())) {
+                if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
+                    && engine.allowSearchIdleOptimization()
+                    && isSearchIdle()
+                    && indexSettings.isExplicitRefresh() == false
+                    && active.get()) { // it must be active otherwise we might not free up segment memory once the shard became inactive
+                    // lets skip this refresh since we are search idle and
+                    // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
+                    // cause the next schedule to refresh.
+                    engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
+                    setRefreshPending(engine);
+                    l.onResponse(false);
+                    return;
+                } else {
+                    logger.trace("refresh with source [schedule]");
+                    engine.maybeRefresh("schedule", l.map(Engine.RefreshResult::refreshed));
+                    return;
+                }
             }
-        }
-        final Engine engine = getEngine();
-        engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
-        ActionListener.completeWith(listener, () -> false);
+            engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
+            l.onResponse(false);
+        });
     }
 
     /**
@@ -3829,13 +3855,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Registers the given listener and invokes it once the shard is active again and all
-     * pending refresh translog location has been refreshed. If there is no pending refresh location registered the listener will be
-     * invoked immediately.
+     * Ensures this shard is search active before invoking the provided listener.
+     * <p>
+     * This is achieved by registering a refresh listener and invoking the provided listener from the refresh listener once the shard is
+     * active again and all pending refresh translog location has been refreshed. A refresh may be executed to avoid waiting for
+     * {@link #scheduledRefresh(ActionListener)} to be invoked. If there is no pending refresh location registered the provided listener
+     * will be invoked immediately.
+     *
      * @param listener the listener to invoke once the pending refresh location is visible. The listener will be called with
      *                 <code>true</code> if the listener was registered to wait for a refresh.
      */
-    public final void awaitShardSearchActive(Consumer<Boolean> listener) {
+    public final void ensureShardSearchActive(Consumer<Boolean> listener) {
         markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
@@ -3843,6 +3873,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
             });
+            // trigger a refresh to avoid waiting for scheduledRefresh(...) to be invoked from index level refresh scheduler.
+            // (The if statement should avoid doing an additional refresh if scheduled refresh was invoked between getting
+            // the current refresh location and adding a refresh listener.)
+            if (location == pendingRefreshLocation.get()) {
+                // This method may be called from many different threads including transport_worker threads and
+                // a refresh can be a costly operation, so we should fork to a refresh thread to be safe:
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
+                    if (location == pendingRefreshLocation.get()) {
+                        getEngine().maybeRefresh("ensure-shard-search-active", PlainActionFuture.newFuture());
+                    }
+                });
+            }
         } else {
             listener.accept(false);
         }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -19,16 +21,20 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalResetTrackingRate extends InternalNumericMetricsAggregation.SingleValue implements Rate {
 
     public static final String NAME = "rate_with_resets";
+    private static final int MILLIS_IN_SECOND = 1_000;
 
     private final double startValue;
     private final double endValue;
     private final long startTime;
     private final long endTime;
     private final double resetCompensation;
+
+    private final Rounding.DateTimeUnit rateUnit;
 
     protected InternalResetTrackingRate(
         String name,
@@ -38,7 +44,8 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
         double endValue,
         long startTime,
         long endTime,
-        double resetCompensation
+        double resetCompensation,
+        Rounding.DateTimeUnit rateUnit
     ) {
         super(name, format, metadata);
         this.startValue = startValue;
@@ -46,6 +53,7 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
         this.startTime = startTime;
         this.endTime = endTime;
         this.resetCompensation = resetCompensation;
+        this.rateUnit = Objects.requireNonNull(rateUnit);
     }
 
     public InternalResetTrackingRate(StreamInput in) throws IOException {
@@ -55,6 +63,11 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
         this.startTime = in.readLong();
         this.endTime = in.readLong();
         this.resetCompensation = in.readDouble();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_015)) {
+            this.rateUnit = Rounding.DateTimeUnit.resolve(in.readByte());
+        } else {
+            this.rateUnit = Rounding.DateTimeUnit.SECOND_OF_MINUTE;
+        }
     }
 
     @Override
@@ -69,6 +82,11 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
         out.writeLong(startTime);
         out.writeLong(endTime);
         out.writeDouble(resetCompensation);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_015) && rateUnit != null) {
+            out.writeByte(rateUnit.getId());
+        } else {
+            out.writeByte(Rounding.DateTimeUnit.SECOND_OF_MINUTE.getId());
+        }
     }
 
     @Override
@@ -98,7 +116,8 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
             endValue,
             toReduce.get(0).startTime,
             toReduce.get(endIndex).endTime,
-            resetComp
+            resetComp,
+            toReduce.get(0).rateUnit
         );
     }
 
@@ -109,7 +128,8 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
 
     @Override
     public double value() {
-        return (endValue - startValue + resetCompensation) / (endTime - startTime);
+        long rateUnitSeconds = rateUnit.getField().getBaseUnit().getDuration().toSeconds();
+        return (endValue - startValue + resetCompensation) / (endTime - startTime) * MILLIS_IN_SECOND * rateUnitSeconds;
     }
 
     @Override

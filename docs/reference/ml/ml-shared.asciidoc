@@ -944,12 +944,20 @@ values are
 * `bert`: Use for BERT-style models
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
+* experimental:[] `xlm_roberta`: Use for XLMRoBERTa-style models
+* experimental:[] `bert_ja`: Use for BERT-style models trained for the Japanese
+language.
 --
 end::inference-config-nlp-tokenization[]
 
 tag::inference-config-nlp-tokenization-bert[]
 BERT-style tokenization is to be performed with the enclosed settings.
 end::inference-config-nlp-tokenization-bert[]
+
+tag::inference-config-nlp-tokenization-bert-ja[]
+experimental:[] BERT-style tokenization for Japanese text is to be performed
+with the enclosed settings.
+end::inference-config-nlp-tokenization-bert-ja[]
 
 tag::inference-config-nlp-tokenization-do-lower-case[]
 Specifies if the tokenization lower case the text sequence when building the
@@ -992,6 +1000,10 @@ Tokenize with special tokens. The tokens typically included in BERT-style tokeni
 --
 end::inference-config-nlp-tokenization-bert-with-special-tokens[]
 
+tag::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
+Tokenize with special tokens if `true`.
+end::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
+
 tag::inference-config-nlp-tokenization-max-sequence-length[]
 Specifies the maximum number of tokens allowed to be output by the tokenizer.
 end::inference-config-nlp-tokenization-max-sequence-length[]
@@ -1025,6 +1037,10 @@ Tokenize with special tokens. The tokens typically included in MPNet-style token
 * `</s>`: Indicates sequence separation.
 --
 end::inference-config-nlp-tokenization-mpnet-with-special-tokens[]
+
+tag::inference-config-nlp-tokenization-xlm-roberta[]
+experimental:[] XLMRoBERTa-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-xlm-roberta[]
 
 tag::inference-config-nlp-vocabulary[]
 The configuration for retrieving the vocabulary of the model. The vocabulary is
@@ -1108,6 +1124,10 @@ tag::inference-config-results-field[]
 The field that is added to incoming documents to contain the inference
 prediction. Defaults to `predicted_value`.
 end::inference-config-results-field[]
+
+tag::inference-config-mask-token[]
+The string/token which will be removed from incoming documents and replaced with the inference prediction(s). In a response, this field contains the mask token for the specified model/tokenizer. Each model and tokenizer has a predefined mask token which cannot be changed. Thus, it is recommended not to set this value in requests. However, if this field is present in a request, its value must match the predefined value for that model/tokenizer, otherwise the request will fail.
+end::inference-config-mask-token[]
 
 tag::inference-config-results-field-processor[]
 The field that is added to incoming documents to contain the inference

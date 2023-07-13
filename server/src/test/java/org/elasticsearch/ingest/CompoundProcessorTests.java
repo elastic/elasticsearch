@@ -388,11 +388,6 @@ public class CompoundProcessorTests extends ESTestCase {
             }
 
             @Override
-            public boolean isAsync() {
-                return false;
-            }
-
-            @Override
             public String getType() {
                 return "pipeline";
             }
@@ -458,10 +453,6 @@ public class CompoundProcessorTests extends ESTestCase {
                 return "my_type2";
             }
 
-            @Override
-            public boolean isAsync() {
-                return false;
-            }
         }));
 
         Exception[] holder = new Exception[1];

@@ -297,7 +297,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         totalStats = Stats.readStats(in);
         openContexts = in.readVLong();
         if (in.readBoolean()) {
-            groupStats = in.readMap(StreamInput::readString, Stats::readStats);
+            groupStats = in.readMap(Stats::readStats);
         }
     }
 

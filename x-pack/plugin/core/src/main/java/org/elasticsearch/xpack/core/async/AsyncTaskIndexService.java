@@ -524,11 +524,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                     asyncExecutionId,
                     false,
                     false,
-                    outerListener.delegateFailure(
-                        (listener, resp) -> listener.onResponse(
-                            statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded())
-                        )
-                    )
+                    outerListener.map(resp -> statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded()))
                 );
             }
         } catch (Exception exc) {
@@ -595,7 +591,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             }
         });
         TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
-        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
+        assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
         if (version.onOrAfter(TransportVersion.V_7_15_0)) {
             encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
         }

@@ -47,6 +47,7 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -523,13 +524,13 @@ public final class NodeEnvironment implements Closeable {
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
             throw new IllegalStateException(
-                "Cannot start this node because it holds metadata for indices created with version ["
+                "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion()
                     + "] with which this node of version ["
                     + Version.CURRENT
                     + "] is incompatible. Revert this node to version ["
                     + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
-                    + "] and delete any indices created in versions earlier than ["
+                    + "] and delete any indices with versions earlier than ["
                     + Version.CURRENT.minimumIndexCompatibilityVersion()
                     + "] before upgrading to version ["
                     + Version.CURRENT
@@ -623,7 +624,7 @@ public final class NodeEnvironment implements Closeable {
                 assert nodeIds.isEmpty() : nodeIds;
                 // If we couldn't find legacy metadata, we set the latest index version to this version. This happens
                 // when we are starting a new node and there are no indices to worry about.
-                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, Version.CURRENT);
+                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, IndexVersion.current());
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;

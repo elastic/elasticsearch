@@ -10,13 +10,14 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -186,7 +187,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
             index,
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current().id()).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, mock(BitsetFilterCache.Listener.class));
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
@@ -194,12 +195,13 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             return builder.build(new IndexFieldDataCache.None(), null);
         };
         NestedLookup nestedLookup = NestedLookup.build(
-            List.of(new NestedObjectMapper.Builder("path", Version.CURRENT).build(MapperBuilderContext.root(false)))
+            List.of(new NestedObjectMapper.Builder("path", IndexVersion.current()).build(MapperBuilderContext.root(false)))
         );
         return new SearchExecutionContext(
             0,
             0,
             idxSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             bitsetFilterCache,
             indexFieldDataLookup,
             null,

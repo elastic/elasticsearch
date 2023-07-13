@@ -42,9 +42,9 @@ import java.util.Objects;
  */
 public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
-    // This represents when the data lifecycle was explicitly set to be null, meaning the user wants to remove the
+    // This represents when the data stream lifecycle was explicitly set to be null, meaning the user wants to remove the
     // lifecycle.
-    public static final DataLifecycle NO_LIFECYCLE = new DataLifecycle() {
+    public static final DataStreamLifecycle NO_LIFECYCLE = new DataStreamLifecycle() {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params, RolloverConfiguration rolloverConfiguration)
@@ -66,7 +66,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             (Settings) a[0],
             (CompressedXContent) a[1],
             (Map<String, AliasMetadata>) a[2],
-            DataLifecycle.isEnabled() ? (DataLifecycle) a[3] : null
+            DataStreamLifecycle.isEnabled() ? (DataStreamLifecycle) a[3] : null
         )
     );
 
@@ -93,10 +93,10 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             return aliasMap;
         }, ALIASES);
         // We adjust the parser to ensure that the error message will be consistent with that of an unknown field.
-        if (DataLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isEnabled()) {
             PARSER.declareObjectOrNull(
                 ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> DataLifecycle.fromXContent(p),
+                (p, c) -> DataStreamLifecycle.fromXContent(p),
                 NO_LIFECYCLE,
                 LIFECYCLE
             );
@@ -111,18 +111,18 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     private final Map<String, AliasMetadata> aliases;
 
     @Nullable
-    private final DataLifecycle lifecycle;
+    private final DataStreamLifecycle lifecycle;
 
     public Template(
         @Nullable Settings settings,
         @Nullable CompressedXContent mappings,
         @Nullable Map<String, AliasMetadata> aliases,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) {
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
-        if (DataLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isEnabled()) {
             this.lifecycle = lifecycle;
         } else {
             this.lifecycle = null;
@@ -145,7 +145,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             this.mappings = null;
         }
         if (in.readBoolean()) {
-            this.aliases = in.readMap(StreamInput::readString, AliasMetadata::new);
+            this.aliases = in.readMap(AliasMetadata::new);
         } else {
             this.aliases = null;
         }
@@ -154,7 +154,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             if (isExplicitNull) {
                 this.lifecycle = NO_LIFECYCLE;
             } else {
-                this.lifecycle = in.readOptionalWriteable(DataLifecycle::new);
+                this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
             }
         } else {
             this.lifecycle = null;
@@ -177,7 +177,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     }
 
     @Nullable
-    public DataLifecycle lifecycle() {
+    public DataStreamLifecycle lifecycle() {
         return lifecycle;
     }
 

@@ -67,7 +67,7 @@ public class TimeBasedExtractedFields extends ExtractedFields {
             throw new IllegalArgumentException("cannot retrieve time field [" + timeField + "] because it is not aggregatable");
         }
         ExtractedField timeExtractedField = extractedTimeField(timeField, scriptFields);
-        List<String> remainingFields = job.allInputFields().stream().filter(f -> f.equals(timeField) == false).collect(Collectors.toList());
+        List<String> remainingFields = job.allInputFields().stream().filter(f -> f.equals(timeField) == false).toList();
         List<ExtractedField> allExtractedFields = new ArrayList<>(remainingFields.size() + 1);
         allExtractedFields.add(timeExtractedField);
         remainingFields.forEach(field -> allExtractedFields.add(extractionMethodDetector.detect(field)));

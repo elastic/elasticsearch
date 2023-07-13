@@ -7,9 +7,11 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -26,6 +28,7 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
@@ -42,10 +45,10 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
     // the watch should be executed properly, despite the index being created and the cluster state listener being reloaded
     public void testThatLoadingWithNonExistingIndexWorks() throws Exception {
         stopWatcher();
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().get();
         IndexMetadata metadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, clusterStateResponse.getState().metadata());
         String watchIndexName = metadata.getIndex().getName();
-        assertAcked(client().admin().indices().prepareDelete(watchIndexName));
+        assertAcked(indicesAdmin().prepareDelete(watchIndexName));
         startWatcher();
 
         String watchId = randomAlphaOfLength(20);
@@ -58,9 +61,11 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
             )
             .get();
         assertThat(putWatchResponse.isCreated(), is(true));
+        ensureGreen(".watcher-history*");
+        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(".watcher-history*").get();
+        assertThat(refreshResponse.getStatus(), equalTo(RestStatus.OK));
 
         assertBusy(() -> {
-            client().admin().indices().prepareRefresh(".watcher-history*").get();
             SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
             assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)));
         }, 30, TimeUnit.SECONDS);

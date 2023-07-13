@@ -91,7 +91,7 @@ public class JoinValidationServiceTests extends ESTestCase {
 
                         @Override
                         public TransportVersion getTransportVersion() {
-                            return TransportVersion.CURRENT;
+                            return TransportVersion.current();
                         }
 
                         @Override
@@ -117,7 +117,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                                         case JoinValidationService.JOIN_VALIDATE_ACTION_NAME -> TransportResponse.Empty.INSTANCE;
                                         case TransportService.HANDSHAKE_ACTION_NAME -> new TransportService.HandshakeResponse(
                                             Version.CURRENT,
-                                            Build.CURRENT.hash(),
+                                            Build.current().hash(),
                                             node,
                                             ClusterName.DEFAULT
                                         );
@@ -251,7 +251,7 @@ public class JoinValidationServiceTests extends ESTestCase {
 
             @Override
             public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersion.CURRENT;
+                return TransportVersion.current();
             }
 
             @Override

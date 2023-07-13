@@ -55,7 +55,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
         final FileInfo fileInfo = new FileInfo(
             randomAlphaOfLength(10),
-            new StoreFileMetadata(fileName, fileData.length, checksum, IndexVersion.CURRENT.luceneVersion().toString()),
+            new StoreFileMetadata(fileName, fileData.length, checksum, IndexVersion.current().luceneVersion().toString()),
             ByteSizeValue.ofBytes(fileData.length)
         );
 
@@ -86,6 +86,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), randomBoolean())
             .put("path.home", createTempDir())
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);

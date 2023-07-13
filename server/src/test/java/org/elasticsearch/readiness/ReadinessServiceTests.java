@@ -112,27 +112,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         }
     }
 
-    public void testBoundPortDoesntChange() throws Exception {
-        Environment tempEnv = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
-        ReadinessService tempService = new ReadinessService(clusterService, tempEnv);
-        tempService.start();
-        tempService.startListener();
-
-        ServerSocketChannel channel = tempService.serverChannel();
-        assertTrue(channel.isOpen());
-        assertTrue(tempService.boundAddress().publishAddress().getPort() > 0);
-
-        int port = tempService.boundAddress().publishAddress().getPort();
-
-        tempService.stop();
-        assertNull(tempService.serverChannel());
-        tempService.start();
-        tempService.startListener();
-        assertEquals(port, ((InetSocketAddress) tempService.serverChannel().getLocalAddress()).getPort());
-        tempService.stop();
-        tempService.close();
-    }
-
     public void testSocketChannelCreation() throws Exception {
         try (ServerSocketChannel channel = readinessService.setupSocket()) {
             assertTrue(channel.isOpen());
@@ -161,13 +140,12 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         readinessService.close();
     }
 
-    public void testStopWithoutStart() {
+    public void testCloseWithoutStart() {
         assertTrue(ReadinessService.enabled(env));
         assertFalse(readinessService.ready());
         assertNull(readinessService.serverChannel());
-        readinessService.stop();
-        assertFalse(readinessService.ready());
         readinessService.close();
+        assertFalse(readinessService.ready());
     }
 
     public void testTCPProbe() throws Exception {
@@ -238,9 +216,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         previousState = newState;
         tcpReadinessProbeTrue(readinessService);
 
-        ClusterState noMasterState = ClusterState.builder(previousState)
-            .nodes(DiscoveryNodes.builder(previousState.nodes()).masterNodeId(null))
-            .build();
+        ClusterState noMasterState = ClusterState.builder(previousState).nodes(previousState.nodes().withMasterNodeId(null)).build();
         event = new ClusterChangedEvent("test", noMasterState, previousState);
         readinessService.clusterChanged(event);
         assertFalse(readinessService.ready());

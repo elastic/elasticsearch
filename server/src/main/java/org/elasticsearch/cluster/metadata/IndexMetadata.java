@@ -143,7 +143,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         false,
         RestStatus.FORBIDDEN,
         EnumSet.of(ClusterBlockLevel.DELETE)
-    )
+    );
 
     // TODO: refactor this method after adding more downsampling metadata
     public boolean isDownsampledIndex() {

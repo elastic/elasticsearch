@@ -21,49 +21,51 @@ import java.util.Objects;
  */
 public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequest> {
     private final String resource;
+    private final boolean preview;
 
     /**
      * Constructs a request for reloading index search analyzers
      * @param resource changed resource to reload analyzers from, @null if not applicable
      * @param indices the indices to reload analyzers for
      */
-    public ReloadAnalyzersRequest(String resource, String... indices) {
+    public ReloadAnalyzersRequest(String resource, boolean preview, String... indices) {
         super(indices);
         this.resource = resource;
+        this.preview = preview;
     }
 
     public ReloadAnalyzersRequest(StreamInput in) throws IOException {
         super(in);
         this.resource = in.readOptionalString();
+        this.preview = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(resource);
+        out.writeBoolean(preview);
     }
 
     public String resource() {
         return resource;
     }
 
+    public boolean preview() {
+        return preview;
+    }
+
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         ReloadAnalyzersRequest that = (ReloadAnalyzersRequest) o;
-        return Objects.equals(indicesOptions(), that.indicesOptions())
-            && Arrays.equals(indices, that.indices)
-            && Objects.equals(resource, that.resource);
+        return preview == that.preview && Objects.equals(resource, that.resource);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indicesOptions(), Arrays.hashCode(indices), resource);
+        return Objects.hash(indicesOptions(), Arrays.hashCode(indices), resource, preview);
     }
 
 }

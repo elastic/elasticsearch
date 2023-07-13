@@ -275,7 +275,7 @@ public class SynonymsManagementAPIService {
                         ? UpdateSynonymsResultStatus.CREATED
                         : UpdateSynonymsResultStatus.UPDATED;
 
-                    reloadAnalyzers(synonymSetId, bulkInsertResponseListener, updateSynonymsResultStatus);
+                    reloadAnalyzers(synonymSetId, false, bulkInsertResponseListener, updateSynonymsResultStatus);
                 }));
         }));
     }
@@ -295,7 +295,7 @@ public class SynonymsManagementAPIService {
                         ? UpdateSynonymsResultStatus.CREATED
                         : UpdateSynonymsResultStatus.UPDATED;
 
-                    reloadAnalyzers(synonymsSetId, l2, updateStatus);
+                    reloadAnalyzers(synonymsSetId, false, l2, updateStatus);
                 }));
             } catch (IOException e) {
                 l1.onFailure(e);
@@ -342,7 +342,7 @@ public class SynonymsManagementAPIService {
                     return;
                 }
 
-                reloadAnalyzers(synonymSetId, listener, AcknowledgedResponse.of(true));
+                reloadAnalyzers(synonymSetId, false, listener, AcknowledgedResponse.of(true));
             }));
     }
 
@@ -400,7 +400,7 @@ public class SynonymsManagementAPIService {
     public void deleteSynonymsSet(String synonymSetId, ActionListener<SynonymsReloadResult<AcknowledgedResponse>> listener) {
 
         // Checks reloading the analyzer to understand usage. We can iterate on this solution to target the specific analyzer
-        reloadAnalyzers(synonymSetId, listener.delegateFailure((reloadListener, reloadResult) -> {
+        reloadAnalyzers(synonymSetId, true, listener.delegateFailure((reloadListener, reloadResult) -> {
             Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadDetails = reloadResult.reloadAnalyzersResponse.getReloadDetails();
             if (reloadDetails.isEmpty() == false) {
                 Set<String> indices = reloadDetails.entrySet()
@@ -436,15 +436,15 @@ public class SynonymsManagementAPIService {
                     );
                     return;
                 }
-                reloadAnalyzers(synonymSetId, deleteObjectsListener, AcknowledgedResponse.of(true));
+                reloadAnalyzers(synonymSetId, false, deleteObjectsListener, AcknowledgedResponse.of(true));
             }));
         }), null);
 
     }
 
-    private <T> void reloadAnalyzers(String synonymSetId, ActionListener<SynonymsReloadResult<T>> listener, T synonymsOperationResult) {
+    private <T> void reloadAnalyzers(String synonymSetId, boolean preview, ActionListener<SynonymsReloadResult<T>> listener, T synonymsOperationResult) {
         // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
-        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, "*");
+        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
         client.execute(
             ReloadAnalyzerAction.INSTANCE,
             reloadAnalyzersRequest,

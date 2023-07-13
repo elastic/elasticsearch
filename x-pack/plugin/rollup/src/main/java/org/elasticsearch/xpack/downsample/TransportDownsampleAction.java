@@ -322,6 +322,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             params,
                             ActionListener.wrap(
                                 startedTask -> persistentTasksService.waitForPersistentTaskCondition(startedTask.getId(), runningTask -> {
+                                    if (runningTask == null) {
+                                        return false;
+                                    }
                                     RollupShardPersistentTaskState runningPersistentTaskState = (RollupShardPersistentTaskState) runningTask
                                         .getState();
                                     return runningPersistentTaskState != null && runningPersistentTaskState.done();

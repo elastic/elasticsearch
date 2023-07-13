@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.rollup.action;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -21,7 +22,7 @@ import java.io.IOException;
  * @param rollupShardIndexerStatus An instance of {@link RollupShardIndexerStatus} with the rollupShardIndexerStatus of the rollup task
  * @param tsid The latest successfully processed tsid component of a tuple (tsid, timestamp)
  */
-public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShardIndexerStatus, String tsid)
+public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShardIndexerStatus, BytesRef tsid)
     implements
         PersistentTaskState {
 
@@ -32,11 +33,11 @@ public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShar
     private static final ConstructingObjectParser<RollupShardPersistentTaskState, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        args -> new RollupShardPersistentTaskState((RollupShardIndexerStatus) args[0], (String) args[1])
+        args -> new RollupShardPersistentTaskState((RollupShardIndexerStatus) args[0], (BytesRef) args[1])
     );
 
     public RollupShardPersistentTaskState(final StreamInput in) throws IOException {
-        this(RollupShardIndexerStatus.readFromStream(in), in.readString());
+        this(RollupShardIndexerStatus.readFromStream(in), in.readBytesRef());
     }
 
     @Override
@@ -55,7 +56,7 @@ public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShar
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         rollupShardIndexerStatus.writeTo(out);
-        out.writeString(tsid);
+        out.writeBytesRef(tsid);
     }
 
     @Override
@@ -82,7 +83,7 @@ public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShar
     }
 
     public static RollupShardPersistentTaskState readFromStream(final StreamInput in) throws IOException {
-        return new RollupShardPersistentTaskState(RollupShardIndexerStatus.readFromStream(in), in.readString());
+        return new RollupShardPersistentTaskState(RollupShardIndexerStatus.readFromStream(in), in.readBytesRef());
     }
 
     public static RollupShardPersistentTaskState fromXContent(final XContentParser parser) {

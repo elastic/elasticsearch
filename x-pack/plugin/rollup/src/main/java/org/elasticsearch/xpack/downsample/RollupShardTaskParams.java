@@ -46,7 +46,7 @@ public record RollupShardTaskParams(
             (String) args[1],
             (Long) args[2],
             (Long) args[3],
-            (ShardId) args[4],
+            ShardId.fromString((String) args[4]),
             (String[]) args[5],
             (String[]) args[6]
         )

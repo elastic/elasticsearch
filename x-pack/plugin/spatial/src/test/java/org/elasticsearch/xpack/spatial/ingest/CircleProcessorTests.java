@@ -13,7 +13,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.Orientation;
@@ -26,6 +25,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.CircleUtils;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -212,7 +212,7 @@ public class CircleProcessorTests extends ESTestCase {
 
         SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
         when(mockedContext.getFieldType(any())).thenReturn(shapeType);
-        when(mockedContext.indexVersionCreated()).thenReturn(Version.CURRENT);
+        when(mockedContext.indexVersionCreated()).thenReturn(IndexVersion.current());
         Query sameShapeQuery = shapeType.geoShapeQuery(mockedContext, fieldName, ShapeRelation.INTERSECTS, geometry);
         Query pointOnDatelineQuery = shapeType.geoShapeQuery(
             mockedContext,

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
@@ -75,6 +76,7 @@ import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
@@ -116,6 +118,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -127,6 +130,7 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.R
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -186,6 +190,40 @@ public class RBACEngineTests extends ESTestCase {
         final AuthorizationInfo authorizationInfo = future.actionGet();
         assertThat((String[]) authorizationInfo.asMap().get("user.roles"), emptyArray());
         assertThat((String[]) authorizationInfo.getAuthenticatedUserAuthorizationInfo().asMap().get("user.roles"), emptyArray());
+    }
+
+    public void testResolveAuthorizationInfoForEmptyRestrictedRolesWithAuthentication() {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<Tuple<Role, Role>>) invocation.getArgument(1);
+            final Supplier<Role> randomRoleSupplier = () -> Role.buildFromRoleDescriptor(
+                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), false, randomBoolean()),
+                new FieldPermissionsCache(Settings.EMPTY),
+                RESTRICTED_INDICES,
+                List.of()
+            );
+            switch (randomIntBetween(1, 3)) {
+                case 1 -> listener.onResponse(new Tuple<>(Role.EMPTY_RESTRICTED_BY_WORKFLOW, Role.EMPTY_RESTRICTED_BY_WORKFLOW));
+                case 2 -> listener.onResponse(new Tuple<>(randomRoleSupplier.get(), Role.EMPTY_RESTRICTED_BY_WORKFLOW));
+                case 3 -> listener.onResponse(new Tuple<>(Role.EMPTY_RESTRICTED_BY_WORKFLOW, randomRoleSupplier.get()));
+                default -> throw new IllegalStateException("unexpected test case!");
+            }
+            return null;
+        }).when(rolesStore).getRoles(any(), anyActionListener());
+
+        final PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
+        engine.resolveAuthorizationInfo(
+            new RequestInfo(
+                AuthenticationTestHelper.builder().build(),
+                mock(TransportRequest.class),
+                randomAlphaOfLengthBetween(20, 30),
+                null
+            ),
+            future
+        );
+
+        ElasticsearchRoleRestrictionException e = expectThrows(ElasticsearchRoleRestrictionException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("access restricted by workflow"));
     }
 
     public void testResolveAuthorizationInfoForEmptyRoleWithSubject() {

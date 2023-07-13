@@ -26,12 +26,12 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -367,7 +367,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
                 BooleanQuery.Builder bq = new BooleanQuery.Builder();
-                bq.add(Queries.newNonNestedFilter(Version.CURRENT), BooleanClause.Occur.MUST);
+                bq.add(Queries.newNonNestedFilter(IndexVersion.current()), BooleanClause.Occur.MUST);
                 bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
                 InternalNested nested = searchAndReduce(
@@ -644,7 +644,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 Filter filter = searchAndReduce(
                     newIndexSearcher(indexReader),
                     new AggTestConfig(filterAggregationBuilder, fieldType1, fieldType2).withQuery(
-                        Queries.newNonNestedFilter(Version.CURRENT)
+                        Queries.newNonNestedFilter(IndexVersion.current())
                     )
                 );
 
@@ -906,6 +906,6 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     );
 
     public static NestedObjectMapper nestedObject(String path) {
-        return new NestedObjectMapper.Builder(path, Version.CURRENT).build(MapperBuilderContext.root(false));
+        return new NestedObjectMapper.Builder(path, IndexVersion.current()).build(MapperBuilderContext.root(false));
     }
 }

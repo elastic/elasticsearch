@@ -10,13 +10,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -25,7 +25,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -239,7 +239,12 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
     }
 
-    private static TestMapper fromMapping(String mapping, Version version, TransportVersion transportVersion, boolean fromDynamicTemplate) {
+    private static TestMapper fromMapping(
+        String mapping,
+        IndexVersion version,
+        TransportVersion transportVersion,
+        boolean fromDynamicTemplate
+    ) {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(
             Map.of(
@@ -279,12 +284,12 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             .build(MapperBuilderContext.root(false));
     }
 
-    private static TestMapper fromMapping(String mapping, Version version, TransportVersion transportVersion) {
+    private static TestMapper fromMapping(String mapping, IndexVersion version, TransportVersion transportVersion) {
         return fromMapping(mapping, version, transportVersion, false);
     }
 
     private static TestMapper fromMapping(String mapping) {
-        return fromMapping(mapping, Version.CURRENT, TransportVersion.CURRENT);
+        return fromMapping(mapping, IndexVersion.current(), TransportVersion.current());
     }
 
     private String toStringWithDefaults(ToXContent value) throws IOException {
@@ -525,7 +530,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"type":"test_mapper","some_unknown_parameter":true,"required":"value"}""";
         TestMapper mapper = fromMapping(
             mapping,
-            VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0),
+            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0),
             TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersion.V_7_0_0,
@@ -543,7 +548,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> fromMapping(mapping, Version.V_8_0_0, TransportVersion.V_8_0_0, true)
+            () -> fromMapping(mapping, IndexVersion.V_8_0_0, TransportVersion.V_8_0_0, true)
         );
         assertEquals("unknown parameter [some_unknown_parameter] on mapper [field] of type [test_mapper]", ex.getMessage());
     }
@@ -580,7 +585,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
         String mapping = """
             {"type":"test_mapper","index":false,"store":true,"required":"value"}""";
-        TestMapper mapper = fromMapping(mapping, Version.V_7_8_0, TransportVersion.V_7_8_0);
+        TestMapper mapper = fromMapping(mapping, IndexVersion.V_7_8_0, TransportVersion.V_7_8_0);
         assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
         assertFalse(mapper.index);
         assertEquals("""
@@ -588,7 +593,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> fromMapping(mapping, Version.V_8_0_0, TransportVersion.V_8_0_0)
+            () -> fromMapping(mapping, IndexVersion.V_8_0_0, TransportVersion.V_8_0_0)
         );
         assertEquals("unknown parameter [store] on mapper [field] of type [test_mapper]", e.getMessage());
     }

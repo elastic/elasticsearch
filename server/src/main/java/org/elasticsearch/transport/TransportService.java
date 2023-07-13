@@ -80,7 +80,7 @@ public class TransportService extends AbstractLifecycleComponent
     private static final boolean SERVERLESS_TRANSPORT_FEATURE_FLAG;
     static {
         final boolean serverlessFlag = Booleans.parseBoolean(System.getProperty(SERVERLESS_TRANSPORT_SYSTEM_PROPERTY), false);
-        if (serverlessFlag && Build.CURRENT.isSnapshot() == false) {
+        if (serverlessFlag && Build.current().isSnapshot() == false) {
             throw new IllegalArgumentException("Enabling serverless transport is only supported in snapshot builds");
         }
         SERVERLESS_TRANSPORT_FEATURE_FLAG = serverlessFlag;
@@ -136,7 +136,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public TransportVersion getTransportVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override
@@ -296,7 +296,7 @@ public class TransportService extends AbstractLifecycleComponent
             false,
             HandshakeRequest::new,
             (request, channel, task) -> channel.sendResponse(
-                new HandshakeResponse(localNode.getVersion(), Build.CURRENT.hash(), localNode, clusterName)
+                new HandshakeResponse(localNode.getVersion(), Build.current().hash(), localNode, clusterName)
             )
         );
     }
@@ -672,7 +672,7 @@ public class TransportService extends AbstractLifecycleComponent
                     + "] of version ["
                     + version
                     + "] but this node is build ["
-                    + Build.CURRENT.hash()
+                    + Build.current().hash()
                     + "] of version ["
                     + Version.CURRENT
                     + "] which has an incompatible wire format",
@@ -705,7 +705,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         private static boolean isIncompatibleBuild(Version version, String buildHash) {
-            return version == Version.CURRENT && Build.CURRENT.hash().equals(buildHash) == false;
+            return version == Version.CURRENT && Build.current().hash().equals(buildHash) == false;
         }
     }
 

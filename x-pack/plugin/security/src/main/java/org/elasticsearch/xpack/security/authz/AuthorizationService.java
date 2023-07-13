@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
@@ -316,13 +317,24 @@ public class AuthorizationService {
                     parentAuthorization
                 );
                 final AuthorizationEngine engine = getAuthorizationEngine(authentication);
-                final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(
-                    listener.delegateFailureAndWrap((l, authorizationInfo) -> {
-                        threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-                        maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, l);
-                    }),
-                    threadContext
-                );
+                final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
+                    threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+                    maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
+                }, e -> {
+                    if (e instanceof ElasticsearchRoleRestrictionException) {
+                        logger.debug(
+                            () -> Strings.format(
+                                "denying action [%s] due to role restriction for authentication [%s]",
+                                action,
+                                authentication
+                            ),
+                            e
+                        );
+                        listener.onFailure(actionDenied(authentication, EmptyAuthorizationInfo.INSTANCE, action, unwrappedRequest, e));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }), threadContext);
                 engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
             }
         }
@@ -546,16 +558,17 @@ public class AuthorizationService {
             } else {
                 Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
                 final RequestInfo aliasesRequestInfo = new RequestInfo(authentication, request, IndicesAliasesAction.NAME, authzContext);
-                authzEngine.authorizeIndexAction(aliasesRequestInfo, authzInfo, ril -> {
-                    resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
+                authzEngine.authorizeIndexAction(
+                    aliasesRequestInfo,
+                    authzInfo,
+                    ril -> resolvedIndicesAsyncSupplier.getAsync(ril.delegateFailureAndWrap((l, resolvedIndices) -> {
                         List<String> aliasesAndIndices = new ArrayList<>(resolvedIndices.getLocal());
                         for (Alias alias : aliases) {
                             aliasesAndIndices.add(alias.name());
                         }
                         ResolvedIndices withAliases = new ResolvedIndices(aliasesAndIndices, Collections.emptyList());
-                        ril.onResponse(withAliases);
-                    }, ril::onFailure));
-                },
+                        l.onResponse(withAliases);
+                    })),
                     metadata.getIndicesLookup(),
                     wrapPreservingContext(
                         new AuthorizationResultListener<>(

@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomCrossClusterAccessRoleDescriptor;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
@@ -98,7 +99,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        final List<RoleDescriptor> roleDescriptors = randomUniquelyNamedRoleDescriptors(0, 3);
+        final List<RoleDescriptor> roleDescriptors = type == ApiKey.Type.CROSS_CLUSTER
+            ? List.of(randomCrossClusterAccessRoleDescriptor())
+            : randomUniquelyNamedRoleDescriptors(0, 3);
         final List<RoleDescriptor> limitedByRoleDescriptors = withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER
             ? randomUniquelyNamedRoleDescriptors(1, 3)
             : null;
@@ -228,7 +231,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             "user-x",
             "realm-1",
             ApiKeyTests.randomMetadata(),
-            randomUniquelyNamedRoleDescriptors(0, 3),
+            type == ApiKey.Type.CROSS_CLUSTER
+                ? List.of(randomCrossClusterAccessRoleDescriptor())
+                : randomUniquelyNamedRoleDescriptors(0, 3),
             withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER ? randomUniquelyNamedRoleDescriptors(1, 3) : null
         );
         final ApiKey apiKey2 = new ApiKey(
@@ -241,7 +246,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             "user-y",
             "realm-1",
             ApiKeyTests.randomMetadata(),
-            randomUniquelyNamedRoleDescriptors(0, 3),
+            type == ApiKey.Type.CROSS_CLUSTER
+                ? List.of(randomCrossClusterAccessRoleDescriptor())
+                : randomUniquelyNamedRoleDescriptors(0, 3),
             withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER ? randomUniquelyNamedRoleDescriptors(1, 3) : null
         );
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));

@@ -75,7 +75,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     fileName,
                     input.length,
                     checksum,
-                    IndexVersion.CURRENT.luceneVersion().toString()
+                    IndexVersion.current().luceneVersion().toString()
                 );
 
                 final int partSize = randomBoolean() ? input.length : randomIntBetween(1, input.length);
@@ -194,7 +194,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 fileName,
                 input.length,
                 checksum,
-                IndexVersion.CURRENT.luceneVersion().toString()
+                IndexVersion.current().luceneVersion().toString()
             );
 
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(

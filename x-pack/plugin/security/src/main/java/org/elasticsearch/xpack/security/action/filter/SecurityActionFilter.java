@@ -106,7 +106,7 @@ public class SecurityActionFilter implements ActionFilter {
                 AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
                     threadContext,
                     securityContext,
-                    TransportVersion.CURRENT, // current version since this is on the same node
+                    TransportVersion.current(), // current version since this is on the same node
                     (original) -> { applyInternal(task, chain, action, request, contextPreservingListener); }
                 );
             } else {
@@ -152,7 +152,7 @@ public class SecurityActionFilter implements ActionFilter {
          here if a request is not associated with any other user.
          */
         final String securityAction = SecurityActionMapper.action(action, request);
-        authcService.authenticate(securityAction, request, InternalUsers.SYSTEM_USER, ActionListener.wrap((authc) -> {
+        authcService.authenticate(securityAction, request, InternalUsers.SYSTEM_USER, listener.delegateFailureAndWrap((delegate, authc) -> {
             if (authc != null) {
                 final String requestId = AuditUtil.extractRequestId(threadContext);
                 assert Strings.hasText(requestId);
@@ -160,14 +160,14 @@ public class SecurityActionFilter implements ActionFilter {
                     authc,
                     securityAction,
                     request,
-                    listener.delegateFailure((ll, aVoid) -> chain.proceed(task, action, request, ll.delegateFailure((l, response) -> {
+                    delegate.delegateFailure((ll, aVoid) -> chain.proceed(task, action, request, ll.map(response -> {
                         auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request, response);
-                        l.onResponse(response);
+                        return response;
                     })))
                 );
             } else {
-                listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                delegate.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
-        }, listener::onFailure));
+        }));
     }
 }

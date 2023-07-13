@@ -16,21 +16,29 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -213,7 +221,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new KeywordFieldMapper.Builder("field", Version.CURRENT).build(MapperBuilderContext.root(false))
+        MappedFieldType mapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).build(MapperBuilderContext.root(false))
             .fieldType();
         assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
@@ -222,7 +230,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
         assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
 
-        MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field", Version.CURRENT).ignoreAbove(4)
+        MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).ignoreAbove(4)
             .build(MapperBuilderContext.root(false))
             .fieldType();
         assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
@@ -233,16 +241,48 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "field",
             createIndexAnalyzers(),
             ScriptCompiler.NONE,
-            Version.CURRENT
+            IndexVersion.current()
         ).normalizer("lowercase").build(MapperBuilderContext.root(false)).fieldType();
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
         assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "value"));
 
-        MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field", Version.CURRENT).nullValue("NULL")
+        MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).nullValue("NULL")
             .build(MapperBuilderContext.root(false))
             .fieldType();
         assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testGetTerms() throws IOException {
+        MappedFieldType ft = new KeywordFieldType("field");
+        try (Directory dir = newDirectory()) {
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+            for (int i = 0; i < 20; i++) {
+                Document doc = new Document();
+                doc.add(new StringField("field", "prefix-" + "x".repeat(i), Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            IndexReader reader = writer.getReader();
+            writer.close();
+
+            int from = randomIntBetween(1, 20);
+            TermsEnum terms = ft.getTerms(reader, "prefix-" + "x".repeat(from), randomBoolean(), null);
+            int numTerms = 0;
+            while (terms.next() != null) {
+                numTerms++;
+            }
+            assertEquals(20 - from, numTerms);
+
+            terms = ft.getTerms(reader, "prefix-", randomBoolean(), "prefix-" + "x".repeat(from - 1));
+            numTerms = 0;
+            while (terms.next() != null) {
+                numTerms++;
+            }
+            assertEquals(20 - from, numTerms);
+
+            terms = ft.getTerms(reader, "prefix-" + "x".repeat(IndexWriter.MAX_TERM_LENGTH), randomBoolean(), null);
+            reader.close();
+        }
     }
 
     private static IndexAnalyzers createIndexAnalyzers() {

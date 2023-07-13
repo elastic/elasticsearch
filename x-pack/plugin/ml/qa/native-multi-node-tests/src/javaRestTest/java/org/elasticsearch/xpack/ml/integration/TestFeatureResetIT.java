@@ -133,7 +133,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest("feature_reset_inference_pipeline")).actionGet();
         createdPipelines.remove("feature_reset_inference_pipeline");
 
-        assertBusy(() -> assertThat(countInferenceProcessors(client().admin().cluster().prepareState().get().getState()), equalTo(0)));
+        assertBusy(() -> assertThat(countInferenceProcessors(clusterAdmin().prepareState().get().getState()), equalTo(0)));
         client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
         assertBusy(() -> {
             List<String> indices = Arrays.asList(client().admin().indices().prepareGetIndex().addIndices(".ml*").get().indices());
@@ -171,9 +171,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             assertThat(indices.toString(), indices, is(empty()));
         });
         assertThat(isResetMode(), is(false));
-        List<String> tasksNames = client().admin()
-            .cluster()
-            .prepareListTasks()
+        List<String> tasksNames = clusterAdmin().prepareListTasks()
             .setActions("xpack/ml/*")
             .get()
             .getTasks()
@@ -212,6 +210,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             new PutTrainedModelVocabularyAction.Request(
                 TRAINED_MODEL_ID,
                 List.of("these", "are", "my", "words", BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN),
+                List.of(),
                 List.of()
             )
         ).actionGet();
@@ -222,7 +221,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private boolean isResetMode() {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         return MlMetadata.getMlMetadata(state).isResetMode();
     }
 

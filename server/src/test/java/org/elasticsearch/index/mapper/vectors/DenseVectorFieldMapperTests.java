@@ -14,13 +14,15 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.KnnByteVectorField;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -44,7 +46,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -240,8 +241,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(fields.get(0), instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields.get(0).binaryValue();
-        float[] decodedValues = decodeDenseVector(Version.CURRENT, vectorBR);
-        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(Version.CURRENT, vectorBR);
+        float[] decodedValues = decodeDenseVector(IndexVersion.current(), vectorBR);
+        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(IndexVersion.current(), vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
         assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
     }
@@ -257,9 +258,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.size());
-        assertThat(fields.get(0), instanceOf(XKnnFloatVectorField.class));
+        assertThat(fields.get(0), instanceOf(KnnFloatVectorField.class));
 
-        XKnnFloatVectorField vectorField = (XKnnFloatVectorField) fields.get(0);
+        KnnFloatVectorField vectorField = (KnnFloatVectorField) fields.get(0);
         assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue(), 0.001f);
         assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
     }
@@ -281,9 +282,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.size());
-        assertThat(fields.get(0), instanceOf(XKnnByteVectorField.class));
+        assertThat(fields.get(0), instanceOf(KnnByteVectorField.class));
 
-        XKnnByteVectorField vectorField = (XKnnByteVectorField) fields.get(0);
+        KnnByteVectorField vectorField = (KnnByteVectorField) fields.get(0);
         vectorField.vectorValue();
         assertArrayEquals(
             "Parsed vector is not equal to original.",
@@ -457,7 +458,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
-        Version indexVersion = Version.V_7_4_0;
+        IndexVersion indexVersion = IndexVersion.V_7_4_0;
         DocumentMapper mapper = createDocumentMapper(indexVersion, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
 
         float[] validVector = { -12.1f, 100.7f, -4 };
@@ -471,14 +472,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
     }
 
-    private static float[] decodeDenseVector(Version indexVersion, BytesRef encodedVector) {
+    private static float[] decodeDenseVector(IndexVersion indexVersion, BytesRef encodedVector) {
         int dimCount = VectorEncoderDecoder.denseVectorLength(indexVersion, encodedVector);
         float[] vector = new float[dimCount];
-
-        ByteBuffer byteBuffer = ByteBuffer.wrap(encodedVector.bytes, encodedVector.offset, encodedVector.length);
-        for (int dim = 0; dim < dimCount; dim++) {
-            vector[dim] = byteBuffer.getFloat();
-        }
+        VectorEncoderDecoder.decodeDenseVector(indexVersion, encodedVector, vector);
         return vector;
     }
 
@@ -519,7 +516,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     /**
      * Test that max dimensions limit for float dense_vector field
-     * is 2048 as defined by {@link XKnnFloatVectorField}
+     * is 2048 as defined by {@link DenseVectorFieldMapper#MAX_DIMS_COUNT}
      */
     public void testMaxDimsFloatVector() throws IOException {
         final int dims = 2048;
@@ -536,8 +533,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
 
         assertEquals(1, fields.size());
-        assertThat(fields.get(0), instanceOf(XKnnFloatVectorField.class));
-        XKnnFloatVectorField vectorField = (XKnnFloatVectorField) fields.get(0);
+        assertThat(fields.get(0), instanceOf(KnnFloatVectorField.class));
+        KnnFloatVectorField vectorField = (KnnFloatVectorField) fields.get(0);
         assertEquals(dims, vectorField.fieldType().vectorDimension());
         assertEquals(VectorEncoding.FLOAT32, vectorField.fieldType().vectorEncoding());
         assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
@@ -546,7 +543,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     /**
      * Test that max dimensions limit for byte dense_vector field
-     * is 2048 as defined by {@link XKnnByteVectorField}
+     * is 2048 as defined by {@link KnnByteVectorField}
      */
     public void testMaxDimsByteVector() throws IOException {
         final int dims = 2048;
@@ -570,8 +567,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
 
         assertEquals(1, fields.size());
-        assertThat(fields.get(0), instanceOf(XKnnByteVectorField.class));
-        XKnnByteVectorField vectorField = (XKnnByteVectorField) fields.get(0);
+        assertThat(fields.get(0), instanceOf(KnnByteVectorField.class));
+        KnnByteVectorField vectorField = (KnnByteVectorField) fields.get(0);
         assertEquals(dims, vectorField.fieldType().vectorDimension());
         assertEquals(VectorEncoding.BYTE, vectorField.fieldType().vectorEncoding());
         assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
@@ -653,11 +650,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 yield floats;
             }
         };
-    }
-
-    @Override
-    protected boolean allowsNullValues() {
-        return true;
     }
 
     public void testCannotBeUsedInMultifields() {

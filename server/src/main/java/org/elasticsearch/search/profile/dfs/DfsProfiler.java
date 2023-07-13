@@ -11,7 +11,8 @@ package org.elasticsearch.search.profile.dfs;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
-import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
+import org.elasticsearch.search.profile.Timer;
+import org.elasticsearch.search.profile.query.ProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -44,17 +45,15 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
         totalTime = System.nanoTime() - startTime;
     }
 
-    public void startTimer(DfsTimingType dfsTimingType) {
-        getTimer(dfsTimingType).start();
+    public Timer startTimer(DfsTimingType dfsTimingType) {
+        Timer newTimer = getNewTimer(dfsTimingType);
+        newTimer.start();
+        return newTimer;
     }
 
-    public void stopTimer(DfsTimingType dfsTimingType) {
-        getTimer(dfsTimingType).stop();
-    }
-
-    public QueryProfiler addQueryProfiler(InternalProfileCollectorManager collectorManager) {
+    public QueryProfiler addQueryProfiler(ProfileCollectorManager<?> collectorManager) {
         QueryProfiler queryProfiler = new QueryProfiler();
-        queryProfiler.setCollectorManager(collectorManager);
+        queryProfiler.setCollectorManager(collectorManager::getCollectorTree);
         knnQueryProfilers.add(queryProfiler);
         collectorManagerSet = true;
         return queryProfiler;
@@ -74,7 +73,7 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
             queryProfileShardResult = new ArrayList<>(knnQueryProfilers.size());
             for (QueryProfiler queryProfiler : knnQueryProfilers) {
                 queryProfileShardResult.add(
-                    new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(), queryProfiler.getCollector())
+                    new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(), queryProfiler.getCollectorResult())
                 );
             }
         } else {

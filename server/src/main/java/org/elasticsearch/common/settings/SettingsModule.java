@@ -43,20 +43,14 @@ public class SettingsModule implements Module {
     private final SettingsFilter settingsFilter;
 
     public SettingsModule(Settings settings, Setting<?>... additionalSettings) {
-        this(settings, Arrays.asList(additionalSettings), Collections.emptyList(), Collections.emptySet());
+        this(settings, Arrays.asList(additionalSettings), Collections.emptyList());
     }
 
-    public SettingsModule(
-        Settings settings,
-        List<Setting<?>> additionalSettings,
-        List<String> settingsFilter,
-        Set<SettingUpgrader<?>> settingUpgraders
-    ) {
+    public SettingsModule(Settings settings, List<Setting<?>> additionalSettings, List<String> settingsFilter) {
         this(
             settings,
             additionalSettings,
             settingsFilter,
-            settingUpgraders,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
         );
@@ -66,7 +60,6 @@ public class SettingsModule implements Module {
         final Settings settings,
         final List<Setting<?>> additionalSettings,
         final List<String> settingsFilter,
-        final Set<SettingUpgrader<?>> settingUpgraders,
         final Set<Setting<?>> registeredClusterSettings,
         final Set<Setting<?>> registeredIndexSettings
     ) {
@@ -84,19 +77,8 @@ public class SettingsModule implements Module {
         for (String filter : settingsFilter) {
             registerSettingsFilter(filter);
         }
-        final Set<SettingUpgrader<?>> clusterSettingUpgraders = new HashSet<>();
-        for (final SettingUpgrader<?> settingUpgrader : ClusterSettings.BUILT_IN_SETTING_UPGRADERS) {
-            assert settingUpgrader.getSetting().hasNodeScope() : settingUpgrader.getSetting().getKey();
-            final boolean added = clusterSettingUpgraders.add(settingUpgrader);
-            assert added : settingUpgrader.getSetting().getKey();
-        }
-        for (final SettingUpgrader<?> settingUpgrader : settingUpgraders) {
-            assert settingUpgrader.getSetting().hasNodeScope() : settingUpgrader.getSetting().getKey();
-            final boolean added = clusterSettingUpgraders.add(settingUpgrader);
-            assert added : settingUpgrader.getSetting().getKey();
-        }
         this.indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
-        this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()), clusterSettingUpgraders);
+        this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()));
         Settings indexSettings = settings.filter((s) -> s.startsWith("index.") && clusterSettings.get(s) == null);
         if (indexSettings.isEmpty() == false) {
             try {

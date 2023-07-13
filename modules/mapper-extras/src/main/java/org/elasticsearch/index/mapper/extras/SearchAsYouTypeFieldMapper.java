@@ -35,8 +35,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -142,9 +142,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
 
-        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
@@ -747,12 +747,19 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
+        return subfieldsAndMultifieldsIterator();
+    }
+
+    private Iterator<Mapper> subfieldsAndMultifieldsIterator() {
         List<Mapper> subIterators = new ArrayList<>();
         subIterators.add(prefixField);
         subIterators.addAll(Arrays.asList(shingleFields));
-        @SuppressWarnings("unchecked")
-        Iterator<Mapper> concat = Iterators.concat(super.iterator(), subIterators.iterator());
-        return concat;
+        return Iterators.concat(multiFieldsIterator(), subIterators.iterator());
+    }
+
+    @Override
+    public Iterator<Mapper> sourcePathUsedBy() {
+        return subfieldsAndMultifieldsIterator();
     }
 
     /**

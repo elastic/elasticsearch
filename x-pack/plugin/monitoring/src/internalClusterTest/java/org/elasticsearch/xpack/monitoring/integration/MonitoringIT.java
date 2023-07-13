@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.test.MockIngestPlugin;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
 import java.lang.Thread.State;
@@ -92,7 +93,13 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(LocalStateMonitoring.class, MockIngestPlugin.class, CommonAnalysisPlugin.class, MapperExtrasPlugin.class);
+        return List.of(
+            LocalStateMonitoring.class,
+            MockIngestPlugin.class,
+            CommonAnalysisPlugin.class,
+            MapperExtrasPlugin.class,
+            Wildcard.class
+        );
     }
 
     private String createBulkEntity() {
@@ -196,7 +203,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         );
 
         final Settings settings = Settings.builder().put("cluster.metadata.display_name", "my cluster").build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(clusterAdmin().prepareUpdateSettings().setTransientSettings(settings));
 
         whenExportersAreReady(() -> {
             final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
@@ -264,7 +271,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     private void assertMonitoringDocSourceNode(final Map<String, Object> sourceNode) {
         assertEquals(6, sourceNode.size());
 
-        final NodesInfoResponse nodesResponse = client().admin().cluster().prepareNodesInfo().clear().get();
+        final NodesInfoResponse nodesResponse = clusterAdmin().prepareNodesInfo().clear().get();
 
         assertEquals(1, nodesResponse.getNodes().size());
 
@@ -365,7 +372,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             .put("xpack.monitoring.exporters._local.enabled", true)
             .build();
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(clusterAdmin().prepareUpdateSettings().setTransientSettings(settings));
 
         assertBusy(() -> assertThat("[_local] exporter not enabled yet", getMonitoringUsageExportersDefined(), is(true)));
 
@@ -393,13 +400,13 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             .putNull("cluster.metadata.display_name")
             .build();
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(clusterAdmin().prepareUpdateSettings().setTransientSettings(settings));
 
         assertBusy(() -> assertThat("Exporters are not yet stopped", getMonitoringUsageExportersDefined(), is(false)));
         assertBusy(() -> {
             try {
                 // now wait until Monitoring has actually stopped
-                final NodesStatsResponse response = client().admin().cluster().prepareNodesStats().clear().setThreadPool(true).get();
+                final NodesStatsResponse response = clusterAdmin().prepareNodesStats().clear().setThreadPool(true).get();
 
                 for (final NodeStats nodeStats : response.getNodes()) {
                     boolean foundBulkThreads = false;

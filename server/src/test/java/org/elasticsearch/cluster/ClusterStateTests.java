@@ -36,6 +36,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -71,18 +72,9 @@ public class ClusterStateTests extends ESTestCase {
         ClusterName name = ClusterName.DEFAULT;
         ClusterState noMaster1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
         ClusterState noMaster2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
-        ClusterState withMaster1a = ClusterState.builder(name)
-            .version(randomInt(5))
-            .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
-            .build();
-        ClusterState withMaster1b = ClusterState.builder(name)
-            .version(randomInt(5))
-            .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
-            .build();
-        ClusterState withMaster2 = ClusterState.builder(name)
-            .version(randomInt(5))
-            .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node2.getId()))
-            .build();
+        ClusterState withMaster1a = ClusterState.builder(name).version(randomInt(5)).nodes(nodes.withMasterNodeId(node1.getId())).build();
+        ClusterState withMaster1b = ClusterState.builder(name).version(randomInt(5)).nodes(nodes.withMasterNodeId(node1.getId())).build();
+        ClusterState withMaster2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes.withMasterNodeId(node2.getId())).build();
 
         // states with no master should never supersede anything
         assertFalse(noMaster1.supersedes(noMaster2));
@@ -209,7 +201,9 @@ public class ClusterStateTests extends ESTestCase {
                                 "transform",
                                 "voting_only"
                               ],
-                              "version": "%s"
+                              "version": "%s",
+                              "min_index_version":%s,
+                              "max_index_version":%s
                             }
                           },
                           "transport_versions" : [
@@ -368,9 +362,11 @@ public class ClusterStateTests extends ESTestCase {
                         }""",
                     ephemeralId,
                     Version.CURRENT,
-                    TransportVersion.CURRENT,
-                    Version.CURRENT.id,
-                    Version.CURRENT.id,
+                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersion.current(),
+                    TransportVersion.current(),
+                    IndexVersion.current(),
+                    IndexVersion.current(),
                     allocationId,
                     allocationId
                 )
@@ -460,7 +456,9 @@ public class ClusterStateTests extends ESTestCase {
                             "transform",
                             "voting_only"
                           ],
-                          "version" : "%s"
+                          "version" : "%s",
+                          "min_index_version" : %s,
+                          "max_index_version" : %s
                         }
                       },
                       "transport_versions" : [
@@ -615,9 +613,11 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
-                Version.CURRENT.id,
-                Version.CURRENT.id,
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersion.current(),
+                TransportVersion.current(),
+                IndexVersion.current(),
+                IndexVersion.current(),
                 allocationId,
                 allocationId
             ),
@@ -707,7 +707,9 @@ public class ClusterStateTests extends ESTestCase {
                             "transform",
                             "voting_only"
                           ],
-                          "version" : "%s"
+                          "version" : "%s",
+                          "min_index_version" : %s,
+                          "max_index_version" : %s
                         }
                       },
                       "transport_versions" : [
@@ -868,9 +870,11 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
-                Version.CURRENT.id,
-                Version.CURRENT.id,
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersion.current(),
+                TransportVersion.current(),
+                IndexVersion.current(),
+                IndexVersion.current(),
                 allocationId,
                 allocationId
             ),
@@ -1023,7 +1027,7 @@ public class ClusterStateTests extends ESTestCase {
                     .add(DiscoveryNodeUtils.create("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111)))
                     .build()
             )
-            .putTransportVersion("nodeId1", TransportVersion.CURRENT)
+            .putTransportVersion("nodeId1", TransportVersion.current())
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
@@ -1123,7 +1127,7 @@ public class ClusterStateTests extends ESTestCase {
     public void testGetMinTransportVersion() throws IOException {
         var builder = ClusterState.builder(buildClusterState());
         int numNodes = randomIntBetween(2, 20);
-        TransportVersion minVersion = TransportVersion.CURRENT;
+        TransportVersion minVersion = TransportVersion.current();
 
         for (int i = 0; i < numNodes; i++) {
             TransportVersion tv = TransportVersionUtils.randomVersion();

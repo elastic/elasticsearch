@@ -1,0 +1,5 @@
+pr: 92348
+summary: Sequence - add support for missing events
+area: EQL
+type: enhancement
+issues: []

@@ -9,11 +9,13 @@
 package org.elasticsearch.rest.root;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -27,6 +29,8 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     private String nodeName;
     private Version version;
+    private IndexVersion indexVersion;
+    private TransportVersion transportVersion;
     private ClusterName clusterName;
     private String clusterUuid;
     private Build build;
@@ -37,14 +41,26 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         super(in);
         nodeName = in.readString();
         version = Version.readVersion(in);
+        indexVersion = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031) ? IndexVersion.readVersion(in) : null;
+        transportVersion = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_019) ? TransportVersion.readVersion(in) : null;
         clusterName = new ClusterName(in);
         clusterUuid = in.readString();
         build = Build.readBuild(in);
     }
 
-    public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
+    public MainResponse(
+        String nodeName,
+        Version version,
+        IndexVersion indexVersion,
+        TransportVersion transportVersion,
+        ClusterName clusterName,
+        String clusterUuid,
+        Build build
+    ) {
         this.nodeName = nodeName;
         this.version = version;
+        this.indexVersion = indexVersion;
+        this.transportVersion = transportVersion;
         this.clusterName = clusterName;
         this.clusterUuid = clusterUuid;
         this.build = build;
@@ -56,6 +72,14 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     public Version getVersion() {
         return version;
+    }
+
+    public IndexVersion getIndexVersion() {
+        return indexVersion;
+    }
+
+    public TransportVersion getTransportVersion() {
+        return transportVersion;
     }
 
     public ClusterName getClusterName() {
@@ -74,9 +98,25 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
         Version.writeVersion(version, out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
+            IndexVersion.writeVersion(indexVersion, out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_019)) {
+            TransportVersion.writeVersion(transportVersion, out);
+        }
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
         Build.writeBuild(build, out);
+    }
+
+    private String getLuceneVersion() {
+        if (indexVersion != null) {
+            return indexVersion.luceneVersion().toString();
+        } else if (version.before(Version.V_8_10_0)) {
+            return IndexVersion.fromId(version.id).luceneVersion().toString();
+        } else {
+            return "unknown";
+        }
     }
 
     @Override
@@ -92,9 +132,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("build_hash", build.hash())
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
-            .field("lucene_version", version.luceneVersion().toString())
+            .field("lucene_version", getLuceneVersion())
+            .field("index_version", indexVersion != null ? indexVersion.toString() : "unknown")
             .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
             .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
+            .field("transport_version", transportVersion != null ? transportVersion.toString() : "unknown")
             .endObject();
         builder.field("tagline", "You Know, for Search");
         builder.endObject();
@@ -128,6 +170,16 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             response.version = Version.fromString(
                 ((String) value.get("number")).replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
             );
+
+            String indexVersion = (String) value.get("index_version");
+            response.indexVersion = indexVersion != null && indexVersion.equals("unknown") == false
+                ? IndexVersion.fromId(Integer.parseInt(indexVersion))
+                : null;
+
+            String transportVersion = (String) value.get("transport_version");
+            response.transportVersion = transportVersion != null && transportVersion.equals("unknown") == false
+                ? TransportVersion.fromString(transportVersion)
+                : null;
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }
 
@@ -146,6 +198,8 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         MainResponse other = (MainResponse) o;
         return Objects.equals(nodeName, other.nodeName)
             && Objects.equals(version, other.version)
+            && Objects.equals(indexVersion, other.indexVersion)
+            && Objects.equals(transportVersion, other.transportVersion)
             && Objects.equals(clusterUuid, other.clusterUuid)
             && Objects.equals(build, other.build)
             && Objects.equals(clusterName, other.clusterName);
@@ -153,7 +207,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeName, version, clusterUuid, build, clusterName);
+        return Objects.hash(nodeName, version, indexVersion, transportVersion, clusterUuid, build, clusterName);
     }
 
     @Override
@@ -164,6 +218,10 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             + '\''
             + ", version="
             + version
+            + ", indexVersion="
+            + indexVersion
+            + ", transportVersion="
+            + transportVersion
             + ", clusterName="
             + clusterName
             + ", clusterUuid='"

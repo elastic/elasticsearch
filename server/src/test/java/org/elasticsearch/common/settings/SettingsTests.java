@@ -622,7 +622,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(randomFrom(TransportVersion.CURRENT, TransportVersion.V_7_0_0));
+        output.setTransportVersion(randomFrom(TransportVersion.current(), TransportVersion.V_7_0_0));
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
         settings.writeTo(output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));

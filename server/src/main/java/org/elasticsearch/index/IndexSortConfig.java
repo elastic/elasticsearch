@@ -12,7 +12,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -133,7 +132,7 @@ public final class IndexSortConfig {
 
     // visible for tests
     final FieldSortSpec[] sortSpecs;
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
     private final String indexName;
     private final IndexMode indexMode;
 
@@ -221,7 +220,7 @@ public final class IndexSortConfig {
                 throw new IllegalArgumentException(err);
             }
             if (Objects.equals(ft.name(), sortSpec.field) == false) {
-                if (this.indexCreatedVersion.onOrAfter(Version.V_7_13_0)) {
+                if (this.indexCreatedVersion.onOrAfter(IndexVersion.V_7_13_0)) {
                     throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
                 } else {
                     DEPRECATION_LOGGER.warn(

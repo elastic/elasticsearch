@@ -232,9 +232,9 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Attribute> joinKeys, Attribute timestampField, Attribute tiebreakerField) {
-        if (ctx.subquery().MISSING_EVENT_OPEN() != null) {
+        /*if (ctx.subquery().MISSING_EVENT_OPEN() != null) {
             throw new ParsingException("Missing events are supported only for sequences");
-        }
+        }*/
         return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery(), timestampField, tiebreakerField, false);
     }
 
@@ -353,7 +353,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             ctx.subquery(),
             fieldTimestamp(),
             fieldTiebreaker(),
-            ctx.subquery().MISSING_EVENT_OPEN() != null
+            false// ctx.subquery().MISSING_EVENT_OPEN() != null
         );
     }
 

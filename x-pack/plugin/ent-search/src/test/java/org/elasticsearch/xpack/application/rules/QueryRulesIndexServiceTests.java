@@ -11,6 +11,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -24,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -40,7 +43,10 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        this.queryRulesIndexService = new QueryRulesIndexService(client());
+        Set<Setting<?>> settingsSet = ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+        settingsSet.addAll(QueryRulesConfig.getSettings());
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
+        this.queryRulesIndexService = new QueryRulesIndexService(client(), clusterSettings);
     }
 
     @Override

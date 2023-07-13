@@ -20,13 +20,10 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.util.DateUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -37,7 +34,7 @@ public class PlannerUtils {
 
     private static final Mapper mapper = new Mapper(true);
 
-    public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan) {
+    public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, EsqlConfiguration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
 
         // split the given plan when encountering the exchange
@@ -47,8 +44,7 @@ public class PlannerUtils {
             dataNodePlan.set(new ExchangeSinkExec(e.source(), subplan));
 
             // ugly hack to get the layout
-            var dummyConfig = new EsqlConfiguration(DateUtils.UTC, StringUtils.EMPTY, StringUtils.EMPTY, QueryPragmas.EMPTY, 1000);
-            var planContainingTheLayout = localPlan(List.of(), dummyConfig, subplan);
+            var planContainingTheLayout = localPlan(List.of(), config, subplan);
             // replace the subnode with an exchange source
             return new ExchangeSourceExec(e.source(), e.output(), planContainingTheLayout);
         });

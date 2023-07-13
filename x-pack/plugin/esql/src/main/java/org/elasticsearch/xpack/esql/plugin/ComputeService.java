@@ -118,7 +118,10 @@ public class ComputeService {
         EsqlConfiguration configuration,
         ActionListener<List<Page>> listener
     ) {
-        Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physicalPlan);
+        Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
+            physicalPlan,
+            configuration
+        );
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         PhysicalPlan coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();

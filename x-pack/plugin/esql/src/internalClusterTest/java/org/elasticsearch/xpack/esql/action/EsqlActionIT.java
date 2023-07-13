@@ -721,7 +721,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/1420")
     public void testExtractFields() throws Exception {
         String indexName = "test_extract_fields";
         assertAcked(

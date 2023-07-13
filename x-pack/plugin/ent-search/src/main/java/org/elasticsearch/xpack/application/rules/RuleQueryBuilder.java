@@ -106,10 +106,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         Supplier<List<Item>> pinnedDocsSupplier
 
     ) {
-        if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
-            throw LicenseUtils.newComplianceException(NAME);
-        }
-
         if (organicQuery == null) {
             throw new IllegalArgumentException("organicQuery must not be null");
         }
@@ -176,11 +172,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-
-        // if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
-        // throw LicenseUtils.newComplianceException("rule_query");
-        // }
-
         builder.startObject(NAME);
         builder.field(ORGANIC_QUERY_FIELD.getPreferredName(), organicQuery);
         builder.startObject(MATCH_CRITERIA_FIELD.getPreferredName());
@@ -294,9 +285,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     public static RuleQueryBuilder fromXContent(XContentParser parser) {
 
-        // if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
-        // throw LicenseUtils.newComplianceException("rule_query");
-        // }
+        if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException(NAME);
+        }
 
         try {
             return PARSER.apply(parser, null);

@@ -38,7 +38,7 @@ public record CompoundTranslogHeader(Map<ShardId, TranslogMetadata> metadata) {
     private static final String TRANSLOG_REPLICATOR_CODEC = "translog_replicator_file";
     // Pin the transport version to 8.9 to ensure that serialization changes of used types can be read without version negotiation. In the
     // future this might need to be advanced if 8.9 is no longer available.
-    private static final TransportVersion PINNED_TRANSPORT_VERSION = TransportVersion.V_8_9_0;
+    static final TransportVersion PINNED_TRANSPORT_VERSION = TransportVersion.fromId(8_09_00_99);
     private static final int VERSION_WITH_TRANSPORT_VERSION = 0;
     private static final int CURRENT_VERSION = VERSION_WITH_TRANSPORT_VERSION;
 

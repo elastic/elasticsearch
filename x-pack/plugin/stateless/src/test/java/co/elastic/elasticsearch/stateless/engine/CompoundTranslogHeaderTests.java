@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -32,6 +31,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static co.elastic.elasticsearch.stateless.engine.CompoundTranslogHeader.PINNED_TRANSPORT_VERSION;
 
 public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase<
     CompoundTranslogHeaderTests.WritableCompoundTranslogHeader> {
@@ -156,11 +157,11 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
         CompoundTranslogHeader testInstance = createTestInstance().compoundTranslogHeader();
         try (BytesStreamOutput output = new BytesStreamOutput();) {
             testInstance.writeToStore(output);
-            assertEquals(TransportVersion.V_8_9_0, output.getTransportVersion());
+            assertEquals(PINNED_TRANSPORT_VERSION, output.getTransportVersion());
 
             try (StreamInput input = output.bytes().streamInput()) {
                 CompoundTranslogHeader.readFromStore("test", input);
-                assertEquals(TransportVersion.V_8_9_0, output.getTransportVersion());
+                assertEquals(PINNED_TRANSPORT_VERSION, output.getTransportVersion());
             }
         }
     }

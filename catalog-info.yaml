@@ -23,6 +23,7 @@ spec:
       pipeline_file: .buildkite/update-es-serverless.yml
       teams:
         elasticsearch-team: {}
+        ml-core: {}
         everyone:
           access_level: READ_ONLY
       provider_settings:
@@ -57,6 +58,7 @@ spec:
       branch_configuration: main
       teams:
         elasticsearch-team: {}
+        ml-core: {}
         everyone:
           access_level: READ_ONLY
       provider_settings:
@@ -80,7 +82,7 @@ spec:
     apiVersion: buildkite.elastic.dev/v1
     kind: Pipeline
     metadata:
-      description: ":elasticsearch: tests and checks that are run a few times daily"
+      description: ":elasticsearch: Tests and checks that are run a few times daily"
       name: elasticsearch / periodic
     spec:
       repository: elastic/elasticsearch
@@ -88,6 +90,7 @@ spec:
       branch_configuration: main
       teams:
         elasticsearch-team: {}
+        ml-core: {}
         everyone:
           access_level: READ_ONLY
       provider_settings:

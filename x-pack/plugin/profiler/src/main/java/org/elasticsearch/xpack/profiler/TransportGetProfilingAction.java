@@ -87,6 +87,13 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> PROFILING_SAMPLE_SIZE_OVERRIDE = Setting.intSetting(
+        "xpack.profiling.sample_size",
+        20000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final NodeClient nodeClient;
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -96,6 +103,8 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     private final int desiredSlices;
     private final int desiredDetailSlices;
     private final boolean realtime;
+
+    private volatile Integer sampleSizeOverride;
 
     @Inject
     public TransportGetProfilingAction(
@@ -116,11 +125,18 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         this.desiredSlices = PROFILING_MAX_STACKTRACE_QUERY_SLICES.get(settings);
         this.desiredDetailSlices = PROFILING_MAX_DETAIL_QUERY_SLICES.get(settings);
         this.realtime = PROFILING_QUERY_REALTIME.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_SAMPLE_SIZE_OVERRIDE, this::updateSampleSize);
+    }
+
+    public void updateSampleSize(Integer newValue) {
+        this.sampleSizeOverride = newValue;
     }
 
     @Override
     protected void doExecute(Task submitTask, GetProfilingRequest request, ActionListener<GetProfilingResponse> submitListener) {
         long start = System.nanoTime();
+        int sampleSize = sampleSizeOverride != null ? sampleSizeOverride : request.getSampleSize();
+        log.debug("Using sample size [{}]", sampleSize);
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
         client.prepareSearch(mediumDownsampled.getName())
@@ -129,7 +145,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             .setTrackTotalHits(true)
             .execute(ActionListener.wrap(searchResponse -> {
                 long sampleCount = searchResponse.getHits().getTotalHits().value;
-                EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
+                EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(sampleSize, sampleCount);
                 log.debug("getResampledIndex took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
                 searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
             }, e -> {

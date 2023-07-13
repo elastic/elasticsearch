@@ -148,7 +148,7 @@ example, a count of errors or completed tasks.
 +
 A counter field has additional semantic meaning, because it represents a cumulative counter. This works well with
 the `rate` aggregation, since a rate can be derived from a cumulative monotonically increasing counter. However a number
-of aggregations (e.g. sum) compute results that don't make sense for a counter field, because of its cumulative nature.
+of aggregations (for example `sum`) compute results that don't make sense for a counter field, because of its cumulative nature.
 Only numeric and `aggregate_metric_double` fields support the `counter` metric type.
 
 NOTE: Due to the cumulative nature of counter fields, only the following aggregations are allowed with the `counter` field: `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.

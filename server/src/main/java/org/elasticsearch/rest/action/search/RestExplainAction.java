@@ -15,6 +15,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -28,6 +30,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Rest action for computing a score explanation for specific documents.
  */
+@ServerlessScope(value = Scope.PUBLIC)
 public class RestExplainAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying a type in explain requests is deprecated.";
 

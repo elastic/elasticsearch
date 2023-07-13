@@ -54,6 +54,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -77,6 +78,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -121,6 +123,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
@@ -644,6 +647,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             shard.shardId(),
             new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
         );
+        task.testInit(mock(PersistentTasksService.class), mock(TaskManager.class), randomAlphaOfLength(5), randomIntBetween(1, 5));
         TaskCancelHelper.cancel(task, "test cancel");
 
         // re-use source index as temp index for test
@@ -717,6 +721,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             shard.shardId(),
             new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
         );
+        task.testInit(mock(PersistentTasksService.class), mock(TaskManager.class), randomAlphaOfLength(5), randomIntBetween(1, 5));
 
         // re-use source index as temp index for test
         RollupShardIndexer indexer = new RollupShardIndexer(
@@ -740,6 +745,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRollupStats() throws IOException {
+        final PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         final DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         final SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
@@ -768,6 +774,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 shard.shardId(),
                 new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
             );
+            task.testInit(persistentTasksService, mock(TaskManager.class), randomAlphaOfLength(5), randomIntBetween(1, 5));
 
             final RollupShardIndexer indexer = new RollupShardIndexer(
                 task,

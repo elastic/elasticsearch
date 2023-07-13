@@ -123,7 +123,10 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
         // Here we make sure we assign the task to the actual node holding the shard identified by
         // the downsampling task shard id.
         final ShardId shardId = params.shardId();
-        final ShardRouting shardRouting = clusterState.routingTable().shardRoutingTable(shardId).shard(shardId.id());
+        final ShardRouting shardRouting = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
+        if (shardRouting.started() == false) {
+            return NO_NODE_FOUND;
+        }
 
         return candidateNodes.stream()
             .filter(candidateNode -> candidateNode.getId().equals(shardRouting.currentNodeId()))

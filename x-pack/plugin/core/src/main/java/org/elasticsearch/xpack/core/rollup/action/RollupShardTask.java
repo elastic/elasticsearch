@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.core.rollup.action;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.util.Map;
@@ -65,6 +67,26 @@ public class RollupShardTask extends AllocatedPersistentTask {
         this.rollupStartTime = System.currentTimeMillis();
         this.rollupBulkStats = new RollupBulkStats();
         this.state = state;
+    }
+
+    @Override
+    protected void init(
+        final PersistentTasksService persistentTasksService,
+        final TaskManager taskManager,
+        final String persistentTaskId,
+        final long allocationId
+    ) {
+        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
+    }
+
+    // TODO: just for testing
+    public void testInit(
+        final PersistentTasksService persistentTasksService,
+        final TaskManager taskManager,
+        final String persistentTaskId,
+        final long allocationId
+    ) {
+        init(persistentTasksService, taskManager, persistentTaskId, allocationId);
     }
 
     public String getRollupIndex() {

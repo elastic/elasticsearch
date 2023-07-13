@@ -38,7 +38,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
     }
 
     public void testUpgradeDesiredNodes() throws Exception {
-        assumeFalse("Desired nodes was introduced in 8.1", UPGRADE_FROM_VERSION.before(Version.V_8_1_0));
+        assumeTrue("Desired nodes was introduced in 8.1", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_1_0));
 
         if (UPGRADE_FROM_VERSION.onOrAfter(Processors.DOUBLE_PROCESSORS_SUPPORT_VERSION)) {
             assertUpgradedNodesCanReadDesiredNodes();

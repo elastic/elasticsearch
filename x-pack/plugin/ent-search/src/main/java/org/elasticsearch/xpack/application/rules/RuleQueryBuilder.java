@@ -17,6 +17,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -121,10 +122,12 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         // PinnedQueryBuilder will return an error if we attmept to return more than the maximum number of
         // pinned hits. Here, we truncate matching rules rather than return an error.
         if (pinnedIds != null && pinnedIds.size() > MAX_NUM_PINNED_HITS) {
+            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
             pinnedIds = pinnedIds.subList(0, MAX_NUM_PINNED_HITS);
         }
 
         if (pinnedDocs != null && pinnedDocs.size() > MAX_NUM_PINNED_HITS) {
+            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
             pinnedDocs = pinnedDocs.subList(0, MAX_NUM_PINNED_HITS);
         }
 
@@ -224,7 +227,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                 }
                 QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(rulesetId, getResponse.getSourceAsBytesRef(), XContentType.JSON);
                 for (QueryRule rule : queryRuleset.rules()) {
-                    logger.info("Applying rule: " + rule);
                     rule.applyRule(appliedRules, matchCriteria);
                 }
                 pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());

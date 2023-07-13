@@ -1472,7 +1472,13 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         return buildNode(name, isML, nativeMemory, allocatedProcessors, VersionInformation.CURRENT);
     }
 
-    private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory, int allocatedProcessors, VersionInformation version) {
+    private static DiscoveryNode buildNode(
+        String name,
+        boolean isML,
+        long nativeMemory,
+        int allocatedProcessors,
+        VersionInformation version
+    ) {
         return DiscoveryNodeUtils.builder(name)
             .name(name)
             .attributes(

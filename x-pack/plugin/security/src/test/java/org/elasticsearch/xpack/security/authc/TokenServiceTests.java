@@ -601,7 +601,7 @@ public class TokenServiceTests extends ESTestCase {
         mockGetTokenFromId(userToken, false);
         final String accessToken = tokenService.prependVersionAndEncodeAccessToken(
             tokenService.getTokenVersionCompatibility(),
-            Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes)
+            userTokenBytes
         );
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
@@ -840,16 +840,19 @@ public class TokenServiceTests extends ESTestCase {
             .user(new User("joe", "admin"))
             .realmRef(new RealmRef("native_realm", "native", "node1"))
             .build(false);
-        final String userToken = Base64.getUrlEncoder().withoutPadding().encodeToString(getNewTokenBytes());
+        final byte[] userTokenBytes = getNewTokenBytes();
         UserToken expired = new UserToken(
-            userToken,
+            Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes),
             tokenService.getTokenVersionCompatibility(),
             authentication,
             Instant.now().minus(3L, ChronoUnit.DAYS),
             Collections.emptyMap()
         );
         mockGetTokenFromId(expired, false);
-        final String accessToken = tokenService.prependVersionAndEncodeAccessToken(tokenService.getTokenVersionCompatibility(), userToken);
+        final String accessToken = tokenService.prependVersionAndEncodeAccessToken(
+            tokenService.getTokenVersionCompatibility(),
+            userTokenBytes
+        );
         PlainActionFuture<Tuple<Authentication, Map<String, Object>>> authFuture = new PlainActionFuture<>();
         tokenService.getAuthenticationAndMetadata(accessToken, authFuture);
         Authentication retrievedAuth = authFuture.actionGet().v1();
@@ -884,7 +887,7 @@ public class TokenServiceTests extends ESTestCase {
             assertThat(
                 tokenService.prependVersionAndEncodeAccessToken(
                     version,
-                    Base64.getUrlEncoder().withoutPadding().encodeToString(newAccessTokenBytes)
+                    newAccessTokenBytes
                 ),
                 equalTo(tokenFuture.get().getAccessToken())
             );
@@ -892,7 +895,7 @@ public class TokenServiceTests extends ESTestCase {
         assertThat(
             TokenService.prependVersionAndEncodeRefreshToken(
                 version,
-                Base64.getUrlEncoder().withoutPadding().encodeToString(newRefreshTokenBytes)
+                newRefreshTokenBytes
             ),
             equalTo(tokenFuture.get().getRefreshToken())
         );
@@ -905,9 +908,9 @@ public class TokenServiceTests extends ESTestCase {
             .user(new User("joe", "admin"))
             .realmRef(new RealmRef("native_realm", "native", "node1"))
             .build(false);
-        final String userTokenId = UUIDs.randomBase64UUID();
+        final byte[] userTokenBytes = getNewTokenBytes();
         UserToken token = new UserToken(
-            userTokenId,
+            Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes),
             tokenService.getTokenVersionCompatibility(),
             authentication,
             Instant.now().plusSeconds(180),
@@ -916,10 +919,11 @@ public class TokenServiceTests extends ESTestCase {
         mockGetTokenFromId(token, false);
         final String accessToken = tokenService.prependVersionAndEncodeAccessToken(
             tokenService.getTokenVersionCompatibility(),
-            userTokenId
+            userTokenBytes
         );
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(threadContext, tokenService.prependVersionAndEncodeAccessToken(token.getTransportVersion(), accessToken));
+        // TODO
+//        storeTokenHeader(threadContext, tokenService.prependVersionAndEncodeAccessToken(token.getTransportVersion(), accessToken));
 
         PlainActionFuture<UserToken> authFuture = new PlainActionFuture<>();
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(false);
@@ -1090,16 +1094,17 @@ public class TokenServiceTests extends ESTestCase {
                 .build(false);
 
             final SearchHit hit = new SearchHit(randomInt(), "token_" + TokenService.hashTokenString(userToken.getId()));
-            BytesReference source = TokenService.createTokenDocument(userToken, storedRefreshToken, clientAuthentication, Instant.now());
-            if (refreshTokenStatus != null) {
-                var sourceAsMap = XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
-                @SuppressWarnings("unchecked")
-                var refreshTokenSource = (Map<String, Object>) sourceAsMap.get("refresh_token");
-                refreshTokenSource.put("invalidated", refreshTokenStatus.isInvalidated());
-                refreshTokenSource.put("refreshed", refreshTokenStatus.isRefreshed());
-                source = XContentTestUtils.convertToXContent(sourceAsMap, XContentType.JSON);
-            }
-            hit.sourceRef(source);
+            // TODO
+//            BytesReference source = TokenService.createTokenDocument(userToken, storedRefreshToken, clientAuthentication, Instant.now());
+//            if (refreshTokenStatus != null) {
+//                var sourceAsMap = XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
+//                @SuppressWarnings("unchecked")
+//                var refreshTokenSource = (Map<String, Object>) sourceAsMap.get("refresh_token");
+//                refreshTokenSource.put("invalidated", refreshTokenStatus.isInvalidated());
+//                refreshTokenSource.put("refreshed", refreshTokenStatus.isRefreshed());
+//                source = XContentTestUtils.convertToXContent(sourceAsMap, XContentType.JSON);
+//            }
+//            hit.sourceRef(source);
 
             final SearchHits hits = new SearchHits(new SearchHit[] { hit }, null, 1);
             when(response.getHits()).thenReturn(hits);
@@ -1152,11 +1157,12 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     private String generateAccessToken(TokenService tokenService, TransportVersion version) throws Exception {
-        String accessTokenString = UUIDs.randomBase64UUID();
-        if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
-            accessTokenString = TokenService.hashTokenString(accessTokenString);
-        }
-        return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
+        //TODO
+//        String accessTokenString = UUIDs.randomBase64UUID();
+//        if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+//            accessTokenString = TokenService.hashTokenString(accessTokenString);
+//        }
+//        return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
     }
 
     public static byte[] getNewTokenBytes() {

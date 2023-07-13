@@ -117,7 +117,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
                 .setShard(0)
                 .setPrimary(true)
                 .get();
-            logger.info("Failed to allocate: {}", Strings.toString(explain.getExplanation()));
+            logger.error("Failed to mount searchable snapshot: {}", Strings.toString(explain.getExplanation(), true, true));
             throw e;
         }
         final ClusterState state = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState();

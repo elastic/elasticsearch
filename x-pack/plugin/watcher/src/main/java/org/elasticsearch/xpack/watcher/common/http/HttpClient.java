@@ -137,7 +137,7 @@ public class HttpClient implements Closeable {
         clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
         /*
          * This client will potentially be used by multiple users. We do not want it to keep any state like cookies, because that will
-         * result in that state unexpectedlky being shared across all users.
+         * result in that state unexpectedly being shared across all users.
          */
         clientBuilder.disableCookieManagement();
 

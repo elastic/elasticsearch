@@ -536,7 +536,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * @return The names of reloaded resources (or resources that would be reloaded if {@code preview} is true).
      * @throws IOException
      */
-    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, @Nullable String resource, boolean preview) throws IOException {
+    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, @Nullable String resource, boolean preview)
+        throws IOException {
         logger.info("reloading search analyzers");
         // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722
         return indexAnalyzers.reload(registry, indexSettings, resource, preview);

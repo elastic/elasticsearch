@@ -1,0 +1,33 @@
+[role="xpack"]
+[[security-api-update-settings]]
+=== Update Security index settings
+++++
+<titleabbrev>Update Security settings</titleabbrev>
+++++
+
+This API allows a user to modify the settings for the Security internal indices (`.security` and associated indices). Only a subset of settings are allowed to be modified. This includes:
+
+- `index.auto_expand_replicas`
+- `index.number_of_replicas`
+
+An example of modifying the Security settings:
+
+[source,console]
+-----------------------------------------------------------
+PUT /_security/settings
+{
+    "security": {
+        "index.auto_expand_replicas": "0-all"
+    },
+    "security_tokens": {
+            "index.auto_expand_replicas": "0-all"
+    },
+    "security_profile": {
+            "index.auto_expand_replicas": "0-all"
+    }
+}
+-----------------------------------------------------------
+// TEST[setup:user_profiles]
+// TEST[setup:service_token42]
+
+The configurable settings can be retrieved using the <<security-api-get-settings,Get Security index settings>> API.

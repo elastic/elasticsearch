@@ -1,0 +1,22 @@
+[role="xpack"]
+[[security-api-get-settings]]
+=== Get Security index settings
+++++
+<titleabbrev>Get Security settings</titleabbrev>
+++++
+
+This API allows a user to retrieve the user-configurable settings for the Security internal index (`.security` and associated indices). Only a subset of the index settings — those that are user-configurable—will be shown. This includes:
+
+- `index.auto_expand_replicas`
+- `index.number_of_replicas`
+
+An example of retrieving the Security settings:
+
+[source,console]
+-----------------------------------------------------------
+GET /_security/settings
+-----------------------------------------------------------
+// TEST[setup:user_profiles]
+// TEST[setup:service_token42]
+
+The configurable settings can be modified using the <<security-api-update-settings,Update Security index settings>> API.

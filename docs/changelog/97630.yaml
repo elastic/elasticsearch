@@ -1,0 +1,5 @@
+pr: 97630
+summary: Add an API for managing the settings of Security system indices
+area: Security
+type: enhancement
+issues: []

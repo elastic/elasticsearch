@@ -117,7 +117,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         boolean wrapWithExitableDirectoryReader,
         ThreadPoolExecutor executor
     ) throws IOException {
-        // we need to pass the executor up so it can porentially be used as a sliceExecutor
+        // we need to pass the executor up so it can potentially be used as a sliceExecutor
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
         setQueryCache(queryCache);
@@ -203,7 +203,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return computeSlices(leaves, queueSizeBasedExecutor.threadPoolExecutor.getPoolSize(), MINIMUM_DOCS_PER_SLICE);
+        return computeSlices(leaves, ((ThreadPoolExecutor) getExecutor()).getPoolSize(), MINIMUM_DOCS_PER_SLICE);
     }
 
     /**

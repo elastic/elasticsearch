@@ -157,7 +157,7 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation,
-            // use the search threadpool for now, TODO maybe we will change to a separate one
+            // use the search threadpool for now, TODO this will change to a separate one
             parallelize ? (EsThreadPoolExecutor) this.indexService.getThreadPool().executor(ThreadPool.Names.SEARCH) : null
         );
         releasables.addAll(List.of(engineSearcher, searcher));

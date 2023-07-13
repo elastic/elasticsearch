@@ -37,6 +37,7 @@ dependencies {
   clusterModules project(":modules:mapper-extras")
   clusterModules project(":modules:rest-root")
   clusterModules project(":modules:reindex")
+  clusterModules project(':modules:analysis-common')
 }
 
 testClusters.configureEach {

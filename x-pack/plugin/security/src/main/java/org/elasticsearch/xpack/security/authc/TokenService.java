@@ -282,26 +282,8 @@ public final class TokenService {
     ) {
         // the created token is compatible with the oldest node version in the cluster
         final TransportVersion tokenVersion = getTokenVersionCompatibility();
-        // tokens moved to a separate index in newer versions
-        final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
-        // the id of the created tokens ought be unguessable
-        final byte[] accessTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_LENGTH);
-        final byte[] refreshTokenBytes;
-        if (includeRefreshToken) {
-            refreshTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_LENGTH);
-        } else {
-            refreshTokenBytes = null;
-        }
-        createOAuth2Tokens(
-            accessTokenBytes,
-            refreshTokenBytes,
-            tokenVersion,
-            tokensIndex,
-            authentication,
-            originatingClientAuth,
-            metadata,
-            listener
-        );
+        Tuple<byte[], byte[]> newTokenBytes = getRandomTokenBytes(tokenVersion, includeRefreshToken);
+        createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), tokenVersion, authentication, originatingClientAuth, metadata, listener);
     }
 
     /**
@@ -320,18 +302,7 @@ public final class TokenService {
     ) {
         // the created token is compatible with the oldest node version in the cluster
         final TransportVersion tokenVersion = getTokenVersionCompatibility();
-        // tokens moved to a separate index in newer versions
-        final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
-        createOAuth2Tokens(
-            accessTokenBytes,
-            refreshTokenBytes,
-            tokenVersion,
-            tokensIndex,
-            authentication,
-            originatingClientAuth,
-            metadata,
-            listener
-        );
+        createOAuth2Tokens(accessTokenBytes, refreshTokenBytes, tokenVersion, authentication, originatingClientAuth, metadata, listener);
     }
 
     /**
@@ -357,7 +328,6 @@ public final class TokenService {
      *                                for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
      *                              </ul>
      * @param tokenVersion          The version of the nodes with which these tokens will be compatible.
-     * @param tokensIndex           The security tokens index
      * @param authentication        The authentication object representing the user for which the tokens are created
      * @param originatingClientAuth The authentication object representing the client that called the related API
      * @param metadata              A map with metadata to be stored in the token document
@@ -369,7 +339,6 @@ public final class TokenService {
         byte[] accessTokenBytes,
         @Nullable byte[] refreshTokenBytes,
         TransportVersion tokenVersion,
-        SecurityIndexManager tokensIndex,
         Authentication authentication,
         Authentication originatingClientAuth,
         Map<String, Object> metadata,
@@ -385,7 +354,6 @@ public final class TokenService {
         } else {
             final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
             final String accessTokenToStore;
-            final String accessTokenToReturn;
             final String refreshTokenToStore;
             final String refreshTokenToReturn;
             final String documentId;
@@ -393,33 +361,43 @@ public final class TokenService {
             try {
                 final String userTokenId;
                 if (tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
-                    byte[] docIdBytes = getRandomBytes(RAW_TOKEN_DOC_ID_BYTES_LENGTH);
-                    userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(docIdBytes));
-                    accessTokenBytes = concatenateByteArrays(accessTokenBytes, docIdBytes);
+                    assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH;
+                    MessageDigest userTokenIdDigest = sha256();
+                    userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
+                    userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
                     accessTokenToStore = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes));
-                    accessTokenToReturn = prependVersionAndEncodeAccessToken(tokenVersion, accessTokenBytes);
                     if (refreshTokenBytes != null) {
-                        refreshTokenBytes = concatenateByteArrays(refreshTokenBytes, docIdBytes);
+                        assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH;
+                        assert Arrays.equals(
+                            refreshTokenBytes,
+                            RAW_TOKEN_BYTES_LENGTH,
+                            RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH,
+                            accessTokenBytes,
+                            RAW_TOKEN_BYTES_LENGTH,
+                            RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH
+                        );
                         refreshTokenToStore = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(refreshTokenBytes));
                         refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes);
                     } else {
                         refreshTokenToStore = refreshTokenToReturn = null;
                     }
                 } else if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
+                    assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
                     userTokenId = hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
                     accessTokenToStore = null;
-                    accessTokenToReturn = prependVersionAndEncodeAccessToken(tokenVersion, accessTokenBytes);
                     if (refreshTokenBytes != null) {
+                        assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
                         refreshTokenToStore = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(refreshTokenBytes));
                         refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes);
                     } else {
                         refreshTokenToStore = refreshTokenToReturn = null;
                     }
                 } else {
+                    assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
                     userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes);
                     accessTokenToStore = null;
-                    accessTokenToReturn = prependVersionAndEncodeAccessToken(tokenVersion, accessTokenBytes);
                     if (refreshTokenBytes != null) {
+                        assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
                         refreshTokenToStore = refreshTokenToReturn = Base64.getUrlEncoder()
                             .withoutPadding()
                             .encodeToString(refreshTokenBytes);
@@ -429,13 +407,13 @@ public final class TokenService {
                 }
                 UserToken userToken = new UserToken(userTokenId, tokenVersion, tokenAuth, getExpirationTime(), metadata);
                 tokenDocument = createTokenDocument(userToken, accessTokenToStore, refreshTokenToStore, originatingClientAuth);
-                documentId = getTokenDocumentId(userTokenId);
-            } catch (GeneralSecurityException | IOException e) {
+                documentId = getTokenDocumentId(userToken);
+            } catch (IOException e) {
                 logger.error("Could not encode access or refresh token", e);
                 listener.onFailure(traceLog("create token", e));
                 return;
             }
-
+            final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
             final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName())
                 .setId(documentId)
                 .setOpType(OpType.CREATE)
@@ -451,6 +429,7 @@ public final class TokenService {
                     indexTokenRequest,
                     ActionListener.wrap(indexResponse -> {
                         if (indexResponse.getResult() == Result.CREATED) {
+                            String accessTokenToReturn = prependVersionAndEncodeAccessToken(tokenVersion, accessTokenBytes);
                             listener.onResponse(new CreateTokenResult(accessTokenToReturn, refreshTokenToReturn, authentication));
                         } else {
                             listener.onFailure(
@@ -1195,9 +1174,8 @@ public final class TokenService {
             Authentication authentication = parsedTokens.v1().getAuthentication();
             decryptAndReturnSupersedingTokens(refreshToken, refreshTokenStatus, refreshedTokenIndex, authentication, listener);
         } else {
-            final byte[] newAccessTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_LENGTH);
-            final byte[] newRefreshTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_LENGTH);
             final TransportVersion newTokenVersion = getTokenVersionCompatibility();
+            final Tuple<byte[], byte[]> newTokenBytes = getRandomTokenBytes(newTokenVersion, true);
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);
             if (newTokenVersion.onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
@@ -1206,8 +1184,8 @@ public final class TokenService {
                     final byte[] iv = getRandomBytes(IV_BYTES);
                     final byte[] salt = getRandomBytes(SALT_BYTES);
                     String encryptedAccessAndRefreshToken = encryptSupersedingTokens(
-                        newAccessTokenBytes,
-                        newRefreshTokenBytes,
+                        newTokenBytes.v1(),
+                        newTokenBytes.v2(),
                         refreshToken,
                         iv,
                         salt
@@ -1242,10 +1220,9 @@ public final class TokenService {
                             final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(source, null);
                             final UserToken toRefreshUserToken = parsedTokens.v1();
                             createOAuth2Tokens(
-                                newAccessTokenBytes,
-                                newRefreshTokenBytes,
+                                newTokenBytes.v1(),
+                                newTokenBytes.v2(),
                                 newTokenVersion,
-                                getTokensIndexForVersion(newTokenVersion),
                                 toRefreshUserToken.getAuthentication(),
                                 clientAuth,
                                 toRefreshUserToken.getMetadata(),
@@ -1395,7 +1372,18 @@ public final class TokenService {
             } else {
                 // We expect this to protect against race conditions that manifest within few ms
                 final Iterator<TimeValue> backoff = BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(10), 8).iterator();
-                final String tokenDocId = getTokenDocumentId(hashTokenString(decryptedTokens[0]));
+                final String tokenDocId;
+                if (refreshTokenStatus.getTransportVersion().onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                    MessageDigest userTokenIdDigest = sha256();
+                    userTokenIdDigest.update(
+                        Base64.getUrlDecoder().decode(decryptedTokens[0]),
+                        RAW_TOKEN_BYTES_LENGTH,
+                        RAW_TOKEN_DOC_ID_BYTES_LENGTH
+                    );
+                    tokenDocId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
+                } else {
+                    tokenDocId = getTokenDocumentId(hashTokenString(decryptedTokens[0]));
+                }
                 final Consumer<Exception> onFailure = ex -> listener.onFailure(
                     traceLog("decrypt and get superseding token", tokenDocId, ex)
                 );
@@ -2087,6 +2075,7 @@ public final class TokenService {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
+                assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH;
                 out.writeByteArray(accessTokenBytes);
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
@@ -2094,6 +2083,7 @@ public final class TokenService {
             try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
+                assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
                 out.writeString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
@@ -2133,6 +2123,7 @@ public final class TokenService {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
+                assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH;
                 out.writeByteArray(refreshTokenBytes);
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
@@ -2140,6 +2131,7 @@ public final class TokenService {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
+                assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
                 out.writeString(Base64.getUrlEncoder().withoutPadding().encodeToString(refreshTokenBytes));
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
@@ -2220,18 +2212,36 @@ public final class TokenService {
         return cipher;
     }
 
+    Tuple<byte[], byte[]> getRandomTokenBytes(TransportVersion version, boolean includeRefreshToken) {
+        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+            byte[] accessTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH);
+            if (includeRefreshToken) {
+                byte[] refreshTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH);
+                // an access and refresh token pair are "related" by having a common fixed-length suffix
+                System.arraycopy(
+                    accessTokenBytes,
+                    RAW_TOKEN_BYTES_LENGTH,
+                    refreshTokenBytes,
+                    RAW_TOKEN_BYTES_LENGTH,
+                    RAW_TOKEN_DOC_ID_BYTES_LENGTH
+                );
+                return new Tuple<>(accessTokenBytes, refreshTokenBytes);
+            } else {
+                return new Tuple<>(accessTokenBytes, null);
+            }
+        } else {
+            if (includeRefreshToken) {
+                return new Tuple<>(getRandomBytes(RAW_TOKEN_BYTES_LENGTH), getRandomBytes(RAW_TOKEN_BYTES_LENGTH));
+            } else {
+                return new Tuple<>(getRandomBytes(RAW_TOKEN_BYTES_LENGTH), null);
+            }
+        }
+    }
+
     byte[] getRandomBytes(int length) {
         final byte[] bytes = new byte[length];
         secureRandom.nextBytes(bytes);
         return bytes;
-    }
-
-    byte[] concatenateByteArrays(byte[]... byteArrays) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        for (byte[] byteArray : byteArrays) {
-            baos.write(byteArray);
-        }
-        return baos.toByteArray();
     }
 
     /**

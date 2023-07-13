@@ -128,31 +128,13 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                     Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 );
                 logger.info("--> finished adding replicas from [{}]", indexName);
-                try {
-                    ensureGreen(indexName);
-                } catch (AssertionError e) {
-                    logAllocationExplain();
-                    throw e;
-                }
+                ensureGreen(indexName);
+
                 assertMatchAllReturnsAllDocuments(indexName, numDocs);
                 assertMatchQueryReturnsAllDocuments(indexName, numDocs);
             }
             default -> throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
-    }
-
-    private void logAllocationExplain() throws Exception {
-        // Used to debug #91383
-        var request = new Request(HttpGet.METHOD_NAME, "_cluster/allocation/explain?include_disk_info=true&include_yes_decisions=true");
-        request.setJsonEntity("""
-                    {
-                      "index": "snapshot_based_recovery",
-                      "shard": 0,
-                      "primary": false
-                    }
-            """);
-        var response = client().performRequest(request);
-        logger.info("--> allocation explain {}", EntityUtils.toString(response.getEntity()));
     }
 
     private List<String> getUpgradedNodeIds() throws IOException {

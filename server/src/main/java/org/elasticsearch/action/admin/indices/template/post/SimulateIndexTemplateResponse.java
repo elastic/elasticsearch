@@ -73,7 +73,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         } else {
             this.overlappingTemplates = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
         }
     }
@@ -91,7 +91,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         } else {
             out.writeBoolean(false);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             out.writeOptionalWriteable(rolloverConfiguration);
         }
     }

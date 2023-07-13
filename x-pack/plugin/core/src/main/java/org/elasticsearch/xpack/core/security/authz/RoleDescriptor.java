@@ -1043,7 +1043,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            indicesPrivileges.innerToXContent(builder);
+            indicesPrivileges.innerToXContent(builder, true);
             builder.array(Fields.REMOTE_CLUSTERS.getPreferredName(), remoteClusters);
             return builder.endObject();
         }
@@ -1316,13 +1316,15 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            innerToXContent(builder);
+            innerToXContent(builder, params.paramAsBoolean("_with_privileges", true));
             return builder.endObject();
         }
 
-        XContentBuilder innerToXContent(XContentBuilder builder) throws IOException {
+        XContentBuilder innerToXContent(XContentBuilder builder, boolean withPrivileges) throws IOException {
             builder.array("names", indices);
-            builder.array("privileges", privileges);
+            if (withPrivileges) {
+                builder.array("privileges", privileges);
+            }
             if (grantedFields != null || deniedFields != null) {
                 builder.startObject(RoleDescriptor.Fields.FIELD_PERMISSIONS.getPreferredName());
                 if (grantedFields != null) {

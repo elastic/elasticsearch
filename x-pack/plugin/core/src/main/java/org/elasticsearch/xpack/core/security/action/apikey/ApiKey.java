@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,6 +38,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
 
 /**
  * API key information
@@ -257,12 +262,49 @@ public final class ApiKey implements ToXContentObject, Writeable {
                 builder.field(roleDescriptor.getName(), roleDescriptor);
             }
             builder.endObject();
+            if (type == Type.CROSS_CLUSTER) {
+                assert roleDescriptors.size() == 1;
+                buildXContentForCrossClusterApiKeyAccess(builder, roleDescriptors.iterator().next());
+            }
         }
         if (limitedBy != null) {
             assert type != Type.CROSS_CLUSTER;
             builder.field("limited_by", limitedBy);
         }
         return builder;
+    }
+
+    private void buildXContentForCrossClusterApiKeyAccess(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {
+        if (Assertions.ENABLED) {
+            CrossClusterApiKeyRoleDescriptorBuilder.validate(roleDescriptor);
+        }
+        final List<RoleDescriptor.IndicesPrivileges> search = new ArrayList<>();
+        final List<RoleDescriptor.IndicesPrivileges> replication = new ArrayList<>();
+        for (RoleDescriptor.IndicesPrivileges indicesPrivileges : roleDescriptor.getIndicesPrivileges()) {
+            if (Arrays.equals(CCS_INDICES_PRIVILEGE_NAMES, indicesPrivileges.getPrivileges())) {
+                search.add(indicesPrivileges);
+            } else {
+                assert Arrays.equals(CCR_INDICES_PRIVILEGE_NAMES, indicesPrivileges.getPrivileges());
+                replication.add(indicesPrivileges);
+            }
+        }
+        builder.startObject("access");
+        final Params params = new MapParams(Map.of("_with_privileges", "false"));
+        if (false == search.isEmpty()) {
+            builder.startArray("search");
+            for (RoleDescriptor.IndicesPrivileges indicesPrivileges : search) {
+                indicesPrivileges.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+        if (false == replication.isEmpty()) {
+            builder.startArray("replication");
+            for (RoleDescriptor.IndicesPrivileges indicesPrivileges : replication) {
+                indicesPrivileges.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+        builder.endObject();
     }
 
     @Override
@@ -321,7 +363,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
     }
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", args -> {
+    static final ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", true, args -> {
         return new ApiKey(
             (String) args[0],
             (String) args[1],

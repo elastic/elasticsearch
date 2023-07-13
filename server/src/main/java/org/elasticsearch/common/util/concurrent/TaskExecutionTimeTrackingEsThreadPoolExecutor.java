@@ -11,7 +11,9 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +28,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
     private final LongAdder totalExecutionTime = new LongAdder();
+    private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -82,6 +85,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     @Override
+    protected void beforeExecute(Thread t, Runnable r) {
+        ongoingTasks.put(r, System.nanoTime());
+    }
+
+    @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
         // A task has been completed, it has left the building. We should now be able to get the
@@ -102,6 +110,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             executionEWMA.addValue(taskExecutionNanos);
             totalExecutionTime.add(taskExecutionNanos);
         }
+        ongoingTasks.remove(r);
     }
 
     @Override
@@ -114,4 +123,14 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             .append(", ");
     }
 
+    /**
+     * Returns the set of currently running tasks and their start timestamp.
+     * <p>
+     * Note that it is possible for a task that has just finished execution to be temporarily both in the returned map, and its total
+     * execution time to be included in the return value of {@code getTotalTaskExecutionTime()}. However, it is guaranteed that the
+     * task is reflected in at least one of those two values.
+     */
+    public Map<Runnable, Long> getOngoingTasks() {
+        return Map.copyOf(ongoingTasks);
+    }
 }

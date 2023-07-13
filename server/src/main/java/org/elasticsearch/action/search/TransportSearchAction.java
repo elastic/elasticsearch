@@ -650,7 +650,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ActionListener.wrap(connection -> {
                     final String[] indices = entry.getValue().indices();
                     // TODO: support point-in-time
-                    if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_500_000)) {
+                    if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
                         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                             indices,
                             indicesOptions,

@@ -6,6 +6,7 @@ dependencies {
   clusterModules project(':modules:rank-eval')
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:reindex')
+  clusterModules project(':modules:analysis-common')
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-constant-keyword'))

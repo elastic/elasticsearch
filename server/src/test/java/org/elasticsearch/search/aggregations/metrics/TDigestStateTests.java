@@ -196,7 +196,7 @@ public class TDigestStateTests extends ESTestCase {
         TDigestState serialized = writeToAndReadFrom(state, TransportVersion.V_8_500_014);
         assertEquals(serialized, state);
 
-        TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_500_000);
+        TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_500_010);
         assertNotEquals(serializedBackwardsCompatible, state);
         assertEquals(serializedBackwardsCompatible, backwardsCompatible);
     }

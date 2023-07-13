@@ -6,7 +6,7 @@ more time series.
 
 You can use a TSDS to store metrics data more efficiently. In our benchmarks,
 metrics data stored in a TSDS used 70% less disk space than a regular data
-stream.
+stream. The exact impact will vary per data set.
 
 [discrete]
 [[when-to-use-tsds]]

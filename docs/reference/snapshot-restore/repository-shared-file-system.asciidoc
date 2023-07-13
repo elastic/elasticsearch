@@ -78,7 +78,9 @@ repository. If this happens, address the cause of the I/O error reported by the
 operating system.
 
 TIP: Many NFS implementations match accounts across nodes using their _numeric_
-user IDs (UIDs) and group IDs (GIDs) rather than matching accounts by name. If
-your shared file system uses NFS then ensure that every node is running with
+user IDs (UIDs) and group IDs (GIDs) rather than their names. It is possible
+for {es} to run under an account with the same name (often `elasticsearch`) on
+each node, but for these accounts to have different numeric user or group IDs.
+If your shared file system uses NFS then ensure that every node is running with
 the same numeric UID and GID, or else update your NFS configuration to account
-for the variance in IDs across nodes.
+for the variance in numeric IDs across nodes.

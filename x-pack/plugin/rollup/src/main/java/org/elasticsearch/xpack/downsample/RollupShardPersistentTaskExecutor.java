@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -53,13 +54,19 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
     @Override
     protected void nodeOperation(final AllocatedPersistentTask task, final RollupShardTaskParams params, final PersistentTaskState state) {
         // NOTE: query the downsampling target index so that we can start the downsampling task from the latest indexed tsid.
-        final SearchHit[] lastRollupTsidHits = client.prepareSearch(params.rollupIndex())
-            .addSort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC)
-            .setSize(1)
-            .setQuery(new MatchAllQueryBuilder()) // TODO: can we do better then querying all documents?
-            .get()
-            .getHits()
-            .getHits();
+        SearchHit[] lastRollupTsidHits;
+        try {
+            lastRollupTsidHits = client.prepareSearch(params.rollupIndex())
+                .addSort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC)
+                .setSize(1)
+                .setQuery(new MatchAllQueryBuilder())
+                .get()
+                .getHits()
+                .getHits();
+        } catch (SearchPhaseExecutionException e) {
+            // NOTE: searching the target downsample index for the latest tsid failed. We just start the task from scratch.
+            lastRollupTsidHits = new SearchHit[0];
+        }
         final RollupShardPersistentTaskState initialState = lastRollupTsidHits.length == 0
             ? new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
             : new RollupShardPersistentTaskState(

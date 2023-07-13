@@ -18,8 +18,7 @@ public enum FeatureFlag {
     TIME_SERIES_MODE("es.index_mode_feature_flag_registered=true", Version.fromString("8.0.0"), null),
     NEW_RCS_MODE("es.untrusted_remote_cluster_feature_flag_registered=true", Version.fromString("8.5.0"), null),
     DATA_STREAM_LIFECYCLE_ENABLED("es.dlm_feature_flag_enabled=true", Version.fromString("8.8.0"), null),
-    SYNONYMS_ENABLED("es.synonyms_feature_flag_enabled=true", Version.fromString("8.9.0"), null),
-    QUERY_RULES_ENABLED("es.query_rules_feature_flag_enabled=true", Version.fromString("8.9.0"), null);
+    SYNONYMS_ENABLED("es.synonyms_feature_flag_enabled=true", Version.fromString("8.9.0"), null);
 
     public final String systemProperty;
     public final Version from;

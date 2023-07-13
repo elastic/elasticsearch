@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateTsdbMapping;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.composeDataLifecycles;
@@ -52,6 +53,8 @@ import static org.mockito.Mockito.when;
  * Variant of MetadataIndexTemplateServiceTests in server module, but with {@link DataStreamIndexSettingsProvider}.
  */
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
+
+    public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     public void testRequireRoutingPath() throws Exception {
         final var service = getMetadataIndexTemplateService();
@@ -255,7 +258,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<DataLifecycle.Downsampling.Round> rounds = new ArrayList<>();
         var previous = new DataLifecycle.Downsampling.Round(
             TimeValue.timeValueDays(randomIntBetween(1, 365)),
-            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"), TIMEOUT)
         );
         rounds.add(previous);
         for (int i = 0; i < count; i++) {
@@ -269,7 +272,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     private static DataLifecycle.Downsampling.Round nextRound(DataLifecycle.Downsampling.Round previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
         var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
+            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms"),
+            TIMEOUT
         );
         return new DataLifecycle.Downsampling.Round(after, fixedInterval);
     }

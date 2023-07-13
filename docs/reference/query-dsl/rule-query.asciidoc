@@ -1,0 +1,49 @@
+[role="xpack"]
+[[query-dsl-rule-query]]
+=== Rule Query
+
+preview::[]
+
+Applies rules configured in the <<query-rules-apis, Query Rules API>> to the query.
+This feature is used to promote documents in the manner of a <<query-dsl-pinned-query>> based on matching defined rules.
+If no matching query rules are defined, the "organic" matches for the query are returned.
+
+==== Example request
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "rule_query": {
+      "match_criteria": {
+        "query_string": "pugs"
+      },
+      "ruleset_id": "my_ruleset",
+      "organic": {
+        "match": {
+          "description": "pugs"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[[rule-query-top-level-parameters]]
+==== Top-level parameters for `rule_query`
+
+`ruleset_id`::
+(Required, string) <<mapping-id-field, Document IDs>> <<query-rules-apis, query ruleset>> ID with query-based rules to match and apply as applicable.
+`match_criteria`::
+(Required, object) Defines the match criteria to apply to rules in the given query ruleset.
+
+The following `match_criteria` are supported:
++
+--
+`query_string`::
+(Required, string) The exact query string to match against.
+--
+`organic`::
+Any choice of query used to return results, that may be modified by matching query rules.
+If no query rules are matched and applied, this query will return results.

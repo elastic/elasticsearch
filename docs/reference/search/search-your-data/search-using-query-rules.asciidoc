@@ -1,0 +1,129 @@
+[[search-using-query-rules]]
+== Searching with query rules
+++++
+<titleabbrev>Searching with query rules</titleabbrev>
+++++
+
+[[query-rules]]
+
+preview::[]
+
+_Query rules_ are rules that are defined inside {es} and are applied only to queries that match these rules.
+This allows more control over promoted results for specific queries only. For example, you may want to promote results only when users are searching for specific items.
+
+Rules are defined using the <<query-rules-apis,Query rules API>>.
+When defining a rule, we take into consideration the following:
+
+* The type of rule we want to apply.
+* The criteria for which this rule will match.
+* The actions to take when the rule matches a query.
+
+Current supported rule types:
+
+* `pinned` query rules will re-write the query into a <<query-dsl-pinned-query, pinned query>>, promoting specific results matching the query rule at the top of the returned result set.
+
+[discrete]
+[[add-query-rules]]
+=== Add query rules
+
+You can add query rules using the <<put-query-ruleset>> call. This adds a ruleset containing one or more query rules that will be applied to queries that match their specified criteria.
+
+The following command will create a query ruleset called `my-ruleset` with two pinned document rules:
+
+* The first rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field,`_id`>>s `id1` and `id2` when the `query_string` matches the value `pugs`.
+* The second rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field, `_id`>> of `id3` specifically from the `my-index-000001` index and `id4` from the `my-index-000002` index when the `query_string` matches the value `beagles`.
+
+[source,console]
+----
+PUT /_query_rules/my-ruleset
+{
+  "rules": [
+    {
+      "rule_id": "rule1",
+      "type": "pinned",
+      "criteria": [
+        {
+          "type": "exact",
+          "metadata": "query_string",
+          "value": "pugs"
+        }
+      ],
+      "actions": {
+        "ids": [
+          "id1",
+          "id2"
+        ]
+      }
+    },
+    {
+      "rule_id": "rule2",
+      "type": "pinned",
+      "criteria": [
+        {
+          "type": "exact",
+          "metadata": "query_string",
+          "value": "beagles"
+        }
+      ],
+      "actions": {
+        "docs": [
+          {
+            "_index": "my-index-000001",
+            "_id": "id3"
+          },
+          {
+            "_index": "my-index-000002",
+            "_id": "id4"
+          }
+        ]
+      }
+    }
+  ]
+}
+----
+// TEST[skip:TBD]
+
+The API response returns a results of `created` or `updated` depending on whether this was a new or edited ruleset.
+
+[source,console-result]
+----
+{
+    "result": "created"
+}
+----
+// TEST[skip:TBD]
+
+You can use the <<get-query-ruleset>> call to retrieve the ruleset you just created,
+the <<list-query-rulesets>> call to retrieve a summary of all query rulesets,
+and the <<delete-query-ruleset>> call to delete a query ruleset.
+
+[discrete]
+[[rule-query-search]]
+=== Perform a rule query
+
+Once you have defined a query ruleset, you can search this ruleset using the <<query-dsl-rule-query>> query.
+An example query for the `my-ruleset` defined above is:
+
+[source,console]
+----
+GET /my-index-000001/_search
+{
+    "query": {
+        "rule_query": {
+            "organic": {
+                "query_string": {
+                  "query": "pugs"
+                }
+            },
+            "match_criteria": {
+                "query_string": "pugs"
+            },
+            "ruleset_id": "my-ruleset"
+        }
+    }
+}
+----
+// TEST[skip:TBD]
+
+This rule query will match against `rule1` in the defined query ruleset, and will convert the organic query into a pinned query with `id1` and `id2` pinned as the top hits.
+Any other matches from the `query_string` query specified in the organic query will be returned below the pinned results.

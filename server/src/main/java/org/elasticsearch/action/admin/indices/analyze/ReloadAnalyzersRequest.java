@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,6 +17,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersion.V_8_500_033;
+
 /**
  * Request for reloading index search analyzers
  */
@@ -23,9 +26,13 @@ public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequ
     private final String resource;
     private final boolean preview;
 
+    private static final TransportVersion PREVIEW_OPTION_TRANSPORT_VERSION = V_8_500_033;
+
     /**
      * Constructs a request for reloading index search analyzers
      * @param resource changed resource to reload analyzers from, @null if not applicable
+     * @param preview {@code false} applies analyzer reloading. {@code true} previews the reloading operation, so analyzers are not reloaded
+     * but the results retrieved. This is useful for understanding analyzers usage in the different indices.
      * @param indices the indices to reload analyzers for
      */
     public ReloadAnalyzersRequest(String resource, boolean preview, String... indices) {
@@ -37,14 +44,16 @@ public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequ
     public ReloadAnalyzersRequest(StreamInput in) throws IOException {
         super(in);
         this.resource = in.readOptionalString();
-        this.preview = in.readBoolean();
+        this.preview = in.getTransportVersion().onOrAfter(PREVIEW_OPTION_TRANSPORT_VERSION) && in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(resource);
-        out.writeBoolean(preview);
+        if (out.getTransportVersion().onOrAfter(PREVIEW_OPTION_TRANSPORT_VERSION)) {
+            out.writeBoolean(preview);
+        }
     }
 
     public String resource() {

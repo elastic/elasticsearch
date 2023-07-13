@@ -25,6 +25,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -39,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
@@ -55,6 +58,7 @@ import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.downsample.RestDownsampleAction;
 import org.elasticsearch.xpack.downsample.RollupShardPersistentTaskExecutor;
+import org.elasticsearch.xpack.downsample.RollupShardTaskParams;
 import org.elasticsearch.xpack.downsample.TransportDownsampleAction;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupCapsAction;
@@ -77,7 +81,6 @@ import org.elasticsearch.xpack.rollup.rest.RestStopRollupJobAction;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -200,13 +203,30 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     }
 
     @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return List.of(
+            new NamedXContentRegistry.Entry(
+                PersistentTaskState.class,
+                new ParseField(RollupShardPersistentTaskState.NAME),
+                RollupShardPersistentTaskState::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(RollupShardTaskParams.NAME),
+                RollupShardTaskParams::fromXContent
+            )
+        );
+    }
+
+    @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Collections.singletonList(
+        return List.of(
             new NamedWriteableRegistry.Entry(
                 RollupShardPersistentTaskState.class,
                 RollupShardPersistentTaskState.NAME,
-                RollupShardPersistentTaskState::new
-            )
+                RollupShardPersistentTaskState::readFromStream
+            ),
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, RollupShardTaskParams.NAME, RollupShardTaskParams::readFromStream)
         );
     }
 

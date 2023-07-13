@@ -16,6 +16,7 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
@@ -93,7 +94,7 @@ public record RollupShardTaskParams(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.MINIMUM_COMPATIBLE;
+        return TransportVersion.V_8_500_031;
     }
 
     @Override
@@ -105,5 +106,21 @@ public record RollupShardTaskParams(
         shardId.writeTo(out);
         out.writeStringArray(metrics);
         out.writeStringArray(labels);
+    }
+
+    public static RollupShardTaskParams readFromStream(final StreamInput in) throws IOException {
+        return new RollupShardTaskParams(
+            new DownsampleConfig(in),
+            in.readString(),
+            in.readVLong(),
+            in.readVLong(),
+            new ShardId(in),
+            in.readStringArray(),
+            in.readStringArray()
+        );
+    }
+
+    public static RollupShardTaskParams fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

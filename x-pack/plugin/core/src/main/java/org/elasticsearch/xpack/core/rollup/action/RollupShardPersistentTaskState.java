@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.core.rollup.action;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -26,6 +28,12 @@ public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShar
     public static final String NAME = RollupShardTask.TASK_NAME;
     private static final ParseField ROLLUP_SHARD_INDEXER_STATUS = new ParseField("status");
     private static final ParseField TSID = new ParseField("tsid");
+
+    private static final ConstructingObjectParser<RollupShardPersistentTaskState, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new RollupShardPersistentTaskState((RollupShardIndexerStatus) args[0], (String) args[1])
+    );
 
     public RollupShardPersistentTaskState(final StreamInput in) throws IOException {
         this(RollupShardIndexerStatus.readFromStream(in), in.readString());
@@ -71,5 +79,13 @@ public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShar
 
     public boolean failed() {
         return RollupShardIndexerStatus.FAILED.equals(rollupShardIndexerStatus);
+    }
+
+    public static RollupShardPersistentTaskState readFromStream(final StreamInput in) throws IOException {
+        return new RollupShardPersistentTaskState(RollupShardIndexerStatus.readFromStream(in), in.readString());
+    }
+
+    public static RollupShardPersistentTaskState fromXContent(final XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

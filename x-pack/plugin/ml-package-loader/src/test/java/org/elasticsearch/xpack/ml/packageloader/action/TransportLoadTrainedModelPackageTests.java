@@ -14,6 +14,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
+import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.hamcrest.CoreMatchers;
 import org.mockito.ArgumentCaptor;
 
@@ -27,6 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 public class TransportLoadTrainedModelPackageTests extends ESTestCase {
@@ -36,7 +39,7 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         ModelImporter uploader = mock(ModelImporter.class);
         Client client = mock(Client.class);
 
-        TransportLoadTrainedModelPackage.importModel(client, "id", uploader, ActionListener.noop());
+        TransportLoadTrainedModelPackage.importModel(client, createRequest(true), uploader, ActionListener.noop());
 
         var notificationArg = ArgumentCaptor.forClass(AuditMlNotificationAction.Request.class);
         verify(client).execute(eq(AuditMlNotificationAction.INSTANCE), notificationArg.capture(), any());
@@ -83,9 +86,20 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         var listener = (ActionListener<AcknowledgedResponse>) mock(ActionListener.class);
-        TransportLoadTrainedModelPackage.importModel(client, "id", uploader, listener);
+        TransportLoadTrainedModelPackage.importModel(client, createRequest(true), uploader, listener);
 
         verify(listener).onResponse(AcknowledgedResponse.TRUE);
+    }
+
+    public void testDoesNotCallListenerWhenNotWaitingForCompletion() {
+        var uploader = mock(ModelImporter.class);
+        var client = mock(Client.class);
+        @SuppressWarnings("unchecked")
+        var listener = (ActionListener<AcknowledgedResponse>) mock(ActionListener.class);
+
+        TransportLoadTrainedModelPackage.importModel(client, createRequest(false), uploader, listener);
+        verify(listener, never()).onResponse(any());
+        verify(listener, never()).onFailure(any());
     }
 
     private void assertUploadCallsOnFailure(Exception exception, String message, RestStatus status) throws URISyntaxException, IOException {
@@ -105,7 +119,7 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         var listener = (ActionListener<AcknowledgedResponse>) mock(ActionListener.class);
-        TransportLoadTrainedModelPackage.importModel(client, "id", uploader, listener);
+        TransportLoadTrainedModelPackage.importModel(client, createRequest(true), uploader, listener);
 
         var notificationArg = ArgumentCaptor.forClass(AuditMlNotificationAction.Request.class);
         verify(client).execute(eq(AuditMlNotificationAction.INSTANCE), notificationArg.capture(), any());
@@ -125,5 +139,9 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         }
 
         return uploader;
+    }
+
+    private LoadTrainedModelPackageAction.Request createRequest(boolean waitForCompletion) {
+        return new LoadTrainedModelPackageAction.Request("id", mock(ModelPackageConfig.class), waitForCompletion);
     }
 }

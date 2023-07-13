@@ -151,7 +151,7 @@ the `rate` aggregation, since a rate can be derived from a cumulative monotonica
 of aggregations (e.g. sum) compute results that don't make sense for a counter field, because of its cumulative nature.
 Only numeric and `aggregate_metric_double` fields support the `counter` metric type.
 
-NOTE: Counter fields do come with a limitation in aggregations. Only the following aggregations are supported with the `counter` field: `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.
+NOTE: Due to the cumulative nature of counter fields, only the following aggregations are allowed with the `counter` field: `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.
 
 // tag::time-series-metric-gauge[]
 `gauge`:: A metric that represents a single numeric that can arbitrarily increase or decrease. For example, a temperature or

@@ -12,7 +12,7 @@ import org.elasticsearch.test.eql.EqlMissingEventsSpecTestCase;
 
 import java.util.List;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "xxx")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97644")
 public class EqlMissingEventsIT extends EqlMissingEventsSpecTestCase {
 
     public EqlMissingEventsIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {

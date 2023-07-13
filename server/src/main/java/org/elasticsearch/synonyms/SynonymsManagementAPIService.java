@@ -397,9 +397,9 @@ public class SynonymsManagementAPIService {
         client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener);
     }
 
-    public void deleteSynonymsSet(String synonymSetId, ActionListener<SynonymsReloadResult<AcknowledgedResponse>> listener) {
+    public void deleteSynonymsSet(String synonymSetId, ActionListener<AcknowledgedResponse> listener) {
 
-        // Checks reloading the analyzer to understand usage. We can iterate on this solution to target the specific analyzer
+        // Previews reloading the resource to understand its usage on indices
         reloadAnalyzers(synonymSetId, true, listener.delegateFailure((reloadListener, reloadResult) -> {
             Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadDetails = reloadResult.reloadAnalyzersResponse.getReloadDetails();
             if (reloadDetails.isEmpty() == false) {
@@ -412,9 +412,12 @@ public class SynonymsManagementAPIService {
                         "Synonym set ["
                             + synonymSetId
                             + "] cannot be deleted as it is used in the following indices: "
-                            + String.join(", ", indices
-                            + ". In order to delete the synonym set, first remove any reference to it in the mentioned indices settings, "
-                            + "by either using another synonym set, or removing the corresponding synonym token filter.")
+                            + String.join(
+                                ", ",
+                                indices
+                                    + ". In order to delete the synonym set, first remove any reference to it in the mentioned indices settings, "
+                                    + "by either using another synonym set, or removing the corresponding synonym token filter."
+                            )
                     )
                 );
                 return;
@@ -436,13 +439,18 @@ public class SynonymsManagementAPIService {
                     );
                     return;
                 }
-                reloadAnalyzers(synonymSetId, false, deleteObjectsListener, AcknowledgedResponse.of(true));
+
+                deleteObjectsListener.onResponse(AcknowledgedResponse.of(true));
             }));
         }), null);
-
     }
 
-    private <T> void reloadAnalyzers(String synonymSetId, boolean preview, ActionListener<SynonymsReloadResult<T>> listener, T synonymsOperationResult) {
+    private <T> void reloadAnalyzers(
+        String synonymSetId,
+        boolean preview,
+        ActionListener<SynonymsReloadResult<T>> listener,
+        T synonymsOperationResult
+    ) {
         // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
         ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
         client.execute(

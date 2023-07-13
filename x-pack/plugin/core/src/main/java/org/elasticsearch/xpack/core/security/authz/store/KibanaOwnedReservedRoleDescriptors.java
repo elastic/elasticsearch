@@ -37,6 +37,7 @@ class KibanaOwnedReservedRoleDescriptors {
 
     // package-private to expose to ReservedRoleStore
     static RoleDescriptor kibanaAdminUser(String name, Map<String, Object> metadata) {
+
         return new RoleDescriptor(
             name,
             null,

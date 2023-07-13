@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -59,11 +58,7 @@ public record BlobLocation(long primaryTerm, String blobName, long blobLength, l
     }
 
     public static BlobLocation readFromTransport(StreamInput streamInput) throws IOException {
-        if (streamInput.getTransportVersion().onOrAfter(TransportVersion.V_8_500_008)) {
-            return readWithBlobLength(streamInput);
-        } else {
-            return readWithoutBlobLength(streamInput);
-        }
+        return readWithBlobLength(streamInput);
     }
 
     private static BlobLocation readWithBlobLength(StreamInput streamInput) throws IOException {
@@ -109,9 +104,7 @@ public record BlobLocation(long primaryTerm, String blobName, long blobLength, l
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(primaryTerm);
         out.writeString(blobName);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_008)) {
-            out.writeVLong(blobLength);
-        }
+        out.writeVLong(blobLength);
         out.writeVLong(offset);
         out.writeVLong(fileLength);
     }

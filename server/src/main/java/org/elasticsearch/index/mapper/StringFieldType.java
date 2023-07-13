@@ -75,7 +75,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
             fuzziness.asDistance(BytesRefs.toString(value)),
             prefixLength,
             maxExpansions,
-            transpositions
+            transpositions,
+            rewriteMethod
         );
     }
 

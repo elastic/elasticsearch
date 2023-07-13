@@ -96,32 +96,32 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 builder.endObject();
             }
             builder.endArray();
-            builder.startArray("coordinator_stats");
             boolean redactNodeInfo = "serverless".equals(params.param("responseRestricted"));
+            List<CoordinatorStats> filteredCoordinatorStats;
             if (redactNodeInfo) {
-                builder.startObject();
-                rollupCoordinatorStats(coordinatorStats).toXContent(builder, params);
-                builder.endObject();
+                filteredCoordinatorStats = rollupCoordinatorStats(coordinatorStats);
             } else {
-                for (CoordinatorStats entry : coordinatorStats) {
-                    builder.startObject();
-                    entry.toXContent(builder, params);
-                    builder.endObject();
-                }
+                filteredCoordinatorStats = coordinatorStats;
+            }
+            builder.startArray("coordinator_stats");
+            for (CoordinatorStats entry : filteredCoordinatorStats) {
+                builder.startObject();
+                entry.toXContent(builder, params);
+                builder.endObject();
             }
             builder.endArray();
             if (cacheStats != null) {
-                builder.startArray("cache_stats");
+                List<CacheStats> filteredCacheStats;
                 if (redactNodeInfo) {
-                    builder.startObject();
-                    rollupCacheStats(cacheStats).toXContent(builder, params);
-                    builder.endObject();
+                    filteredCacheStats = rollupCacheStats(cacheStats);
                 } else {
-                    for (CacheStats cacheStat : cacheStats) {
-                        builder.startObject();
-                        cacheStat.toXContent(builder, params);
-                        builder.endObject();
-                    }
+                    filteredCacheStats = cacheStats;
+                }
+                builder.startArray("cache_stats");
+                for (CacheStats cacheStat : filteredCacheStats) {
+                    builder.startObject();
+                    cacheStat.toXContent(builder, params);
+                    builder.endObject();
                 }
                 builder.endArray();
             }
@@ -129,7 +129,10 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             return builder;
         }
 
-        private static CoordinatorStats rollupCoordinatorStats(List<CoordinatorStats> coordinatorStatsList) {
+        private static List<CoordinatorStats> rollupCoordinatorStats(List<CoordinatorStats> coordinatorStatsList) {
+            if (coordinatorStatsList.isEmpty()) {
+                return coordinatorStatsList;
+            }
             int totalQueueSize = 0;
             int totalRemoteRequestsCurrent = 0;
             long totalRemoteRequestsTotal = 0;
@@ -140,16 +143,21 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 totalRemoteRequestsTotal += stats.remoteRequestsTotal;
                 totalExecutedSearchesTotal += stats.executedSearchesTotal;
             }
-            return new CoordinatorStats(
-                "N/A",
-                totalQueueSize,
-                totalRemoteRequestsCurrent,
-                totalRemoteRequestsTotal,
-                totalExecutedSearchesTotal
+            return List.of(
+                new CoordinatorStats(
+                    "N/A",
+                    totalQueueSize,
+                    totalRemoteRequestsCurrent,
+                    totalRemoteRequestsTotal,
+                    totalExecutedSearchesTotal
+                )
             );
         }
 
-        private static CacheStats rollupCacheStats(List<CacheStats> cacheStatsList) {
+        private static List<CacheStats> rollupCacheStats(List<CacheStats> cacheStatsList) {
+            if (cacheStatsList.isEmpty()) {
+                return cacheStatsList;
+            }
             long totalCount = 0;
             long totalHits = 0;
             long totalMisses = 0;
@@ -160,7 +168,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 totalMisses += stats.misses;
                 totalEvictions += stats.evictions;
             }
-            return new CacheStats("N/A", totalCount, totalHits, totalMisses, totalEvictions);
+            return List.of(new CacheStats("N/A", totalCount, totalHits, totalMisses, totalEvictions));
         }
 
         @Override

@@ -21,11 +21,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class EnrichStatsActionTests extends ESTestCase {
 
     public void testFilterNodesFromResponse() throws IOException {
-        int numberOfNodes = randomIntBetween(3, 20);
+        int numberOfNodes = randomIntBetween(0, 20);
         List<Response.ExecutingPolicy> executingPolicies = new ArrayList<>();
         List<Response.CoordinatorStats> coordinatorStats = new ArrayList<>();
         List<Response.CacheStats> cacheStats = new ArrayList<>();
@@ -52,22 +53,37 @@ public class EnrichStatsActionTests extends ESTestCase {
         }
         Response response = new Response(executingPolicies, coordinatorStats, cacheStats);
         // No params, we expect no filtering:
-        assertToXContentResults(response, ToXContent.EMPTY_PARAMS, numberOfNodes);
+        assertToXContentResults(response, ToXContent.EMPTY_PARAMS, numberOfNodes, false);
         // responseRestricted=serverless, we expect coordinator stats and cache stats to be rolled up to a single object:
-        assertToXContentResults(response, new ToXContent.MapParams(Map.of(RestRequest.RESPONSE_RESTRICTED, "serverless")), 1);
+        assertToXContentResults(
+            response,
+            new ToXContent.MapParams(Map.of(RestRequest.RESPONSE_RESTRICTED, "serverless")),
+            numberOfNodes == 0 ? 0 : 1,
+            true
+        );
         // making sure we don't throw a NullPointerException
-        assertToXContentResults(response, new ToXContent.MapParams(Collections.singletonMap("responseRestricted", null)), numberOfNodes);
+        assertToXContentResults(
+            response,
+            new ToXContent.MapParams(Collections.singletonMap("responseRestricted", null)),
+            numberOfNodes,
+            false
+        );
         // wrong value for responseRestricted, we expect no filtering:
         assertToXContentResults(
             response,
             new ToXContent.MapParams(Map.of(RestRequest.RESPONSE_RESTRICTED, randomAlphaOfLength(5))),
-            numberOfNodes
+            numberOfNodes,
+            false
         );
     }
 
     @SuppressWarnings("unchecked")
-    private void assertToXContentResults(Response response, ToXContent.Params toXContentParams, int expectedNumberOfNodes)
-        throws IOException {
+    private void assertToXContentResults(
+        Response response,
+        ToXContent.Params toXContentParams,
+        int expectedNumberOfNodes,
+        boolean expectedRedaction
+    ) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, toXContentParams);
         Map<String, Object> responseMap = createParser(builder).map();
@@ -75,9 +91,13 @@ public class EnrichStatsActionTests extends ESTestCase {
         assertThat(coordinatorStatsList.size(), equalTo(expectedNumberOfNodes));
         List<Object> cacheStatsList = (List<Object>) responseMap.get("cache_stats");
         assertThat(cacheStatsList.size(), equalTo(expectedNumberOfNodes));
-        if (expectedNumberOfNodes == 1) {
-            assertThat(((Map<String, String>) coordinatorStatsList.get(0)).get("node_id"), equalTo("N/A"));
-            assertThat(((Map<String, String>) cacheStatsList.get(0)).get("node_id"), equalTo("N/A"));
+        for (Object coordinatorStats : coordinatorStatsList) {
+            String nodeId = ((Map<String, String>) coordinatorStats).get("node_id");
+            if (expectedRedaction) {
+                assertThat(nodeId, equalTo("N/A"));
+            } else {
+                assertThat(nodeId, not("N/A"));
+            }
         }
     }
 }

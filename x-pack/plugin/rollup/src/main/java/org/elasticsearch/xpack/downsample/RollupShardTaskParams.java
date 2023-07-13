@@ -57,7 +57,7 @@ public record RollupShardTaskParams(
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ROLLUP_INDEX);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_START_TIME_MILLIS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_END_TIME_MILLIS);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ShardId.fromString(p.text()), SHARD_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), SHARD_ID);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), METRICS);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LABELS);
     }

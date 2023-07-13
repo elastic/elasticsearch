@@ -618,6 +618,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 matchingEntries.add(value);
             }
         });
+        var evictedCount = 0;
         if (matchingEntries.isEmpty() == false) {
             synchronized (this) {
                 for (Entry<CacheFileRegion> entry : matchingEntries) {
@@ -625,11 +626,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     if (evicted && entry.chunk.sharedBytesPos != -1) {
                         unlink(entry);
                         keyMapping.remove(entry.chunk.regionKey, entry);
+                        evictedCount++;
                     }
                 }
             }
         }
-        return matchingEntries.size();
+        return evictedCount;
     }
 
     /**

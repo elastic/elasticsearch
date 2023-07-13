@@ -44,7 +44,7 @@ class ModelImporter {
     ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig) {
         this.client = client;
         this.modelId = Objects.requireNonNull(modelId);
-        this.config = packageConfig;
+        this.config = Objects.requireNonNull(packageConfig);
     }
 
     public void doImport() throws URISyntaxException, IOException, ElasticsearchStatusException {

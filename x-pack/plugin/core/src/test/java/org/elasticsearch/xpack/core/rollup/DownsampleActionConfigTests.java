@@ -47,10 +47,7 @@ public class DownsampleActionConfigTests extends AbstractXContentSerializingTest
     }
 
     public void testEmptyFixedInterval() {
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new DownsampleConfig((DateHistogramInterval) null, TIMEOUT)
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new DownsampleConfig((DateHistogramInterval) null, TIMEOUT));
         assertThat(e.getMessage(), equalTo("Parameter [fixed_interval] is required."));
     }
 

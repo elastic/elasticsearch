@@ -274,7 +274,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         // memory
         var memoryMetricsService = new MemoryMetricsService();
         // ingest
-        var ingestLoadPublisher = new IngestLoadPublisher(client, clusterService, threadPool);
+        var ingestLoadPublisher = new IngestLoadPublisher(client);
         var writeLoadSampler = AverageWriteLoadSampler.create(threadPool, settings, clusterService.getClusterSettings());
         var ingestLoadProbe = new IngestLoadProbe(clusterService.getClusterSettings(), writeLoadSampler::getExecutorStats);
         var ingestLoadSampler = IngestLoadSampler.create(

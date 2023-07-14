@@ -31,7 +31,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
@@ -212,7 +211,15 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             if (identifiedPinnedIds == null && identifiedPinnedDocs == null) {
                 return this; // not executed yet
             } else {
-                return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetId, identifiedPinnedIds, identifiedPinnedDocs, null, null);
+                return new RuleQueryBuilder(
+                    organicQuery,
+                    matchCriteria,
+                    rulesetId,
+                    identifiedPinnedIds,
+                    identifiedPinnedDocs,
+                    null,
+                    null
+                );
             }
         }
 
@@ -267,7 +274,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(rulesetId, matchCriteria, organicQuery, pinnedIds, pinnedDocs, pinnedIdsSupplier, pinnedDocsSupplier);
+        return Objects.hash(
+            rulesetId, matchCriteria, organicQuery, pinnedIds, pinnedDocs, pinnedIdsSupplier, pinnedDocsSupplier
+        );
     }
 
     private static final ConstructingObjectParser<RuleQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {
@@ -284,10 +293,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         declareStandardFields(PARSER);
     }
 
-    public static RuleQueryBuilder fromXContent(XContentParser parser) {
+    public static RuleQueryBuilder fromXContent(XContentParser parser, XPackLicenseState licenseState) {
         try {
-            XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
-            if (licenseState != null && QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(licenseState) == false) {
+            if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(licenseState) == false) {
                 throw LicenseUtils.newComplianceException(NAME);
             }
             return PARSER.apply(parser, null);

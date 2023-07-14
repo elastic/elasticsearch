@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -17,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -89,7 +89,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         tasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams("foo-2", Version.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams("foo-2", MlConfigVersion.CURRENT, true),
             new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
         );
         tasksBuilder.addTask(
@@ -145,7 +145,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         tasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams("foo-2", Version.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams("foo-2", MlConfigVersion.CURRENT, true),
             new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
         );
         tasksBuilder.updateTaskState(

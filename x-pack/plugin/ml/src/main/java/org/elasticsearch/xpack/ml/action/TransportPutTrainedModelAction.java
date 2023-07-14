@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.search.SearchRequest;
@@ -51,6 +50,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Response;
@@ -199,7 +199,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
         }
 
-        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config).setVersion(Version.CURRENT)
+        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config).setVersion(MlConfigVersion.CURRENT)
             .setCreateTime(Instant.now())
             .setCreatedBy("api_user")
             .setLicenseLevel(License.OperationMode.PLATINUM.description());

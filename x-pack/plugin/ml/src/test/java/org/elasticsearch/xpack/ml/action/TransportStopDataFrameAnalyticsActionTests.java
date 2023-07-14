@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
@@ -77,7 +77,7 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, allowLazyStart),
+            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, MlConfigVersion.CURRENT, allowLazyStart),
             new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
         );
 

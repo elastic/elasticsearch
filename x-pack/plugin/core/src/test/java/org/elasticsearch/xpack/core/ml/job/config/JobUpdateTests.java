@@ -16,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 
 import java.util.ArrayList;
@@ -130,10 +131,10 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
             update.setModelSnapshotId(randomAlphaOfLength(10));
         }
         if (useInternalParser && randomBoolean()) {
-            update.setModelSnapshotMinVersion(Version.CURRENT);
+            update.setModelSnapshotMinVersion(MlConfigVersion.CURRENT);
         }
         if (useInternalParser && randomBoolean()) {
-            update.setJobVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+            update.setJobVersion(MlConfigVersion.fromVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)));
         }
         if (useInternalParser) {
             update.setClearFinishTime(randomBoolean());
@@ -291,7 +292,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         updateBuilder.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
         updateBuilder.setCustomSettings(customSettings);
         updateBuilder.setModelSnapshotId(randomAlphaOfLength(10));
-        updateBuilder.setJobVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+        updateBuilder.setJobVersion(MlConfigVersion.fromVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)));
         updateBuilder.setModelPruneWindow(TimeValue.timeValueDays(randomIntBetween(1, 100)));
         JobUpdate update = updateBuilder.build();
 

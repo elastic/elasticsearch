@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 
 import java.io.IOException;
 
@@ -25,7 +26,11 @@ public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractXConte
 
     @Override
     protected StartDataFrameAnalyticsAction.TaskParams createTestInstance() {
-        return new StartDataFrameAnalyticsAction.TaskParams(randomAlphaOfLength(10), randomVersion(random()), randomBoolean());
+        return new StartDataFrameAnalyticsAction.TaskParams(
+            randomAlphaOfLength(10),
+            MlConfigVersion.fromVersion(randomVersion(random())),
+            randomBoolean()
+        );
     }
 
     @Override

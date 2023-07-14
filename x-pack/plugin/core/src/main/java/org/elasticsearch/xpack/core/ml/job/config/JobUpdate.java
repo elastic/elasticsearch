@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +18,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -102,8 +102,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
     private final PerPartitionCategorizationConfig perPartitionCategorizationConfig;
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
-    private final Version modelSnapshotMinVersion;
-    private final Version jobVersion;
+    private final MlConfigVersion modelSnapshotMinVersion;
+    private final MlConfigVersion jobVersion;
     private final Boolean clearJobFinishTime;
     private final Boolean allowLazyOpen;
     private final Blocked blocked;
@@ -125,8 +125,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
         @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
         @Nullable Map<String, Object> customSettings,
         @Nullable String modelSnapshotId,
-        @Nullable Version modelSnapshotMinVersion,
-        @Nullable Version jobVersion,
+        @Nullable MlConfigVersion modelSnapshotMinVersion,
+        @Nullable MlConfigVersion jobVersion,
         @Nullable Boolean clearJobFinishTime,
         @Nullable Boolean allowLazyOpen,
         @Nullable Blocked blocked,
@@ -181,13 +181,13 @@ public class JobUpdate implements Writeable, ToXContentObject {
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
         if (in.readBoolean()) {
-            jobVersion = Version.readVersion(in);
+            jobVersion = MlConfigVersion.readVersion(in);
         } else {
             jobVersion = null;
         }
         clearJobFinishTime = in.readOptionalBoolean();
         if (in.readBoolean()) {
-            modelSnapshotMinVersion = Version.readVersion(in);
+            modelSnapshotMinVersion = MlConfigVersion.readVersion(in);
         } else {
             modelSnapshotMinVersion = null;
         }
@@ -223,14 +223,14 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalString(modelSnapshotId);
         if (jobVersion != null) {
             out.writeBoolean(true);
-            Version.writeVersion(jobVersion, out);
+            MlConfigVersion.writeVersion(jobVersion, out);
         } else {
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(clearJobFinishTime);
         if (modelSnapshotMinVersion != null) {
             out.writeBoolean(true);
-            Version.writeVersion(modelSnapshotMinVersion, out);
+            MlConfigVersion.writeVersion(modelSnapshotMinVersion, out);
         } else {
             out.writeBoolean(false);
         }
@@ -300,11 +300,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return modelSnapshotId;
     }
 
-    public Version getModelSnapshotMinVersion() {
+    public MlConfigVersion getModelSnapshotMinVersion() {
         return modelSnapshotMinVersion;
     }
 
-    public Version getJobVersion() {
+    public MlConfigVersion getJobVersion() {
         return jobVersion;
     }
 
@@ -783,8 +783,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
         private PerPartitionCategorizationConfig perPartitionCategorizationConfig;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
-        private Version modelSnapshotMinVersion;
-        private Version jobVersion;
+        private MlConfigVersion modelSnapshotMinVersion;
+        private MlConfigVersion jobVersion;
         private Boolean clearJobFinishTime;
         private Boolean allowLazyOpen;
         private Blocked blocked;
@@ -869,23 +869,23 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setModelSnapshotMinVersion(Version modelSnapshotMinVersion) {
+        public Builder setModelSnapshotMinVersion(MlConfigVersion modelSnapshotMinVersion) {
             this.modelSnapshotMinVersion = modelSnapshotMinVersion;
             return this;
         }
 
         public Builder setModelSnapshotMinVersion(String modelSnapshotMinVersion) {
-            this.modelSnapshotMinVersion = Version.fromString(modelSnapshotMinVersion);
+            this.modelSnapshotMinVersion = MlConfigVersion.fromString(modelSnapshotMinVersion);
             return this;
         }
 
-        public Builder setJobVersion(Version version) {
+        public Builder setJobVersion(MlConfigVersion version) {
             this.jobVersion = version;
             return this;
         }
 
         public Builder setJobVersion(String version) {
-            this.jobVersion = Version.fromString(version);
+            this.jobVersion = MlConfigVersion.fromString(version);
             return this;
         }
 

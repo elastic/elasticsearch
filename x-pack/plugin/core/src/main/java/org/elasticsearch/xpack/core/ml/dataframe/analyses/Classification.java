@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Randomness;
@@ -21,6 +20,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
@@ -284,7 +284,7 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Version version = Version.fromString(params.param("version", Version.CURRENT.toString()));
+        MlConfigVersion version = MlConfigVersion.fromString(params.param("version", MlConfigVersion.CURRENT.toString()));
 
         builder.startObject();
         builder.field(DEPENDENT_VARIABLE.getPreferredName(), dependentVariable);
@@ -295,7 +295,7 @@ public class Classification implements DataFrameAnalysis {
             builder.field(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
         builder.field(TRAINING_PERCENT.getPreferredName(), trainingPercent);
-        if (version.onOrAfter(Version.V_7_6_0)) {
+        if (version.onOrAfter(MlConfigVersion.V_7_6_0)) {
             builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
         }
         if (featureProcessors.isEmpty() == false) {

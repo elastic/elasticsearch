@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -35,6 +34,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.ClassificationTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
@@ -174,7 +174,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 builder.setCreateTime(Instant.now());
             }
             if (randomBoolean()) {
-                builder.setVersion(Version.CURRENT);
+                builder.setVersion(MlConfigVersion.CURRENT);
             }
         }
         if (randomBoolean()) {
@@ -405,7 +405,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         Regression regression = new Regression("foo");
         assertThat(regression.getRandomizeSeed(), is(notNullValue()));
 
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setVersion(Version.CURRENT)
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setVersion(MlConfigVersion.CURRENT)
             .setId("test_config")
             .setSource(new DataFrameAnalyticsSource(new String[] { "source_index" }, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))

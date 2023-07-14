@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -31,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
@@ -86,7 +86,7 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class JobManager {
 
-    private static final Version MIN_NODE_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER = Version.V_7_14_0;
+    private static final MlConfigVersion MIN_ML_CONFIG_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER = MlConfigVersion.V_7_14_0;
 
     private static final Logger logger = LogManager.getLogger(JobManager.class);
 
@@ -209,7 +209,7 @@ public class JobManager {
     static void validateCategorizationAnalyzerOrSetDefault(
         Job.Builder jobBuilder,
         AnalysisRegistry analysisRegistry,
-        Version minNodeVersion
+        MlConfigVersion minNodeVersion
     ) throws IOException {
         AnalysisConfig analysisConfig = jobBuilder.getAnalysisConfig();
         CategorizationAnalyzerConfig categorizationAnalyzerConfig = analysisConfig.getCategorizationAnalyzerConfig();
@@ -219,7 +219,7 @@ public class JobManager {
                 analysisRegistry
             );
         } else if (analysisConfig.getCategorizationFieldName() != null
-            && minNodeVersion.onOrAfter(MIN_NODE_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER)) {
+            && minNodeVersion.onOrAfter(MIN_ML_CONFIG_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER)) {
                 // Any supplied categorization filters are transferred into the new categorization analyzer.
                 // The user supplied categorization filters will already have been validated when the put job
                 // request was built, so we know they're valid.
@@ -240,7 +240,10 @@ public class JobManager {
         ActionListener<PutJobAction.Response> actionListener
     ) throws IOException {
 
-        Version minNodeVersion = state.getNodes().getMinNodeVersion();
+        MlConfigVersion minNodeVersion = MlConfigVersion.getMinMlConfigVersion(
+            state.getNodes(),
+            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR
+        );
 
         Job.Builder jobBuilder = request.getJobBuilder();
         jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimitSupplier.get());

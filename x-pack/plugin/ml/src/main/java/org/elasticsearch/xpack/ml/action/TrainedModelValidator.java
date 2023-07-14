@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
 
@@ -33,7 +33,7 @@ final class TrainedModelValidator {
     }
 
     static void validateMinimumVersion(ModelPackageConfig resolvedModelPackageConfig, ClusterState state) {
-        Version minimumVersion;
+        MlConfigVersion minimumVersion;
 
         // {@link Version#fromString} interprets an empty string as current version, so we have to check ourselves
         if (Strings.isNullOrEmpty(resolvedModelPackageConfig.getMinimumVersion())) {
@@ -46,7 +46,7 @@ final class TrainedModelValidator {
         }
 
         try {
-            minimumVersion = Version.fromString(resolvedModelPackageConfig.getMinimumVersion());
+            minimumVersion = MlConfigVersion.fromString(resolvedModelPackageConfig.getMinimumVersion());
         } catch (IllegalArgumentException e) {
             throw new ActionRequestValidationException().addValidationError(
                 format(
@@ -56,7 +56,7 @@ final class TrainedModelValidator {
             );
         }
 
-        if (state.nodes().getMinNodeVersion().before(minimumVersion)) {
+        if (MlConfigVersion.fromVersion(state.nodes().getMinNodeVersion()).before(minimumVersion)) {
             throw new ActionRequestValidationException().addValidationError(
                 format(
                     "The model [%s] requires that all nodes are at least version [%s]",

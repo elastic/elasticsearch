@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.ml.inference.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -194,7 +196,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 includeNodeInfo
             );
             try {
-                processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
+                processorFactory.accept(builderClusterStateWithModelReferences(MlConfigVersion.V_7_5_0, "model1"));
             } catch (IOException ioe) {
                 throw new AssertionError(ioe.getMessage());
             }
@@ -256,7 +258,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 includeNodeInfo
             );
             try {
-                processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
+                processorFactory.accept(builderClusterStateWithModelReferences(MlConfigVersion.V_7_5_0, "model1"));
             } catch (IOException ioe) {
                 throw new AssertionError(ioe.getMessage());
             }
@@ -306,7 +308,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 includeNodeInfo
             );
             try {
-                processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
+                processorFactory.accept(builderClusterStateWithModelReferences(MlConfigVersion.V_7_5_0, "model1"));
             } catch (IOException ioe) {
                 throw new AssertionError(ioe.getMessage());
             }
@@ -447,10 +449,11 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     }
 
     private static ClusterState buildClusterStateWithModelReferences(String... modelId) throws IOException {
-        return builderClusterStateWithModelReferences(Version.CURRENT, modelId);
+        return builderClusterStateWithModelReferences(MlConfigVersion.CURRENT, modelId);
     }
 
-    private static ClusterState builderClusterStateWithModelReferences(Version minNodeVersion, String... modelId) throws IOException {
+    private static ClusterState builderClusterStateWithModelReferences(MlConfigVersion minNodeVersion, String... modelId)
+        throws IOException {
         Map<String, PipelineConfiguration> configurations = Maps.newMapWithExpectedSize(modelId.length);
         for (String id : modelId) {
             configurations.put(
@@ -465,7 +468,12 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNodeUtils.create("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), minNodeVersion)
+                        DiscoveryNodeUtils.create(
+                            "min_node",
+                            new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                            Map.of(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR, minNodeVersion.toString()),
+                            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.DATA_ROLE)
+                        )
                     )
                     .add(DiscoveryNodeUtils.create("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302)))
                     .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304)))

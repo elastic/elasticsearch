@@ -36,6 +36,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -738,7 +739,7 @@ public class DestinationIndexTests extends ESTestCase {
 
     public void testReadMetadata_GivenCurrentVersion() {
         Map<String, Object> mappings = new HashMap<>();
-        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.CURRENT));
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), MlConfigVersion.CURRENT));
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
 
@@ -746,7 +747,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         assertThat(metadata.hasMetadata(), is(true));
         assertThat(metadata.isCompatible(), is(true));
-        assertThat(metadata.getVersion(), equalTo(Version.CURRENT.toString()));
+        assertThat(metadata.getVersion(), equalTo(MlConfigVersion.CURRENT.toString()));
     }
 
     public void testReadMetadata_GivenMinCompatibleVersion() {
@@ -764,7 +765,7 @@ public class DestinationIndexTests extends ESTestCase {
 
     public void testReadMetadata_GivenIncompatibleVersion() {
         Map<String, Object> mappings = new HashMap<>();
-        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.V_7_9_3));
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), MlConfigVersion.V_7_9_3));
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
 

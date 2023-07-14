@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.notifications;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 public final class NotificationsIndex {
@@ -21,7 +21,7 @@ public final class NotificationsIndex {
     public static String mapping() {
         return TemplateUtils.loadTemplate(
             RESOURCE_PATH + "notifications_index_mappings.json",
-            Version.CURRENT.toString(),
+            MlConfigVersion.CURRENT.toString(),
             MAPPINGS_VERSION_VARIABLE
         );
     }

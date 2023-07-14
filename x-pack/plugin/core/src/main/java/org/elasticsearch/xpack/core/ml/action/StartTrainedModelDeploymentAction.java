@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -28,6 +27,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
@@ -375,10 +375,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         // NOTE, whatever determines assignment should not be dynamically set on the node
         // Otherwise assignment logic might fail
         public static boolean mayAssignToNode(DiscoveryNode node) {
-            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) && node.getVersion().onOrAfter(VERSION_INTRODUCED);
+            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) && MlConfigVersion.fromNode(node).onOrAfter(VERSION_INTRODUCED);
         }
 
-        public static final Version VERSION_INTRODUCED = Version.V_8_0_0;
+        public static final MlConfigVersion VERSION_INTRODUCED = MlConfigVersion.V_8_0_0;
         private static final ParseField MODEL_BYTES = new ParseField("model_bytes");
         public static final ParseField NUMBER_OF_ALLOCATIONS = new ParseField("number_of_allocations");
         public static final ParseField THREADS_PER_ALLOCATION = new ParseField("threads_per_allocation");
@@ -527,7 +527,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelId, modelBytes);
         }
 
-        public Version getMinimalSupportedVersion() {
+        public MlConfigVersion getMinimalSupportedVersion() {
             return VERSION_INTRODUCED;
         }
 

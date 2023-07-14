@@ -32,6 +32,7 @@ import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
@@ -165,7 +166,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             // which is OK as we have already checked the node is >= 5.5.0.
             return true;
         }
-        return node.getVersion().onOrAfter(job.getModelSnapshotMinVersion());
+        return MlConfigVersion.fromString(node.getAttributes().get(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR))
+            .onOrAfter(job.getModelSnapshotMinVersion());
     }
 
     public static String nodeFilter(DiscoveryNode node, Job job) {
@@ -182,7 +184,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 + "] or higher";
         }
 
-        if (Job.getCompatibleJobTypes(node.getVersion()).contains(job.getJobType()) == false) {
+        if (Job.getCompatibleJobTypes(MlConfigVersion.fromString(node.getAttributes().get(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR)))
+            .contains(job.getJobType()) == false) {
             return "Not opening job ["
                 + jobId
                 + "] on node ["

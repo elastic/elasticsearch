@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction.TaskParams;
@@ -768,7 +769,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         Job job = mock(Job.class);
         when(job.getId()).thenReturn("incompatible_type_job");
-        when(job.getJobVersion()).thenReturn(Version.CURRENT);
+        when(job.getJobVersion()).thenReturn(MlConfigVersion.CURRENT);
         when(job.getJobType()).thenReturn("incompatible_type");
         when(job.getInitialResultsIndexName()).thenReturn("shared");
 
@@ -826,7 +827,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         Job job = mock(Job.class);
         when(job.getId()).thenReturn("incompatible_type_job");
-        when(job.getJobVersion()).thenReturn(Version.CURRENT);
+        when(job.getJobVersion()).thenReturn(MlConfigVersion.CURRENT);
         when(job.getJobType()).thenReturn("incompatible_type");
         when(job.getInitialResultsIndexName()).thenReturn("shared");
 
@@ -860,11 +861,21 @@ public class JobNodeSelectorTests extends ESTestCase {
     }
 
     public void testSelectLeastLoadedMlNode_noNodesMatchingModelSnapshotMinVersion() {
-        Map<String, String> nodeAttr = Map.of(
+        Map<String, String> nodeAttr1 = Map.of(
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             "1000000000",
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            "400000000"
+            "400000000",
+            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
+            "7.2.0"
+        );
+        Map<String, String> nodeAttr2 = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "1000000000",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000",
+            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
+            "7.1.0"
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
@@ -872,9 +883,9 @@ public class JobNodeSelectorTests extends ESTestCase {
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    nodeAttr,
+                    nodeAttr1,
                     ROLES_WITH_ML,
-                    VersionInformation.inferVersions(Version.fromString("6.2.0"))
+                    VersionInformation.inferVersions(Version.fromString("7.2.0"))
                 )
             )
             .add(
@@ -882,9 +893,9 @@ public class JobNodeSelectorTests extends ESTestCase {
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                    nodeAttr,
+                    nodeAttr2,
                     ROLES_WITH_ML,
-                    VersionInformation.inferVersions(Version.fromString("6.1.0"))
+                    VersionInformation.inferVersions(Version.fromString("7.1.0"))
                 )
             )
             .build();
@@ -898,7 +909,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_with_incompatible_model_snapshot")
             .setModelSnapshotId("incompatible_snapshot")
-            .setModelSnapshotMinVersion(Version.fromString("6.3.0"))
+            .setModelSnapshotMinVersion(MlConfigVersion.fromString("7.3.0"))
             .build(new Date());
         cs.nodes(nodes);
         metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks);
@@ -913,7 +924,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, false);
-        assertThat(result.getExplanation(), containsString("job's model snapshot requires a node of version [6.3.0] or higher"));
+        assertThat(result.getExplanation(), containsString("job's model snapshot requires a node of version [7.3.0] or higher"));
         assertNull(result.getExecutorNode());
     }
 
@@ -1368,7 +1379,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(id),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT, allowLazyStart),
+            new StartDataFrameAnalyticsAction.TaskParams(id, MlConfigVersion.CURRENT, allowLazyStart),
             new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
         );
         if (state != null) {
@@ -1380,6 +1391,6 @@ public class JobNodeSelectorTests extends ESTestCase {
     }
 
     private static TaskParams createTaskParams(String id) {
-        return new TaskParams(id, Version.CURRENT, false);
+        return new TaskParams(id, MlConfigVersion.CURRENT, false);
     }
 }

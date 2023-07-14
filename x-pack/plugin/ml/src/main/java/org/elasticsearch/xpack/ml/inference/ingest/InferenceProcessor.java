@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +22,7 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassifica
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor;
@@ -198,7 +199,7 @@ public class InferenceProcessor extends AbstractProcessor {
         private final InferenceAuditor auditor;
         private volatile int currentInferenceProcessors;
         private volatile int maxIngestProcessors;
-        private volatile Version minNodeVersion = Version.CURRENT;
+        private volatile MlConfigVersion minNodeVersion = MlConfigVersion.CURRENT;
 
         public Factory(Client client, ClusterService clusterService, Settings settings, boolean includeNodeInfo) {
             this.client = client;
@@ -209,7 +210,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
         @Override
         public void accept(ClusterState state) {
-            minNodeVersion = state.nodes().getMinNodeVersion();
+            minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.nodes(), MachineLearning.ML_CONFIG_VERSION_NODE_ATTR);
             try {
                 currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(state);
             } catch (Exception ex) {
@@ -363,12 +364,12 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         void checkSupportedVersion(InferenceConfig config) {
-            if (config.getMinimalSupportedNodeVersion().after(minNodeVersion)) {
+            if (config.getMinimalSupportedMlConfigVersion().after(minNodeVersion)) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(
                         Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
                         config.getName(),
-                        config.getMinimalSupportedNodeVersion(),
+                        config.getMinimalSupportedMlConfigVersion(),
                         minNodeVersion
                     )
                 );

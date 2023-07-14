@@ -34,6 +34,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -1030,7 +1031,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         previousTasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", Version.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.CURRENT, true),
             new PersistentTasksCustomMetadata.Assignment(mlNodeId, "test assignment")
         );
 
@@ -1101,7 +1102,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         previousTasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", Version.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.CURRENT, true),
             new PersistentTasksCustomMetadata.Assignment(mlNodeId, "test assignment")
         );
 
@@ -1121,7 +1122,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         currentTasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", Version.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.CURRENT, true),
             new PersistentTasksCustomMetadata.Assignment(mlNodeId, "test assignment")
         );
 
@@ -1486,6 +1487,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(nativeMemory))
                 .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10))
                 .put(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, String.valueOf(allocatedProcessors))
+                .put(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.fromVersion(version.nodeVersion()).toString())
                 .map(),
             isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
             version

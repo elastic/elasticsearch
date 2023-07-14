@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
@@ -97,7 +97,7 @@ public final class DestinationIndex {
      * If the results mappings change in a way existing destination indices will fail to index
      * the results, this should be bumped accordingly.
      */
-    public static final Version MIN_COMPATIBLE_VERSION =
+    public static final MlConfigVersion MIN_COMPATIBLE_VERSION =
         StartDataFrameAnalyticsAction.TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED;
 
     private DestinationIndex() {}
@@ -203,7 +203,7 @@ public final class DestinationIndex {
         checkResultsFieldIsNotPresentInProperties(config, properties);
         properties.putAll(createAdditionalMappings(config, fieldCapabilitiesResponse));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
-        metadata.putAll(createMetadata(config.getId(), clock, Version.CURRENT));
+        metadata.putAll(createMetadata(config.getId(), clock, MlConfigVersion.CURRENT));
         if (config.getSource().getRuntimeMappings().isEmpty() == false) {
             Map<String, Object> runtimeMappings = getOrPutDefault(mappingsAsMap, RUNTIME, HashMap::new);
             runtimeMappings.putAll(config.getSource().getRuntimeMappings());
@@ -328,7 +328,7 @@ public final class DestinationIndex {
     }
 
     // Visible for testing
-    static Map<String, Object> createMetadata(String analyticsId, Clock clock, Version version) {
+    static Map<String, Object> createMetadata(String analyticsId, Clock clock, MlConfigVersion version) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(CREATION_DATE_MILLIS, clock.millis());
         metadata.put(CREATED_BY, DFA_CREATOR);
@@ -414,11 +414,11 @@ public final class DestinationIndex {
     }
 
     @SuppressWarnings("unchecked")
-    private static Version getVersion(String jobId, Map<String, Object> meta) {
+    private static MlConfigVersion getVersion(String jobId, Map<String, Object> meta) {
         try {
             Map<String, Object> version = (Map<String, Object>) meta.get(VERSION);
             String createdVersionString = (String) version.get(CREATED);
-            return Version.fromString(createdVersionString);
+            return MlConfigVersion.fromString(createdVersionString);
         } catch (Exception e) {
             logger.error(() -> "[" + jobId + "] Could not retrieve destination index version", e);
             return null;
@@ -454,9 +454,9 @@ public final class DestinationIndex {
 
     private static class DestMetadata implements Metadata {
 
-        private final Version version;
+        private final MlConfigVersion version;
 
-        private DestMetadata(Version version) {
+        private DestMetadata(MlConfigVersion version) {
             this.version = version;
         }
 

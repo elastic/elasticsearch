@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
@@ -581,6 +582,9 @@ public class MachineLearning extends Plugin
     public static final String PRE_V_8_5_ALLOCATED_PROCESSORS_NODE_ATTR = "ml.allocated_processors";
 
     public static final String ALLOCATED_PROCESSORS_NODE_ATTR = "ml.allocated_processors_double";
+
+    public static final String ML_CONFIG_VERSION_NODE_ATTR = MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR;
+
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS = Setting.intSetting(
         "xpack.ml.node_concurrent_job_allocations",
         2,
@@ -786,6 +790,7 @@ public class MachineLearning extends Plugin
         String jvmSizeAttrName = "node.attr." + MAX_JVM_SIZE_NODE_ATTR;
         String deprecatedAllocatedProcessorsAttrName = "node.attr." + PRE_V_8_5_ALLOCATED_PROCESSORS_NODE_ATTR;
         String allocatedProcessorsAttrName = "node.attr." + ALLOCATED_PROCESSORS_NODE_ATTR;
+        String mlConfigVersionAttrName = "node.attr." + ML_CONFIG_VERSION_NODE_ATTR;
 
         if (enabled == false) {
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName);
@@ -806,6 +811,7 @@ public class MachineLearning extends Plugin
                 Integer.toString(EsExecutors.allocatedProcessors(settings))
             );
             addMlNodeAttribute(additionalSettings, allocatedProcessorsAttrName, Double.toString(getAllocatedProcessors().count()));
+            addMlNodeAttribute(additionalSettings, mlConfigVersionAttrName, MlConfigVersion.CURRENT.toString());
             // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName);
         } else {

@@ -86,7 +86,10 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
-        ongoingTasks.put(r, System.nanoTime());
+        super.beforeExecute(t, r);
+        assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
+        final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
+        ongoingTasks.put(r, timedRunnable.getStartTimeNanos());
     }
 
     @Override

@@ -26,7 +26,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-windows"
         command: |
-          bash -c '.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK'
+          bash -ec '.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK'
           $$exitCode = $$LASTEXITCODE
           powershell .buildkite/scripts/windows-end-job.ps1
           exit $$exitCode

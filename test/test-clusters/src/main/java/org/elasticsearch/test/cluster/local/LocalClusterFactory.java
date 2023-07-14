@@ -230,7 +230,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             return process.pid();
         }
 
-        public InputStream streamLog(LogType logType) {
+        public InputStream getLog(LogType logType) {
             Path logFile = logsDir.resolve(logType.getFilename());
             if (Files.exists(logFile)) {
                 try {

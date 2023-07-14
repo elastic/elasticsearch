@@ -139,9 +139,9 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     }
 
     @Override
-    public InputStream streamNodeLog(int index, LogType logType) {
+    public InputStream getNodeLog(int index, LogType logType) {
         checkHandle();
-        return handle.streamNodeLog(index, logType);
+        return handle.getNodeLog(index, logType);
     }
 
     private void checkHandle() {

@@ -172,8 +172,8 @@ public class LocalClusterHandle implements ClusterHandle {
     }
 
     @Override
-    public InputStream streamNodeLog(int index, LogType logType) {
-        return nodes.get(index).streamLog(logType);
+    public InputStream getNodeLog(int index, LogType logType) {
+        return nodes.get(index).getLog(logType);
     }
 
     protected void waitUntilReady() {

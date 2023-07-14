@@ -132,5 +132,5 @@ public interface ClusterHandle extends Closeable {
     /**
      * Returns an {@link InputStream} for the given node log.
      */
-    InputStream streamNodeLog(int index, LogType logType);
+    InputStream getNodeLog(int index, LogType logType);
 }

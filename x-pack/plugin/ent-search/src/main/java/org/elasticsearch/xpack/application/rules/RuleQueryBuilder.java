@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -284,12 +285,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     }
 
     public static RuleQueryBuilder fromXContent(XContentParser parser) {
-
-        if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
-            throw LicenseUtils.newComplianceException(NAME);
-        }
-
         try {
+            XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
+            if (licenseState != null && QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(licenseState) == false) {
+                throw LicenseUtils.newComplianceException(NAME);
+            }
             return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);

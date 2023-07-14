@@ -116,7 +116,7 @@ public record RollupShardTaskParams(
             in.readString(),
             in.readVLong(),
             in.readVLong(),
-            ShardId.fromString(in.readString()),
+            new ShardId(in),
             in.readStringArray(),
             in.readStringArray()
         );

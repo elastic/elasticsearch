@@ -50,7 +50,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupAfterBulkInfo;
 import org.elasticsearch.xpack.core.rollup.action.RollupBeforeBulkInfo;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
@@ -142,10 +141,10 @@ class RollupShardIndexer {
         }
     }
 
-    public DownsampleIndexerAction.ShardDownsampleResponse execute() throws IOException {
+    public void execute() throws IOException {
         final Query initialStateQuery = createQuery();
         if (initialStateQuery instanceof MatchNoDocsQuery) {
-            return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
+            return;
         }
         long startTime = client.threadPool().relativeTimeInMillis();
         task.setTotalShardDocCount(searcher.getDirectoryReader().numDocs());
@@ -249,8 +248,6 @@ class RollupShardIndexer {
                 throw new ElasticsearchException("error while updating downsampling persistent task state", e);
             })
         );
-
-        return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
 
     private Query createQuery() throws IOException {

@@ -25,6 +25,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
@@ -33,6 +34,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialUtils.geoPointAsString;
+import static org.elasticsearch.xpack.ql.util.SpatialUtils.longAsGeoPoint;
 
 public class ToString extends AbstractConvertFunction implements EvaluatorMapper {
 
@@ -55,7 +58,9 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
             VERSION,
             ToStringFromVersionEvaluator::new,
             UNSIGNED_LONG,
-            ToStringFromUnsignedLongEvaluator::new
+            ToStringFromUnsignedLongEvaluator::new,
+            GEO_POINT,
+            ToStringFromGeoPointEvaluator::new
         );
 
     public ToString(Source source, Expression field) {
@@ -120,5 +125,10 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromUnsignedLong")
     static BytesRef fromUnsignedLong(long lng) {
         return new BytesRef(unsignedLongAsNumber(lng).toString());
+    }
+
+    @ConvertEvaluator(extraName = "FromGeoPoint")
+    static BytesRef fromGeoPoint(long point) {
+        return new BytesRef(geoPointAsString(longAsGeoPoint(point)));
     }
 }

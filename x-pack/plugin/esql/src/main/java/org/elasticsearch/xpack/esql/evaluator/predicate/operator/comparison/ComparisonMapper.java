@@ -145,6 +145,9 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         if (leftType == DataTypes.DATETIME) {
             return () -> longs.apply(leftEval.get(), rightEval.get());
         }
+        if (leftType == DataTypes.GEO_POINT) {
+            return () -> longs.apply(leftEval.get(), rightEval.get());
+        }
         throw new EsqlUnsupportedOperationException("resolved type for [" + bc + "] but didn't implement mapping");
     }
 

@@ -20,6 +20,7 @@ import static org.elasticsearch.xpack.ql.expression.Expressions.name;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
@@ -69,6 +70,10 @@ public final class TypeResolutions {
 
     public static TypeResolution isDate(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, dt -> dt == DATETIME, operationName, paramOrd, "datetime");
+    }
+
+    public static TypeResolution isGeoPoint(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, dt -> dt == GEO_POINT, operationName, paramOrd, "geo_point");
     }
 
     public static TypeResolution isExact(Expression e, String message) {

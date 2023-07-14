@@ -41,16 +41,21 @@ public final class DataTypes {
     public static final DataType KEYWORD          = new DataType("keyword",           Integer.MAX_VALUE, false, false, true);
     public static final DataType TEXT             = new DataType("text",              Integer.MAX_VALUE, false, false, false);
     // date
-    public static final DataType DATETIME         = new DataType("DATETIME", "date",        Long.BYTES,  false, false, true);
+    public static final DataType DATETIME         = new DataType("DATETIME", "date", Long.BYTES,false, false, true);
     // ip
-    public static final DataType IP               = new DataType("ip",                45,                false, false, true);
+    public static final DataType IP               = new DataType("ip",                45,           false, false, true);
     // version
     public static final DataType VERSION          = new DataType("version",           Integer.MAX_VALUE, false, false, true);
     // binary
     public static final DataType BINARY           = new DataType("binary",            Integer.MAX_VALUE, false, false, true);
     // complex types
-    public static final DataType OBJECT           = new DataType("object",            0,                 false, false, false);
-    public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
+    public static final DataType OBJECT           = new DataType("object",            0,            false, false, false);
+    public static final DataType NESTED           = new DataType("nested",            0,            false, false, false);
+    // geo - TODO: Change to GEOMETRY and GEOGRAPHY
+    public static final DataType GEO_SHAPE        = new DataType("geo_shape",          Integer.MAX_VALUE,false, false, false);
+    public static final DataType GEO_POINT        = new DataType("geo_point",     Double.BYTES * 2, false, false, false);
+    public static final DataType SHAPE            = new DataType("shape",              Integer.MAX_VALUE,false, false, false);
+    public static final DataType POINT            = new DataType("point",              Integer.MAX_VALUE,false, false, false);
     //end::noformat
 
     private static final Collection<DataType> TYPES = Stream.of(

@@ -20,6 +20,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.ql.util.SpatialUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.supercsv.io.CsvListReader;
@@ -312,7 +313,13 @@ public final class CsvTestUtils {
         VERSION(v -> new Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> null, Void.class),
         DATETIME(x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli(), Long.class),
-        BOOLEAN(Booleans::parseBoolean, Boolean.class);
+        BOOLEAN(Booleans::parseBoolean, Boolean.class),
+        GEO_POINT(Type::parseWKT, Long.class);
+
+        // TODO support other geometries, perhaps as BytesRef
+        private static Long parseWKT(String wkt) {
+            return SpatialUtils.geoPointAsLong(SpatialUtils.stringAsGeoPoint(wkt));
+        }
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -337,6 +344,8 @@ public final class CsvTestUtils {
             LOOKUP.put("DATE", DATETIME);
             LOOKUP.put("DT", DATETIME);
             LOOKUP.put("V", VERSION);
+            LOOKUP.put("GEO_POINT", GEO_POINT);
+            LOOKUP.put("G", GEO_POINT);
         }
 
         private final Function<String, Object> converter;

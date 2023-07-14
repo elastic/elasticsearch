@@ -258,6 +258,7 @@ public class Verifier {
         allowed.add(DataTypes.IP);
         allowed.add(DataTypes.DATETIME);
         allowed.add(DataTypes.VERSION);
+        allowed.add(DataTypes.GEO_POINT);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataTypes.BOOLEAN);
         }

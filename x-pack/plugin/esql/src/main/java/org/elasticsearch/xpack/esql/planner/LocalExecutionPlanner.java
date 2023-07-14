@@ -257,6 +257,9 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
+        if (dataType == DataTypes.GEO_POINT) {
+            return ElementType.LONG;
+        }
         throw EsqlUnsupportedOperationException.unsupportedDataType(dataType);
     }
 

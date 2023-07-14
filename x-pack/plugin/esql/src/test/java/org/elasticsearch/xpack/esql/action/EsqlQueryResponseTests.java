@@ -88,6 +88,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     new BytesRef(UnsupportedValueSource.UNSUPPORTED_OUTPUT)
                 );
                 case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
+                case "geo_point" -> ((LongBlock.Builder) builder).appendLong(randomGeoPoint().getEncoded());
                 case "null" -> builder.appendNull();
                 default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }

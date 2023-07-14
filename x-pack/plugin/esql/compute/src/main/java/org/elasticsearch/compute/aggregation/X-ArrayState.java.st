@@ -101,7 +101,8 @@ $endif$
                 nonNulls.set(i);
             }
         } else {
-            nonNulls.ensureCapacity(index + 1);
+            // Do nothing. Null is represented by the default value of false for get(int),
+            // and any present value trumps a null value in our aggregations.
         }
     }
 

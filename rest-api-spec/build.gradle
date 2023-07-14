@@ -41,7 +41,7 @@ dependencies {
 }
 
 testClusters.configureEach {
-  requiresFeature 'es.synonyms_feature_flag_enabled', Version.fromString("8.9.0")
+  requiresFeature 'es.synonyms_api_feature_flag_enabled', Version.fromString("8.9.0")
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->

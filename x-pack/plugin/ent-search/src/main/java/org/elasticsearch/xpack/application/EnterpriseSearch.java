@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportGetAnalytic
 import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
+import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.RuleQueryBuilder;
@@ -225,7 +226,16 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
         analyticsTemplateRegistry.initialize();
 
-        return List.of(analyticsTemplateRegistry);
+        // Connector components
+        final ConnectorTemplateRegistry connectorTemplateRegistry = new ConnectorTemplateRegistry(
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry
+        );
+        connectorTemplateRegistry.initialize();
+
+        return Arrays.asList(analyticsTemplateRegistry, connectorTemplateRegistry);
     }
 
     @Override

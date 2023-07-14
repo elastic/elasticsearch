@@ -46,6 +46,8 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterAp
  */
 public final class ApiKey implements ToXContentObject, Writeable {
 
+    public static final TransportVersion CROSS_CLUSTER_KEY_VERSION = TransportVersion.V_8_500_010;
+
     public enum Type {
         /**
          * REST type API keys can authenticate on the HTTP interface
@@ -164,7 +166,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             this.name = in.readString();
         }
         this.id = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_001)) {
+        if (in.getTransportVersion().onOrAfter(CROSS_CLUSTER_KEY_VERSION)) {
             this.type = in.readEnum(Type.class);
         } else {
             // This default is safe because
@@ -315,7 +317,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             out.writeString(name);
         }
         out.writeString(id);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_001)) {
+        if (out.getTransportVersion().onOrAfter(CROSS_CLUSTER_KEY_VERSION)) {
             out.writeEnum(type);
         }
         out.writeInstant(creation);

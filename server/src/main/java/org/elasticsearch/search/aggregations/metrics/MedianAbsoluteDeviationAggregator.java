@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation;
+
 public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ValuesSource.Numeric valuesSource;
@@ -63,7 +65,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
     @Override
     public double metric(long owningBucketOrd) {
         if (hasDataForBucket(owningBucketOrd)) {
-            return InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(valueSketches.get(owningBucketOrd));
+            return computeMedianAbsoluteDeviation(valueSketches.get(owningBucketOrd));
         } else {
             return Double.NaN;
         }

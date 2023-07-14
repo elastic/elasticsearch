@@ -2,7 +2,11 @@ steps:
   - group: packaging-tests-windows
     steps:
       - label: "{{matrix.image}} / packaging-tests-windows"
-        command: .buildkite/generated-scripts/a6f81b402379cfd241ba9e32a55a3d92.bat
+        command: |
+          .buildkite/generated-scripts/a6f81b402379cfd241ba9e32a55a3d92.bat
+          $$exitCode = $$LASTEXITCODE
+          powershell .buildkite/scripts/windows-end-job.ps1
+          exit $$exitCode
         timeout_in_minutes: 180
         matrix:
           setup:
@@ -21,7 +25,11 @@ steps:
   - group: platform-support-windows
     steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-windows"
-        command: bash -c '.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK'
+        command: |
+          bash -c '.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK'
+          $$exitCode = $$LASTEXITCODE
+          powershell .buildkite/scripts/windows-end-job.ps1
+          exit $$exitCode
         timeout_in_minutes: 180
         matrix:
           setup:

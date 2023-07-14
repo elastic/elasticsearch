@@ -274,6 +274,10 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
 
         GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
         client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
+        // TODO: check the task here to see if it is still being downloaded
+        // TODO: what happens if you try to start it while the model is still being downloaded, try adding a sleep after 1 block of the
+        // model is downloaded
+
     }
 
     private void waitForDeploymentState(

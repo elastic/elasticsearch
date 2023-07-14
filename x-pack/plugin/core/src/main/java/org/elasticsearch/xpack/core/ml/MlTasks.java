@@ -28,7 +28,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public final class MlTasks {
-
+    public static final String MODEL_IMPORT_TASK_TYPE = "model_import";
+    public static final String MODEL_IMPORT_TASK_ACTION = "xpack/ml/model_import[n]";
     public static final String TRAINED_MODEL_ASSIGNMENT_TASK_TYPE = "trained_model_assignment";
     public static final String TRAINED_MODEL_ASSIGNMENT_TASK_ACTION = "xpack/ml/trained_model_assignment[n]";
 

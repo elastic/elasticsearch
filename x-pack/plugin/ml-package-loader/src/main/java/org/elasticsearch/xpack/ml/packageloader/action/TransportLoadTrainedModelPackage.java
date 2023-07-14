@@ -17,19 +17,23 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction.Request;
 import org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader;
@@ -37,11 +41,14 @@ import org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.MlTasks.MODEL_IMPORT_TASK_ACTION;
+import static org.elasticsearch.xpack.core.ml.MlTasks.MODEL_IMPORT_TASK_TYPE;
 
 public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
@@ -73,25 +80,49 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     }
 
     @Override
+    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+        return null;
+    }
+
+    @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
-        String modelId = request.getModelId();
-        ModelPackageConfig packageConfig = request.getModelPackageConfig();
-        ModelImporter modelImporter = new ModelImporter(client, modelId, packageConfig);
+        CancellableTask downloadTask = createDownloadTask(request);
+        Client parentTaskAssigningClient = getParentTaskAssigningClient(downloadTask);
+
+        ModelImporter modelImporter = new ModelImporter(
+            parentTaskAssigningClient,
+            request.getModelId(),
+            request.getModelPackageConfig(),
+            downloadTask
+        );
 
         threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME)
-            .execute(() -> importModel(client, modelId, modelImporter, listener));
+            .execute(() -> importModel(parentTaskAssigningClient, taskManager, request, modelImporter, listener, downloadTask));
 
         if (request.isWaitForCompletion() == false) {
             listener.onResponse(AcknowledgedResponse.TRUE);
         }
     }
 
+    private ParentTaskAssigningClient getParentTaskAssigningClient(Task originTask) {
+        var parentTaskId = new TaskId(clusterService.localNode().getId(), originTask.getId());
+        return new ParentTaskAssigningClient(client, parentTaskId);
+    }
+
     /**
      * This is package scope so that we can test the logic directly.
      * This should only be called from the masterOperation method and the tests
      */
-    static void importModel(Client client, String modelId, ModelImporter modelImporter, ActionListener<AcknowledgedResponse> listener) {
+    static void importModel(
+        Client client,
+        TaskManager taskManager,
+        Request request,
+        ModelImporter modelImporter,
+        ActionListener<AcknowledgedResponse> listener,
+        Task task
+    ) {
+        String modelId = request.getModelId();
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
         try {
@@ -116,12 +147,41 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         } catch (Exception e) {
             recordError(client, modelId, "an Exception", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
         } finally {
-            if (exceptionRef.get() != null) {
-                listener.onFailure(exceptionRef.get());
-            } else {
-                listener.onResponse(AcknowledgedResponse.TRUE);
+            taskManager.unregister(task);
+
+            if (request.isWaitForCompletion()) {
+                if (exceptionRef.get() != null) {
+                    listener.onFailure(exceptionRef.get());
+                } else {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                }
+
             }
         }
+    }
+
+    private CancellableTask createDownloadTask(Request request) {
+        return (CancellableTask) taskManager.register(MODEL_IMPORT_TASK_TYPE, MODEL_IMPORT_TASK_ACTION, new TaskAwareRequest() {
+            @Override
+            public void setParentTask(TaskId taskId) {
+                request.setParentTask(taskId);
+            }
+
+            @Override
+            public void setRequestId(long requestId) {
+                request.setRequestId(requestId);
+            }
+
+            @Override
+            public TaskId getParentTask() {
+                return request.getParentTask();
+            }
+
+            @Override
+            public CancellableTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+            }
+        });
     }
 
     private static void recordError(Client client, String modelId, AtomicReference<Exception> exceptionRef, Exception e) {
@@ -158,10 +218,5 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
             new AuditMlNotificationAction.Request(AuditMlNotificationAction.AuditType.INFERENCE, modelId, message, level),
             ActionListener.noop()
         );
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return null;
     }
 }

@@ -412,12 +412,7 @@ public class SynonymsManagementAPIService {
                         "Synonym set ["
                             + synonymSetId
                             + "] cannot be deleted as it is used in the following indices: "
-                            + String.join(
-                                ", ",
-                                indices
-                                    + ". In order to delete the synonym set, first remove any reference to it in the mentioned indices"
-                                    + " settings, by either using another synonym set, or removing the corresponding synonym token filter."
-                            )
+                            + String.join(", ", indices)
                     )
                 );
                 return;

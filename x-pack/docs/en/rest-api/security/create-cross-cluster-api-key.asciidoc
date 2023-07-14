@@ -77,7 +77,9 @@ permissions in this entry apply.
 
 NOTE: No explicit <<security-privileges,privileges>> should be specified for either search
 or replication access. The creation process automatically converts the `access` specification
-to a role descriptor which has relevant privileges assigned accordingly.
+to a <<api-key-role-descriptors,role descriptor>> which has relevant privileges assigned accordingly.
+The `access` value as well as its corresponding `role_descriptors` are returned in responses of
+<<security-api-get-api-key,Get API keys API>> and <<security-api-query-api-key,Query API keys API>>.
 
 NOTE: Unlike <<api-key-role-descriptors,REST API keys>>, a cross-cluster API key
 does not capture permissions of the authenticated user. The API key's effective
@@ -217,6 +219,24 @@ A successful call returns a JSON structure that contains the information of the 
             "enabled": true
           }
         }
+      },
+      "access": {  <8>
+        "search": [
+          {
+            "names": [
+              "logs*"
+            ],
+            "allow_restricted_indices": false
+          }
+        ],
+        "replication": [
+          {
+            "names": [
+              "archive*"
+            ],
+            "allow_restricted_indices": false
+          }
+        ]
       }
     }
   ]
@@ -235,6 +255,7 @@ It is `cross_cluster_replication` if only cross-cluster replication is required.
 Or both, if search and replication are required.
 <6> The indices privileges corresponding to the required cross-cluster search access.
 <7> The indices privileges corresponding to the required cross-cluster replication access.
+<8> The `access` corresponds to the value specified at API key creation time.
 
 
 To use the generated API key, configure it as the cluster credential as part of an API key based remote cluster configuration.

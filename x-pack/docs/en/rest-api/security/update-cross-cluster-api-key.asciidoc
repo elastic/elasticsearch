@@ -161,6 +161,16 @@ A successful call returns a JSON structure that contains the information of the 
             "enabled": true
           }
         }
+      },
+      "access": {  <2>
+        "search": [
+          {
+            "names": [
+              "logs*"
+            ],
+            "allow_restricted_indices": false
+          }
+        ]
       }
     }
   ]
@@ -169,6 +179,7 @@ A successful call returns a JSON structure that contains the information of the 
 // NOTCONSOLE
 <1> Role descriptor corresponding to the specified `access` scope at creation time.
 In this example, it grants cross cluster search permission for the `logs*` index pattern.
+<2> The `access` corresponds to the value specified at API key creation time.
 
 
 The following example updates the API key created above, assigning it new access scope and metadata:
@@ -243,6 +254,16 @@ and it will be:
             "enabled": true
           }
         }
+      },
+      "access": {  <2>
+        "replication": [
+          {
+            "names": [
+              "archive*"
+            ],
+            "allow_restricted_indices": false
+          }
+        ]
       }
     }
   ]
@@ -252,3 +273,4 @@ and it will be:
 <1> Role descriptor is updated to be the `access` scope specified at update time.
 In this example, it is updated to grant the cross cluster replication permission
 for the `archive*` index pattern.
+<2> The `access` corresponds to the value specified at API key update time.

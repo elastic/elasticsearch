@@ -113,7 +113,7 @@ public class FieldFetcher {
             nestedScope,
             nestedMappers,
             fields,
-            f -> f.ft.name()
+            f -> f.field
         );
 
         Map<String, FieldContext> output = new HashMap<>();

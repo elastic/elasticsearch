@@ -87,7 +87,8 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
         try {
             rollupShardIndexer.execute();
         } catch (IOException e) {
-            throw new ElasticsearchException("Unable to start downsampling shard task [" + task.getPersistentTaskId() + "]", e);
+            task.markAsFailed(e);
+            throw new ElasticsearchException("Unable to run downsampling shard task [" + task.getPersistentTaskId() + "]", e);
         }
     }
 

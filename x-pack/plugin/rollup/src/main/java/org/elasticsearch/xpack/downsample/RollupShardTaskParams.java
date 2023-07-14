@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -42,28 +42,20 @@ public record RollupShardTaskParams(
     private static final ParseField SHARD_ID = new ParseField("shard_id");
     private static final ParseField METRICS = new ParseField("metrics");
     private static final ParseField LABELS = new ParseField("labels");
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RollupShardTaskParams, Void> PARSER = new ConstructingObjectParser<>(
-        NAME,
-        (args) -> new RollupShardTaskParams(
-            (DownsampleConfig) args[0],
-            (String) args[1],
-            (Long) args[2],
-            (Long) args[3],
-            ShardId.fromString((String) args[4]),
-            ((List<String>) args[5]).toArray(String[]::new),
-            ((List<String>) args[6]).toArray(String[]::new)
-        )
-    );
+    public static final ObjectParser<RollupShardTaskParams.Builder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DownsampleConfig.fromXContent(p), DOWNSAMPLE_CONFIG);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ROLLUP_INDEX);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_START_TIME_MILLIS);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_END_TIME_MILLIS);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), SHARD_ID);
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), METRICS);
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LABELS);
+        PARSER.declareObject(
+            RollupShardTaskParams.Builder::downsampleConfig,
+            (p, c) -> DownsampleConfig.fromXContent(p),
+            DOWNSAMPLE_CONFIG
+        );
+        PARSER.declareString(RollupShardTaskParams.Builder::rollupIndex, ROLLUP_INDEX);
+        PARSER.declareLong(RollupShardTaskParams.Builder::indexStartTimeMillis, INDEX_START_TIME_MILLIS);
+        PARSER.declareLong(RollupShardTaskParams.Builder::indexEndTimeMillis, INDEX_END_TIME_MILLIS);
+        PARSER.declareString(RollupShardTaskParams.Builder::shardId, SHARD_ID);
+        PARSER.declareStringArray(RollupShardTaskParams.Builder::metrics, METRICS);
+        PARSER.declareStringArray(RollupShardTaskParams.Builder::labels, LABELS);
     }
 
     RollupShardTaskParams(final StreamInput in) throws IOException {
@@ -124,8 +116,10 @@ public record RollupShardTaskParams(
         );
     }
 
-    public static RollupShardTaskParams fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static RollupShardTaskParams fromXContent(XContentParser parser) throws IOException {
+        final RollupShardTaskParams.Builder builder = new RollupShardTaskParams.Builder();
+        PARSER.parse(parser, builder, null);
+        return builder.build();
     }
 
     @Override
@@ -156,5 +150,62 @@ public record RollupShardTaskParams(
         result = 31 * result + Arrays.hashCode(metrics);
         result = 31 * result + Arrays.hashCode(labels);
         return result;
+    }
+
+    public static class Builder {
+        DownsampleConfig downsampleConfig;
+        String rollupIndex;
+        long indexStartTimeMillis;
+        long indexEndTimeMillis;
+        ShardId shardId;
+        String[] metrics;
+        String[] labels;
+
+        public Builder downsampleConfig(final DownsampleConfig downsampleConfig) {
+            this.downsampleConfig = downsampleConfig;
+            return this;
+        }
+
+        public Builder rollupIndex(final String rollupIndex) {
+            this.rollupIndex = rollupIndex;
+            return this;
+        }
+
+        public Builder indexStartTimeMillis(final Long indexStartTimeMillis) {
+            this.indexStartTimeMillis = indexStartTimeMillis;
+            return this;
+        }
+
+        public Builder indexEndTimeMillis(final Long indexEndTimeMillis) {
+            this.indexEndTimeMillis = indexEndTimeMillis;
+            return this;
+        }
+
+        public Builder shardId(final String shardId) {
+            this.shardId = ShardId.fromString(shardId);
+            return this;
+        }
+
+        public Builder metrics(final List<String> metrics) {
+            this.metrics = metrics.toArray(String[]::new);
+            return this;
+        }
+
+        public Builder labels(final List<String> labels) {
+            this.labels = labels.toArray(String[]::new);
+            return this;
+        }
+
+        public RollupShardTaskParams build() {
+            return new RollupShardTaskParams(
+                downsampleConfig,
+                rollupIndex,
+                indexStartTimeMillis,
+                indexEndTimeMillis,
+                shardId,
+                metrics,
+                labels
+            );
+        }
     }
 }

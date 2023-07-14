@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,11 +30,16 @@ public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShar
     private static final ParseField ROLLUP_SHARD_INDEXER_STATUS = new ParseField("status");
     private static final ParseField TSID = new ParseField("tsid");
 
-    private static final ConstructingObjectParser<RollupShardPersistentTaskState, Void> PARSER = new ConstructingObjectParser<>(
-        NAME,
-        true,
-        args -> new RollupShardPersistentTaskState((RollupShardIndexerStatus) args[0], (BytesRef) args[1])
-    );
+    public static final ObjectParser<RollupShardPersistentTaskState.Builder, Void> PARSER = new ObjectParser<>(NAME);
+
+    static {
+        PARSER.declareObject(
+            RollupShardPersistentTaskState.Builder::status,
+            (p, c) -> RollupShardIndexerStatus.valueOf(p.textOrNull()),
+            ROLLUP_SHARD_INDEXER_STATUS
+        );
+        PARSER.declareObject(RollupShardPersistentTaskState.Builder::tsid, (p, c) -> new BytesRef(p.textOrNull()), TSID);
+    }
 
     public RollupShardPersistentTaskState(final StreamInput in) throws IOException {
         this(RollupShardIndexerStatus.readFromStream(in), in.readBytesRef());
@@ -86,7 +91,29 @@ public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShar
         return new RollupShardPersistentTaskState(RollupShardIndexerStatus.readFromStream(in), in.readBytesRef());
     }
 
-    public static RollupShardPersistentTaskState fromXContent(final XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static RollupShardPersistentTaskState fromXContent(final XContentParser parser) throws IOException {
+        final RollupShardPersistentTaskState.Builder builder = new RollupShardPersistentTaskState.Builder();
+        PARSER.parse(parser, builder, null);
+        RollupShardPersistentTaskState build = builder.build();
+        return build;
+    }
+
+    public static class Builder {
+        private RollupShardIndexerStatus status;
+        private BytesRef tsid;
+
+        public Builder status(final RollupShardIndexerStatus status) {
+            this.status = status;
+            return this;
+        }
+
+        public Builder tsid(final BytesRef tsid) {
+            this.tsid = tsid;
+            return this;
+        }
+
+        public RollupShardPersistentTaskState build() {
+            return new RollupShardPersistentTaskState(status, tsid);
+        }
     }
 }

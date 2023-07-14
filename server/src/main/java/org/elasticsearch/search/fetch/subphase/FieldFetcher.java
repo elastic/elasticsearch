@@ -102,11 +102,19 @@ public class FieldFetcher {
         }
     }
 
-    private static Map<String, FieldContext> buildFieldContexts(SearchExecutionContext context, String nestedScope, List<ResolvedField> fields) {
+    private static Map<String, FieldContext> buildFieldContexts(
+        SearchExecutionContext context,
+        String nestedScope,
+        List<ResolvedField> fields
+    ) {
 
         List<String> nestedMappers = context.nestedLookup().getImmediateChildMappers(nestedScope);
-        Map<String, List<ResolvedField>> fieldsByNestedMapper
-            = NestedUtils.partitionByChildren(nestedScope, nestedMappers, fields, f -> f.ft.name());
+        Map<String, List<ResolvedField>> fieldsByNestedMapper = NestedUtils.partitionByChildren(
+            nestedScope,
+            nestedMappers,
+            fields,
+            f -> f.ft.name()
+        );
 
         Map<String, FieldContext> output = new HashMap<>();
         for (String scope : fieldsByNestedMapper.keySet()) {

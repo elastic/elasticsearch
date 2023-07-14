@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.index.IndexVersion;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;

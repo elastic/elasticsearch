@@ -18,19 +18,41 @@ public class NestedUtilsTests extends ESTestCase {
     public void testPartitionByChild() {
         List<String> children = List.of("child1", "child2", "stepchild");
         List<String> inputs = List.of("a", "b", "child1.grandchild", "child1.grandchild2", "child11", "child2.grandchild", "frog");
-        Map<String, List<String>> partitioned = NestedUtils.partitionByChildren("", children, inputs, s-> s);
+        Map<String, List<String>> partitioned = NestedUtils.partitionByChildren("", children, inputs, s -> s);
         assertEquals(
-            Map.of("", List.of("a", "b", "child11", "frog"), "child1", List.of("child1.grandchild", "child1.grandchild2"), "child2", List.of("child2.grandchild")),
+            Map.of(
+                "",
+                List.of("a", "b", "child11", "frog"),
+                "child1",
+                List.of("child1.grandchild", "child1.grandchild2"),
+                "child2",
+                List.of("child2.grandchild")
+            ),
             partitioned
         );
     }
 
     public void testScopedPartitionByChild() {
         List<String> children = List.of("a.child1", "a.child2", "a.stepchild");
-        List<String> inputs = List.of("a.a", "a.b", "a.child1.grandchild", "a.child1.grandchild2", "a.child11", "a.child2.grandchild", "a.frog");
+        List<String> inputs = List.of(
+            "a.a",
+            "a.b",
+            "a.child1.grandchild",
+            "a.child1.grandchild2",
+            "a.child11",
+            "a.child2.grandchild",
+            "a.frog"
+        );
         Map<String, List<String>> partitioned = NestedUtils.partitionByChildren("a", children, inputs, s -> s);
         assertEquals(
-            Map.of("a", List.of("a.a", "a.b", "a.child11", "a.frog"), "a.child1", List.of("a.child1.grandchild", "a.child1.grandchild2"), "a.child2", List.of("a.child2.grandchild")),
+            Map.of(
+                "a",
+                List.of("a.a", "a.b", "a.child11", "a.frog"),
+                "a.child1",
+                List.of("a.child1.grandchild", "a.child1.grandchild2"),
+                "a.child2",
+                List.of("a.child2.grandchild")
+            ),
             partitioned
         );
     }

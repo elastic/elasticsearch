@@ -97,7 +97,6 @@ public interface NestedLookup {
         }
         List<String> nestedPathNames = mappers.stream().map(NestedObjectMapper::name).toList();
 
-
         return new NestedLookup() {
 
             @Override

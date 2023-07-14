@@ -35,7 +35,12 @@ public final class NestedUtils {
      * @param <T>           the type of the inputs
      * @return              a map of nested paths to lists of inputs
      */
-    public static <T> Map<String, List<T>> partitionByChildren(String scope, List<String> children, List<T> inputs, Function<T, String> pathFunction) {
+    public static <T> Map<String, List<T>> partitionByChildren(
+        String scope,
+        List<String> children,
+        List<T> inputs,
+        Function<T, String> pathFunction
+    ) {
         if (children.isEmpty()) {
             return Map.of(scope, inputs);
         }
@@ -81,7 +86,7 @@ public final class NestedUtils {
             }
         }
         output.computeIfAbsent(scope, s -> new ArrayList<>()).add(currentInput);
-        for ( ; inputIterator.hasNext() ; currentInput = inputIterator.next()) {
+        for (; inputIterator.hasNext(); currentInput = inputIterator.next()) {
             currentInputName = pathFunction.apply(currentInput);
             assert currentInputName.startsWith(scope);
             output.computeIfAbsent(scope, s -> new ArrayList<>()).add(currentInput);

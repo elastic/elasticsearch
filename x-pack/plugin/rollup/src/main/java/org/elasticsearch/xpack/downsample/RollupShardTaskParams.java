@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public record RollupShardTaskParams(
@@ -41,6 +42,7 @@ public record RollupShardTaskParams(
     private static final ParseField SHARD_ID = new ParseField("shard_id");
     private static final ParseField METRICS = new ParseField("metrics");
     private static final ParseField LABELS = new ParseField("labels");
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RollupShardTaskParams, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         (args) -> new RollupShardTaskParams(
@@ -49,8 +51,8 @@ public record RollupShardTaskParams(
             (Long) args[2],
             (Long) args[3],
             ShardId.fromString((String) args[4]),
-            (String[]) args[5],
-            (String[]) args[6]
+            ((List<String>) args[5]).toArray(String[]::new),
+            ((List<String>) args[6]).toArray(String[]::new)
         )
     );
 

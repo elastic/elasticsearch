@@ -1,0 +1,5 @@
+pr: 97683
+summary: Refactor nested field handling in `FieldFetcher`
+area: Search
+type: enhancement
+issues: []

@@ -221,7 +221,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                         .map(
                             i -> new DataStreamLifecycle.Downsampling.Round(
                                 TimeValue.timeValueDays(i),
-                                new DownsampleConfig(new DateHistogramInterval(i + "h"))
+                                new DownsampleConfig(new DateHistogramInterval(i + "h"), TIMEOUT)
                             )
                         )
                         .toList()

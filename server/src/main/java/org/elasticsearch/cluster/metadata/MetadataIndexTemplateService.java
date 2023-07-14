@@ -1471,7 +1471,16 @@ public class MetadataIndexTemplateService {
         if (template.template() != null && template.template().lifecycle() != null) {
             lifecycles.add(template.template().lifecycle());
         }
-        return composeDataLifecycles(lifecycles);
+        DataStreamLifecycle composedConfiguration = composeDataLifecycles(lifecycles);
+        // If there is no lifecycle configuration we default to a managed data stream with infinite retention and no downsampling
+        if (composedConfiguration == null) {
+            return new DataStreamLifecycle();
+            // If the configuration opts out of the lifecycle we remove it
+        } else if (composedConfiguration == Template.NO_LIFECYCLE) {
+            return null;
+        } else {
+            return composedConfiguration;
+        }
     }
 
     /**
@@ -1510,11 +1519,14 @@ public class MetadataIndexTemplateService {
     @Nullable
     public static DataStreamLifecycle composeDataLifecycles(List<DataStreamLifecycle> lifecycles) {
         DataStreamLifecycle.Builder builder = null;
+        boolean optOut = false;
         for (DataStreamLifecycle current : lifecycles) {
             if (current == Template.NO_LIFECYCLE) {
                 builder = null;
+                optOut = true;
             } else if (builder == null) {
                 builder = DataStreamLifecycle.Builder.newBuilder(current);
+                optOut = false;
             } else {
                 if (current.getDataRetention() != null) {
                     builder.dataRetention(current.getDataRetention());
@@ -1523,6 +1535,9 @@ public class MetadataIndexTemplateService {
                     builder.downsampling(current.getDownsampling());
                 }
             }
+        }
+        if (optOut) {
+            return Template.NO_LIFECYCLE;
         }
         return builder == null ? null : builder.build();
     }

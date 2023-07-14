@@ -35,6 +35,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateTsdbMapping;
@@ -184,7 +185,31 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle lifecycle1 = new DataStreamLifecycle(randomNonEmptyRetention(), randomNonEmptyDownsampling());
             DataStreamLifecycle lifecycle2 = new DataStreamLifecycle(randomNonEmptyRetention(), randomNonEmptyDownsampling());
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle1, lifecycle2, Template.NO_LIFECYCLE);
-            assertThat(composeDataLifecycles(lifecycles), nullValue());
+            assertThat(composeDataLifecycles(lifecycles), equalTo(Template.NO_LIFECYCLE));
+        }
+    }
+
+    public void testLifecycleResolution() {
+        // No lifecycles result to {lifecycle: {} }
+        {
+            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(createIndexTemplate(null), Map.of());
+            assertThat(result, equalTo(new DataStreamLifecycle()));
+        }
+        // One lifecycle results to this lifecycle as the final
+        {
+            DataStreamLifecycle expected = new DataStreamLifecycle(randomRetention(), randomDownsampling());
+            ;
+            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(createIndexTemplate(expected), Map.of());
+            assertThat(result.getEffectiveDataRetention(), equalTo(expected.getEffectiveDataRetention()));
+            assertThat(result.getDownsamplingRounds(), equalTo(expected.getDownsamplingRounds()));
+        }
+        // If the lifecycle is opt-out
+        {
+            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(
+                createIndexTemplate(Template.NO_LIFECYCLE),
+                Map.of()
+            );
+            assertThat(result, nullValue());
         }
     }
 
@@ -272,5 +297,17 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
         );
         return new DataStreamLifecycle.Downsampling.Round(after, fixedInterval);
+    }
+
+    private static ComposableIndexTemplate createIndexTemplate(DataStreamLifecycle lifecycle) {
+        return new ComposableIndexTemplate(
+            List.of(randomAlphaOfLength(4)),
+            new Template(null, null, null, lifecycle),
+            List.of(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean())
+        );
     }
 }

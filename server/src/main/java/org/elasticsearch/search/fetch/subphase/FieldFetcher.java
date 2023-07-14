@@ -93,7 +93,7 @@ public class FieldFetcher {
         try {
             return fieldAndFormat.ft.valueFetcher(context, fieldAndFormat.format);
         } catch (IllegalArgumentException e) {
-            StringBuilder error = new StringBuilder("error fetching [").append(fieldAndFormat.ft.name()).append(']');
+            StringBuilder error = new StringBuilder("error fetching [").append(fieldAndFormat.field).append(']');
             if (fieldAndFormat.matchingPattern != null) {
                 error.append(" which matched [").append(fieldAndFormat.matchingPattern).append(']');
             }

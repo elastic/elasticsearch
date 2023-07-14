@@ -1,0 +1,5 @@
+pr: 97642
+summary: fix fuzzy query rewrite parameter not work
+area: Search
+type: fix
+issues: []

@@ -1,0 +1,5 @@
+pr: 97679
+summary: Add Configuration to `PatternLayout`
+area: Infra/Logging
+type: bug
+issues: []

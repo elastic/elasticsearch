@@ -1,6 +1,6 @@
 {
   "index_patterns": ["${access-control.index_pattern}"],
-  "priority": 100,
+  "priority": 110,
   "template": {
     "mappings": {
       "dynamic": "false",

@@ -1581,6 +1581,37 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(extracted.getProcessedFields(), hasSize(1));
     }
 
+    public void testDetect_GivenFieldsWithDotsWhenSubobjectsFalseThenIsNonMultiField(){
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("metrics", "object")
+            .addAggregatableField("metrics.field_1", "double")
+            .addAggregatableField("metrics.field_1.max", "double")
+            .addAggregatableField("metrics.field_1.min", "double")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            buildRegressionConfig("metrics.field_1.min"),
+            100,
+            fieldCapabilities,
+            Collections.emptyMap()
+        );
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+        assertThat(fieldExtraction.v1().getAllFields(), hasSize(3));
+        List<String> extractedFieldNames = fieldExtraction.v1()
+            .getAllFields()
+            .stream()
+            .map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, contains("metrics.field_1", "metrics.field_1.max", "metrics.field_1.min"));
+
+        assertFieldSelectionContains(
+            fieldExtraction.v2(),
+            FieldSelection.included("metrics.field_1", Collections.singleton("double"), false, FieldSelection.FeatureType.NUMERICAL),
+            FieldSelection.included("metrics.field_1.max", Collections.singleton("double"), false, FieldSelection.FeatureType.NUMERICAL),
+            FieldSelection.included("metrics.field_1.min", Collections.singleton("double"), true, FieldSelection.FeatureType.NUMERICAL)
+        );
+    }
+
     private DataFrameAnalyticsConfig buildOutlierDetectionConfig() {
         return new DataFrameAnalyticsConfig.Builder().setId("foo")
             .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering, null))

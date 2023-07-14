@@ -20,11 +20,10 @@ package co.elastic.elasticsearch.stateless.engine;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
@@ -56,17 +55,12 @@ public record CompoundTranslogHeader(Map<ShardId, TranslogMetadata> metadata) {
             );
             return readHeader(name, input, false);
         } else {
-            return readHeaderOld(name, magic, input);
+            throw new NoVersionCodecException();
         }
     }
 
-    private static CompoundTranslogHeader readHeaderOld(String name, int firstBytes, StreamInput input) throws IOException {
-        // This is pretty inefficient, but these files should never be that large and this code path should not be exercised post-MVP.
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeInt(firstBytes);
-            Streams.copy(input, output, false);
-            return readHeader(name, new BufferedChecksumStreamInput(output.bytes().streamInput(), TRANSLOG_REPLICATOR_CODEC), true);
-        }
+    public static CompoundTranslogHeader readFromStoreOld(String name, StreamInput streamInput) throws IOException {
+        return readHeader(name, new BufferedChecksumStreamInput(streamInput, TRANSLOG_REPLICATOR_CODEC), true);
     }
 
     private static CompoundTranslogHeader readHeader(String name, BufferedChecksumStreamInput input, boolean oldHeader) throws IOException {
@@ -93,5 +87,11 @@ public record CompoundTranslogHeader(Map<ShardId, TranslogMetadata> metadata) {
         out.writeMap(metadata);
         out.writeInt((int) out.getChecksum());
         out.flush();
+    }
+
+    public static class NoVersionCodecException extends ElasticsearchException {
+        public NoVersionCodecException() {
+            super("Comes from a translog written without versioning");
+        }
     }
 }

@@ -102,39 +102,59 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     }
 
     private Iterator<Translog.Operation> readBlobTranslogOperations(BlobMetadata blobMetadata) {
+        boolean tryOldVersion = false;
         try (StreamInput streamInput = new InputStreamStreamInput(translogBlobContainer.readBlob(blobMetadata.name()))) {
             CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStore(blobMetadata.name(), streamInput);
-            Map<ShardId, TranslogMetadata> metadata = translogHeader.metadata();
-
-            // Check if the compound translog file contains eligible operations for this shard
-            if (metadata.containsKey(shardId)) {
-                TranslogMetadata translogMetadata = metadata.get(shardId);
-                // Check if at least one of the operations fall within the eligible range
-                if (toSeqNo >= translogMetadata.minSeqNo() && fromSeqNo <= translogMetadata.maxSeqNo()) {
-                    // Go to the translog file to read it
-                    streamInput.skipNBytes(translogMetadata.offset());
-                    BytesReference translogBytes = streamInput.readBytesReference((int) translogMetadata.size());
-
-                    // Read operations from the translog file
-                    int numOps = (int) translogMetadata.totalOps();
-                    List<Translog.Operation> eligibleOperations = new ArrayList<>(numOps);
-
-                    final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(
-                        translogBytes.streamInput(),
-                        "translog replicator"
-                    );
-                    for (int i = 0; i < numOps; i++) {
-                        Translog.Operation operation = Translog.readOperation(checksumStreamInput);
-                        // Add only eligible operations
-                        if (toSeqNo >= operation.seqNo() && fromSeqNo <= operation.seqNo()) {
-                            eligibleOperations.add(operation);
-                        }
-                    }
-                    return eligibleOperations.iterator();
-                }
-            }
+            return getOperationIterator(streamInput, translogHeader);
+        } catch (CompoundTranslogHeader.NoVersionCodecException e) {
+            tryOldVersion = true;
         } catch (IOException e) {
             throw new TranslogCorruptedException(blobMetadata.name(), "error while reading translog file from object store", e);
+        }
+
+        assert tryOldVersion;
+        return readBlobTranslogOperationsOld(blobMetadata);
+    }
+
+    private Iterator<Translog.Operation> readBlobTranslogOperationsOld(BlobMetadata blobMetadata) {
+        try (StreamInput streamInput = new InputStreamStreamInput(translogBlobContainer.readBlob(blobMetadata.name()))) {
+            CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStoreOld(blobMetadata.name(), streamInput);
+            return getOperationIterator(streamInput, translogHeader);
+        } catch (IOException e) {
+            throw new TranslogCorruptedException(blobMetadata.name(), "error while reading translog file from object store", e);
+        }
+    }
+
+    private Iterator<Translog.Operation> getOperationIterator(StreamInput streamInput, CompoundTranslogHeader translogHeader)
+        throws IOException {
+        Map<ShardId, TranslogMetadata> metadata = translogHeader.metadata();
+
+        // Check if the compound translog file contains eligible operations for this shard
+        if (metadata.containsKey(shardId)) {
+            TranslogMetadata translogMetadata = metadata.get(shardId);
+            // Check if at least one of the operations fall within the eligible range
+            if (toSeqNo >= translogMetadata.minSeqNo() && fromSeqNo <= translogMetadata.maxSeqNo()) {
+                // Go to the translog file to read it
+                streamInput.skipNBytes(translogMetadata.offset());
+                BytesReference translogBytes = streamInput.readBytesReference((int) translogMetadata.size());
+
+                // Read operations from the translog file
+                int numOps = (int) translogMetadata.totalOps();
+                List<Translog.Operation> eligibleOperations = new ArrayList<>(numOps);
+
+                final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(
+                    translogBytes.streamInput(),
+                    "translog replicator"
+                );
+                for (int i = 0; i < numOps; i++) {
+                    Translog.Operation operation = Translog.readOperation(checksumStreamInput);
+                    // Add only eligible operations
+                    if (toSeqNo >= operation.seqNo() && fromSeqNo <= operation.seqNo()) {
+                        eligibleOperations.add(operation);
+                    }
+                }
+                return eligibleOperations.iterator();
+            }
         }
         return Collections.emptyIterator();
     }

@@ -135,6 +135,21 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
         }
     }
 
+    public void testReadOnlyCompoundHeaderStreamIsPositionedAtData() throws Exception {
+        CompoundTranslogHeader testInstance = createTestInstance().compoundTranslogHeader();
+        try (BytesStreamOutput output = new BytesStreamOutput();) {
+            testInstance.writeToStore(output);
+            long data = randomLong();
+            output.writeLong(data);
+
+            StreamInput streamInput = output.bytes().streamInput();
+            CompoundTranslogHeader compoundTranslogHeader = CompoundTranslogHeader.readFromStore("test", streamInput);
+            assertEquals(testInstance.metadata(), compoundTranslogHeader.metadata());
+            // Test that the stream is at the correct place to read follow-up data
+            assertEquals(data, streamInput.readLong());
+        }
+    }
+
     public void testReadPreCodecVersion() throws Exception {
         CompoundTranslogHeader testInstance = createTestInstance().compoundTranslogHeader();
         try (
@@ -144,12 +159,19 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
             // Serialize in old version
             out.writeMap(testInstance.metadata());
             out.writeLong(out.getChecksum());
+            long data = randomLong();
+            out.writeLong(data);
             out.flush();
 
-            try (StreamInput in = output.bytes().streamInput()) {
-                CompoundTranslogHeader compoundTranslogHeader = CompoundTranslogHeader.readFromStore("test", in);
-                assertEquals(testInstance.metadata(), compoundTranslogHeader.metadata());
-            }
+            expectThrows(
+                CompoundTranslogHeader.NoVersionCodecException.class,
+                () -> CompoundTranslogHeader.readFromStore("test", output.bytes().streamInput())
+            );
+            StreamInput oldStreamInput = output.bytes().streamInput();
+            CompoundTranslogHeader compoundTranslogHeader = CompoundTranslogHeader.readFromStoreOld("test", oldStreamInput);
+            assertEquals(testInstance.metadata(), compoundTranslogHeader.metadata());
+            // Test that the stream is at the correct place to read follow-up data
+            assertEquals(data, oldStreamInput.readLong());
         }
     }
 

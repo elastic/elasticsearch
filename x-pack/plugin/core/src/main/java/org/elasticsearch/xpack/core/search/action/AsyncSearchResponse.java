@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.async.AsyncResponse;
@@ -194,6 +195,10 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
 
         if (searchResponse != null) {
+            if (isRunning == false) {
+                TimeValue took = searchResponse.getTook();
+                builder.timeField("completion_time_in_millis", "completion_time", startTimeMillis + took.millis());
+            }
             builder.field("response");
             ChunkedToXContent.wrapAsToXContent(searchResponse).toXContent(builder, params);
         }

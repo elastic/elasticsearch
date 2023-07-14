@@ -5,8 +5,34 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
-apply plugin: 'elasticsearch.standalone-test'
+dependencies {
+  testImplementation project(":libs:elasticsearch-x-content")
+  testImplementation project(":test:framework")
+
+}
+
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
+  /**
+   * Provide a custom log4j configuration where layout is an old style pattern and confirm that Elasticsearch
+   * can successfully startup.
+   */
+  extraConfigFile 'log4j2.properties', file('custom-log4j2.properties')
+}
+
+tasks.named("javaRestTest").configure {
+  nonInputProperties.systemProperty 'tests.logfile',
+    "${-> testClusters.javaRestTest.singleNode().getServerLog().absolutePath.replaceAll("_server.json", ".log")}"
+
+  nonInputProperties.systemProperty 'tests.jsonLogfile',
+    "${-> testClusters.javaRestTest.singleNode().getServerLog()}"
+}
 
 tasks.named("test").configure {
   systemProperty 'tests.security.manager', 'false'

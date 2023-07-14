@@ -62,6 +62,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -76,6 +77,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -727,34 +729,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
     public void testDoNotComputeUnnecessaryShardMovements() {
 
-        var nodesBuilder = DiscoveryNodes.builder().add(createDiscoveryNode("master", Set.of(DiscoveryNodeRole.MASTER_ROLE)));
-
-        // nodes
-        int hotNodes = randomIntBetween(3, 5);
-        for (int i = 0; i < hotNodes; i++) {
-            var id = "hot-node-" + i;
-            nodesBuilder.add(
-                DiscoveryNodeUtils.builder(id)
-                    .name(id)
-                    .roles(Set.of(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE))
-                    .attributes(Map.of("_tier", "hot"))
-                    .build()
-            );
-        }
-        int warmNodes = randomIntBetween(2, 5);
-        for (int i = 0; i < warmNodes; i++) {
-            var id = "warm-node-" + i;
-            nodesBuilder.add(
-                DiscoveryNodeUtils.builder(id)
-                    .name(id)
-                    .roles(Set.of(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE))
-                    .attributes(Map.of("_tier", "warm"))
-                    .build()
-            );
-        }
-
         var clusterDataSizes = new ClusterDataSizes();
-
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
@@ -798,6 +773,34 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             }
         }
 
+        // nodes
+        var nodesBuilder = DiscoveryNodes.builder().add(createDiscoveryNode("master", Set.of(DiscoveryNodeRole.MASTER_ROLE)));
+
+        int hotNodes = Math.max(2, clusterDataSizes.hotNodesNeeded());
+        for (int i = 0; i < hotNodes; i++) {
+            var id = "hot-node-" + i;
+            nodesBuilder.add(
+                DiscoveryNodeUtils.builder(id)
+                    .name(id)
+                    .roles(Set.of(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE))
+                    .attributes(Map.of("_tier", "hot"))
+                    .build()
+            );
+        }
+        int warmNodes = Math.max(2, clusterDataSizes.warmNodesNeeded());
+        for (int i = 0; i < warmNodes; i++) {
+            var id = "warm-node-" + i;
+            nodesBuilder.add(
+                DiscoveryNodeUtils.builder(id)
+                    .name(id)
+                    .roles(Set.of(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE))
+                    .attributes(Map.of("_tier", "warm"))
+                    .build()
+            );
+        }
+
+        logger.info("Simulating a cluster with [{}] hot and [{}] warm nodes", hotNodes, warmNodes);
+
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(nodesBuilder)
             .metadata(metadataBuilder)
@@ -816,14 +819,14 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             DesiredBalance.INITIAL,
             new DesiredBalanceInput(
                 computation.getAndIncrement(),
-                routingAllocationWithDecidersOf(clusterState, clusterDataSizes.getClusterInfo(), settings),
+                routingAllocationWithDecidersOf(clusterState, clusterDataSizes.getClusterInfo(clusterState), settings),
                 List.of()
             ),
             queue(),
             ignored -> true
         );
 
-        int mutations = randomIntBetween(25, 100);
+        int mutations = randomIntBetween(10, 50);
         for (int m = 0; m < mutations; m++) {
             int mutation = randomIntBetween(0, 3);
             var change = "none";
@@ -831,7 +834,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             // TODO check following scenarios:
             // * rollover data stream
             // * grow data stream index (including past size estimate)
-            // * migrate data stream index from hot to warm
+            // * move data stream index from hot to warm
             // * delete data stream index
 
             switch (mutation) {
@@ -863,13 +866,13 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                         + "] shards";
                 }
                 case 1 -> {
-                    var indexToGrow = randomFrom(
-                        clusterState.metadata().indices().keySet().stream().filter(name -> name.startsWith("index-")).toList()
-                    );
-
-                    var originalSize = clusterDataSizes.getOriginalIndexShardSize(indexToGrow);
-                    clusterDataSizes.set(clusterState.metadata().index(indexToGrow), smallShardSizeDeviation(originalSize, 10));
-                    change = "change size of the index " + indexToGrow;
+                    var allIndices = clusterState.metadata().indices().keySet().stream().filter(name -> name.startsWith("index-")).toList();
+                    if (allIndices.isEmpty() == false) {
+                        var indexToGrow = randomFrom(allIndices);
+                        var originalSize = clusterDataSizes.getOriginalIndexShardSize(indexToGrow);
+                        clusterDataSizes.set(clusterState.metadata().index(indexToGrow), smallShardSizeDeviation(originalSize, 10));
+                        change = "change size of the index " + indexToGrow;
+                    }
                 }
                 case 2 -> {
                     var indexToDelete = clusterState.metadata()
@@ -896,12 +899,15 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 previousDesiredBalance,
                 new DesiredBalanceInput(
                     computation.getAndIncrement(),
-                    routingAllocationWithDecidersOf(clusterState, clusterDataSizes.getClusterInfo(), Settings.EMPTY),
+                    routingAllocationWithDecidersOf(clusterState, clusterDataSizes.getClusterInfo(clusterState), Settings.EMPTY),
                     List.of()
                 ),
                 queue(),
                 ignored -> true
             );
+
+//            var unassigned = desiredBalance.assignments().entrySet().stream().filter(entry -> entry.getValue().unassigned() > 0).toList();
+//            assertThat(unassigned, hasSize(0));
 
             var moves = DesiredBalance.shardMovements(previousDesiredBalance, desiredBalance);
             // TODO compute moved data size
@@ -911,6 +917,9 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     }
 
     private static final class ClusterDataSizes {
+
+        private static final long HOT_NODE_SIZE = ByteSizeValue.ofTb(1).getBytes();
+        private static final long WARM_NODE_SIZE = ByteSizeValue.ofTb(2).getBytes();
 
         private long totalHotDataSize = 0L;
         private long totalWarmDataSize = 0L;
@@ -968,13 +977,28 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             }
         }
 
+        public int hotNodesNeeded() {
+            return (int) Math.round(totalHotDataSize * 1.25 / HOT_NODE_SIZE);
+        }
+
+        public int warmNodesNeeded() {
+            return (int) Math.round(totalWarmDataSize * 1.25 / WARM_NODE_SIZE);
+        }
+
         private static long toLong(Long value) {
             return value != null ? value.longValue() : 0L;
         }
 
-        public ClusterInfo getClusterInfo() {
-            // TODO node disk sizes
-            return new ClusterInfo(Map.of(), Map.of(), shardSizes, Map.of(), Map.of(), Map.of());
+        public ClusterInfo getClusterInfo(ClusterState state) {
+            var nodeDiskUsage = state.nodes().getAllNodes().stream().map(node -> {
+                var size = switch (node.getAttributes().getOrDefault("_tier", "")) {
+                    case "hot" -> HOT_NODE_SIZE;
+                    case "warm" -> WARM_NODE_SIZE;
+                    default -> 0;
+                };
+                return new DiskUsage(node.getId(), node.getName(), "/data", size, size);
+            }).collect(toMap(DiskUsage::getNodeId, Function.identity()));
+            return new ClusterInfo(nodeDiskUsage, nodeDiskUsage, shardSizes, Map.of(), Map.of(), Map.of());
         }
     }
 

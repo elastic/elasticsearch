@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link SumLongAggregator}.
@@ -32,14 +33,18 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
 
   private final List<Integer> channels;
 
-  public SumLongGroupingAggregatorFunction(List<Integer> channels, LongArrayState state) {
+  private final DriverContext driverContext;
+
+  public SumLongGroupingAggregatorFunction(List<Integer> channels, LongArrayState state,
+      DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
+    this.driverContext = driverContext;
   }
 
   public static SumLongGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays) {
-    return new SumLongGroupingAggregatorFunction(channels, new LongArrayState(bigArrays, SumLongAggregator.init()));
+      DriverContext driverContext, BigArrays bigArrays) {
+    return new SumLongGroupingAggregatorFunction(channels, new LongArrayState(bigArrays, SumLongAggregator.init(), driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -190,6 +195,7 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
         state.putNull(groupId);
       }
     }
+    GroupingAggregatorUtils.releaseVectors(driverContext, sum, seen);
   }
 
   @Override

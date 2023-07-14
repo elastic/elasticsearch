@@ -18,6 +18,8 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
 
     private final $if(boolean)$Bit$else$$Type$$endif$Array values;
 
+    private boolean closed;
+
     public $Type$BigArrayVector($if(boolean)$Bit$else$$Type$$endif$Array values, int positionCount) {
         super(positionCount);
         this.values = values;
@@ -50,6 +52,8 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
 
     @Override
     public void close() {
+        if (closed) return;
+        closed = true;
         values.close();
     }
 

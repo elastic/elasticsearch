@@ -11,8 +11,8 @@ package org.elasticsearch.compute.data;
  * Vector that stores int values.
  * This class is generated. Do not edit it.
  */
-public sealed interface IntVector extends Vector permits ConstantIntVector, FilterIntVector, IntArrayVector, IntBigArrayVector {
-
+public sealed interface IntVector extends Vector permits ConstantIntVector, FilterIntVector, IntArrayVector, IntBigArrayVector,
+    IntRangeVector {
     int getInt(int position);
 
     @Override
@@ -70,13 +70,22 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, Filt
         return new IntVectorBuilder(estimatedSize);
     }
 
-    /** Create a vector for a range of ints. */
+    /**
+     * Returns true iff the values in this vector are known to be ascending.
+     * A return value of false does not necessarily indicate that the values are not ascending, just
+     * that it is not known.
+     */
+    default boolean ascending() {
+        return false;
+    }
+
+    /**
+     * Returns an IntVector containing a sequence of values from startInclusive to endExclusive,
+     * where each value is equal to the previous value + 1. Vectors returned by this factory method
+     * have the {@link #ascending} property.
+     */
     static IntVector range(int startInclusive, int endExclusive) {
-        int[] values = new int[endExclusive - startInclusive];
-        for (int i = 0; i < values.length; i++) {
-            values[i] = startInclusive + i;
-        }
-        return new IntArrayVector(values, values.length);
+        return new IntRangeVector(startInclusive, endExclusive);
     }
 
     sealed interface Builder extends Vector.Builder permits IntVectorBuilder {

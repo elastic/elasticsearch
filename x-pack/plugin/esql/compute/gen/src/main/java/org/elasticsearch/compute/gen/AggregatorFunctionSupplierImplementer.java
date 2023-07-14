@@ -30,6 +30,7 @@ import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION_SUPPLIER;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 
 /**
@@ -98,7 +99,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.addSuperinterface(AGGREGATOR_FUNCTION_SUPPLIER);
 
-        createParameters.stream().forEach(p -> p.declareField(builder));
+        createParameters.stream().filter(p -> p.name().equals("driverContext") == false).forEach(p -> p.declareField(builder));
         builder.addMethod(ctor());
         builder.addMethod(aggregator());
         builder.addMethod(groupingAggregator());
@@ -108,7 +109,7 @@ public class AggregatorFunctionSupplierImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
-        createParameters.stream().forEach(p -> p.buildCtor(builder));
+        createParameters.stream().filter(p -> p.name().equals("driverContext") == false).forEach(p -> p.buildCtor(builder));
         return builder.build();
     }
 
@@ -126,13 +127,18 @@ public class AggregatorFunctionSupplierImplementer {
     }
 
     private MethodSpec groupingAggregator() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("groupingAggregator").returns(groupingAggregatorImplementer.implementation());
-        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("groupingAggregator")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .addParameter(DRIVER_CONTEXT, "driverContext")
+            .returns(groupingAggregatorImplementer.implementation());
         builder.addStatement(
             "return $T.create($L)",
             groupingAggregatorImplementer.implementation(),
-            Stream.concat(Stream.of("channels"), groupingAggregatorImplementer.createParameters().stream().map(Parameter::name))
-                .collect(Collectors.joining(", "))
+            Stream.concat(
+                Stream.of("channels", "driverContext"),
+                groupingAggregatorImplementer.createParameters().stream().map(Parameter::name)
+            ).collect(Collectors.joining(", "))
         );
         return builder.build();
     }

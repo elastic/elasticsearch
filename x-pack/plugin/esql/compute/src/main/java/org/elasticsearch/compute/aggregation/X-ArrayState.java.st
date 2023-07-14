@@ -11,15 +11,27 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.$Type$Array;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBigArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
-$if(long)$
-import org.elasticsearch.compute.data.IntVector;
-$endif$
+$if(double)$
+import org.elasticsearch.compute.data.$Type$BigArrayVector;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
-$if(double)$
+import org.elasticsearch.compute.data.IntRangeVector;
 import org.elasticsearch.compute.data.IntVector;
+$elseif(int)$
+import org.elasticsearch.compute.data.$Type$BigArrayVector;
+import org.elasticsearch.compute.data.$Type$Block;
+import org.elasticsearch.compute.data.IntRangeVector;
+import org.elasticsearch.compute.data.$Type$Vector;
+$else$
+import org.elasticsearch.compute.data.IntRangeVector;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.$Type$BigArrayVector;
+import org.elasticsearch.compute.data.$Type$Block;
+import org.elasticsearch.compute.data.$Type$Vector;
 $endif$
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -29,6 +41,7 @@ import org.elasticsearch.core.Releasables;
 final class $Type$ArrayState implements GroupingAggregatorState {
     private final BigArrays bigArrays;
     private final $type$ init;
+    private final DriverContext driverContext;
 
     private $Type$Array values;
     /**
@@ -37,11 +50,12 @@ final class $Type$ArrayState implements GroupingAggregatorState {
     private int largestIndex;
     private BitArray nonNulls;
 
-    $Type$ArrayState(BigArrays bigArrays, $type$ init) {
+    $Type$ArrayState(BigArrays bigArrays, $type$ init, DriverContext driverContext) {
         this.bigArrays = bigArrays;
         this.values = bigArrays.new$Type$Array(1, false);
         this.values.set(0, init);
         this.init = init;
+        this.driverContext = driverContext;
     }
 
     $type$ get(int index) {
@@ -127,15 +141,42 @@ $endif$
     @Override
     public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
         assert blocks.length >= offset + 2;
-        var valuesBuilder = $Type$Block.newBlockBuilder(selected.getPositionCount());
+        blocks[offset + 0] = intermediateValues(selected);
+        blocks[offset + 1] = intermediateNonNulls(selected);
+    }
+
+    Block intermediateValues(IntVector selected) {
+        if (IntRangeVector.isRangeFromMToN(selected, 0, selected.getPositionCount())) {
+            $Type$BigArrayVector vector = new $Type$BigArrayVector(values, selected.getPositionCount());
+            values = null; // do not release
+            driverContext.addReleasable(vector);
+            return vector.asBlock();
+        } else {
+            var valuesBuilder = $Type$Block.newBlockBuilder(selected.getPositionCount());
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                valuesBuilder.append$Type$(values.get(group));
+            }
+            return valuesBuilder.build();
+        }
+    }
+
+    Block intermediateNonNulls(IntVector selected) {
+        if (nonNulls == null) {
+            return BooleanBlock.newConstantBlockWith(true, selected.getPositionCount());
+        }
+        if (IntRangeVector.isRangeFromMToN(selected, 0, selected.getPositionCount())) {
+            BooleanBigArrayVector vector = new BooleanBigArrayVector(nonNulls, selected.getPositionCount());
+            nonNulls = null; // do not release
+            driverContext.addReleasable(vector);
+            return vector.asBlock();
+        }
         var nullsBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
-            valuesBuilder.append$Type$(values.get(group));
             nullsBuilder.appendBoolean(hasValue(group));
         }
-        blocks[offset + 0] = valuesBuilder.build();
-        blocks[offset + 1] = nullsBuilder.build();
+        return nullsBuilder.build();
     }
 
     @Override

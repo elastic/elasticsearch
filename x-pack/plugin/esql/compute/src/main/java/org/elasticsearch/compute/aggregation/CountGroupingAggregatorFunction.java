@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
 
@@ -30,8 +31,8 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     private final LongArrayState state;
     private final List<Integer> channels;
 
-    public static CountGroupingAggregatorFunction create(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new CountGroupingAggregatorFunction(inputChannels, new LongArrayState(bigArrays, 0));
+    public static CountGroupingAggregatorFunction create(BigArrays bigArrays, List<Integer> inputChannels, DriverContext driverContext) {
+        return new CountGroupingAggregatorFunction(inputChannels, new LongArrayState(bigArrays, 0, driverContext));
     }
 
     public static List<IntermediateStateDesc> intermediateStateDesc() {

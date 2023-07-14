@@ -11,10 +11,14 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBigArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.DoubleBigArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.IntRangeVector;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -24,6 +28,7 @@ import org.elasticsearch.core.Releasables;
 final class DoubleArrayState implements GroupingAggregatorState {
     private final BigArrays bigArrays;
     private final double init;
+    private final DriverContext driverContext;
 
     private DoubleArray values;
     /**
@@ -32,11 +37,12 @@ final class DoubleArrayState implements GroupingAggregatorState {
     private int largestIndex;
     private BitArray nonNulls;
 
-    DoubleArrayState(BigArrays bigArrays, double init) {
+    DoubleArrayState(BigArrays bigArrays, double init, DriverContext driverContext) {
         this.bigArrays = bigArrays;
         this.values = bigArrays.newDoubleArray(1, false);
         this.values.set(0, init);
         this.init = init;
+        this.driverContext = driverContext;
     }
 
     double get(int index) {
@@ -109,15 +115,42 @@ final class DoubleArrayState implements GroupingAggregatorState {
     @Override
     public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
         assert blocks.length >= offset + 2;
-        var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+        blocks[offset + 0] = intermediateValues(selected);
+        blocks[offset + 1] = intermediateNonNulls(selected);
+    }
+
+    Block intermediateValues(IntVector selected) {
+        if (IntRangeVector.isRangeFromMToN(selected, 0, selected.getPositionCount())) {
+            DoubleBigArrayVector vector = new DoubleBigArrayVector(values, selected.getPositionCount());
+            values = null; // do not release
+            driverContext.addReleasable(vector);
+            return vector.asBlock();
+        } else {
+            var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                valuesBuilder.appendDouble(values.get(group));
+            }
+            return valuesBuilder.build();
+        }
+    }
+
+    Block intermediateNonNulls(IntVector selected) {
+        if (nonNulls == null) {
+            return BooleanBlock.newConstantBlockWith(true, selected.getPositionCount());
+        }
+        if (IntRangeVector.isRangeFromMToN(selected, 0, selected.getPositionCount())) {
+            BooleanBigArrayVector vector = new BooleanBigArrayVector(nonNulls, selected.getPositionCount());
+            nonNulls = null; // do not release
+            driverContext.addReleasable(vector);
+            return vector.asBlock();
+        }
         var nullsBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
-            valuesBuilder.appendDouble(values.get(group));
             nullsBuilder.appendBoolean(hasValue(group));
         }
-        blocks[offset + 0] = valuesBuilder.build();
-        blocks[offset + 1] = nullsBuilder.build();
+        return nullsBuilder.build();
     }
 
     @Override

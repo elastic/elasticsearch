@@ -74,7 +74,7 @@ public abstract class DriverRunner {
                             if (d.status().status() == DriverStatus.Status.QUEUED) {
                                 d.close();
                             } else {
-                                Releasables.close(d.driverContext().getSnapshot().releasables());
+                                cleanUpDriverContext(d.driverContext());
                             }
                         }
                         Exception error = failure.get();
@@ -118,5 +118,14 @@ public abstract class DriverRunner {
         });
         future.actionGet();
         return responseHeaders.get();
+    }
+
+    /** Cleans up an outstanding resources from the context. For now, it's just releasables. */
+    static void cleanUpDriverContext(DriverContext driverContext) {
+        var itr = driverContext.getSnapshot().releasables().iterator();
+        while (itr.hasNext()) {
+            Releasables.closeExpectNoException(itr.next());
+            itr.remove();
+        }
     }
 }

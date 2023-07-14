@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link PercentileDoubleAggregator}.
@@ -34,21 +35,25 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   private final List<Integer> channels;
 
+  private final DriverContext driverContext;
+
   private final BigArrays bigArrays;
 
   private final double percentile;
 
   public PercentileDoubleGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, BigArrays bigArrays, double percentile) {
+      QuantileStates.GroupingState state, BigArrays bigArrays, double percentile,
+      DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.bigArrays = bigArrays;
     this.percentile = percentile;
+    this.driverContext = driverContext;
   }
 
   public static PercentileDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays, double percentile) {
-    return new PercentileDoubleGroupingAggregatorFunction(channels, PercentileDoubleAggregator.initGrouping(bigArrays, percentile), bigArrays, percentile);
+      DriverContext driverContext, BigArrays bigArrays, double percentile) {
+    return new PercentileDoubleGroupingAggregatorFunction(channels, PercentileDoubleAggregator.initGrouping(bigArrays, percentile), bigArrays, percentile, driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

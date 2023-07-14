@@ -552,6 +552,12 @@ public class OperatorTests extends ESTestCase {
 
     public static void assertDriverContext(DriverContext driverContext) {
         assertTrue(driverContext.isFinished());
+
+        var itr = driverContext.getSnapshot().releasables().iterator();
+        while (itr.hasNext()) {
+            Releasables.close(itr.next());
+            itr.remove();
+        }
         assertThat(driverContext.getSnapshot().releasables(), empty());
     }
 }

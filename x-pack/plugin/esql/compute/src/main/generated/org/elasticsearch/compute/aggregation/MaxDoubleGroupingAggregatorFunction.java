@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link MaxDoubleAggregator}.
@@ -34,14 +35,18 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   private final List<Integer> channels;
 
-  public MaxDoubleGroupingAggregatorFunction(List<Integer> channels, DoubleArrayState state) {
+  private final DriverContext driverContext;
+
+  public MaxDoubleGroupingAggregatorFunction(List<Integer> channels, DoubleArrayState state,
+      DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
+    this.driverContext = driverContext;
   }
 
   public static MaxDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays) {
-    return new MaxDoubleGroupingAggregatorFunction(channels, new DoubleArrayState(bigArrays, MaxDoubleAggregator.init()));
+      DriverContext driverContext, BigArrays bigArrays) {
+    return new MaxDoubleGroupingAggregatorFunction(channels, new DoubleArrayState(bigArrays, MaxDoubleAggregator.init(), driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -192,6 +197,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
         state.putNull(groupId);
       }
     }
+    GroupingAggregatorUtils.releaseVectors(driverContext, max, seen);
   }
 
   @Override

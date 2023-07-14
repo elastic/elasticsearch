@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
-import org.elasticsearch.xpack.esql.expression.function.scalar.metadata.Metadata;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
@@ -116,8 +115,6 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             new FunctionDefinition[] { def(Case.class, Case::new, "case"), def(IsNull.class, IsNull::new, "is_null"), },
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
-            // metadata
-            new FunctionDefinition[] { def(Metadata.class, Metadata::new, "metadata") },
             // conversion functions
             new FunctionDefinition[] {
                 def(ToBoolean.class, ToBoolean::new, "to_boolean", "to_bool"),

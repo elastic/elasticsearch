@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.esql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -105,7 +106,7 @@ public class AggregateMapper {
             var exp = isToNE(is).toList();
             return exp;
         }
-        if (aggregate instanceof FieldAttribute || aggregate instanceof ReferenceAttribute) {
+        if (aggregate instanceof FieldAttribute || aggregate instanceof MetadataAttribute || aggregate instanceof ReferenceAttribute) {
             // This condition is a little pedantic, but do we expected other expressions here? if so, then add them
             return List.of();
         } else {

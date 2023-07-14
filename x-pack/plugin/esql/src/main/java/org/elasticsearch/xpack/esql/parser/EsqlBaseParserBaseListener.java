@@ -317,6 +317,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterMetadata(EsqlBaseParser.MetadataContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMetadata(EsqlBaseParser.MetadataContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterEvalCommand(EsqlBaseParser.EvalCommandContext ctx) { }
   /**
    * {@inheritDoc}

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -327,12 +326,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 var l2 = (int) childLimit.limit().fold();
                 return new Limit(limit.source(), Literal.of(limitSource, Math.min(l1, l2)), childLimit.child());
             } else if (limit.child() instanceof UnaryPlan unary) {
-                if (unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
+                if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
-                } else if (unary instanceof Eval eval) {
-                    if (PushDownEval.isMetadataEval(eval) == false) {
-                        return unary.replaceChild(limit.replaceChild(unary.child()));
-                    }
                 }
                 // check if there's a 'visible' descendant limit lower than the current one
                 // and if so, align the current limit since it adds no value
@@ -544,17 +539,9 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 var projectWithEvalChild = pushDownPastProject(eval);
                 var fieldProjections = asAttributes(eval.fields());
                 return projectWithEvalChild.withProjections(mergeOutputExpressions(fieldProjections, projectWithEvalChild.projections()));
-            } else if (child instanceof Limit limit) {
-                if (isMetadataEval(eval)) {
-                    return limit.replaceChild(eval.replaceChild(limit.child()));
-                }
             }
 
             return eval;
-        }
-
-        public static boolean isMetadataEval(Eval eval) {
-            return eval.fields().stream().anyMatch(x -> x instanceof Alias a && a.child() instanceof MetadataAttribute);
         }
     }
 

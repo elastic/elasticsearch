@@ -12,11 +12,10 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
-import org.elasticsearch.xpack.esql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.expression.function.scalar.metadata.Metadata;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -47,7 +46,6 @@ import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
@@ -91,9 +89,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveFunctions(),
             new RemoveDuplicateProjections()
         );
-        var rewrite = new Batch<>("Resolve Metadata", Limiter.ONCE, new ResolveMetadata());
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
-        rules = List.of(resolution, rewrite, finish);
+        rules = List.of(resolution, finish);
     }
 
     private final Verifier verifier;
@@ -120,34 +117,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return rules;
     }
 
-    private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
+    private static class ResolveTable extends ParameterizedAnalyzerRule<EsqlUnresolvedRelation, AnalyzerContext> {
 
         @Override
-        protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
+        protected LogicalPlan rule(EsqlUnresolvedRelation plan, AnalyzerContext context) {
             if (context.indexResolution().isValid() == false) {
                 return plan.unresolvedMessage().equals(context.indexResolution().toString())
                     ? plan
-                    : new UnresolvedRelation(
-                        plan.source(),
-                        plan.table(),
-                        plan.alias(),
-                        plan.frozen(),
-                        context.indexResolution().toString()
-                    );
+                    : new EsqlUnresolvedRelation(plan.source(), plan.table(), plan.metadataFields(), context.indexResolution().toString());
             }
             TableIdentifier table = plan.table();
             if (context.indexResolution().matches(table.index()) == false) {
-                new UnresolvedRelation(
+                new EsqlUnresolvedRelation(
                     plan.source(),
                     plan.table(),
-                    plan.alias(),
-                    plan.frozen(),
+                    plan.metadataFields(),
                     "invalid [" + table + "] resolution to [" + context.indexResolution() + "]"
                 );
             }
 
             EsIndex esIndex = context.indexResolution().get();
-            return new EsRelation(plan.source(), esIndex, mappingAsAttributes(plan.source(), esIndex.mapping()));
+            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+            attributes.addAll(plan.metadataFields());
+            return new EsRelation(plan.source(), esIndex, attributes);
         }
 
     }
@@ -564,32 +556,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 UnresolvedFunction.class,
                 uf -> resolveFunction(uf, context.configuration(), context.functionRegistry())
             );
-        }
-    }
-
-    private static class ResolveMetadata extends BaseAnalyzerRule {
-
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
-
-        @Override
-        protected LogicalPlan doRule(LogicalPlan plan) {
-            boolean hasRelation = plan.anyMatch(EsRelation.class::isInstance);
-            return plan.transformExpressionsDown(Metadata.class, m -> {
-                var attribute = hasRelation ? MetadataAttribute.create(m.metadataFieldName(), m.source()) : null;
-                return attribute != null
-                    ? attribute
-                    : new UnresolvedAttribute(
-                        m.source(),
-                        m.metadataFieldName(),
-                        null,
-                        hasRelation
-                            ? "unsupported metadata field [" + m.metadataFieldName() + "]"
-                            : "metadata fields not available without an index source; found [" + m.metadataFieldName() + "]"
-                    );
-            });
         }
     }
 

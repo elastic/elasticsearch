@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.Nullability;
@@ -18,14 +19,18 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Map;
 
+import static org.elasticsearch.core.Tuple.tuple;
+
 public class MetadataAttribute extends TypedAttribute {
 
-    private static final MetadataAttribute _VERSION = new MetadataAttribute(Source.EMPTY, "_version", DataTypes.LONG, true);
-    private static final MetadataAttribute _INDEX = new MetadataAttribute(Source.EMPTY, "_index", DataTypes.KEYWORD, true);
-    // TODO
-    private static final MetadataAttribute _ID = new MetadataAttribute(Source.EMPTY, "_id", DataTypes.KEYWORD, false);
-
-    private static final Map<String, MetadataAttribute> ATTRIBUTES_MAP = Map.of(_VERSION.name(), _VERSION, _INDEX.name(), _INDEX);
+    private static final Map<String, Tuple<DataType, Boolean>> ATTRIBUTES_MAP = Map.of(
+        "_version",
+        tuple(DataTypes.LONG, true),
+        "_index",
+        tuple(DataTypes.KEYWORD, true),
+        "_id",
+        tuple(DataTypes.KEYWORD, false)
+    );
 
     private final boolean docValues;
 
@@ -78,14 +83,14 @@ public class MetadataAttribute extends TypedAttribute {
         return new MetadataAttribute(source, name(), dataType(), qualifier(), nullable(), id(), synthetic(), docValues());
     }
 
-    public static MetadataAttribute create(String name, Source source) {
-        MetadataAttribute attribute = ATTRIBUTES_MAP.get(name);
-        return attribute != null ? attribute.withSource(source) : null;
+    public static MetadataAttribute create(Source source, String name) {
+        var t = ATTRIBUTES_MAP.get(name);
+        return t != null ? new MetadataAttribute(source, name, t.v1(), t.v2()) : null;
     }
 
     public static DataType dataType(String name) {
-        MetadataAttribute attribute = ATTRIBUTES_MAP.get(name);
-        return attribute != null ? attribute.dataType() : null;
+        var t = ATTRIBUTES_MAP.get(name);
+        return t != null ? t.v1() : null;
     }
 
     public static boolean isSupported(String name) {

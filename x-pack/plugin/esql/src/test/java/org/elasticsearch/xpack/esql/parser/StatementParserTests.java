@@ -11,6 +11,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -40,7 +41,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -387,7 +387,7 @@ public class StatementParserTests extends ESTestCase {
         assertThat(limit.children().size(), equalTo(1));
         assertThat(limit.children().get(0), instanceOf(Filter.class));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
-        assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(EsqlUnresolvedRelation.class));
     }
 
     public void testLimitConstraints() {
@@ -437,7 +437,7 @@ public class StatementParserTests extends ESTestCase {
         assertThat(orderBy.children().size(), equalTo(1));
         assertThat(orderBy.children().get(0), instanceOf(Filter.class));
         assertThat(orderBy.children().get(0).children().size(), equalTo(1));
-        assertThat(orderBy.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
+        assertThat(orderBy.children().get(0).children().get(0), instanceOf(EsqlUnresolvedRelation.class));
     }
 
     public void testSubquery() {
@@ -546,6 +546,38 @@ public class StatementParserTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testMetadataFieldOnOtherSources() {
+        expectError(
+            "row a = 1 [metadata _index]",
+            "1:11: mismatched input '[' expecting {<EOF>, PIPE, 'and', COMMA, 'or', '+', '-', '*', '/', '%'}"
+        );
+        expectError("show functions [metadata _index]", "line 1:16: mismatched input '[' expecting {<EOF>, PIPE}");
+        expectError(
+            "explain [from foo] [metadata _index]",
+            "line 1:20: mismatched input '[' expecting {PIPE, COMMA, OPENING_BRACKET, ']'}"
+        );
+    }
+
+    public void testMetadataFieldMultipleDeclarations() {
+        expectError("from test [metadata _index, _version, _index]", "1:40: metadata field [_index] already declared [@1:21]");
+    }
+
+    public void testMetadataFieldUnsupportedPrimitiveType() {
+        expectError("from test [metadata _tier]", "line 1:22: unsupported metadata field [_tier]");
+    }
+
+    public void testMetadataFieldUnsupportedCustomType() {
+        expectError("from test [metadata _feature]", "line 1:22: unsupported metadata field [_feature]");
+    }
+
+    public void testMetadataFieldNotFoundNonExistent() {
+        expectError("from test [metadata _doesnot_compute]", "line 1:22: unsupported metadata field [_doesnot_compute]");
+    }
+
+    public void testMetadataFieldNotFoundNormalField() {
+        expectError("from test [metadata emp_no]", "line 1:22: unsupported metadata field [emp_no]");
     }
 
     public void testDissectPattern() {
@@ -679,8 +711,8 @@ public class StatementParserTests extends ESTestCase {
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {
         LogicalPlan from = statement(statement);
-        assertThat(from, instanceOf(UnresolvedRelation.class));
-        UnresolvedRelation table = (UnresolvedRelation) from;
+        assertThat(from, instanceOf(EsqlUnresolvedRelation.class));
+        EsqlUnresolvedRelation table = (EsqlUnresolvedRelation) from;
         assertThat(table.table().index(), is(identifier));
     }
 

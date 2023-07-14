@@ -279,14 +279,14 @@ public class RestEsqlTestCase extends ESRestTestCase {
         request.setJsonEntity("{\"a\": 3}");
         assertEquals(201, client().performRequest(request).getStatusLine().getStatusCode());
 
-        var query = fromIndex() + "* | eval _i = metadata(\"_index\"), _v = metadata(\"_version\") | sort a";
+        var query = fromIndex() + "* [metadata _index, _version] | sort _version";
         Map<String, Object> result = runEsql(new RequestObjectBuilder().query(query).build());
         var columns = List.of(
             Map.of("name", "a", "type", "long"),
-            Map.of("name", "_i", "type", "keyword"),
-            Map.of("name", "_v", "type", "long")
+            Map.of("name", "_index", "type", "keyword"),
+            Map.of("name", "_version", "type", "long")
         );
-        var values = List.of(List.of(2, testIndexName() + "-1", 2), List.of(3, testIndexName() + "-2", 1));
+        var values = List.of(List.of(3, testIndexName() + "-2", 1), List.of(2, testIndexName() + "-1", 2));
 
         assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
     }

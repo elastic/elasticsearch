@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.TypesTests;
@@ -46,10 +46,17 @@ import static org.hamcrest.Matchers.instanceOf;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
 public class AnalyzerTests extends ESTestCase {
+
+    private static final EsqlUnresolvedRelation UNRESOLVED_RELATION = new EsqlUnresolvedRelation(
+        EMPTY,
+        new TableIdentifier(EMPTY, null, "idx"),
+        List.of()
+    );
+
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
-        var plan = analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "idx"), null, false));
+        var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
         assertEquals(new EsRelation(EMPTY, idx, false), limit.child());
@@ -58,10 +65,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testFailOnUnresolvedIndex() {
         Analyzer analyzer = analyzer(IndexResolution.invalid("Unknown index [idx]"));
 
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "idx"), null, false))
-        );
+        VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(UNRESOLVED_RELATION));
 
         assertThat(e.getMessage(), containsString("Unknown index [idx]"));
     }
@@ -70,7 +74,7 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex idx = new EsIndex("cluster:idx", Map.of());
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
-        var plan = analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, "cluster", "idx"), null, false));
+        var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
         assertEquals(new EsRelation(EMPTY, idx, false), limit.child());
@@ -81,11 +85,7 @@ public class AnalyzerTests extends ESTestCase {
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
-            new Eval(
-                EMPTY,
-                new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "idx"), null, false),
-                List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no")))
-            )
+            new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no"))))
         );
 
         var limit = as(plan, Limit.class);
@@ -108,11 +108,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(
             new Eval(
                 EMPTY,
-                new Eval(
-                    EMPTY,
-                    new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "idx"), null, false),
-                    List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no")))
-                ),
+                new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no")))),
                 List.of(new Alias(EMPTY, "ee", new UnresolvedAttribute(EMPTY, "e")))
             )
         );
@@ -173,11 +169,7 @@ public class AnalyzerTests extends ESTestCase {
         VerificationException ve = expectThrows(
             VerificationException.class,
             () -> analyzer.analyze(
-                new Eval(
-                    EMPTY,
-                    new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "idx"), null, false),
-                    List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_nos")))
-                )
+                new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_nos"))))
             )
         );
 

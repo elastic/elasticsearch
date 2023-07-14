@@ -12,9 +12,11 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.xpack.esql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -43,12 +45,13 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -172,7 +175,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
         TableIdentifier table = new TableIdentifier(source, null, visitSourceIdentifiers(ctx.sourceIdentifier()));
-        return new UnresolvedRelation(source, table, "", false, null);
+        Map<String, Attribute> metadataMap = new LinkedHashMap<>();
+        if (ctx.metadata() != null) {
+            for (var c : ctx.metadata().sourceIdentifier()) {
+                String id = visitSourceIdentifier(c);
+                Source src = source(c);
+                if (MetadataAttribute.isSupported(id) == false) {
+                    throw new ParsingException(src, "unsupported metadata field [" + id + "]");
+                }
+                Attribute a = metadataMap.put(id, MetadataAttribute.create(src, id));
+                if (a != null) {
+                    throw new ParsingException(src, "metadata field [" + id + "] already declared [" + a.source().source() + "]");
+                }
+            }
+        }
+        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)));
     }
 
     @Override

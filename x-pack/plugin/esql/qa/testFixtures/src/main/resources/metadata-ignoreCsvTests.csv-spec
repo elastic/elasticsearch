@@ -1,14 +1,14 @@
 
-simpleEval
-from employees | sort emp_no | limit 2 | eval i = metadata("_index"), v = metadata("_version") | keep emp_no, i, v;
+simpleKeep
+from employees [metadata _index, _version] | sort emp_no | limit 2 | keep emp_no, _index, _version;
 
-emp_no:integer |i:keyword |v:long
-10001          |employees |1
-10002          |employees |1
+emp_no:integer |_index:keyword |_version:long
+10001          |employees      |1
+10002          |employees      |1
 ;
 
 aliasWithSameName
-from employees | sort emp_no | limit 2 | eval _index = metadata("_index"), _version = metadata("_version") | keep emp_no, _index, _version;
+from employees [metadata _index, _version] | sort emp_no | limit 2 | eval _index = _index, _version = _version | keep emp_no, _index, _version;
 
 emp_no:integer |_index:keyword |_version:long
 10001          |employees      |1
@@ -16,79 +16,90 @@ emp_no:integer |_index:keyword |_version:long
 ;
 
 inComparison
-from employees | sort emp_no | where metadata("_index") == "employees" | where metadata("_version") == 1 | keep emp_no | limit 2;
+from employees [metadata _index, _version] | sort emp_no | where _index == "employees" | where _version == 1 | keep emp_no | limit 2;
 
 emp_no:integer
 10001
 10002
-;
-
-metaVersionInAggs
-from employees | eval i = metadata("_index") | stats max = max(emp_no) by i;
-
-max:integer |i:keyword
-10100       |employees
 ;
 
 metaIndexInAggs
-from employees | eval i = metadata("_version") | stats min = min(emp_no) by i;
+from employees [metadata _index] | stats max = max(emp_no) by _index;
 
-min:integer |i:long
+max:integer |_index:keyword
+10100       |employees
+;
+
+metaIndexAliasedInAggs
+from employees [metadata _index] | eval _i = _index | stats max = max(emp_no) by _i;
+
+max:integer |_i:keyword
+10100       |employees
+;
+
+metaVersionInAggs
+from employees [metadata _version] | stats min = min(emp_no) by _version;
+
+min:integer |_version:long
 10001       |1
 ;
 
-inFunction
-from employees | sort emp_no | where length(metadata("_index")) == length("employees") | where abs(metadata("_version")) == 1 | keep emp_no | limit 2;
+metaVersionAliasedInAggs
+from employees [metadata _version] | eval _v = _version | stats min = min(emp_no) by _v;
 
-emp_no:integer
-10001
-10002
+min:integer |_v:long
+10001       |1
 ;
 
 inAggsAndAsGroups
-from employees | eval  _index = metadata("_index") | stats max = max(metadata("_version")) by _index;
+from employees [metadata _index, _version] | stats max = max(_version) by _index;
 
 max:long |_index:keyword
 1        |employees
 ;
 
+inAggsAndAsGroupsAliased
+from employees [metadata _index, _version] | eval _i = _index, _v = _version | stats max = max(_v) by _i;
+
+max:long |_i:keyword
+1        |employees
+;
+
+inFunction
+from employees [metadata _index, _version] | sort emp_no | where length(_index) == length("employees") | where abs(_version) == 1 | keep emp_no | limit 2;
+
+emp_no:integer
+10001
+10002
+;
+
 inArithmetics
-from employees | eval i = metadata("_version") + 2 | stats min = min(emp_no) by i;
+from employees [metadata _index, _version] | eval i = _version + 2 | stats min = min(emp_no) by i;
 
 min:integer |i:long
 10001       |3
 ;
 
+inSort
+from employees [metadata _index, _version] | sort _version, _index, emp_no | keep emp_no, _version, _index | limit 2;
+
+emp_no:integer |_version:long |_index:keyword
+10001          |1             |employees
+10002          |1             |employees
+;
+
 withMvFunction
-from employees | eval i = mv_avg(metadata("_version")) + 2 | stats min = min(emp_no) by i;
+from employees [metadata _version] | eval i = mv_avg(_version) + 2 | stats min = min(emp_no) by i;
 
 min:integer |i:double
 10001       |3.0
 ;
 
-pastKeep
-from employees | eval _i = metadata("_index") | keep emp_no, _i | where metadata("_version") > 0 | limit 3;
+overwritten
+from employees [metadata _index, _version] | eval _index = 3, _version = "version" | keep emp_no, _index, _version | limit 3;
 
-emp_no:integer |_i:keyword
-10001          |employees
-10002          |employees
-10003          |employees
-;
-
-pastSameNameFieldAssignment
-from employees | eval _index = 3 | eval _i = metadata("_index") | keep emp_no, _index | limit 3;
-
-emp_no:integer |_index:integer
-10001          |3              
-10002          |3              
-10003          |3              
-;
-
-beforeSameNameFieldAssignment
-from employees | eval _index = 3 | eval metadata("_index") | keep emp_no, _index | limit 3;
-
-emp_no:integer |_index:integer
-10001          |3              
-10002          |3              
-10003          |3              
+emp_no:integer |_index:integer |_version:keyword
+10001          |3              |version
+10002          |3              |version
+10003          |3              |version
 ;

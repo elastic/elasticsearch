@@ -31,8 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.metadata.DataStream.TimestampField.FIXED_TIMESTAMP_FIELD;
-
 /**
  * An index template consists of a set of index patterns, an optional template, and a list of
  * ids corresponding to component templates that should be composed in order when creating a new
@@ -409,10 +407,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 boolean value = in.readBoolean();
                 assert value == false : "expected false, because this used to be an optional enum that never got set";
             }
-        }
-
-        public static String getTimestampField() {
-            return FIXED_TIMESTAMP_FIELD;
         }
 
         /**

@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -42,6 +43,11 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
                 }
             }
             throw new IllegalArgumentException("Unknown CriteriaType: " + criteriaType);
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 
@@ -172,5 +178,9 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    public boolean isMatch(String matchString) {
+        return criteriaType == CriteriaType.EXACT && criteriaValue.equals(matchString);
     }
 }

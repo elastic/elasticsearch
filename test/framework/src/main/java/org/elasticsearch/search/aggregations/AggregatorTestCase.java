@@ -55,11 +55,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -212,7 +214,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             10,
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
         plugins.add(new AggCardinalityUpperBoundPlugin());
@@ -340,6 +342,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             0,
             -1,
             indexSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             bitsetFilterCache,
             fieldDataBuilder,
             null,
@@ -1219,7 +1222,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 null,
                 null,
                 null,
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 () -> TransportVersion.current(),
                 null,
                 ScriptCompiler.NONE,

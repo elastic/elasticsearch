@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryOperation;
@@ -264,7 +264,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         long repositoryStateId,
         Map<ShardId, ShardSnapshotStatus> shards,
         Map<String, Object> userMetadata,
-        Version version,
+        IndexVersion version,
         List<SnapshotFeatureInfo> featureStates
     ) {
         return Entry.snapshot(
@@ -301,7 +301,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         Map<String, IndexId> indices,
         long startTime,
         long repositoryStateId,
-        Version version
+        IndexVersion version
     ) {
         return Entry.createClone(snapshot, State.STARTED, indices, startTime, repositoryStateId, null, version, source, Map.of());
     }
@@ -669,7 +669,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final List<SnapshotFeatureInfo> featureStates;
         private final long startTime;
         private final long repositoryStateId;
-        private final Version version;
+        private final IndexVersion version;
 
         /**
          * Source snapshot if this is a clone operation or {@code null} if this is a snapshot.
@@ -708,7 +708,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Map<ShardId, ShardSnapshotStatus> shards,
             String failure,
             Map<String, Object> userMetadata,
-            Version version
+            IndexVersion version
         ) {
             final Map<String, Index> res = Maps.newMapWithExpectedSize(indices.size());
             final Map<RepositoryShardId, ShardSnapshotStatus> byRepoShardIdBuilder = Maps.newHashMapWithExpectedSize(shards.size());
@@ -751,7 +751,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             long startTime,
             long repositoryStateId,
             String failure,
-            Version version,
+            IndexVersion version,
             SnapshotId source,
             Map<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId
         ) {
@@ -789,7 +789,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Map<ShardId, ShardSnapshotStatus> shards,
             String failure,
             Map<String, Object> userMetadata,
-            Version version,
+            IndexVersion version,
             @Nullable SnapshotId source,
             Map<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId,
             Map<String, Index> snapshotIndices,
@@ -833,7 +833,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final long repositoryStateId = in.readLong();
             final String failure = in.readOptionalString();
             final Map<String, Object> userMetadata = in.readMap();
-            final Version version = Version.readVersion(in);
+            final IndexVersion version = IndexVersion.readVersion(in);
             final List<String> dataStreams = in.readImmutableStringList();
             final SnapshotId source = in.readOptionalWriteable(SnapshotId::new);
             final Map<RepositoryShardId, ShardSnapshotStatus> clones = in.readImmutableMap(
@@ -1182,7 +1182,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         /**
          * What version of metadata to use for the snapshot in the repository
          */
-        public Version version() {
+        public IndexVersion version() {
             return version;
         }
 
@@ -1332,7 +1332,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeLong(repositoryStateId);
             out.writeOptionalString(failure);
             out.writeGenericMap(userMetadata);
-            Version.writeVersion(version, out);
+            IndexVersion.writeVersion(version, out);
             out.writeStringCollection(dataStreams);
             out.writeOptionalWriteable(source);
             if (source == null) {

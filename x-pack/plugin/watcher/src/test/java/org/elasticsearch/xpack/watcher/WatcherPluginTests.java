@@ -73,7 +73,7 @@ public class WatcherPluginTests extends ESTestCase {
 
         // also no component creation if not enabled
         assertThat(
-            watcher.createComponents(null, null, null, null, null, null, null, null, null, null, null, Tracer.NOOP, null),
+            watcher.createComponents(null, null, null, null, null, null, null, null, null, null, null, Tracer.NOOP, null, null),
             hasSize(0)
         );
 

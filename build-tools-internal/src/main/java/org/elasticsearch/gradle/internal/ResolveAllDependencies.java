@@ -13,6 +13,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
 
 import java.util.Collection;
@@ -27,7 +28,7 @@ public class ResolveAllDependencies extends DefaultTask {
 
     private final ObjectFactory objectFactory;
 
-    Collection<Configuration> configs;
+    private Collection<Configuration> configs;
 
     @Inject
     public ResolveAllDependencies(ObjectFactory objectFactory) {
@@ -43,6 +44,15 @@ public class ResolveAllDependencies extends DefaultTask {
     @TaskAction
     void resolveAll() {
         // do nothing, dependencies are resolved when snapshotting task inputs
+    }
+
+    @Internal
+    public Collection<Configuration> getConfigs() {
+        return configs;
+    }
+
+    public void setConfigs(Collection<Configuration> configs) {
+        this.configs = configs;
     }
 
     private static boolean canBeResolved(Configuration configuration) {

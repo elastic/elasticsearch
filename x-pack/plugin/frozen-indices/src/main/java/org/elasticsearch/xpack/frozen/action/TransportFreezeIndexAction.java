@@ -150,12 +150,10 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                     .waitForActiveShards(request.waitForActiveShards());
                 indexStateService.openIndices(
                     updateRequest,
-                    delegate.delegateFailure(
-                        (l, openIndexClusterStateUpdateResponse) -> l.onResponse(
-                            new FreezeResponse(
-                                openIndexClusterStateUpdateResponse.isAcknowledged(),
-                                openIndexClusterStateUpdateResponse.isShardsAcknowledged()
-                            )
+                    delegate.safeMap(
+                        openIndexClusterStateUpdateResponse -> new FreezeResponse(
+                            openIndexClusterStateUpdateResponse.isAcknowledged(),
+                            openIndexClusterStateUpdateResponse.isShardsAcknowledged()
                         )
                     )
                 );

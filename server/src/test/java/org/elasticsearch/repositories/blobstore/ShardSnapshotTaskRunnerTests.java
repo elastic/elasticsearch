@@ -9,7 +9,6 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.ByteBuffersDirectory;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -102,7 +101,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
     public static BlobStoreIndexShardSnapshot.FileInfo dummyFileInfo() {
         String filename = randomAlphaOfLength(10);
-        StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", IndexVersion.CURRENT.luceneVersion().toString());
+        StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", IndexVersion.current().luceneVersion().toString());
         return new BlobStoreIndexShardSnapshot.FileInfo(filename, metadata, null);
     }
 
@@ -114,7 +113,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
         IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
         ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 1);
         IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(indexId.getName()).settings(indexSettings(Version.CURRENT, 1, 0)).build(),
+            IndexMetadata.builder(indexId.getName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
             Settings.EMPTY
         );
         Store dummyStore = new Store(shardId, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(shardId));
@@ -126,7 +125,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
             new SnapshotIndexCommit(new Engine.IndexCommitRef(null, () -> {})),
             null,
             IndexShardSnapshotStatus.newInitializing(null),
-            Version.CURRENT,
+            IndexVersion.current(),
             startTime,
             ActionListener.noop()
         );

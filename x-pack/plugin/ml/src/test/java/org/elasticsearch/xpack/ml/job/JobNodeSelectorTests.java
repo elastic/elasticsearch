@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -873,7 +874,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                     nodeAttr,
                     ROLES_WITH_ML,
-                    Version.fromString("6.2.0")
+                    VersionInformation.inferVersions(Version.fromString("6.2.0"))
                 )
             )
             .add(
@@ -883,7 +884,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
                     nodeAttr,
                     ROLES_WITH_ML,
-                    Version.fromString("6.1.0")
+                    VersionInformation.inferVersions(Version.fromString("6.1.0"))
                 )
             )
             .build();
@@ -931,7 +932,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                     nodeAttr,
                     ROLES_WITH_ML,
-                    Version.fromString("6.2.0")
+                    VersionInformation.inferVersions(Version.fromString("6.2.0"))
                 )
             )
             .add(
@@ -941,7 +942,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
                     nodeAttr,
                     ROLES_WITH_ML,
-                    Version.fromString("6.4.0")
+                    VersionInformation.inferVersions(Version.fromString("6.4.0"))
                 )
             )
             .build();

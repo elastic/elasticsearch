@@ -285,7 +285,18 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     @Override
     public Iterator<Mapper> iterator() {
+        return multiFieldsIterator();
+    }
+
+    protected Iterator<Mapper> multiFieldsIterator() {
         return Iterators.forArray(multiFields.mappers);
+    }
+
+    /**
+     * @return a mapper iterator of all fields that use this field's source path as their source path
+     */
+    public Iterator<Mapper> sourcePathUsedBy() {
+        return multiFieldsIterator();
     }
 
     @Override
@@ -1047,7 +1058,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, NamedAnalyzer> initializer,
             Supplier<NamedAnalyzer> defaultAnalyzer
         ) {
-            return analyzerParam(name, updateable, initializer, defaultAnalyzer, IndexVersion.CURRENT);
+            return analyzerParam(name, updateable, initializer, defaultAnalyzer, IndexVersion.current());
         }
 
         /**

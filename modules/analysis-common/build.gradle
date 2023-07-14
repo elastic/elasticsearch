@@ -19,14 +19,14 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count', 'synonyms.put'
+    include '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
   }
 }
 
 testClusters.configureEach {
   module ':modules:reindex'
   module ':modules:mapper-extras'
-  requiresFeature 'es.synonyms_feature_flag_enabled', Version.fromString("8.9.0")
+  requiresFeature 'es.synonyms_api_feature_flag_enabled', Version.fromString("8.9.0")
 }
 
 dependencies {

@@ -1,0 +1,5 @@
+pr: 97539
+summary: "Give all acces to .slo-observability.* indice to kibana user"
+area: Authentication
+type: enhancement
+issues: []

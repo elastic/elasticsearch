@@ -193,7 +193,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             assertThat(commitVersion, is(equalTo(Version.CURRENT)));
             final org.apache.lucene.util.Version commitLuceneVersion = shardSnapshotData.getCommitLuceneVersion();
             assertThat(commitLuceneVersion, is(notNullValue()));
-            assertThat(commitLuceneVersion, is(equalTo(IndexVersion.CURRENT.luceneVersion())));
+            assertThat(commitLuceneVersion, is(equalTo(IndexVersion.current().luceneVersion())));
 
             assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
             assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));
@@ -241,9 +241,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             );
 
             assertAcked(
-                client().admin()
-                    .cluster()
-                    .preparePutRepository(failingRepo.v1())
+                clusterAdmin().preparePutRepository(failingRepo.v1())
                     .setType(FailingRepoPlugin.TYPE)
                     .setVerify(false)
                     .setSettings(Settings.builder().put(repoFailureType, true).put("location", failingRepo.v2()))
@@ -319,9 +317,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
 
     private void createRepository(String repositoryName, String type, Path location, boolean recoveryEnabledRepo) {
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(repositoryName)
+            clusterAdmin().preparePutRepository(repositoryName)
                 .setType(type)
                 .setVerify(false)
                 .setSettings(

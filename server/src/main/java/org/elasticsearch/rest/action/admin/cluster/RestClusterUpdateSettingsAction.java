@@ -25,7 +25,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     private static final String PERSISTENT = "persistent";
     private static final String TRANSIENT = "transient";

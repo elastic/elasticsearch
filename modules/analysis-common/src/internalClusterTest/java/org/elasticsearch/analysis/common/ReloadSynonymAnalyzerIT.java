@@ -62,9 +62,7 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
             out.println("foo, baz");
         }
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setSettings(
                     indexSettings(cluster().numDataNodes() * 2, 1).put("analysis.analyzer.my_synonym_analyzer.tokenizer", "standard")
                         .put("analysis.analyzer.my_synonym_analyzer.filter", "my_synonym_filter")
@@ -76,13 +74,13 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
         );
 
         client().prepareIndex("test").setId("1").setSource("field", "foo").get();
-        assertNoFailures(client().admin().indices().prepareRefresh("test").execute().actionGet());
+        assertNoFailures(indicesAdmin().prepareRefresh("test").execute().actionGet());
 
         SearchResponse response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")).get();
         assertHitCount(response, 1L);
         response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
         assertHitCount(response, 0L);
-        Response analyzeResponse = client().admin().indices().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
+        Response analyzeResponse = indicesAdmin().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
         assertEquals(2, analyzeResponse.getTokens().size());
         assertEquals("foo", analyzeResponse.getTokens().get(0).getTerm());
         assertEquals("baz", analyzeResponse.getTokens().get(1).getTerm());
@@ -97,8 +95,10 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
             ) {
                 out.println("foo, baz, " + testTerm);
             }
-            ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest("test"))
-                .actionGet();
+            ReloadAnalyzersResponse reloadResponse = client().execute(
+                ReloadAnalyzerAction.INSTANCE,
+                new ReloadAnalyzersRequest(null, "test")
+            ).actionGet();
             assertNoFailures(reloadResponse);
             assertEquals(cluster().numDataNodes(), reloadResponse.getSuccessfulShards());
             assertTrue(reloadResponse.getReloadDetails().containsKey("test"));
@@ -108,7 +108,7 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
                 reloadResponse.getReloadDetails().get("test").getReloadedAnalyzers()
             );
 
-            analyzeResponse = client().admin().indices().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
+            analyzeResponse = indicesAdmin().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
             assertEquals(3, analyzeResponse.getTokens().size());
             Set<String> tokens = new HashSet<>();
             analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));

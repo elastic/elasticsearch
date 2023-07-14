@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.core.ilm.GenerateUniqueIndexNameStep.generateValidIndexName;
+import static org.elasticsearch.common.IndexNameGenerator.generateValidIndexName;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 

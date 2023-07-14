@@ -344,31 +344,31 @@ it, while a JWT realm of `access_token` will just ignore it.
 (Required, String) Contains the user's principal (username). The value is
 configurable using the realm setting `claims.principal`.
 You can configure an optional regular expression using the
-`claims.principal_pattern` to extract a substring.
+`claim_patterns.principal` to extract a substring.
 
 `groups`::
 (Optional, JSON array) Contains the user's group membership.
 The value is configurable using the realm setting `claims.groups`. You can
 configure an optional regular expression using the realm setting
-`claims.groups_pattern` to extract a substring value.
+`claim_patterns.groups` to extract a substring value.
 
 `name`::
 (Optional, String) Contains a human-readable identifier that identifies the
 subject of the token. The value is configurable using the realm setting
 `claims.name`. You can configure an optional regular expression using the realm
-setting `claims.name_pattern` to extract a substring value.
+setting `claim_patterns.name` to extract a substring value.
 
 `mail`::
 (Optional, String) Contains the e-mail address to associate with the user. The
 value is configurable using the realm setting `claims.mail`. You can configure an
-optional regular expression using the realm setting `claims.mail_pattern` to
+optional regular expression using the realm setting `claim_patterns.mail` to
 extract a substring value.
 
 `dn`::
 (Optional, String) Contains the user's Distinguished Name (DN), which uniquely
 identifies a user or group. The value is configurable using the realm setting
 `claims.dn`. You can configure an optional regular expression using the realm
-setting `claims.dn_pattern` to extract a substring value.
+setting `claim_patterns.dn` to extract a substring value.
 
 [[jwt-authorization]]
 ==== JWT realm authorization
@@ -534,8 +534,8 @@ the `jwt_role1` role that you mapped to this user in the JWT realm:
 ----
 
 If you want to specify a request as the `run_as` user, include the
-the `es-security-runas-user` header with the name of the user that you
-want to submit requests as. The following request uses the `user123_runas` user:
+`es-security-runas-user` header with the name of the user that you want to
+submit requests as. The following request uses the `user123_runas` user:
 
 [source,sh]
 ----

@@ -230,7 +230,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         List<SnapshotPolicyStats> metrics = getMetrics().values()
             .stream()
             .sorted(Comparator.comparing(SnapshotPolicyStats::getPolicyId)) // maintain a consistent order when serializing
-            .collect(Collectors.toList());
+            .toList();
         long totalTaken = metrics.stream().mapToLong(s -> s.snapshotsTaken.count()).sum();
         long totalFailed = metrics.stream().mapToLong(s -> s.snapshotsFailed.count()).sum();
         long totalDeleted = metrics.stream().mapToLong(s -> s.snapshotsDeleted.count()).sum();

@@ -1,0 +1,6 @@
+pr: 97619
+summary: Support for Byte and Short as vector tiles features
+area: Geo
+type: bug
+issues:
+ - 97612

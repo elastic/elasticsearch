@@ -158,6 +158,8 @@ public class TDigestStateTests extends ESTestCase {
 
         assertEquals(fast, anotherFast);
         assertEquals(accurate, anotherAccurate);
+        assertNotEquals(fast, accurate);
+        assertNotEquals(anotherFast, anotherAccurate);
     }
 
     private static TDigestState writeToAndReadFrom(TDigestState state, TransportVersion version) throws IOException {
@@ -194,7 +196,8 @@ public class TDigestStateTests extends ESTestCase {
         TDigestState serialized = writeToAndReadFrom(state, TransportVersion.V_8_500_014);
         assertEquals(serialized, state);
 
-        TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_500_000);
+        TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_500_010);
+        assertNotEquals(serializedBackwardsCompatible, state);
         assertEquals(serializedBackwardsCompatible, backwardsCompatible);
     }
 }

@@ -200,10 +200,9 @@ public class Detector implements ToXContentObject, Writeable {
      * ", \
      */
     public static final Character[] PROHIBITED_FIELDNAME_CHARACTERS = { '"', '\\' };
-    public static final String PROHIBITED = String.join(
-        ",",
-        Arrays.stream(PROHIBITED_FIELDNAME_CHARACTERS).map(c -> Character.toString(c)).collect(Collectors.toList())
-    );
+    public static final String PROHIBITED = Arrays.stream(PROHIBITED_FIELDNAME_CHARACTERS)
+        .map(c -> Character.toString(c))
+        .collect(Collectors.joining(","));
 
     private final String detectorDescription;
     private final DetectorFunction function;

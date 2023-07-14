@@ -222,6 +222,13 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             return name;
         }
 
+        public long getPid() {
+            if (process == null) {
+                throw new IllegalStateException("Process has not been started, cannot get pid");
+            }
+            return process.pid();
+        }
+
         public LocalNodeSpec getSpec() {
             return spec;
         }
@@ -635,6 +642,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     .map(p -> p.replace("${ES_PATH_CONF}", configDir.toString()))
                     .collect(Collectors.joining(" "));
             }
+            String jvmArgs = String.join(" ", spec.getJvmArgs());
 
             String debugArgs = "";
             if (Boolean.getBoolean(TESTS_CLUSTER_DEBUG_ENABLED_SYSPROP)) {
@@ -649,6 +657,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 + " "
                 + featureFlagProperties
                 + systemProperties
+                + jvmArgs
                 + debugArgs);
 
             return environment;

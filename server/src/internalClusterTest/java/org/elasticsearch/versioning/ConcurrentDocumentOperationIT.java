@@ -50,7 +50,7 @@ public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
 
         assertThat(failure.get(), nullValue());
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().execute().actionGet();
 
         logger.info("done indexing, check all have the same field value");
         Map<String, Object> masterSource = client().prepareGet("test", "1").execute().actionGet().getSourceAsMap();

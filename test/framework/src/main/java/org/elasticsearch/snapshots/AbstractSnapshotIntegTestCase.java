@@ -35,6 +35,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -49,7 +50,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -162,7 +163,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         skipRepoConsistencyCheckReason = reason;
     }
 
-    protected RepositoryData getRepositoryData(String repoName, Version version) {
+    protected RepositoryData getRepositoryData(String repoName, IndexVersion version) {
         final RepositoryData repositoryData = getRepositoryData(repoName);
         if (SnapshotsService.includesUUIDs(version) == false) {
             return repositoryData.withoutUUIDs();
@@ -339,7 +340,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void deleteRepository(String repoName) {
-        assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+        assertAcked(clusterAdmin().prepareDeleteRepository(repoName));
     }
 
     public static Settings.Builder randomRepositorySettings() {
@@ -363,7 +364,20 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      */
     protected void maybeInitWithOldSnapshotVersion(String repoName, Path repoPath) throws Exception {
         if (randomBoolean() && randomBoolean()) {
-            initWithSnapshotVersion(repoName, repoPath, VersionUtils.randomIndexCompatibleVersion(random()));
+            initWithSnapshotVersion(
+                repoName,
+                repoPath,
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_0_0, IndexVersion.V_8_9_0)
+            );
+        }
+    }
+
+    private static String versionString(IndexVersion version) {
+        if (version.before(IndexVersion.V_8_9_0)) {
+            // add back the "" for a json String
+            return "\"" + Version.fromId(version.id()) + "\"";
+        } else {
+            return version.toString();
         }
     }
 
@@ -371,9 +385,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      * Workaround to simulate BwC situation: taking a snapshot without indices here so that we don't create any new version shard
      * generations (the existence of which would short-circuit checks for the repo containing old version snapshots)
      */
-    protected String initWithSnapshotVersion(String repoName, Path repoPath, Version version) throws Exception {
+    protected String initWithSnapshotVersion(String repoName, Path repoPath, IndexVersion version) throws Exception {
         assertThat("This hack only works on an empty repository", getRepositoryData(repoName).getSnapshotIds(), empty());
-        final String oldVersionSnapshot = OLD_VERSION_SNAPSHOT_PREFIX + version.id;
+        final String oldVersionSnapshot = OLD_VERSION_SNAPSHOT_PREFIX + version.id();
         final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repoName, oldVersionSnapshot)
             .setIndices("does-not-exist-for-sure-*")
             .setWaitForCompletion(true)
@@ -388,7 +402,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(
             JsonXContent.jsonXContent.createParser(
                 XContentParserConfiguration.EMPTY,
-                Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), version.toString())
+                Strings.toString(jsonBuilder).replace(IndexVersion.current().toString(), versionString(version))
             ),
             repositoryData.getGenId(),
             randomBoolean()
@@ -403,7 +417,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             JsonXContent.jsonXContent.createParser(
                 XContentParserConfiguration.EMPTY,
                 Strings.toString(snapshotInfo, ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS)
-                    .replace(String.valueOf(Version.CURRENT.id), String.valueOf(version.id))
+                    .replace(IndexVersion.current().toString(), version.toString())
             )
         );
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);
@@ -426,7 +440,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final RepositoryMetadata repoMetadata = blobStoreRepository.getMetadata();
         if (BlobStoreRepository.CACHE_REPOSITORY_DATA.get(repoMetadata.settings())) {
             logger.info("--> recreating repository to clear caches");
-            assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+            assertAcked(clusterAdmin().prepareDeleteRepository(repoName));
             createRepository(repoName, repoMetadata.type(), Settings.builder().put(repoMetadata.settings()));
         }
         return oldVersionSnapshot;
@@ -450,9 +464,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices, List<String> featureStates) {
         logger.info("--> creating snapshot [{}] of {} in [{}]", snapshot, indices, repositoryName);
-        final CreateSnapshotResponse response = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, snapshot)
+        final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(repositoryName, snapshot)
             .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
             .setWaitForCompletion(true)
             .setFeatureStates(featureStates.toArray(Strings.EMPTY_ARRAY))
@@ -712,9 +724,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 .execute(snapshotsListener.delegateFailure((l, response) -> {
                     final SnapshotInfo snapshotInfoInResponse = response.getSnapshotInfo();
                     assertEquals(userMetadata, snapshotInfoInResponse.userMetadata());
-                    clusterAdmin().prepareGetSnapshots(repoName).setSnapshots(snapshot).execute(l.delegateFailure((ll, getResponse) -> {
+                    clusterAdmin().prepareGetSnapshots(repoName).setSnapshots(snapshot).execute(l.safeMap(getResponse -> {
                         assertEquals(snapshotInfoInResponse, getResponse.getSnapshots().get(0));
-                        ll.onResponse(response);
+                        return response;
                     }));
                 }));
         }

@@ -228,7 +228,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().get();
+        clusterAdmin().prepareHealth("idx_unmapped").setWaitForYellowStatus().get();
 
         SearchResponse response = client().prepareSearch("idx_unmapped")
             .addAggregation(

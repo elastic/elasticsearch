@@ -45,6 +45,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.downsample.RestDownsampleAction;
 import org.elasticsearch.xpack.downsample.RollupShardPersistentTaskExecutor;
 import org.elasticsearch.xpack.downsample.RollupShardTaskParams;
 import org.elasticsearch.xpack.downsample.TransportDownsampleAction;
+import org.elasticsearch.xpack.downsample.TransportDownsampleIndexerAction;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupCapsAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupIndexCapsAction;
@@ -143,6 +145,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class),
+            new ActionHandler<>(DownsampleIndexerAction.INSTANCE, TransportDownsampleIndexerAction.class),
             new ActionHandler<>(DownsampleAction.INSTANCE, TransportDownsampleAction.class)
         );
     }

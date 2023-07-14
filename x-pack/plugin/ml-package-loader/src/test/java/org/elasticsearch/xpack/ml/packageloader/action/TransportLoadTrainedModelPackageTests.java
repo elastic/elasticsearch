@@ -29,7 +29,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 public class TransportLoadTrainedModelPackageTests extends ESTestCase {
@@ -94,12 +93,7 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
     public void testDoesNotCallListenerWhenNotWaitingForCompletion() {
         var uploader = mock(ModelImporter.class);
         var client = mock(Client.class);
-        @SuppressWarnings("unchecked")
-        var listener = (ActionListener<AcknowledgedResponse>) mock(ActionListener.class);
-
-        TransportLoadTrainedModelPackage.importModel(client, createRequest(false), uploader, listener);
-        verify(listener, never()).onResponse(any());
-        verify(listener, never()).onFailure(any());
+        TransportLoadTrainedModelPackage.importModel(client, createRequest(false), uploader, ActionListener.running(ESTestCase::fail));
     }
 
     private void assertUploadCallsOnFailure(Exception exception, String message, RestStatus status) throws URISyntaxException, IOException {

@@ -42,6 +42,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -752,6 +753,8 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             );
         }
 
+        var clusterDataSizes = new ClusterDataSizes();
+
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
@@ -767,8 +770,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
             metadataBuilder.put(indexMetadata, false);
             routingTableBuilder.addAsNew(indexMetadata);
-
-            // TODO shard sizes
+            clusterDataSizes.set(indexMetadata, randomLongBetween(ByteSizeValue.ofGb(1).getBytes(), ByteSizeValue.ofGb(100).getBytes()));
         }
 
         // data streams
@@ -789,8 +791,10 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
                 metadataBuilder.put(indexMetadata, false);
                 routingTableBuilder.addAsNew(indexMetadata);
-
-                // TODO shard sizes
+                clusterDataSizes.set(
+                    indexMetadata,
+                    randomLongBetween(ByteSizeValue.ofGb(10).getBytes(), ByteSizeValue.ofGb(50).getBytes())
+                );
             }
         }
 
@@ -800,33 +804,31 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .routingTable(routingTableBuilder)
             .build();
 
+        var settings = Settings.EMPTY;
         var desiredBalanceComputer = new DesiredBalanceComputer(
             createBuiltInClusterSettings(),
             mock(ThreadPool.class),
-            new BalancedShardsAllocator(Settings.EMPTY)
+            new BalancedShardsAllocator(settings)
         );
-
-        var clusterInfo = ClusterInfo.EMPTY;
 
         var computation = new AtomicInteger();
         var desiredBalance = desiredBalanceComputer.compute(
             DesiredBalance.INITIAL,
             new DesiredBalanceInput(
                 computation.getAndIncrement(),
-                routingAllocationWithDecidersOf(clusterState, clusterInfo, Settings.EMPTY),
+                routingAllocationWithDecidersOf(clusterState, clusterDataSizes.getClusterInfo(), settings),
                 List.of()
             ),
             queue(),
             ignored -> true
         );
 
-        int mutations = randomIntBetween(1, 50);
+        int mutations = randomIntBetween(25, 100);
         for (int m = 0; m < mutations; m++) {
-            int mutation = randomIntBetween(0, 2);
+            int mutation = randomIntBetween(0, 3);
             var change = "none";
 
             // TODO check following scenarios:
-            // * grow index size
             // * rollover data stream
             // * grow data stream index (including past size estimate)
             // * migrate data stream index from hot to warm
@@ -841,8 +843,10 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                             indexSettings(IndexVersion.current(), shards, replicas).put("index.routing.allocation.include._tier", "hot")
                         )
                         .build();
-                    indices++;
-
+                    clusterDataSizes.set(
+                        indexMetadata,
+                        randomLongBetween(ByteSizeValue.ofGb(1).getBytes(), ByteSizeValue.ofGb(100).getBytes())
+                    );
                     clusterState = ClusterState.builder(clusterState)
                         .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, false).build())
                         .routingTable(
@@ -851,9 +855,23 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                                 .build()
                         )
                         .build();
-                    change = "create index [" + indexMetadata.getIndex().getName() + "] with total [" + shards * replicas + "] shards";
+                    indices++;
+                    change = "create index ["
+                        + indexMetadata.getIndex().getName()
+                        + "] with total ["
+                        + (shards * (replicas + 1))
+                        + "] shards";
                 }
                 case 1 -> {
+                    var indexToGrow = randomFrom(
+                        clusterState.metadata().indices().keySet().stream().filter(name -> name.startsWith("index-")).toList()
+                    );
+
+                    var originalSize = clusterDataSizes.getOriginalIndexShardSize(indexToGrow);
+                    clusterDataSizes.set(clusterState.metadata().index(indexToGrow), smallShardSizeDeviation(originalSize, 10));
+                    change = "change size of the index " + indexToGrow;
+                }
+                case 2 -> {
                     var indexToDelete = clusterState.metadata()
                         .indices()
                         .keySet()
@@ -863,15 +881,13 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                         .min(CharSequence::compare);
 
                     if (indexToDelete.isPresent()) {
+                        clusterDataSizes.remove(clusterState.metadata().index(indexToDelete.get()));
                         clusterState = ClusterState.builder(clusterState)
                             .metadata(Metadata.builder(clusterState.metadata()).remove(indexToDelete.get()).build())
                             .routingTable(RoutingTable.builder(clusterState.routingTable()).remove(indexToDelete.get()).build())
                             .build();
                         change = "delete index " + indexToDelete.get();
                     }
-                }
-                default -> {
-
                 }
             }
 
@@ -880,7 +896,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 previousDesiredBalance,
                 new DesiredBalanceInput(
                     computation.getAndIncrement(),
-                    routingAllocationWithDecidersOf(clusterState, clusterInfo, Settings.EMPTY),
+                    routingAllocationWithDecidersOf(clusterState, clusterDataSizes.getClusterInfo(), Settings.EMPTY),
                     List.of()
                 ),
                 queue(),
@@ -894,8 +910,80 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         }
     }
 
+    private static final class ClusterDataSizes {
+
+        private long totalHotDataSize = 0L;
+        private long totalWarmDataSize = 0L;
+        private static final Map<String, Long> indexShardSizes = new HashMap<>();
+        private static final Map<String, Long> shardSizes = new HashMap<>();
+
+        public long getOriginalIndexShardSize(String index) {
+            return indexShardSizes.get(index);
+        }
+
+        public void set(IndexMetadata indexMetadata, long newApproximateShardSize) {
+            indexShardSizes.put(indexMetadata.getIndex().getName(), newApproximateShardSize);
+            var tier = indexMetadata.getSettings().get("index.routing.allocation.include._tier");
+            for (int j = 0; j < indexMetadata.getNumberOfShards(); j++) {
+                var shardId = new ShardId(indexMetadata.getIndex(), j);
+                long thisShardSize = smallShardSizeDeviation(newApproximateShardSize, 5);
+                long primaryShardSize = smallShardSizeDeviation(thisShardSize, 1);
+                long previousPrimaryShardSize = toLong(
+                    shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shardId, true), primaryShardSize)
+                );
+                switch (tier) {
+                    case "hot" -> totalHotDataSize += (primaryShardSize - previousPrimaryShardSize);
+                    case "warm" -> totalWarmDataSize += (primaryShardSize - previousPrimaryShardSize);
+                }
+                if (indexMetadata.getNumberOfReplicas() > 0) {
+                    long replicaShardSize = smallShardSizeDeviation(thisShardSize, 1);
+                    long previousReplicaShardSize = toLong(
+                        shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shardId, false), replicaShardSize)
+                    );
+                    switch (tier) {
+                        case "hot" -> totalHotDataSize += (replicaShardSize - previousReplicaShardSize);
+                        case "warm" -> totalWarmDataSize += (replicaShardSize - previousReplicaShardSize);
+                    }
+                }
+            }
+        }
+
+        public void remove(IndexMetadata indexMetadata) {
+            indexShardSizes.remove(indexMetadata.getIndex().getName());
+            var tier = indexMetadata.getSettings().get("index.routing.allocation.include._tier");
+            for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+                var shardId = new ShardId(indexMetadata.getIndex(), i);
+                long primaryShardSize = shardSizes.remove(ClusterInfo.shardIdentifierFromRouting(shardId, true));
+                switch (tier) {
+                    case "hot" -> totalHotDataSize -= primaryShardSize;
+                    case "warm" -> totalWarmDataSize -= primaryShardSize;
+                }
+                if (indexMetadata.getNumberOfReplicas() > 0) {
+                    long replicaShardSize = shardSizes.remove(ClusterInfo.shardIdentifierFromRouting(shardId, false));
+                    switch (tier) {
+                        case "hot" -> totalHotDataSize -= replicaShardSize;
+                        case "warm" -> totalWarmDataSize -= replicaShardSize;
+                    }
+                }
+            }
+        }
+
+        private static long toLong(Long value) {
+            return value != null ? value.longValue() : 0L;
+        }
+
+        public ClusterInfo getClusterInfo() {
+            // TODO node disk sizes
+            return new ClusterInfo(Map.of(), Map.of(), shardSizes, Map.of(), Map.of(), Map.of());
+        }
+    }
+
     private static long smallShardSizeDeviation(long originalSize) {
-        var deviation = randomIntBetween(-5, 5);
+        return smallShardSizeDeviation(originalSize, 5);
+    }
+
+    private static long smallShardSizeDeviation(long originalSize, int percent) {
+        var deviation = randomIntBetween(-percent, percent);
         return originalSize * (100 + deviation) / 100;
     }
 

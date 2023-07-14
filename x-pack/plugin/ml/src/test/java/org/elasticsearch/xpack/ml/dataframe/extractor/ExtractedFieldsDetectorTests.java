@@ -897,18 +897,18 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         );
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
-        assertThat(fieldExtraction.v1().getAllFields(), hasSize(2));
+        assertThat(fieldExtraction.v1().getAllFields(), hasSize(3));
         List<String> extractedFieldNames = fieldExtraction.v1()
             .getAllFields()
             .stream()
             .map(ExtractedField::getName)
             .collect(Collectors.toList());
-        assertThat(extractedFieldNames, contains("field_1", "field_2"));
+        assertThat(extractedFieldNames, contains("field_1", "field_1.keyword", "field_2"));
 
         assertFieldSelectionContains(
             fieldExtraction.v2(),
             FieldSelection.included("field_1", Collections.singleton("keyword"), true, FieldSelection.FeatureType.CATEGORICAL),
-            FieldSelection.excluded("field_1.keyword", Collections.singleton("keyword"), "[field_1] is required instead"),
+            FieldSelection.included("field_1.keyword", Collections.singleton("keyword"), false, FieldSelection.FeatureType.CATEGORICAL),
             FieldSelection.included("field_2", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL)
         );
     }
@@ -927,17 +927,17 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         );
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
-        assertThat(fieldExtraction.v1().getAllFields(), hasSize(2));
+        assertThat(fieldExtraction.v1().getAllFields(), hasSize(3));
         List<String> extractedFieldNames = fieldExtraction.v1()
             .getAllFields()
             .stream()
             .map(ExtractedField::getName)
             .collect(Collectors.toList());
-        assertThat(extractedFieldNames, contains("field_1.keyword", "field_2"));
+        assertThat(extractedFieldNames, contains("field_1", "field_1.keyword", "field_2"));
 
         assertFieldSelectionContains(
             fieldExtraction.v2(),
-            FieldSelection.excluded("field_1", Collections.singleton("keyword"), "[field_1.keyword] is required instead"),
+            FieldSelection.included("field_1", Collections.singleton("keyword"), false, FieldSelection.FeatureType.CATEGORICAL),
             FieldSelection.included("field_1.keyword", Collections.singleton("keyword"), true, FieldSelection.FeatureType.CATEGORICAL),
             FieldSelection.included("field_2", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL)
         );
@@ -1029,23 +1029,18 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             Collections.emptyMap()
         );
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
-
-        assertThat(fieldExtraction.v1().getAllFields(), hasSize(3));
+        assertThat(fieldExtraction.v1().getAllFields(), hasSize(4));
         List<String> extractedFieldNames = fieldExtraction.v1()
             .getAllFields()
             .stream()
             .map(ExtractedField::getName)
             .collect(Collectors.toList());
-        assertThat(extractedFieldNames, contains("field_1", "field_2.double", "field_2.keyword"));
+        assertThat(extractedFieldNames, contains("field_1", "field_1.keyword", "field_2.double", "field_2.keyword"));
 
         assertFieldSelectionContains(
             fieldExtraction.v2(),
             FieldSelection.included("field_1", Collections.singleton("keyword"), false, FieldSelection.FeatureType.CATEGORICAL),
-            FieldSelection.excluded(
-                "field_1.keyword",
-                Collections.singleton("keyword"),
-                "[field_1] is preferred because it is aggregatable"
-            ),
+            FieldSelection.included("field_1.keyword", Collections.singleton("keyword"), false, FieldSelection.FeatureType.CATEGORICAL),
             FieldSelection.included("field_2.double", Collections.singleton("double"), true, FieldSelection.FeatureType.NUMERICAL),
             FieldSelection.included("field_2.keyword", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL)
         );

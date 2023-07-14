@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.GeoCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
@@ -471,7 +472,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     static AggregateFunction randomAggFunction() {
-        int v = randomIntBetween(0, 8);
+        int v = randomIntBetween(0, 9);
         var field = field(randomName(), randomDataType());
         var right = field(randomName(), randomDataType());
         return switch (v) {
@@ -484,6 +485,7 @@ public class PlanNamedTypesTests extends ESTestCase {
             case 6 -> new MedianAbsoluteDeviation(Source.EMPTY, field);
             case 7 -> new CountDistinct(Source.EMPTY, field, right);
             case 8 -> new Percentile(Source.EMPTY, field, right);
+            case 9 -> new GeoCentroid(Source.EMPTY, field);
             default -> throw new AssertionError(v);
         };
     }

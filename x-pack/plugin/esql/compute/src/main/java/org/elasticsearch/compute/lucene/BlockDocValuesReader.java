@@ -78,6 +78,7 @@ public abstract class BlockDocValuesReader {
             final SortedBinaryDocValues bytesValues = bytesVS.bytesValues(leafReaderContext);
             return new BytesValuesReader(bytesValues);
         }
+        // TODO: Add support for geo_point and geo_shape
         if (CoreValuesSourceType.NUMERIC.equals(valuesSourceType) || CoreValuesSourceType.DATE.equals(valuesSourceType)) {
             ValuesSource.Numeric numericVS = (ValuesSource.Numeric) valuesSource;
             if (numericVS.isFloatingPoint()) {

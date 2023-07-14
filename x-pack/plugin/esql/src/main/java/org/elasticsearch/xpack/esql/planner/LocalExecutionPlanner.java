@@ -253,6 +253,9 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
+        if (dataType == DataTypes.GEO_POINT) {
+            return ElementType.LONG;
+        }
         throw new UnsupportedOperationException("unsupported data type [" + dataType + "]");
     }
 

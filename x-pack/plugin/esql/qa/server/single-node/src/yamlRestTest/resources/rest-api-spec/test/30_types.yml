@@ -562,3 +562,31 @@ unsigned_long:
   - match: { columns.0.type: unsigned_long }
   - length: { values: 1 }
   - match: { values.0.0: [ 0, 1, 9223372036854775808, 18446744073709551615 ] }
+
+---
+geo_point:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "location": "POINT(1 -1)" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: location }
+  - match: { columns.0.type: geo_point }
+  - length: { values: 1 }
+  - match: { values.0.0: { "type": "point", "coordinates": [ 1, -1 ] } }

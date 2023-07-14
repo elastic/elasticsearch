@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.util.SpatialUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -236,6 +237,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
+            case "geo_point" -> SpatialUtils.longAsGeoPoint(((LongBlock) block).getLong(offset));
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             default -> throw new UnsupportedOperationException("unsupported data type [" + dataType + "]");
         };
@@ -270,6 +272,10 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
                     case "null" -> builder.appendNull();
                     case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(value.toString()).toBytesRef());
+                    case "geo_point" -> {
+                        long longVal = SpatialUtils.geoPointAsLong(SpatialUtils.stringAsGeoPoint(value.toString()));
+                        ((LongBlock.Builder) builder).appendLong(longVal);
+                    }
                     default -> throw new UnsupportedOperationException("unsupported data type [" + dataTypes.get(c) + "]");
                 }
             }

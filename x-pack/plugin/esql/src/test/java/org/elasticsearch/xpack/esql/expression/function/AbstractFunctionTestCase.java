@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.SpatialUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
@@ -160,6 +161,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "time_duration" -> Duration.ofMillis(randomNonNegativeLong());
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> new Version(randomIdentifier()).toBytesRef();
+            case "geo_point" -> SpatialUtils.geoPointAsLong(randomGeoPoint());
             case "null" -> null;
             default -> throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
         }, type);

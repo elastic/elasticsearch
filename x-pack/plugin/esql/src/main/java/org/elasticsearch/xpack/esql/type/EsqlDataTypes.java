@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.HALF_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
@@ -65,7 +66,8 @@ public final class EsqlDataTypes {
         NESTED,
         SCALED_FLOAT,
         VERSION,
-        UNSIGNED_LONG
+        UNSIGNED_LONG,
+        GEO_POINT
     ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));

@@ -140,6 +140,9 @@ abstract class ComparisonMapper<T extends BinaryComparison> extends EvalMapper.E
         if (leftType == DataTypes.DATETIME) {
             return () -> longs.apply(leftEval.get(), rightEval.get());
         }
+        if (leftType == DataTypes.GEO_POINT) {
+            return () -> longs.apply(leftEval.get(), rightEval.get());
+        }
         throw new AssertionError("resolved type for [" + bc + "] but didn't implement mapping");
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.GeoCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
@@ -42,6 +43,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.GEO_POINT;
+
 public class AggregateMapper {
 
     static final List<String> NUMERIC = List.of("Int", "Long", "Double");
@@ -50,6 +53,7 @@ public class AggregateMapper {
     static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
         Count.class,
         CountDistinct.class,
+        GeoCentroid.class,
         Max.class,
         Median.class,
         MedianAbsoluteDeviation.class,
@@ -129,6 +133,8 @@ public class AggregateMapper {
             types = NUMERIC;
         } else if (clazz == Count.class) {
             types = List.of(""); // no extra type distinction
+        } else if (clazz == GeoCentroid.class) {
+            types = List.of("GeoPoint");
         } else {
             assert clazz == CountDistinct.class : "Expected CountDistinct, got: " + clazz;
             types = Stream.concat(NUMERIC.stream(), Stream.of("Boolean", "BytesRef")).toList();
@@ -218,6 +224,8 @@ public class AggregateMapper {
             return "Double";
         } else if (type.equals(DataTypes.KEYWORD) || type.equals(DataTypes.IP)) {
             return "BytesRef";
+        } else if (type.equals(GEO_POINT)) {
+            return "GeoPoint";
         } else {
             throw new UnsupportedOperationException("unsupported agg type: " + type);
         }

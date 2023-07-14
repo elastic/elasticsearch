@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.plugins.internal.metering.serverless.MeteringParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -35,10 +36,10 @@ public abstract class DocumentParserContext {
     /**
      * Wraps a given context while allowing to override some of its behaviour by re-implementing some of the non final methods
      */
-    private static class Wrapper extends DocumentParserContext {
+    public static class Wrapper extends DocumentParserContext {
         private final DocumentParserContext in;
 
-        private Wrapper(ObjectMapper parent, DocumentParserContext in) {
+        public Wrapper(ObjectMapper parent, DocumentParserContext in) {
             super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
             this.in = in;
         }
@@ -555,5 +556,9 @@ public abstract class DocumentParserContext {
         public String currentName() throws IOException {
             return field;
         }
+    }
+
+    public ObjectMapper getParent() {
+        return parent;
     }
 }

@@ -92,6 +92,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -237,8 +238,8 @@ public class ClusterStateChanges {
             xContentRegistry,
             null,
             null,
-            null
-        ) {
+            null,
+                EmptyMeteringCallback.INSTANCE) {
             // metadata upgrader should do nothing
             @Override
             public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {

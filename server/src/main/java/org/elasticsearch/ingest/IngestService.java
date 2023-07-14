@@ -59,6 +59,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.internal.metering.MeteringCallback;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,6 +104,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
     private final ScriptService scriptService;
+    private MeteringCallback meteringCallback;
     private final Map<String, Processor.Factory> processorFactories;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -177,10 +179,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         AnalysisRegistry analysisRegistry,
         List<IngestPlugin> ingestPlugins,
         Client client,
-        MatcherWatchdog matcherWatchdog
-    ) {
+        MatcherWatchdog matcherWatchdog,
+        MeteringCallback meteringCallback) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
+        this.meteringCallback = meteringCallback;
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -710,7 +713,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             ref.close();
                         });
 
-                        IngestDocument ingestDocument = newIngestDocument(indexRequest);
+                        IngestDocument ingestDocument = newIngestDocument(indexRequest,meteringCallback);
+
+                        indexRequest.setAlreadyReported();
                         executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
                         i++;
                     }
@@ -999,14 +1004,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Builds a new ingest document from the passed-in index request.
      */
-    private static IngestDocument newIngestDocument(final IndexRequest request) {
+    private static IngestDocument newIngestDocument(final IndexRequest request, MeteringCallback meteringCallback) {
         return new IngestDocument(
             request.index(),
             request.id(),
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap()
+            request.sourceAsMap(meteringCallback)
         );
     }
 

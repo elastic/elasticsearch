@@ -477,7 +477,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(
                             Versions.MATCH_ANY,
                             VersionType.INTERNAL,
-                            new SourceToParse(id, source, XContentHelper.xContentType(source), rootFieldsVisitor.routing(), Map.of()),
+                            new SourceToParse(id, source, XContentHelper.xContentType(source), rootFieldsVisitor.routing(), Map.of(), false),
                             SequenceNumbers.UNASSIGNED_SEQ_NO,
                             0,
                             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,

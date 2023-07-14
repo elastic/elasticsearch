@@ -163,6 +163,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -1797,8 +1798,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     emptyMap(),
                     List.of(),
                     emptyMap(),
-                    null
-                );
+                    null,
+                        EmptyMeteringCallback.INSTANCE);
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
                     settings,
@@ -1937,8 +1938,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             new AnalysisModule(environment, Collections.emptyList(), new StablePluginsRegistry()).getAnalysisRegistry(),
                             Collections.emptyList(),
                             client,
-                            null
-                        ),
+                            null,
+                                EmptyMeteringCallback.INSTANCE),
                         client,
                         actionFilters,
                         indexNameExpressionResolver,
@@ -1972,8 +1973,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,
-                        ScriptCompiler.NONE
-                    ),
+                        ScriptCompiler.NONE,
+                            EmptyMeteringCallback.INSTANCE),
                     shardLimitValidator,
                     EmptySystemIndices.INSTANCE,
                     indicesService,

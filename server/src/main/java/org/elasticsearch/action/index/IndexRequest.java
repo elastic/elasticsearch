@@ -34,6 +34,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.internal.metering.MeteringCallback;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -119,6 +120,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
      */
     private Object rawTimestamp;
+    private boolean alreadyReported = false;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -356,7 +358,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public Map<String, Object> sourceAsMap() {
         return XContentHelper.convertToMap(source, false, contentType).v2();
     }
-
+    public Map<String, Object> sourceAsMap(MeteringCallback meteringCallback) {
+        return XContentHelper.convertToMapAndMeter(source, false, contentType, meteringCallback).v2();
+    }
     /**
      * Index the Map in {@link Requests#INDEX_CONTENT_TYPE} format
      *
@@ -807,5 +811,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void setRawTimestamp(Object rawTimestamp) {
         assert this.rawTimestamp == null : "rawTimestamp only set in ingest phase, it can't be set twice";
         this.rawTimestamp = rawTimestamp;
+    }
+
+    public void setAlreadyReported() {
+        alreadyReported = true;
+    }
+
+    public boolean isAlreadyReported() {
+        return alreadyReported;
     }
 }

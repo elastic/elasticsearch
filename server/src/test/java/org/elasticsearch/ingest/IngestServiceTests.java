@@ -52,6 +52,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -148,8 +149,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             List.of(DUMMY_PLUGIN),
             client,
-            null
-        );
+            null,
+                EmptyMeteringCallback.INSTANCE);
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
         assertEquals(1, factories.size());
@@ -167,8 +168,8 @@ public class IngestServiceTests extends ESTestCase {
                 null,
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
-                null
-            )
+                null,
+                    EmptyMeteringCallback.INSTANCE)
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
     }
@@ -183,8 +184,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             List.of(DUMMY_PLUGIN),
             client,
-            null
-        );
+            null,
+                EmptyMeteringCallback.INSTANCE);
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
             .setPipeline("_id")
@@ -1902,8 +1903,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             List.of(testPlugin),
             client,
-            null
-        );
+            null,
+                EmptyMeteringCallback.INSTANCE);
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
         // Create pipeline and apply the resulting cluster state, which should update the counter in the right order:
@@ -2230,7 +2231,7 @@ public class IngestServiceTests extends ESTestCase {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        IngestService ingestService = new IngestService(clusterService, threadPool, null, null, null, List.of(DUMMY_PLUGIN), client, null);
+        IngestService ingestService = new IngestService(clusterService, threadPool, null, null, null, List.of(DUMMY_PLUGIN), client, null, EmptyMeteringCallback.INSTANCE);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -2512,7 +2513,7 @@ public class IngestServiceTests extends ESTestCase {
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }), client, null);
+        }), client, null, EmptyMeteringCallback.INSTANCE);
     }
 
     private CompoundProcessor mockCompoundProcessor() {

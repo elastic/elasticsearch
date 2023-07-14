@@ -27,6 +27,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
+import org.elasticsearch.plugins.internal.metering.MeteringCallback;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -123,6 +125,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexVersion indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
+    private final MeteringCallback meteringCallback;
+
     private volatile DocumentMapper mapper;
 
     public MapperService(
@@ -134,8 +138,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler
-    ) {
+        ScriptCompiler scriptCompiler,
+        MeteringCallback meteringCallback) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
             indexSettings,
@@ -145,8 +149,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry,
             searchExecutionContextSupplier,
             idFieldMapper,
-            scriptCompiler
-        );
+            scriptCompiler,
+            meteringCallback);
     }
 
     public MapperService(
@@ -158,8 +162,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler
-    ) {
+        ScriptCompiler scriptCompiler,
+        MeteringCallback meteringCallback) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
@@ -176,7 +180,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper
         );
-        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
+        this.meteringCallback = meteringCallback;
+        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get(), meteringCallback);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
@@ -374,7 +379,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, EmptyMeteringCallback.INSTANCE);
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
@@ -547,4 +552,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return documentMapper().mapping().getRoot().dynamicTemplates();
     }
 
+    public MeteringCallback getMeteringCallback() {
+        return meteringCallback;
+    }
 }

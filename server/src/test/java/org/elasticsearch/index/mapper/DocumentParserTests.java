@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -2530,7 +2531,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         // merge without going through toXContent and reparsing, otherwise the potential leaf path issue gets fixed on its own
         Mapping newMapping = MapperService.mergeMappings(mapperService.documentMapper(), mapping, MapperService.MergeReason.MAPPING_UPDATE);
-        DocumentMapper newDocMapper = new DocumentMapper(mapperService.documentParser(), newMapping, newMapping.toCompressedXContent());
+        DocumentMapper newDocMapper = new DocumentMapper(mapperService.documentParser(), newMapping, newMapping.toCompressedXContent(), EmptyMeteringCallback.INSTANCE);
         ParsedDocument doc2 = newDocMapper.parse(source("""
             {
               "foo" : {

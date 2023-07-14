@@ -53,8 +53,8 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
                 XContentType.JSON,
                 "routing_value",
-                Map.of()
-            )
+                Map.of(),
+                    false)
         );
 
         assertThat(doc.rootDoc().get("_routing"), equalTo("routing_value"));

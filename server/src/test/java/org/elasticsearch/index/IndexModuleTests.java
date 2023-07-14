@@ -86,6 +86,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -233,8 +234,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
-        );
+            Collections.emptyMap(),
+                EmptyMeteringCallback.INSTANCE);
         module.setReaderWrapper(s -> new Wrapper());
 
         IndexService indexService = newIndexService(module);
@@ -258,8 +259,8 @@ public class IndexModuleTests extends ESTestCase {
             indexStoreFactories,
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
-        );
+            Collections.emptyMap(),
+                EmptyMeteringCallback.INSTANCE);
 
         final IndexService indexService = newIndexService(module);
         assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
@@ -281,8 +282,8 @@ public class IndexModuleTests extends ESTestCase {
             Map.of(),
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
-        );
+            Collections.emptyMap(),
+                EmptyMeteringCallback.INSTANCE);
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
 
@@ -632,8 +633,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             indexNameExpressionResolver,
-            recoveryStateFactories
-        );
+            recoveryStateFactories,
+                EmptyMeteringCallback.INSTANCE);
 
         final IndexService indexService = newIndexService(module);
 
@@ -652,8 +653,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
-        );
+            Collections.emptyMap(),
+                EmptyMeteringCallback.INSTANCE);
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
         final AtomicReference<Engine.IndexCommitRef> lastAcquiredCommit = new AtomicReference<>();
@@ -752,8 +753,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
-        );
+            Collections.emptyMap(),
+                EmptyMeteringCallback.INSTANCE);
     }
 
     class CustomQueryCache implements QueryCache {

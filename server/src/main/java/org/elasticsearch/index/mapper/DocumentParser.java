@@ -19,6 +19,8 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
+import org.elasticsearch.plugins.internal.metering.MeteringCallback;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -44,11 +46,13 @@ import java.util.function.Consumer;
 public final class DocumentParser {
 
     private final XContentParserConfiguration parserConfiguration;
+    private final MeteringCallback meteringCallback;
     private final MappingParserContext mappingParserContext;
 
-    DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext) {
+    DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext, MeteringCallback meteringCallback) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
+        this.meteringCallback = meteringCallback;
     }
 
     /**
@@ -66,11 +70,15 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
         try (XContentParser parser = XContentHelper.createParser(parserConfiguration, source.source(), xContentType)) {
-            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
+            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser, meteringCallback);
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
+            if(source.isAlreadyReported() == false){
+                meteringCallback.reportDocumentParsed(context.parser());
+            }
             validateEnd(context.parser());
+
         } catch (XContentParseException e) {
             throw new DocumentParsingException(e.getLocation(), e.getMessage(), e);
         } catch (IOException e) {
@@ -284,7 +292,6 @@ public final class DocumentParser {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;
-
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == null) {
                 throwEOF(context.parent(), context);
@@ -752,7 +759,7 @@ public final class DocumentParser {
      * Internal version of {@link DocumentParserContext} that is aware of implementation details like nested documents
      * and how they are stored in the lucene index.
      */
-    private static class RootDocumentParserContext extends DocumentParserContext {
+    public static class RootDocumentParserContext extends DocumentParserContext {
         private final ContentPath path = new ContentPath();
         private final XContentParser parser;
         private final LuceneDocument document;
@@ -760,13 +767,14 @@ public final class DocumentParser {
         private final long maxAllowedNumNestedDocs;
         private long numNestedDocs;
         private boolean docsReversed = false;
+        private MeteringCallback meteringCallback;
 
-        RootDocumentParserContext(
+        public RootDocumentParserContext(
             MappingLookup mappingLookup,
             MappingParserContext mappingParserContext,
             SourceToParse source,
-            XContentParser parser
-        ) throws IOException {
+            XContentParser parser,
+            MeteringCallback meteringCallback) throws IOException {
             super(
                 mappingLookup,
                 mappingParserContext,
@@ -774,15 +782,19 @@ public final class DocumentParser {
                 mappingLookup.getMapping().getRoot(),
                 ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
             );
-            if (mappingLookup.getMapping().getRoot().subobjects()) {
-                this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
-            } else {
-                this.parser = parser;
-            }
+            this.meteringCallback = meteringCallback;
+            this.parser = createParser(mappingLookup, parser);
             this.document = new LuceneDocument();
             this.documents.add(document);
             this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
+        }
+
+        private XContentParser createParser(MappingLookup mappingLookup, XContentParser parser) throws IOException {
+            if (mappingLookup.getMapping().getRoot().subobjects()) {
+                parser = DotExpandingXContentParser.expandDots(parser, this.path);
+            }
+            return meteringCallback.wrapParser(parser);
         }
 
         @Override

@@ -179,6 +179,10 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
+import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
+import org.elasticsearch.plugins.internal.metering.MeteringCallback;
+import org.elasticsearch.plugins.internal.metering.MeteringPlugin;
+import org.elasticsearch.plugins.internal.metering.serverless.ServerlessMeteringPlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -518,6 +522,9 @@ public class Node implements Closeable {
                     new ConsistentSettingsService(settings, clusterService, consistentSettings).newHashPublisher()
                 );
             }
+
+            MeteringCallback meteringCallback = getMeteringCallback();
+
             final IngestService ingestService = new IngestService(
                 clusterService,
                 threadPool,
@@ -526,8 +533,8 @@ public class Node implements Closeable {
                 analysisModule.getAnalysisRegistry(),
                 pluginsService.filterPlugins(IngestPlugin.class),
                 client,
-                IngestService.createGrokThreadWatchdog(this.environment, threadPool)
-            );
+                IngestService.createGrokThreadWatchdog(this.environment, threadPool),
+                meteringCallback);
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
@@ -685,8 +692,8 @@ public class Node implements Closeable {
                 recoveryStateFactories,
                 indexFoldersDeletionListeners,
                 snapshotCommitSuppliers,
-                searchModule.getRequestCacheKeyDifferentiator()
-            );
+                searchModule.getRequestCacheKeyDifferentiator(),
+                meteringCallback);
 
             final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
             IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
@@ -827,8 +834,9 @@ public class Node implements Closeable {
                 xContentRegistry,
                 indicesModule.getMapperRegistry(),
                 settingsModule.getIndexScopedSettings(),
-                scriptService
-            );
+                scriptService,
+                meteringCallback);//perhaps we don't care here
+            ;
             if (DiscoveryNode.isMasterNode(settings)) {
                 clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             }
@@ -1140,6 +1148,8 @@ public class Node implements Closeable {
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
                 b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
+                b.bind(MeteringCallback.class).toInstance(meteringCallback);
+
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1195,6 +1205,17 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    private MeteringCallback getMeteringCallback() {
+        List<MeteringPlugin> plugins = pluginsService.filterPlugins(MeteringPlugin.class);
+        if (plugins.size() == 1) {
+            return plugins.get(0).getMeteringCallback();
+        } else if (plugins.size() == 0) {
+            return new ServerlessMeteringPlugin().getMeteringCallback();
+//            return EmptyMeteringCallback.INSTANCE;
+        }
+        throw new IllegalStateException("too many metering plugins");
     }
 
     /**

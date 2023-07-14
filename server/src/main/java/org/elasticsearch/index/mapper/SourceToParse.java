@@ -27,14 +27,15 @@ public class SourceToParse {
     private final XContentType xContentType;
 
     private final Map<String, String> dynamicTemplates;
+    private boolean alreadyReported;
 
     public SourceToParse(
         @Nullable String id,
         BytesReference source,
         XContentType xContentType,
         @Nullable String routing,
-        Map<String, String> dynamicTemplates
-    ) {
+        Map<String, String> dynamicTemplates,
+        boolean alreadyReported) {
         this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
@@ -42,10 +43,15 @@ public class SourceToParse {
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
+        this.alreadyReported = alreadyReported;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of());
+        this(id, source, xContentType, null, Map.of(), false);
+    }
+
+    public boolean isAlreadyReported() {
+        return alreadyReported;
     }
 
     public BytesReference source() {

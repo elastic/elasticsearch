@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
+import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
 
@@ -183,7 +184,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         private final boolean upgrade;
 
         MockIndexMetadataVerifier(boolean upgrade) {
-            super(Settings.EMPTY, null, null, null, null, null);
+            super(Settings.EMPTY, null, null, null, null, null, EmptyMeteringCallback.INSTANCE);
             this.upgrade = upgrade;
         }
 

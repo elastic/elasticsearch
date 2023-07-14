@@ -68,7 +68,7 @@ public record RollupShardTaskParams(
             in.readString(),
             in.readVLong(),
             in.readVLong(),
-            new ShardId(in),
+            ShardId.fromString(in.readString()),
             in.readStringArray(),
             in.readStringArray()
         );
@@ -81,7 +81,7 @@ public record RollupShardTaskParams(
         builder.field(ROLLUP_INDEX.getPreferredName(), rollupIndex);
         builder.field(INDEX_START_TIME_MILLIS.getPreferredName(), indexStartTimeMillis);
         builder.field(INDEX_END_TIME_MILLIS.getPreferredName(), indexEndTimeMillis);
-        builder.field(SHARD_ID.getPreferredName(), shardId);
+        builder.field(SHARD_ID.getPreferredName(), shardId.toString());
         builder.array(METRICS.getPreferredName(), metrics);
         builder.array(LABELS.getPreferredName(), labels);
         return builder.endObject();
@@ -103,7 +103,7 @@ public record RollupShardTaskParams(
         out.writeString(rollupIndex);
         out.writeVLong(indexStartTimeMillis);
         out.writeLong(indexEndTimeMillis);
-        shardId.writeTo(out);
+        out.writeString(shardId.toString());
         out.writeStringArray(metrics);
         out.writeStringArray(labels);
     }
@@ -114,7 +114,7 @@ public record RollupShardTaskParams(
             in.readString(),
             in.readVLong(),
             in.readVLong(),
-            new ShardId(in),
+            ShardId.fromString(in.readString()),
             in.readStringArray(),
             in.readStringArray()
         );

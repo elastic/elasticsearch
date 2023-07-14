@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.index.IndexVersion;

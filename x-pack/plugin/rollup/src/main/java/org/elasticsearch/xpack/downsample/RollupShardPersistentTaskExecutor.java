@@ -60,6 +60,7 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
                 .addSort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC)
                 .setSize(1)
                 .setQuery(new MatchAllQueryBuilder())
+                .setPreference("_shard: " + params.shardId().getId())
                 .get()
                 .getHits()
                 .getHits();

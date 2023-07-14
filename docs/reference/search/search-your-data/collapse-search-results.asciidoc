@@ -311,3 +311,9 @@ GET /my-index-000001/_search
   }
 }
 ----
+
+[discrete]
+=== Track Scores
+
+When `collapse` is used with `sort` on a field, scores are not computed.
+Setting `track_scores` to true instructs {es} to compute and track scores.

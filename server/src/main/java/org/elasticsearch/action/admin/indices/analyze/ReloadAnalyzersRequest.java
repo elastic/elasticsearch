@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersion.V_8_500_033;
+import static org.elasticsearch.TransportVersion.V_8_500_034;
 
 /**
  * Request for reloading index search analyzers
@@ -26,7 +26,7 @@ public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequ
     private final String resource;
     private final boolean preview;
 
-    private static final TransportVersion PREVIEW_OPTION_TRANSPORT_VERSION = V_8_500_033;
+    private static final TransportVersion PREVIEW_OPTION_TRANSPORT_VERSION = V_8_500_034;
 
     /**
      * Constructs a request for reloading index search analyzers

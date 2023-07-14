@@ -253,16 +253,8 @@ class RollupShardIndexer {
         return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
 
-    private Query createQuery() throws IOException {
+    private Query createQuery() {
         if (this.state.started() && this.state.tsid() != null) {
-            final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
-                indexShard.shardId().id(),
-                0,
-                searcher,
-                System::currentTimeMillis,
-                null,
-                Collections.emptyMap()
-            );
             return SortedSetDocValuesField.newSlowRangeQuery(TimeSeriesIdFieldMapper.NAME, this.state.tsid(), null, true, false);
         }
         return new MatchAllDocsQuery();

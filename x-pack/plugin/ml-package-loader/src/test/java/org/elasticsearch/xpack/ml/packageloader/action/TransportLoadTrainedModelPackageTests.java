@@ -91,12 +91,12 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         ModelImporter uploader = createUploader(null);
 
         var responseRef = new AtomicReference<AcknowledgedResponse>();
-        var l = ActionListener.wrap((AcknowledgedResponse response) -> {
+        var listener = ActionListener.wrap((AcknowledgedResponse response) -> {
             assertThat(response, is(AcknowledgedResponse.TRUE));
             responseRef.set(response);
         }, e -> fail("received an exception: " + e.getMessage()));
 
-        TransportLoadTrainedModelPackage.importModel(client, taskManager, createRequest(true), uploader, l, task);
+        TransportLoadTrainedModelPackage.importModel(client, taskManager, createRequest(true), uploader, listener, task);
         assertThat(responseRef.get(), is(AcknowledgedResponse.TRUE));
     }
 
@@ -148,6 +148,8 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         assertThat(receivedException.toString(), is(onFailureException.toString()));
         assertThat(receivedException.status(), is(onFailureException.status()));
         assertThat(receivedException.getCause(), is(onFailureException.getCause()));
+
+        verify(taskManager).unregister(task);
     }
 
     private ModelImporter createUploader(Exception exception) throws URISyntaxException, IOException {

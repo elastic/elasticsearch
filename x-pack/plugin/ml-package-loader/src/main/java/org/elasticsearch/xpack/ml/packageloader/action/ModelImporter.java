@@ -33,7 +33,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -56,12 +55,6 @@ class ModelImporter {
     }
 
     public void doImport() throws URISyntaxException, IOException, ElasticsearchStatusException {
-        try {
-            TimeUnit.SECONDS.sleep(20);
-        } catch (InterruptedException e) {
-
-        }
-
         long size = config.getSize();
 
         // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the

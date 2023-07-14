@@ -77,6 +77,7 @@ public final class DocumentParser {
             // IOException from jackson, we don't have any useful location information here
             throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error parsing document", e);
         }
+        context.path().remove();// TODO-MP this is quite bad, find a better place!
         assert context.path.pathAsText("").isEmpty() : "found leftover path elements: " + context.path.pathAsText("");
 
         return new ParsedDocument(
@@ -261,6 +262,10 @@ public final class DocumentParser {
         }
 
         innerParseObject(context);
+        // // TODO-MP is this a good idea?
+        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
+            parser.nextToken();
+        }
         // restore the enable path flag
         if (context.parent().isNested()) {
             copyNestedFields(context, (NestedObjectMapper) context.parent());
@@ -419,8 +424,8 @@ public final class DocumentParser {
     private static void parseObject(final DocumentParserContext context, String currentFieldName) throws IOException {
         assert currentFieldName != null;
         Mapper objectMapper = context.getMapper(currentFieldName);
+        context.path().add(currentFieldName);
         if (objectMapper != null) {
-            context.path().add(currentFieldName);
             if (objectMapper instanceof ObjectMapper objMapper) {
                 if (objMapper.subobjects() == false) {
                     context.path().setWithinLeafObject(true);
@@ -430,69 +435,9 @@ public final class DocumentParser {
             context.path().setWithinLeafObject(false);
             context.path().remove();
         } else {
-            parseObjectDynamic(context, currentFieldName);
+            context.parser().nextToken();
+            innerParseObject(context);
         }
-    }
-
-    private static void parseObjectDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
-        if (context.dynamic() == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), context.parent().fullPath(), currentFieldName);
-        } else if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
-            failIfMatchesRoutingPath(context, currentFieldName);
-            // not dynamic, read everything up to end object
-            context.parser().skipChildren();
-        } else {
-            Mapper dynamicObjectMapper;
-            if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME) {
-                // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
-                // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
-                dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
-            } else {
-                dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
-                context.addDynamicMapper(dynamicObjectMapper);
-            }
-            if (context.parent().subobjects() == false) {
-                if (dynamicObjectMapper instanceof NestedObjectMapper) {
-                    throw new DocumentParsingException(
-                        context.parser().getTokenLocation(),
-                        "Tried to add nested object ["
-                            + dynamicObjectMapper.simpleName()
-                            + "] to object ["
-                            + context.parent().name()
-                            + "] which does not support subobjects"
-                    );
-                }
-                if (dynamicObjectMapper instanceof ObjectMapper) {
-                    throw new DocumentParsingException(
-                        context.parser().getTokenLocation(),
-                        "Tried to add subobject ["
-                            + dynamicObjectMapper.simpleName()
-                            + "] to object ["
-                            + context.parent().name()
-                            + "] which does not support subobjects"
-                    );
-                }
-            }
-            if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
-                throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
-            }
-            context.path().add(currentFieldName);
-            if (dynamicObjectMapper instanceof ObjectMapper objectMapper) {
-                if (objectMapper.subobjects() == false) {
-                    context.path().setWithinLeafObject(true);
-                }
-            }
-            parseObjectOrField(context, dynamicObjectMapper);
-            context.path().setWithinLeafObject(false);
-            context.path().remove();
-        }
-    }
-
-    private static void throwOnCreateDynamicNestedViaCopyTo(Mapper dynamicObjectMapper, DocumentParserContext context) {
-        throw new DocumentParsingException(
-            context.parser().getTokenLocation(),
-            "It is forbidden to create dynamic nested objects ([" + dynamicObjectMapper.name() + "]) through `copy_to`"
-        );
     }
 
     private static void parseArray(DocumentParserContext context, String lastFieldName) throws IOException {
@@ -567,6 +512,10 @@ public final class DocumentParser {
     private static void parseValue(final DocumentParserContext context, String currentFieldName) throws IOException {
         if (currentFieldName == null) {
             throwOnNoFieldName(context);
+        }
+        if (context.parent().subobjects() == false) {
+            // we rewrite the field name to be flattened containing the whole path
+            currentFieldName = context.path().pathAsText(currentFieldName);
         }
         Mapper mapper = getLeafMapper(context, currentFieldName);
         if (mapper != null) {
@@ -648,7 +597,7 @@ public final class DocumentParser {
     // field name exists and if so returns a no-op mapper to prevent indexing
     private static Mapper getLeafMapper(final DocumentParserContext context, String fieldName) {
         Mapper mapper = context.getMapper(fieldName);
-        if (mapper != null) {
+        if (mapper != null && mapper instanceof ObjectMapper == false) {
             return mapper;
         }
         // concrete fields take precedence over runtime fields when parsing documents

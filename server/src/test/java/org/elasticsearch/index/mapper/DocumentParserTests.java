@@ -2041,16 +2041,25 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testSubobjectsFalseRootWithInnerObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(xContentBuilder -> {}));
-        DocumentParsingException err = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
+        ParsedDocument doc = mapper.parse(source("""
             {
-              "metrics": {
-                "service": {
-                  "time.max" : 10
-                }
+              "time" : {
+                "measured" : 10,
+                "max" : 500,
+                "min" : 1
               }
             }
-            """)));
-        assertEquals("[2:14] Tried to add subobject [metrics] to object [_doc] which does not support subobjects", err.getMessage());
+            """));
+
+        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        assertNotNull(mappingsUpdate);
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time.measured"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time.min"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time.max"));
+
+        assertNotNull(doc.rootDoc().getField("time.measured"));
+        assertNotNull(doc.rootDoc().getField("time.min"));
+        assertNotNull(doc.rootDoc().getField("time.max"));
     }
 
     public void testSubobjectsFalseRoot() throws Exception {
@@ -2184,22 +2193,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("metrics.service.time.max"));
         assertNotNull(doc.rootDoc().getField("metrics.service.time.min"));
         assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
-    }
-
-    public void testSubobjectsFalseArrayOfObject() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> b.startObject("metrics").field("type", "object").field("subobjects", false).endObject())
-        );
-        DocumentParsingException err = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
-            {
-              "metrics.service.time": [
-                {
-                  "max" : 1000
-                }
-              ]
-            }
-            """)));
-        assertEquals("[3:5] Tried to add subobject [service.time] to object [metrics] which does not support subobjects", err.getMessage());
     }
 
     public void testSubobjectsFalseParseGeoPoint() throws Exception {

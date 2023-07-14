@@ -221,7 +221,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             private final Supplier<AbstractRealDistribution> internalDistribution;
             private final boolean isPercent;
 
-            static final long INPUT_SIZE = 10_000_000;
+            static final long INPUT_SIZE = 1_000_000_000;
         }
 
         class SampleBuilder implements AutoCloseable {
@@ -364,12 +364,12 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         String BASE_PATH = BASE_DIR + "container_memory_usage_24h";
         final String[] TIER_PATHS = { "_1", "_0_2", "_0_04", "_0_008", "_0_002" };
         final double[] TIER_SAMPLING = { 1, 0.2, 0.04, 0.008, 0.002 };
-        final boolean USE_NESTED_SAMPLING = true;
+        final boolean USE_NESTED_SAMPLING = false;
         final boolean USE_SYNTHETIC_DATA = true;
         final int GROUP_SIZE = 20;
 
         assert TIER_SAMPLING.length == TIER_PATHS.length;
-        for (int iteration = 0; iteration < 100; iteration++) {
+        for (int iteration = 0; iteration < 1; iteration++) {
             String tempDate = null;
             String tempName = null;
 
@@ -380,8 +380,10 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 }
             }
 
+            System.out.println("Generate sample files #" + iteration);
+
             if (USE_SYNTHETIC_DATA) {
-                DistributionType distributionType = DistributionType.Gamma;
+                DistributionType distributionType = DistributionType.UniformSparse;
                 AbstractRealDistribution distribution = distributionType.distribution();
                 BASE_PATH = BASE_DIR + distributionType.distname();
                 try (
@@ -439,11 +441,13 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 }
             }
 
+            System.out.println("Calculate aggregates #" + iteration);
+
             List<Map<String, Double>> results = new ArrayList<>();
             Set<String> names = new TreeSet<>();
             for (String path : TIER_PATHS) {
                 Map<String, AvgCalculator> aggs = new HashMap<>();
-
+                long start = System.currentTimeMillis();
                 try (BufferedReader br = new BufferedReader(new FileReader(BASE_PATH + path))) {
                     String line;
                     while ((line = br.readLine()) != null) {
@@ -452,19 +456,24 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                         aggs.computeIfAbsent(tokens[1], (s) -> new AvgCalculator()).add(Double.parseDouble(tokens[2]));
                     }
                 }
-
+                System.out.println(path + " took " + (System.currentTimeMillis() - start));
                 names.addAll(aggs.keySet());
                 results.add(aggs.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get())));
             }
 
+            long start = System.currentTimeMillis();
             BootstrapAggregation bootstrapAggregation = new BootstrapAggregation(names, BASE_PATH + TIER_PATHS[TIER_PATHS.length - 1]);
+            System.out.println("Bootstrap creation took " + (System.currentTimeMillis() - start));
+            start = System.currentTimeMillis();
             bootstrapAggregation.calculateConfidenceIntervals(0.67, results.get(results.size() - 1));
+            System.out.println("Bootstrap calculation took " + (System.currentTimeMillis() - start));
 
             double[] sampled = new double[results.size()];
             double[] lower = new double[results.size()];
             double[] upper = new double[results.size()];
             double SQRT_5 = Math.sqrt(5.0);
 
+            System.out.println("Write file " + BASE_PATH + "_results_" + iteration);
             try (PrintWriter writer = new PrintWriter(BASE_PATH + "_results_" + iteration)) {
                 for (String key : names) {
                     for (int i = 0; i < results.size(); i++) {
@@ -492,7 +501,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
 
     public void testProcessResults() throws IOException {
         final String BASE_DIR = "/Users/kkrik/IdeaProjects/elasticsearch/server/build/testrun/test/temp/";
-        String RESULT_DIR = BASE_DIR + "gamma_20_40_10M_results/nested/";
+        String RESULT_DIR = BASE_DIR + "gamma_20_40_1B_results/";
 
         Map<String, Double> actualValues = new TreeMap<>();
         Map<String, List<DescriptiveStatistics>> errorStatsPerValue = new TreeMap<>();

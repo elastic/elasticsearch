@@ -30,7 +30,7 @@ steps:
           $$exitCode = $$LASTEXITCODE
           powershell .buildkite/scripts/windows-end-job.ps1
           exit $$exitCode
-        timeout_in_minutes: 180
+        timeout_in_minutes: 360
         matrix:
           setup:
             image:

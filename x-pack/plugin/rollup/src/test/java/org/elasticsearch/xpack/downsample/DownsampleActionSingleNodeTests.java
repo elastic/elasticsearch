@@ -123,6 +123,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
@@ -679,6 +680,39 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         prepareSourceIndex(sourceIndex);
 
+        IndicesService indexServices = getInstanceFromNode(IndicesService.class);
+        Index srcIndex = resolveIndex(sourceIndex);
+        IndexService indexService = indexServices.indexServiceSafe(srcIndex);
+        int shardNum = randomIntBetween(0, numOfShards - 1);
+        IndexShard shard = indexService.getShard(shardNum);
+        RollupShardTask task = new RollupShardTask(
+            randomLong(),
+            "rollup",
+            "action",
+            TaskId.EMPTY_TASK_ID,
+            rollupIndex,
+            indexService.getIndexSettings().getTimestampBounds().startTime(),
+            indexService.getIndexSettings().getTimestampBounds().endTime(),
+            config,
+            emptyMap(),
+            shard.shardId(),
+            new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
+        );
+        task.testInit(mock(PersistentTasksService.class), mock(TaskManager.class), randomAlphaOfLength(5), randomIntBetween(1, 5));
+
+        // re-use source index as temp index for test
+        RollupShardIndexer indexer = new RollupShardIndexer(
+            task,
+            client(),
+            indexService,
+            shard.shardId(),
+            rollupIndex,
+            config,
+            new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
+            new String[] {},
+            new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
+        );
+
         // block rollup index
         assertAcked(
             indicesAdmin().preparePutTemplate(rollupIndex)
@@ -687,8 +721,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .get()
         );
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
-        assertThat(exception.getMessage(), equalTo("Unable to rollup index [" + sourceIndex + "]"));
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, indexer::execute);
+        assertThat(exception.getMessage(), startsWith("Shard [" + shard.shardId() + "] failed to index all rollup documents."));
     }
 
     public void testTooManyBytesInFlight() throws IOException {

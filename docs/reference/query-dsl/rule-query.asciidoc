@@ -10,6 +10,42 @@ If no matching query rules are defined, the "organic" matches for the query are 
 
 ==== Example request
 
+////
+
+[source,console]
+--------------------------------------------------
+PUT _query_rules/my-ruleset
+{
+    "rules": [
+        {
+            "rule_id": "my-rule1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "value": "pugs"
+                }
+            ],
+            "actions": {
+                "ids": [
+                    "id1"
+                ]
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _query_rules/my-ruleset
+--------------------------------------------------
+// TEARDOWN
+
+////
+
 [source,console]
 --------------------------------------------------
 GET /_search
@@ -19,7 +55,7 @@ GET /_search
       "match_criteria": {
         "query_string": "pugs"
       },
-      "ruleset_id": "my_ruleset",
+      "ruleset_id": "my-ruleset",
       "organic": {
         "match": {
           "description": "pugs"

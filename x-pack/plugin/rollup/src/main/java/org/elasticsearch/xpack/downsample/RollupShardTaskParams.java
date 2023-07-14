@@ -20,6 +20,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
 public record RollupShardTaskParams(
     DownsampleConfig downsampleConfig,
@@ -68,7 +70,7 @@ public record RollupShardTaskParams(
             in.readString(),
             in.readVLong(),
             in.readVLong(),
-            ShardId.fromString(in.readString()),
+            new ShardId(in),
             in.readStringArray(),
             in.readStringArray()
         );
@@ -81,7 +83,7 @@ public record RollupShardTaskParams(
         builder.field(ROLLUP_INDEX.getPreferredName(), rollupIndex);
         builder.field(INDEX_START_TIME_MILLIS.getPreferredName(), indexStartTimeMillis);
         builder.field(INDEX_END_TIME_MILLIS.getPreferredName(), indexEndTimeMillis);
-        builder.field(SHARD_ID.getPreferredName(), shardId.toString());
+        builder.field(SHARD_ID.getPreferredName(), shardId);
         builder.array(METRICS.getPreferredName(), metrics);
         builder.array(LABELS.getPreferredName(), labels);
         return builder.endObject();
@@ -103,7 +105,7 @@ public record RollupShardTaskParams(
         out.writeString(rollupIndex);
         out.writeVLong(indexStartTimeMillis);
         out.writeLong(indexEndTimeMillis);
-        out.writeString(shardId.toString());
+        shardId.writeTo(out);
         out.writeStringArray(metrics);
         out.writeStringArray(labels);
     }
@@ -122,5 +124,35 @@ public record RollupShardTaskParams(
 
     public static RollupShardTaskParams fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RollupShardTaskParams that = (RollupShardTaskParams) o;
+        return indexStartTimeMillis == that.indexStartTimeMillis
+            && indexEndTimeMillis == that.indexEndTimeMillis
+            && Objects.equals(downsampleConfig, that.downsampleConfig)
+            && Objects.equals(rollupIndex, that.rollupIndex)
+            && Objects.equals(shardId.id(), that.shardId.id())
+            && Objects.equals(shardId.getIndexName(), that.shardId.getIndexName())
+            && Arrays.equals(metrics, that.metrics)
+            && Arrays.equals(labels, that.labels);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(
+            downsampleConfig,
+            rollupIndex,
+            indexStartTimeMillis,
+            indexEndTimeMillis,
+            shardId.id(),
+            shardId.getIndexName()
+        );
+        result = 31 * result + Arrays.hashCode(metrics);
+        result = 31 * result + Arrays.hashCode(labels);
+        return result;
     }
 }

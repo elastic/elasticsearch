@@ -91,26 +91,29 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
-        super.afterExecute(r, t);
-        // A task has been completed, it has left the building. We should now be able to get the
-        // total time as a combination of the time in the queue and time spent running the task. We
-        // only want runnables that did not throw errors though, because they could be fast-failures
-        // that throw off our timings, so only check when t is null.
-        assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
-        final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
-        final boolean failedOrRejected = timedRunnable.getFailedOrRejected();
-        final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
-        assert taskExecutionNanos >= 0 || (failedOrRejected && taskExecutionNanos == -1)
-            : "expected task to always take longer than 0 nanoseconds or have '-1' failure code, got: "
-                + taskExecutionNanos
-                + ", failedOrRejected: "
-                + failedOrRejected;
-        if (taskExecutionNanos != -1) {
-            // taskExecutionNanos may be -1 if the task threw an exception
-            executionEWMA.addValue(taskExecutionNanos);
-            totalExecutionTime.add(taskExecutionNanos);
+        try {
+            super.afterExecute(r, t);
+            // A task has been completed, it has left the building. We should now be able to get the
+            // total time as a combination of the time in the queue and time spent running the task. We
+            // only want runnables that did not throw errors though, because they could be fast-failures
+            // that throw off our timings, so only check when t is null.
+            assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
+            final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
+            final boolean failedOrRejected = timedRunnable.getFailedOrRejected();
+            final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
+            assert taskExecutionNanos >= 0 || (failedOrRejected && taskExecutionNanos == -1)
+                : "expected task to always take longer than 0 nanoseconds or have '-1' failure code, got: "
+                    + taskExecutionNanos
+                    + ", failedOrRejected: "
+                    + failedOrRejected;
+            if (taskExecutionNanos != -1) {
+                // taskExecutionNanos may be -1 if the task threw an exception
+                executionEWMA.addValue(taskExecutionNanos);
+                totalExecutionTime.add(taskExecutionNanos);
+            }
+        } finally {
+            ongoingTasks.remove(r);
         }
-        ongoingTasks.remove(r);
     }
 
     @Override

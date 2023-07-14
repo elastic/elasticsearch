@@ -222,30 +222,38 @@ d:i | l:double
 ;
 
 powDoubleDouble
-// tag::pow[]
 ROW base = 2.0, exponent = 2.0
 | EVAL s = POW(base, exponent)
-// end::pow[]
 ;
 
-// tag::pow-result[]
 base:double | exponent:double | s:double
 2.0         | 2.0             | 4.0
-// end::pow-result[]
 ;
 
 powDoubleInt
-row base = 2.0, exponent = 2 | eval s = pow(base, exponent);
+// tag::powDI[]
+ROW base = 2.0, exponent = 2
+| EVAL result = POW(base, exponent)
+// end::powDI[]
+;
 
-base:double | exponent:integer | s:double
+// tag::powDI-result[]
+base:double | exponent:integer | result:double
 2.0         | 2                | 4.0
+// end::powDI-result[]
 ;
 
 powIntInt
-row base = 2, exponent = 2 | eval s = pow(base, exponent);
+// tag::powII[]
+ROW base = 2, exponent = 2
+| EVAL s = POW(base, exponent)
+// end::powII[]
+;
 
+// tag::powII-result[]
 base:integer | exponent:integer | s:integer
 2            | 2                | 4
+// end::powII-result[]
 ;
 
 powIntIntPlusInt
@@ -305,10 +313,27 @@ x:long
 ;
 
 powULIntOverrun
-row x = pow(9223372036854775808, 1);
+// tag::powULOverrun[]
+ROW x = POW(9223372036854775808, 1)
+// end::powULOverrun[]
+;
 
+// tag::powULOverrun-result[]
 x:long
 0
+// end::powULOverrun-result[]
+;
+
+powULInt_2d
+// tag::pow2d[]
+ROW x = POW(9223372036854775808, TO_DOUBLE(1))
+// end::pow2d[]
+;
+
+// tag::pow2d-result[]
+x:double
+9.223372036854776E18
+// end::pow2d-result[]
 ;
 
 powULLong

@@ -9,16 +9,16 @@
 package org.elasticsearch.test.cluster;
 
 public enum LogType {
-    SERVER("elasticsearch.log"),
-    SERVER_JSON("elasticsearch_server.json");
+    SERVER("%s.log"),
+    SERVER_JSON("%s_server.json");
 
-    private final String filename;
+    private final String filenameFormat;
 
     LogType(String filenameFormat) {
-        this.filename = filenameFormat;
+        this.filenameFormat = filenameFormat;
     }
 
-    public String getFilename() {
-        return filename;
+    public String resolveFilename(String clusterName) {
+        return filenameFormat.formatted(clusterName);
     }
 }

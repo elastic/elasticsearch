@@ -231,7 +231,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         public InputStream getLog(LogType logType) {
-            Path logFile = logsDir.resolve(logType.getFilename());
+            Path logFile = logsDir.resolve(logType.resolveFilename(spec.getCluster().getName()));
             if (Files.exists(logFile)) {
                 try {
                     return Files.newInputStream(logFile);
@@ -369,6 +369,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             try {
                 // Write settings to elasticsearch.yml
                 Map<String, String> finalSettings = new HashMap<>();
+                finalSettings.put("cluster.name", spec.getCluster().getName());
                 finalSettings.put("node.name", name);
                 finalSettings.put("path.repo", repoDir.toString());
                 finalSettings.put("path.data", dataDir.toString());

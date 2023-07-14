@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.ClusterFactory;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionDescriptor;
 import org.elasticsearch.test.cluster.local.distribution.DistributionResolver;
@@ -227,6 +228,20 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 throw new IllegalStateException("Process has not been started, cannot get pid");
             }
             return process.pid();
+        }
+
+        public InputStream streamLog(LogType logType) {
+            Path logFile = logsDir.resolve(logType.getFilename());
+            if (Files.exists(logFile)) {
+                try {
+                    return Files.newInputStream(logFile);
+                } catch (IOException e) {
+                    LOGGER.error("Failed to read log file of type '{}' for node {} at '{}'", logType, this, logFile);
+                    throw new RuntimeException(e);
+                }
+            }
+
+            throw new IllegalArgumentException("Log file " + logFile + " does not exist.");
         }
 
         public LocalNodeSpec getSpec() {

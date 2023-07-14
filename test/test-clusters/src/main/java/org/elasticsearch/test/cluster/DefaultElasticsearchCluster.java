@@ -12,6 +12,7 @@ import org.elasticsearch.test.cluster.util.Version;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
+import java.io.InputStream;
 import java.util.function.Supplier;
 
 public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends ClusterHandle> implements ElasticsearchCluster {
@@ -135,6 +136,12 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     public void upgradeToVersion(Version version) {
         checkHandle();
         handle.upgradeToVersion(version);
+    }
+
+    @Override
+    public InputStream streamNodeLog(int index, LogType logType) {
+        checkHandle();
+        return handle.streamNodeLog(index, logType);
     }
 
     private void checkHandle() {

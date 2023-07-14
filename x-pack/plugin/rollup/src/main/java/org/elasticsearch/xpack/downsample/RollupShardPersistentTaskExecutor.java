@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -54,43 +54,46 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
     @Override
     protected void nodeOperation(final AllocatedPersistentTask task, final RollupShardTaskParams params, final PersistentTaskState state) {
         // NOTE: query the downsampling target index so that we can start the downsampling task from the latest indexed tsid.
-        SearchHit[] lastRollupTsidHits;
-        try {
-            lastRollupTsidHits = client.prepareSearch(params.rollupIndex())
-                .addSort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC)
-                .setSize(1)
-                .setQuery(new MatchAllQueryBuilder())
-                .setPreference("_shard: " + params.shardId().getId())
-                .get()
-                .getHits()
-                .getHits();
-        } catch (SearchPhaseExecutionException e) {
-            // NOTE: searching the target downsample index for the latest tsid failed. We just start the task from scratch.
-            lastRollupTsidHits = new SearchHit[0];
-        }
-        final RollupShardPersistentTaskState initialState = lastRollupTsidHits.length == 0
-            ? new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
-            : new RollupShardPersistentTaskState(
-                RollupShardIndexerStatus.STARTED,
-                Arrays.stream(lastRollupTsidHits).findFirst().get().field("_tsid").getValue()
-            );
-        final RollupShardIndexer rollupShardIndexer = new RollupShardIndexer(
-            (RollupShardTask) task,
-            client,
-            getIndexService(indicesService, params),
-            params.shardId(),
-            params.rollupIndex(),
-            params.downsampleConfig(),
-            params.metrics(),
-            params.labels(),
-            initialState
-        );
-        try {
-            rollupShardIndexer.execute();
-        } catch (IOException e) {
-            task.markAsFailed(e);
-            throw new ElasticsearchException("Unable to run downsampling shard task [" + task.getPersistentTaskId() + "]", e);
-        }
+        client.threadPool().executor(Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME).execute(() -> {
+            final SearchRequest searchRequest = new SearchRequest(params.rollupIndex());
+            searchRequest.source().sort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC).size(1);
+            searchRequest.preference("_shards:" + params.shardId().id());
+            client.search(searchRequest, ActionListener.wrap(searchResponse -> {
+                final SearchHit[] lastRollupTsidHits = searchResponse.getHits().getHits();
+                final RollupShardPersistentTaskState initialState = lastRollupTsidHits.length == 0
+                    ? new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
+                    : new RollupShardPersistentTaskState(
+                        RollupShardIndexerStatus.STARTED,
+                        Arrays.stream(lastRollupTsidHits).findFirst().get().field("_tsid").getValue()
+                    );
+                final RollupShardIndexer rollupShardIndexer = new RollupShardIndexer(
+                    (RollupShardTask) task,
+                    client,
+                    getIndexService(indicesService, params),
+                    params.shardId(),
+                    params.rollupIndex(),
+                    params.downsampleConfig(),
+                    params.metrics(),
+                    params.labels(),
+                    initialState
+                );
+                try {
+                    rollupShardIndexer.execute();
+                    task.markAsCompleted();
+                } catch (IOException e) {
+                    task.markAsFailed(e);
+                    throw new ElasticsearchException(
+                        "Error while running downsampling task [" + task.getPersistentTaskId() + "] on shard " + params.shardId(),
+                        e
+                    );
+                }
+            }, e -> {
+                throw new ElasticsearchException(
+                    "Error while searching for latest tsid in downsampling target index [" + params.rollupIndex() + "]",
+                    e
+                );
+            }));
+        });
     }
 
     private static IndexService getIndexService(final IndicesService indicesService, final RollupShardTaskParams params) {

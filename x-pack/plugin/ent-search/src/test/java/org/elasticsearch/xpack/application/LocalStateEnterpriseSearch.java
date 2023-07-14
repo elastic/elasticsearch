@@ -35,6 +35,7 @@ import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.mockito.Mockito;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -48,7 +49,7 @@ public class LocalStateEnterpriseSearch extends LocalStateCompositeXPackPlugin {
 
     public LocalStateEnterpriseSearch(Settings settings, Path configPath) {
         super(settings, configPath);
-        this.licenseState = MockLicenseState.createMock();
+        this.licenseState = mockLicenseState(true);
 
         this.entSearchPlugin = new EnterpriseSearch(settings) {
             @Override
@@ -58,6 +59,15 @@ public class LocalStateEnterpriseSearch extends LocalStateCompositeXPackPlugin {
         };
 
         plugins.add(entSearchPlugin);
+    }
+
+    private MockLicenseState mockLicenseState(boolean isLicensed) {
+        MockLicenseState mock = Mockito.mock(MockLicenseState.class);
+        Mockito.when(mock.copyCurrentLicenseState()).thenReturn(mock);
+        Mockito.when(mock.isAllowed(Mockito.any())).thenReturn(isLicensed);
+        Mockito.when(mock.isAllowedByLicense(Mockito.any())).thenReturn(isLicensed);
+        Mockito.when(mock.isActive()).thenReturn(isLicensed);
+        return mock;
     }
 
     @Override

@@ -211,15 +211,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             if (identifiedPinnedIds == null && identifiedPinnedDocs == null) {
                 return this; // not executed yet
             } else {
-                return new RuleQueryBuilder(
-                    organicQuery,
-                    matchCriteria,
-                    rulesetId,
-                    identifiedPinnedIds,
-                    identifiedPinnedDocs,
-                    null,
-                    null
-                );
+                return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetId, identifiedPinnedIds, identifiedPinnedDocs, null, null);
             }
         }
 
@@ -274,9 +266,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(
-            rulesetId, matchCriteria, organicQuery, pinnedIds, pinnedDocs, pinnedIdsSupplier, pinnedDocsSupplier
-        );
+        return Objects.hash(rulesetId, matchCriteria, organicQuery, pinnedIds, pinnedDocs, pinnedIdsSupplier, pinnedDocsSupplier);
     }
 
     private static final ConstructingObjectParser<RuleQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {

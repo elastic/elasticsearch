@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -174,5 +175,9 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         }
 
         return super.simulateMethod(method, args);
+    }
+
+    public void testUnlicensedException() {
+        RuleQueryBuilder ruleQueryBuilder = RuleQueryBuilder.fromXContent(parser, MockLicenseState.createMock());
     }
 }

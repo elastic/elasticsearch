@@ -1,0 +1,7 @@
+pr: 97705
+summary: "Fix to stop aggregatable subojects from being multifields, to support \"\
+  subobjects\": false"
+area: Machine Learning
+type: "bug, enhancement"
+issues:
+ - 88605

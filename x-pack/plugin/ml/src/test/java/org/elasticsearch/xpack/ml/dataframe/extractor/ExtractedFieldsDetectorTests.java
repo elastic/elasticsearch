@@ -1581,9 +1581,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(extracted.getProcessedFields(), hasSize(1));
     }
 
-    public void testDetect_GivenFieldsWithDotsWhenSubobjectsFalseThenIsNonMultiField(){
-        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
-            .addAggregatableField("metrics", "object")
+    public void testDetect_GivenFieldsWithDotsWhenSubobjectsFalseThenIsNonMultiField() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder().addAggregatableField("metrics", "object")
             .addAggregatableField("metrics.field_1", "double")
             .addAggregatableField("metrics.field_1.max", "double")
             .addAggregatableField("metrics.field_1.min", "double")

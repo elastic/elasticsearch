@@ -1270,7 +1270,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     /**
      * Indicates if the provided index is managed by ILM. This takes into account if the index is part of
-     * data stream that's potentially managed by DLM and the value of the {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
+     * data stream that's potentially managed by data stream lifecycle and the value of the
+     * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
      */
     public boolean isIndexManagedByILM(IndexMetadata indexMetadata) {
         if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false) {
@@ -1286,7 +1287,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
         DataStream parentDataStream = indexAbstraction.getParentDataStream();
         if (parentDataStream != null && parentDataStream.getLifecycle() != null) {
-            // index has both ILM and DLM configured so let's check which is preferred
+            // index has both ILM and data stream lifecycle configured so let's check which is preferred
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
         }
 

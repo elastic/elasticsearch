@@ -192,7 +192,7 @@ public class VersionUtils {
 
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
     public static Version randomCompatibleVersion(Random random, Version version) {
-        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).collect(Collectors.toList());
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).toList();
         return compatible.get(random.nextInt(compatible.size()));
     }
 
@@ -228,10 +228,7 @@ public class VersionUtils {
 
     /** Returns the maximum {@link Version} that is compatible with the given version. */
     public static Version maxCompatibleVersion(Version version) {
-        final List<Version> compatible = ALL_VERSIONS.stream()
-            .filter(version::isCompatible)
-            .filter(version::onOrBefore)
-            .collect(Collectors.toList());
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).filter(version::onOrBefore).toList();
         assert compatible.size() > 0;
         return compatible.get(compatible.size() - 1);
     }

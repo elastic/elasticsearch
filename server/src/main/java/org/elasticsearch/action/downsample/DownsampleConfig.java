@@ -111,7 +111,7 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
 
     public DownsampleConfig(final StreamInput in) throws IOException {
         fixedInterval = new DateHistogramInterval(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_034)) {
             timeout = TimeValue.parseTimeValue(in.readString(), TIMEOUT);
         } else {
             timeout = DEFAULT_TIMEOUT;
@@ -152,7 +152,7 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_034)) {
             out.writeString(timeout.getStringRep());
         } else {
             out.writeString(DEFAULT_TIMEOUT.getStringRep());

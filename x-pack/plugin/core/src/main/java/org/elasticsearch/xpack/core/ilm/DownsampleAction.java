@@ -83,7 +83,7 @@ public class DownsampleAction implements LifecycleAction {
     public DownsampleAction(StreamInput in) throws IOException {
         this(
             new DateHistogramInterval(in),
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_034)
                 ? TimeValue.parseTimeValue(in.readString(), TIMEOUT_FIELD.getPreferredName())
                 : DownsampleConfig.DEFAULT_TIMEOUT
         );
@@ -92,7 +92,7 @@ public class DownsampleAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_034)) {
             out.writeString(timeout.getStringRep());
         } else {
             out.writeString(DownsampleConfig.DEFAULT_TIMEOUT.getStringRep());

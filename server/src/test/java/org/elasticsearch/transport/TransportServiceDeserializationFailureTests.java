@@ -51,7 +51,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 if (action.equals(TransportService.HANDSHAKE_ACTION_NAME)) {
                     handleResponse(
                         requestId,
-                        new TransportService.HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), otherNode, new ClusterName(""))
+                        new TransportService.HandshakeResponse(Version.CURRENT, Build.current().hash(), otherNode, new ClusterName(""))
                     );
                 }
             }

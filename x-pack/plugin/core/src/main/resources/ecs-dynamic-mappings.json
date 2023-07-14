@@ -124,7 +124,6 @@
               "type": "date"
             },
             "path_match": [
-              "timestamp",
               "*.timestamp",
               "*_timestamp",
               "*.not_after",

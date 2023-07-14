@@ -1504,17 +1504,17 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
-        DataLifecycle emptyLifecycle = new DataLifecycle();
+        DataStreamLifecycle emptyLifecycle = new DataStreamLifecycle();
 
-        DataLifecycle lifecycle30d = new DataLifecycle(TimeValue.timeValueDays(30));
+        DataStreamLifecycle lifecycle30d = new DataStreamLifecycle(TimeValue.timeValueDays(30));
         String ct30d = "ct_30d";
         state = addComponentTemplate(service, state, ct30d, lifecycle30d);
 
-        DataLifecycle lifecycle45d = new DataLifecycle(
-            new DataLifecycle.Retention(TimeValue.timeValueDays(45)),
-            new DataLifecycle.Downsampling(
+        DataStreamLifecycle lifecycle45d = new DataStreamLifecycle(
+            new DataStreamLifecycle.Retention(TimeValue.timeValueDays(45)),
+            new DataStreamLifecycle.Downsampling(
                 List.of(
-                    new DataLifecycle.Downsampling.Round(
+                    new DataStreamLifecycle.Downsampling.Round(
                         TimeValue.timeValueDays(30),
                         new DownsampleConfig(new DateHistogramInterval("3h"), TIMEOUT)
                     )
@@ -1524,7 +1524,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         String ct45d = "ct_45d";
         state = addComponentTemplate(service, state, ct45d, lifecycle45d);
 
-        DataLifecycle lifecycleNullRetention = new DataLifecycle.Builder().dataRetention(DataLifecycle.Retention.NULL).build();
+        DataStreamLifecycle lifecycleNullRetention = new DataStreamLifecycle.Builder().dataRetention(DataStreamLifecycle.Retention.NULL)
+            .build();
         String ctNullRetention = "ct_null_retention";
         state = addComponentTemplate(service, state, ctNullRetention, lifecycleNullRetention);
 
@@ -1564,7 +1565,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             state,
             List.of(ctEmptyLifecycle, ct45d),
             lifecycle30d,
-            new DataLifecycle(lifecycle30d.getDataRetention(), lifecycle45d.getDownsampling())
+            new DataStreamLifecycle(lifecycle30d.getDataRetention(), lifecycle45d.getDownsampling())
         );
 
         // Component A: "lifecycle": {"retention": "30d"}
@@ -1585,7 +1586,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             state,
             List.of(ctEmptyLifecycle, ct45d),
             lifecycleNullRetention,
-            new DataLifecycle(DataLifecycle.Retention.NULL, lifecycle45d.getDownsampling())
+            new DataStreamLifecycle(DataStreamLifecycle.Retention.NULL, lifecycle45d.getDownsampling())
         );
 
         // Component A: "lifecycle": {"retention": "30d"}
@@ -1611,9 +1612,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService service,
         ClusterState state,
         String name,
-        DataLifecycle dataLifecycle
+        DataStreamLifecycle lifecycle
     ) throws Exception {
-        ComponentTemplate ct = new ComponentTemplate(new Template(null, null, null, dataLifecycle), null, null);
+        ComponentTemplate ct = new ComponentTemplate(new Template(null, null, null, lifecycle), null, null);
         return service.addComponentTemplate(state, true, name, ct);
     }
 
@@ -1621,8 +1622,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService service,
         ClusterState state,
         List<String> composeOf,
-        DataLifecycle lifecycleZ,
-        DataLifecycle expected
+        DataStreamLifecycle lifecycleZ,
+        DataStreamLifecycle expected
     ) throws Exception {
         ComposableIndexTemplate it = new ComposableIndexTemplate(
             List.of(randomAlphaOfLength(10) + "*"),
@@ -1636,7 +1637,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template");
+        DataStreamLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template");
 
         if (expected == null) {
             assertThat(resolvedLifecycle, nullValue());
@@ -1859,7 +1860,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
 
         ComponentTemplate ct = new ComponentTemplate(
-            new Template(null, null, null, new DataLifecycle(randomMillisUpToYear9999())),
+            new Template(null, null, null, new DataStreamLifecycle(randomMillisUpToYear9999())),
             null,
             null
         );

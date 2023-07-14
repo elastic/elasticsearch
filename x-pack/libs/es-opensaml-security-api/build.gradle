@@ -1,0 +1,33 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+dependencies {
+  implementation "org.opensaml:opensaml-security-api:${versions.opensaml}"
+  compileOnly "net.shibboleth.utilities:java-support:8.4.0"
+  compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+}
+
+['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit', 'checkstyleMain', 'licenseHeaders', 'spotlessJavaCheck'].each {
+  tasks.named(it).configure {
+    enabled = false
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /opensaml-.*/, to: 'shibboleth'
+}
+
+shadowJar {
+  manifest {
+    attributes 'Automatic-Module-Name': 'org.opensaml.security'
+  }
+}

@@ -82,4 +82,8 @@ module org.elasticsearch.security {
     provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
         with
             org.elasticsearch.xpack.security.ReservedSecurityStateHandlerProvider;
+
+    provides org.opensaml.core.config.ConfigurationPropertiesSource
+        with
+            org.elasticsearch.xpack.security.authc.saml.EmptyConfigurationPropertiesSource;
 }

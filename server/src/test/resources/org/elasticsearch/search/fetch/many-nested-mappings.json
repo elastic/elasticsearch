@@ -1,0 +1,3885 @@
+{
+  "_doc": {
+    "dynamic": "false",
+    "date_detection": false,
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "payload": {
+        "properties": {
+          "dbh": {
+            "properties": {
+              "aph": {
+                "properties": {
+                  "bmi": {
+                    "type": "keyword"
+                  },
+                  "from": {
+                    "properties": {
+                      "fii": {
+                        "properties": {
+                          "bi": {
+                            "properties": {
+                              "LEI": {
+                                "type": "text"
+                              }
+                            }
+                          },
+                          "fii": {
+                            "properties": {
+                              "BIC": {
+                                "type": "text"
+                              },
+                              "LEI": {
+                                "type": "text"
+                              },
+                              "csmi": {
+                                "properties": {
+                                  "mi": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "name": {
+                                "type": "text"
+                              },
+                              "other": {
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "oi": {
+                        "properties": {
+                          "ii": {
+                            "properties": {
+                              "oi": {
+                                "properties": {
+                                  "bob": {
+                                    "type": "keyword"
+                                  },
+                                  "LEI": {
+                                    "type": "text"
+                                  },
+                                  "other": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "pi": {
+                                "properties": {
+                                  "other": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "pd1": {
+                    "type": "boolean",
+                    "index": false
+                  },
+                  "related": {
+                    "type": "nested",
+                    "properties": {
+                      "from": {
+                        "properties": {
+                          "fii": {
+                            "properties": {
+                              "bi": {
+                                "properties": {
+                                  "LEI": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "fii": {
+                                "properties": {
+                                  "BIC": {
+                                    "type": "text"
+                                  },
+                                  "LEI": {
+                                    "type": "text"
+                                  },
+                                  "csmi": {
+                                    "properties": {
+                                      "mi": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  },
+                                  "name": {
+                                    "type": "text"
+                                  },
+                                  "other": {
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "oi": {
+                            "properties": {
+                              "ii": {
+                                "properties": {
+                                  "oi": {
+                                    "properties": {
+                                      "bob": {
+                                        "type": "keyword"
+                                      },
+                                      "LEI": {
+                                        "type": "text"
+                                      },
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "pi": {
+                                    "properties": {
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "pd": {
+                        "type": "boolean",
+                        "index": false
+                      },
+                      "to": {
+                        "properties": {
+                          "fii": {
+                            "properties": {
+                              "bi": {
+                                "properties": {
+                                  "LEI": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "fii": {
+                                "properties": {
+                                  "BIC": {
+                                    "type": "text"
+                                  },
+                                  "LEI": {
+                                    "type": "text"
+                                  },
+                                  "csmi": {
+                                    "properties": {
+                                      "mi": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  },
+                                  "name": {
+                                    "type": "text"
+                                  },
+                                  "other": {
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "oi": {
+                            "properties": {
+                              "ii": {
+                                "properties": {
+                                  "oi": {
+                                    "properties": {
+                                      "bob": {
+                                        "type": "keyword"
+                                      },
+                                      "LEI": {
+                                        "type": "text"
+                                      },
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "pi": {
+                                    "properties": {
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "to": {
+                    "properties": {
+                      "fii": {
+                        "properties": {
+                          "bi": {
+                            "properties": {
+                              "LEI": {
+                                "type": "text"
+                              }
+                            }
+                          },
+                          "fii": {
+                            "properties": {
+                              "BIC": {
+                                "type": "text"
+                              },
+                              "LEI": {
+                                "type": "text"
+                              },
+                              "csmi": {
+                                "properties": {
+                                  "mi": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "name": {
+                                "type": "text"
+                              },
+                              "other": {
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "oi": {
+                        "properties": {
+                          "ii": {
+                            "properties": {
+                              "oi": {
+                                "properties": {
+                                  "bob": {
+                                    "type": "keyword"
+                                  },
+                                  "LEI": {
+                                    "type": "text"
+                                  },
+                                  "other": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "pi": {
+                                "properties": {
+                                  "other": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "dmd": {
+            "properties": {
+              "cnd": {
+                "type": "keyword"
+              },
+              "icmf": {
+                "type": "keyword"
+              },
+              "imf": {
+                "type": "keyword"
+              },
+              "itr": {
+                "type": "nested",
+                "properties": {
+                  "iti": {
+                    "type": "keyword"
+                  },
+                  "itif": {
+                    "type": "text"
+                  }
+                }
+              },
+              "productType": {
+                "type": "nested",
+                "properties": {
+                  "identifier": {
+                    "properties": {
+                      "domain": {
+                        "type": "text"
+                      },
+                      "id": {
+                        "type": "keyword"
+                      },
+                      "version": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              },
+              "sender": {
+                "properties": {
+                  "coo": {
+                    "properties": {
+                      "latitude": {
+                        "type": "double",
+                        "index": false
+                      },
+                      "longitude": {
+                        "type": "double",
+                        "index": false
+                      }
+                    }
+                  }
+                }
+              },
+              "so": {
+                "type": "boolean",
+                "index": false
+              }
+            }
+          },
+          "docp": {
+            "properties": {
+              "cpi": {
+                "type": "boolean",
+                "index": false
+              },
+              "isa": {
+                "properties": {
+                  "amount": {
+                    "type": "double"
+                  },
+                  "amountCurrency": {
+                    "type": "text"
+                  }
+                }
+              }
+            }
+          },
+          "identifier": {
+            "properties": {
+              "domain": {
+                "type": "text"
+              },
+              "id": {
+                "type": "keyword"
+              },
+              "version": {
+                "type": "integer"
+              }
+            }
+          },
+          "otr": {
+            "properties": {
+              "agent": {
+                "properties": {
+                  "account": {
+                    "properties": {
+                      "currency": {
+                        "type": "text"
+                      },
+                      "ii": {
+                        "properties": {
+                          "IBAN": {
+                            "type": "keyword"
+                          },
+                          "other": {
+                            "properties": {
+                              "ii": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "bi": {
+                    "properties": {
+                      "LEI": {
+                        "type": "text"
+                      }
+                    }
+                  },
+                  "cp": {
+                    "properties": {
+                      "identifier": {
+                        "properties": {
+                          "version": {
+                            "type": "integer",
+                            "index": false
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "aa1": {
+                "type": "nested",
+                "properties": {
+                  "account": {
+                    "properties": {
+                      "currency": {
+                        "type": "text"
+                      },
+                      "ii": {
+                        "properties": {
+                          "IBAN": {
+                            "type": "keyword"
+                          },
+                          "other": {
+                            "properties": {
+                              "ii": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "bi": {
+                    "properties": {
+                      "LEI": {
+                        "type": "text"
+                      }
+                    }
+                  },
+                  "cp": {
+                    "properties": {
+                      "identifier": {
+                        "properties": {
+                          "version": {
+                            "type": "integer",
+                            "index": false
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "amount": {
+                "properties": {
+                  "ea": {
+                    "properties": {
+                      "amount": {
+                        "type": "double"
+                      }
+                    }
+                  },
+                  "ia": {
+                    "properties": {
+                      "amount": {
+                        "type": "double"
+                      },
+                      "amountCurrency": {
+                        "type": "text"
+                      }
+                    }
+                  }
+                }
+              },
+              "isa": {
+                "properties": {
+                  "amount": {
+                    "type": "double"
+                  },
+                  "amountCurrency": {
+                    "type": "text"
+                  }
+                }
+              },
+              "mri": {
+                "properties": {
+                  "ai": {
+                    "type": "boolean",
+                    "index": false
+                  },
+                  "aid": {
+                    "properties": {
+                      "of": {
+                        "properties": {
+                          "period": {
+                            "properties": {
+                              "cpp": {
+                                "type": "double",
+                                "index": false
+                              },
+                              "type": {
+                                "type": "keyword",
+                                "index": false
+                              }
+                            }
+                          },
+                          "pit": {
+                            "properties": {
+                              "pit": {
+                                "type": "integer",
+                                "index": false
+                              },
+                              "type": {
+                                "type": "keyword",
+                                "index": false
+                              }
+                            }
+                          },
+                          "type": {
+                            "type": "keyword",
+                            "index": false
+                          }
+                        }
+                      },
+                      "originalTrackingDays": {
+                        "type": "integer",
+                        "index": false
+                      }
+                    }
+                  },
+                  "ff": {
+                    "properties": {
+                      "period": {
+                        "properties": {
+                          "cpp": {
+                            "type": "double",
+                            "index": false
+                          },
+                          "type": {
+                            "type": "keyword",
+                            "index": false
+                          }
+                        }
+                      },
+                      "pit": {
+                        "properties": {
+                          "pit": {
+                            "type": "integer",
+                            "index": false
+                          },
+                          "type": {
+                            "type": "keyword",
+                            "index": false
+                          }
+                        }
+                      },
+                      "type": {
+                        "type": "keyword",
+                        "index": false
+                      }
+                    }
+                  },
+                  "type": {
+                    "properties": {
+                      "sl": {
+                        "properties": {
+                          "code": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "sl1": {
+                        "type": "nested",
+                        "properties": {
+                          "code": {
+                            "type": "keyword"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "party": {
+                "properties": {
+                  "account": {
+                    "properties": {
+                      "currency": {
+                        "type": "text"
+                      },
+                      "ii": {
+                        "properties": {
+                          "IBAN": {
+                            "type": "keyword"
+                          },
+                          "other": {
+                            "properties": {
+                              "ii": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "cp": {
+                    "properties": {
+                      "id": {
+                        "properties": {
+                          "version": {
+                            "type": "integer",
+                            "index": false
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "ii": {
+                    "properties": {
+                      "oi": {
+                        "properties": {
+                          "bob": {
+                            "type": "keyword"
+                          },
+                          "LEI": {
+                            "type": "text"
+                          },
+                          "other": {
+                            "type": "nested",
+                            "properties": {
+                              "ii": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "pi": {
+                        "properties": {
+                          "other": {
+                            "type": "nested",
+                            "properties": {
+                              "ii": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "pp1": {
+                "type": "nested",
+                "properties": {
+                  "account": {
+                    "properties": {
+                      "currency": {
+                        "type": "text"
+                      },
+                      "ii": {
+                        "properties": {
+                          "IBAN": {
+                            "type": "keyword"
+                          },
+                          "other": {
+                            "properties": {
+                              "ii": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "cp": {
+                    "properties": {
+                      "identifier": {
+                        "properties": {
+                          "version": {
+                            "type": "integer",
+                            "index": false
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "ii": {
+                    "properties": {
+                      "oi": {
+                        "properties": {
+                          "bob": {
+                            "type": "keyword"
+                          },
+                          "LEI": {
+                            "type": "text"
+                          },
+                          "other": {
+                            "type": "nested",
+                            "properties": {
+                              "ii": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "pi": {
+                        "properties": {
+                          "other": {
+                            "type": "nested",
+                            "properties": {
+                              "ii": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "pti": {
+                "properties": {
+                  "cc": {
+                    "type": "text"
+                  },
+                  "st": {
+                    "type": "keyword",
+                    "index": false
+                  },
+                  "sl": {
+                    "properties": {
+                      "code": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "sl1": {
+                    "type": "nested",
+                    "properties": {
+                      "code": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              },
+              "ri": {
+                "properties": {
+                  "ss": {
+                    "type": "nested",
+                    "properties": {
+                      "gr": {
+                        "properties": {
+                          "eti": {
+                            "type": "boolean",
+                            "index": false
+                          },
+                          "fmii": {
+                            "type": "boolean",
+                            "index": false
+                          },
+                          "ge": {
+                            "properties": {
+                              "ii": {
+                                "properties": {
+                                  "oi": {
+                                    "properties": {
+                                      "bob": {
+                                        "type": "keyword"
+                                      },
+                                      "LEI": {
+                                        "type": "text"
+                                      },
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "pi": {
+                                    "properties": {
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "gga": {
+                            "properties": {
+                              "ii": {
+                                "properties": {
+                                  "oi": {
+                                    "properties": {
+                                      "bob": {
+                                        "type": "keyword"
+                                      },
+                                      "LEI": {
+                                        "type": "text"
+                                      },
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "pi": {
+                                    "properties": {
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "ra": {
+                            "type": "double",
+                            "index": false
+                          }
+                        }
+                      },
+                      "ie": {
+                        "properties": {
+                          "ii": {
+                            "properties": {
+                              "oi": {
+                                "properties": {
+                                  "bob": {
+                                    "type": "keyword"
+                                  },
+                                  "LEI": {
+                                    "type": "text"
+                                  },
+                                  "other": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "pi": {
+                                "properties": {
+                                  "other": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "iir": {
+                        "properties": {
+                          "ii": {
+                            "properties": {
+                              "oi": {
+                                "properties": {
+                                  "bob": {
+                                    "type": "keyword"
+                                  },
+                                  "LEI": {
+                                    "type": "text"
+                                  },
+                                  "other": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "pi": {
+                                "properties": {
+                                  "other": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "rda": {
+                        "properties": {
+                          "aar": {
+                            "properties": {
+                              "amount": {
+                                "type": "double",
+                                "index": false
+                              }
+                            }
+                          },
+                          "aar1": {
+                            "type": "nested",
+                            "properties": {
+                              "amount": {
+                                "type": "double",
+                                "index": false
+                              }
+                            }
+                          },
+                          "cna": {
+                            "properties": {
+                              "amount": {
+                                "type": "double"
+                              },
+                              "amountCurrency": {
+                                "type": "text"
+                              }
+                            }
+                          },
+                          "daa": {
+                            "properties": {
+                              "amount": {
+                                "type": "double"
+                              },
+                              "amountCurrency": {
+                                "type": "text"
+                              }
+                            }
+                          },
+                          "dpa": {
+                            "properties": {
+                              "amount": {
+                                "type": "double"
+                              },
+                              "amountCurrency": {
+                                "type": "text"
+                              }
+                            }
+                          },
+                          "rdaa": {
+                            "type": "nested",
+                            "properties": {
+                              "amount": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "rta": {
+                            "type": "nested",
+                            "properties": {
+                              "amount": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "rra": {
+                            "type": "double",
+                            "index": false
+                          },
+                          "tta": {
+                            "properties": {
+                              "amount": {
+                                "type": "double"
+                              },
+                              "amountCurrency": {
+                                "type": "text"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "rrdi": {
+                        "type": "nested",
+                        "properties": {
+                          "lld": {
+                            "type": "nested",
+                            "properties": {
+                              "amount": {
+                                "properties": {
+                                  "aaar": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "aaar": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double",
+                                            "index": false
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "cna": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double"
+                                      },
+                                      "amountCurrency": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  },
+                                  "daa": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "amount": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "dpa": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double"
+                                      },
+                                      "amountCurrency": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  },
+                                  "rra": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double"
+                                      },
+                                      "amountCurrency": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  },
+                                  "tta": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "amount": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "tr": {
+                        "properties": {
+                          "record": {
+                            "type": "nested",
+                            "properties": {
+                              "ta": {
+                                "properties": {
+                                  "details": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double",
+                                        "index": false
+                                      }
+                                    }
+                                  },
+                                  "details1": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double",
+                                        "index": false
+                                      }
+                                    }
+                                  },
+                                  "rate": {
+                                    "type": "double",
+                                    "index": false
+                                  },
+                                  "tba": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double"
+                                      },
+                                      "amountCurrency": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  },
+                                  "ta": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double"
+                                      },
+                                      "amountCurrency": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "tta": {
+                            "properties": {
+                              "amount": {
+                                "type": "double"
+                              },
+                              "amountCurrency": {
+                                "type": "text"
+                              }
+                            }
+                          },
+                          "ttba": {
+                            "properties": {
+                              "amount": {
+                                "type": "double"
+                              },
+                              "amountCurrency": {
+                                "type": "text"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "ssi": {
+                "properties": {
+                  "ssa": {
+                    "properties": {
+                      "currency": {
+                        "type": "text"
+                      },
+                      "ii": {
+                        "properties": {
+                          "IBAN": {
+                            "type": "text"
+                          },
+                          "other": {
+                            "properties": {
+                              "ii": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "uti": {
+                "properties": {
+                  "aar": {
+                    "type": "nested",
+                    "properties": {
+                      "amount": {
+                        "type": "double",
+                        "index": false
+                      }
+                    }
+                  },
+                  "agent": {
+                    "type": "nested",
+                    "properties": {
+                      "account": {
+                        "properties": {
+                          "currency": {
+                            "type": "text"
+                          },
+                          "ii": {
+                            "properties": {
+                              "IBAN": {
+                                "type": "keyword"
+                              },
+                              "other": {
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "bi": {
+                        "properties": {
+                          "LEI": {
+                            "type": "text"
+                          }
+                        }
+                      },
+                      "cp": {
+                        "properties": {
+                          "identifier": {
+                            "properties": {
+                              "version": {
+                                "type": "integer",
+                                "index": false
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "fii": {
+                        "properties": {
+                          "BIC": {
+                            "type": "text"
+                          },
+                          "LEI": {
+                            "type": "text"
+                          },
+                          "csmi": {
+                            "properties": {
+                              "mi": {
+                                "type": "text"
+                              }
+                            }
+                          },
+                          "name": {
+                            "type": "text"
+                          },
+                          "other": {
+                            "properties": {
+                              "ii": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "role": {
+                        "type": "keyword",
+                        "index": false
+                      }
+                    }
+                  },
+                  "amount": {
+                    "properties": {
+                      "ia": {
+                        "properties": {
+                          "amount": {
+                            "type": "double"
+                          },
+                          "amountCurrency": {
+                            "type": "text"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "party": {
+                    "type": "nested",
+                    "properties": {
+                      "account": {
+                        "properties": {
+                          "currency": {
+                            "type": "text"
+                          },
+                          "ii": {
+                            "properties": {
+                              "IBAN": {
+                                "type": "keyword"
+                              },
+                              "other": {
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "cp": {
+                        "properties": {
+                          "identifier": {
+                            "properties": {
+                              "version": {
+                                "type": "integer",
+                                "index": false
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "ii": {
+                        "properties": {
+                          "oi": {
+                            "properties": {
+                              "bob": {
+                                "type": "keyword"
+                              },
+                              "LEI": {
+                                "type": "text"
+                              },
+                              "other": {
+                                "type": "nested",
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "pi": {
+                            "properties": {
+                              "other": {
+                                "type": "nested",
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "role": {
+                        "type": "keyword",
+                        "index": false
+                      }
+                    }
+                  },
+                  "ri": {
+                    "properties": {
+                      "structured": {
+                        "type": "nested",
+                        "properties": {
+                          "iee": {
+                            "properties": {
+                              "ii": {
+                                "properties": {
+                                  "oi": {
+                                    "properties": {
+                                      "bob": {
+                                        "type": "keyword"
+                                      },
+                                      "LEI": {
+                                        "type": "text"
+                                      },
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "pi": {
+                                    "properties": {
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "ier": {
+                            "properties": {
+                              "ii": {
+                                "properties": {
+                                  "oi": {
+                                    "properties": {
+                                      "bob": {
+                                        "type": "keyword"
+                                      },
+                                      "LEI": {
+                                        "type": "text"
+                                      },
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "pi": {
+                                    "properties": {
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "rda": {
+                            "properties": {
+                              "aaar": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double",
+                                    "index": false
+                                  }
+                                }
+                              },
+                              "cna": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "daa": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "dpa": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "ra": {
+                                "type": "double",
+                                "index": false
+                              },
+                              "ta": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double",
+                                        "index": false
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "utiRdadaa": {
+                                "type": "nested",
+                                "properties": {
+                                  "amount": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double"
+                                      },
+                                      "amountCurrency": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "rdi": {
+                            "type": "nested",
+                            "properties": {
+                              "ldd": {
+                                "type": "nested",
+                                "properties": {
+                                  "amount": {
+                                    "properties": {
+                                      "aaar": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "aaar": {
+                                            "properties": {
+                                              "amount": {
+                                                "type": "double",
+                                                "index": false
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "cna": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      },
+                                      "daa": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "amount": {
+                                            "properties": {
+                                              "amount": {
+                                                "type": "double"
+                                              },
+                                              "amountCurrency": {
+                                                "type": "text"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "dpa": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      },
+                                      "ra": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      },
+                                      "ta": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "amount": {
+                                            "properties": {
+                                              "amount": {
+                                                "type": "double"
+                                              },
+                                              "amountCurrency": {
+                                                "type": "text"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "tr": {
+                            "properties": {
+                              "record": {
+                                "type": "nested",
+                                "properties": {
+                                  "ta": {
+                                    "properties": {
+                                      "details": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double",
+                                            "index": false
+                                          }
+                                        }
+                                      },
+                                      "details1": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double",
+                                            "index": false
+                                          }
+                                        }
+                                      },
+                                      "rate": {
+                                        "type": "double",
+                                        "index": false
+                                      },
+                                      "tba": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      },
+                                      "tta": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "sequenceNumber": {
+                                "type": "double",
+                                "index": false
+                              },
+                              "totalta": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "totaltba": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "ugr": {
+                            "properties": {
+                              "employeeTerminationIndicator": {
+                                "type": "boolean",
+                                "index": false
+                              },
+                              "familyMedicalInsuranceIndicator": {
+                                "type": "boolean",
+                                "index": false
+                              },
+                              "ra": {
+                                "type": "double",
+                                "index": false
+                              },
+                              "utiGarnishee": {
+                                "properties": {
+                                  "ii": {
+                                    "properties": {
+                                      "oi": {
+                                        "properties": {
+                                          "bob": {
+                                            "type": "keyword"
+                                          },
+                                          "LEI": {
+                                            "type": "text"
+                                          },
+                                          "other": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "ii": {
+                                                "type": "keyword"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "pi": {
+                                        "properties": {
+                                          "other": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "ii": {
+                                                "type": "keyword"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "utiGarnishmentAdministrator": {
+                                "properties": {
+                                  "ii": {
+                                    "properties": {
+                                      "oi": {
+                                        "properties": {
+                                          "bob": {
+                                            "type": "keyword"
+                                          },
+                                          "LEI": {
+                                            "type": "text"
+                                          },
+                                          "other": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "ii": {
+                                                "type": "keyword"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "pi": {
+                                        "properties": {
+                                          "other": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "ii": {
+                                                "type": "keyword"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "tax": {
+                    "properties": {
+                      "method": {
+                        "type": "keyword"
+                      },
+                      "record": {
+                        "type": "nested",
+                        "properties": {
+                          "ta": {
+                            "properties": {
+                              "details": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double",
+                                    "index": false
+                                  }
+                                }
+                              },
+                              "details1": {
+                                "type": "nested",
+                                "properties": {
+                                  "amount": {
+                                    "type": "double",
+                                    "index": false
+                                  }
+                                }
+                              },
+                              "rate": {
+                                "type": "double",
+                                "index": false
+                              },
+                              "tba": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "tta": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "sequenceNumber": {
+                        "type": "double",
+                        "index": false
+                      },
+                      "totalTaxableAmount": {
+                        "properties": {
+                          "amount": {
+                            "type": "double"
+                          },
+                          "amountCurrency": {
+                            "type": "text"
+                          }
+                        }
+                      },
+                      "totaltba": {
+                        "properties": {
+                          "amount": {
+                            "type": "double"
+                          },
+                          "amountCurrency": {
+                            "type": "text"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "paymentData": {
+            "properties": {
+              "transactionInformation": {
+                "properties": {
+                  "accountServicerReference": {
+                    "type": "keyword"
+                  },
+                  "agent": {
+                    "type": "nested",
+                    "properties": {
+                      "account": {
+                        "properties": {
+                          "currency": {
+                            "type": "text"
+                          },
+                          "ii": {
+                            "properties": {
+                              "IBAN": {
+                                "type": "keyword"
+                              },
+                              "other": {
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "bi": {
+                        "properties": {
+                          "LEI": {
+                            "type": "text"
+                          }
+                        }
+                      },
+                      "cp": {
+                        "properties": {
+                          "identifier": {
+                            "properties": {
+                              "version": {
+                                "type": "integer",
+                                "index": false
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "creditDebitAgentIndicator": {
+                        "type": "keyword"
+                      },
+                      "dbCRDSID": {
+                        "type": "text"
+                      },
+                      "fii": {
+                        "properties": {
+                          "BIC": {
+                            "type": "text"
+                          },
+                          "LEI": {
+                            "type": "text"
+                          },
+                          "csmi": {
+                            "properties": {
+                              "mi": {
+                                "type": "text"
+                              }
+                            }
+                          },
+                          "name": {
+                            "type": "text"
+                          },
+                          "other": {
+                            "properties": {
+                              "ii": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "role": {
+                        "type": "keyword"
+                      },
+                      "virtualAccountIBAN": {
+                        "type": "text"
+                      }
+                    }
+                  },
+                  "amount": {
+                    "properties": {
+                      "equivalentAmount": {
+                        "properties": {
+                          "amount": {
+                            "type": "double"
+                          }
+                        }
+                      },
+                      "instructedAmount": {
+                        "properties": {
+                          "amount": {
+                            "type": "double"
+                          },
+                          "amountCurrency": {
+                            "type": "text"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "batchBooking": {
+                    "type": "boolean"
+                  },
+                  "chargesAccount": {
+                    "properties": {
+                      "account": {
+                        "properties": {
+                          "currency": {
+                            "type": "text"
+                          },
+                          "ii": {
+                            "properties": {
+                              "IBAN": {
+                                "type": "keyword"
+                              },
+                              "other": {
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "chargesInformation": {
+                    "type": "nested",
+                    "properties": {
+                      "amount": {
+                        "type": "double"
+                      },
+                      "amountCurrency": {
+                        "type": "text"
+                      },
+                      "chargesAgent": {
+                        "properties": {
+                          "bi": {
+                            "properties": {
+                              "LEI": {
+                                "type": "text"
+                              }
+                            }
+                          },
+                          "fii": {
+                            "properties": {
+                              "BIC": {
+                                "type": "text"
+                              },
+                              "LEI": {
+                                "type": "text"
+                              },
+                              "csmi": {
+                                "properties": {
+                                  "mi": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "name": {
+                                "type": "text"
+                              },
+                              "other": {
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "chequeInstruction": {
+                    "properties": {
+                      "chequeNumber": {
+                        "type": "text"
+                      },
+                      "chequeSequenceNumber": {
+                        "type": "double",
+                        "index": false
+                      }
+                    }
+                  },
+                  "controlSum": {
+                    "type": "double",
+                    "index": false
+                  },
+                  "creationDateTime": {
+                    "type": "keyword"
+                  },
+                  "creationDateTimeWithDateType": {
+                    "type": "date"
+                  },
+                  "exchangeRateInformation": {
+                    "properties": {
+                      "exchangeRate": {
+                        "type": "double",
+                        "index": false
+                      }
+                    }
+                  },
+                  "groupReturn": {
+                    "type": "boolean",
+                    "index": false
+                  },
+                  "groupReversal": {
+                    "type": "boolean",
+                    "index": false
+                  },
+                  "interbankSettlementAmount": {
+                    "properties": {
+                      "amount": {
+                        "type": "double"
+                      },
+                      "amountCurrency": {
+                        "type": "text"
+                      }
+                    }
+                  },
+                  "interbankSettlementDate": {
+                    "type": "keyword"
+                  },
+                  "mandateRelatedInformation": {
+                    "properties": {
+                      "amendmentIndicator": {
+                        "type": "boolean",
+                        "index": false
+                      },
+                      "amendmentInformationDetails": {
+                        "properties": {
+                          "originalFrequency": {
+                            "properties": {
+                              "period": {
+                                "properties": {
+                                  "countPerPeriod": {
+                                    "type": "double",
+                                    "index": false
+                                  },
+                                  "type": {
+                                    "type": "keyword",
+                                    "index": false
+                                  }
+                                }
+                              },
+                              "pointInTime": {
+                                "properties": {
+                                  "pointInTime": {
+                                    "type": "integer",
+                                    "index": false
+                                  },
+                                  "type": {
+                                    "type": "keyword",
+                                    "index": false
+                                  }
+                                }
+                              },
+                              "type": {
+                                "type": "keyword",
+                                "index": false
+                              }
+                            }
+                          },
+                          "originalTrackingDays": {
+                            "type": "integer",
+                            "index": false
+                          }
+                        }
+                      },
+                      "frequency": {
+                        "properties": {
+                          "period": {
+                            "properties": {
+                              "countPerPeriod": {
+                                "type": "double",
+                                "index": false
+                              },
+                              "type": {
+                                "type": "keyword",
+                                "index": false
+                              }
+                            }
+                          },
+                          "pointInTime": {
+                            "properties": {
+                              "pointInTime": {
+                                "type": "integer",
+                                "index": false
+                              },
+                              "type": {
+                                "type": "keyword",
+                                "index": false
+                              }
+                            }
+                          },
+                          "type": {
+                            "type": "keyword",
+                            "index": false
+                          }
+                        }
+                      },
+                      "mandateType": {
+                        "type": "keyword",
+                        "index": false
+                      },
+                      "trackingDays": {
+                        "type": "integer",
+                        "index": false
+                      },
+                      "type": {
+                        "properties": {
+                          "serviceLevel": {
+                            "properties": {
+                              "code": {
+                                "type": "keyword"
+                              }
+                            }
+                          },
+                          "serviceLevel1": {
+                            "type": "nested",
+                            "properties": {
+                              "code": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "messageControlSum": {
+                    "type": "double"
+                  },
+                  "messageii": {
+                    "type": "keyword"
+                  },
+                  "messageName": {
+                    "type": "keyword"
+                  },
+                  "messageNumberOfTransactions": {
+                    "type": "integer",
+                    "index": false
+                  },
+                  "numberOfTransactions": {
+                    "type": "integer",
+                    "index": false
+                  },
+                  "party": {
+                    "type": "nested",
+                    "properties": {
+                      "account": {
+                        "properties": {
+                          "currency": {
+                            "type": "text"
+                          },
+                          "ii": {
+                            "properties": {
+                              "IBAN": {
+                                "type": "keyword"
+                              },
+                              "other": {
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "cp": {
+                        "properties": {
+                          "identifier": {
+                            "properties": {
+                              "version": {
+                                "type": "integer",
+                                "index": false
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "creditDebitPartyIndicator": {
+                        "type": "keyword"
+                      },
+                      "dbCRDSID": {
+                        "type": "text"
+                      },
+                      "ii": {
+                        "properties": {
+                          "oi": {
+                            "properties": {
+                              "bob": {
+                                "type": "keyword"
+                              },
+                              "LEI": {
+                                "type": "text"
+                              },
+                              "other": {
+                                "type": "nested",
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "pi": {
+                            "properties": {
+                              "other": {
+                                "type": "nested",
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "name": {
+                        "type": "text"
+                      },
+                      "role": {
+                        "type": "keyword"
+                      },
+                      "virtualAccountIBAN": {
+                        "type": "text"
+                      }
+                    }
+                  },
+                  "paymentii": {
+                    "properties": {
+                      "UETR": {
+                        "type": "keyword"
+                      },
+                      "clearingSystemReference": {
+                        "type": "keyword"
+                      },
+                      "endToEndii": {
+                        "type": "keyword"
+                      },
+                      "instructionii": {
+                        "type": "keyword"
+                      },
+                      "transactionii": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "paymentInformation": {
+                    "properties": {
+                      "paymentCondition": {
+                        "properties": {
+                          "amountModificationAllowed": {
+                            "type": "boolean",
+                            "index": false
+                          },
+                          "earlyPaymentAllowed": {
+                            "type": "boolean",
+                            "index": false
+                          },
+                          "guaranteedPaymentRequested": {
+                            "type": "boolean",
+                            "index": false
+                          },
+                          "immediatePaymentRebate": {
+                            "properties": {
+                              "amount": {
+                                "type": "double",
+                                "index": false
+                              },
+                              "rate": {
+                                "type": "double",
+                                "index": false
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "paymentInformationii": {
+                        "type": "keyword"
+                      },
+                      "paymentTypeInformation": {
+                        "properties": {
+                          "sequenceType": {
+                            "type": "keyword",
+                            "index": false
+                          },
+                          "serviceLevel": {
+                            "type": "nested",
+                            "properties": {
+                              "code": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "paymentMethod": {
+                    "type": "text"
+                  },
+                  "paymentTypeInformation": {
+                    "properties": {
+                      "clearingChannel": {
+                        "type": "text"
+                      },
+                      "sequenceType": {
+                        "type": "keyword",
+                        "index": false
+                      },
+                      "serviceLevel": {
+                        "properties": {
+                          "code": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "serviceLevel1": {
+                        "type": "nested",
+                        "properties": {
+                          "code": {
+                            "type": "keyword"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "purpose": {
+                    "properties": {
+                      "code": {
+                        "type": "text"
+                      }
+                    }
+                  },
+                  "regulatoryReporting": {
+                    "type": "nested",
+                    "properties": {
+                      "details": {
+                        "properties": {
+                          "amount": {
+                            "type": "double",
+                            "index": false
+                          }
+                        }
+                      },
+                      "details1": {
+                        "type": "nested",
+                        "properties": {
+                          "amount": {
+                            "type": "double",
+                            "index": false
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "relatedri": {
+                    "type": "nested",
+                    "properties": {
+                      "remittanceii": {
+                        "type": "text"
+                      }
+                    }
+                  },
+                  "ri": {
+                    "properties": {
+                      "structured": {
+                        "type": "nested",
+                        "properties": {
+                          "garnishmentRemittance": {
+                            "properties": {
+                              "employeeTerminationIndicator": {
+                                "type": "boolean",
+                                "index": false
+                              },
+                              "familyMedicalInsuranceIndicator": {
+                                "type": "boolean",
+                                "index": false
+                              },
+                              "garnishee": {
+                                "properties": {
+                                  "ii": {
+                                    "properties": {
+                                      "oi": {
+                                        "properties": {
+                                          "bob": {
+                                            "type": "keyword"
+                                          },
+                                          "LEI": {
+                                            "type": "text"
+                                          },
+                                          "other": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "ii": {
+                                                "type": "keyword"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "pi": {
+                                        "properties": {
+                                          "other": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "ii": {
+                                                "type": "keyword"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "garnishmentAdministrator": {
+                                "properties": {
+                                  "contactDetails": {
+                                    "type": "object"
+                                  },
+                                  "ii": {
+                                    "properties": {
+                                      "oi": {
+                                        "properties": {
+                                          "bob": {
+                                            "type": "keyword"
+                                          },
+                                          "LEI": {
+                                            "type": "text"
+                                          },
+                                          "other": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "ii": {
+                                                "type": "keyword"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "pi": {
+                                        "properties": {
+                                          "other": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "ii": {
+                                                "type": "keyword"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "ra": {
+                                "type": "double",
+                                "index": false
+                              }
+                            }
+                          },
+                          "iee": {
+                            "properties": {
+                              "ii": {
+                                "properties": {
+                                  "oi": {
+                                    "properties": {
+                                      "bob": {
+                                        "type": "keyword"
+                                      },
+                                      "LEI": {
+                                        "type": "text"
+                                      },
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "pi": {
+                                    "properties": {
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "ier": {
+                            "properties": {
+                              "ii": {
+                                "properties": {
+                                  "oi": {
+                                    "properties": {
+                                      "bob": {
+                                        "type": "keyword"
+                                      },
+                                      "LEI": {
+                                        "type": "text"
+                                      },
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "pi": {
+                                    "properties": {
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "rda": {
+                            "properties": {
+                              "aaar": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double",
+                                    "index": false
+                                  }
+                                }
+                              },
+                              "aaar1": {
+                                "type": "nested",
+                                "properties": {
+                                  "amount": {
+                                    "type": "double",
+                                    "index": false
+                                  }
+                                }
+                              },
+                              "cna": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "daa": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "dpa": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "rdadaa": {
+                                "type": "nested",
+                                "properties": {
+                                  "amount": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double"
+                                      },
+                                      "amountCurrency": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "rdata": {
+                                "type": "nested",
+                                "properties": {
+                                  "amount": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double"
+                                      },
+                                      "amountCurrency": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "ra": {
+                                "type": "double",
+                                "index": false
+                              },
+                              "ta": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double"
+                                  },
+                                  "amountCurrency": {
+                                    "type": "text"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "rdi": {
+                            "type": "nested",
+                            "properties": {
+                              "ldd": {
+                                "type": "nested",
+                                "properties": {
+                                  "amount": {
+                                    "properties": {
+                                      "aaar": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "aaar": {
+                                            "properties": {
+                                              "amount": {
+                                                "type": "double",
+                                                "index": false
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "cna": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      },
+                                      "daa": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "amount": {
+                                            "properties": {
+                                              "amount": {
+                                                "type": "double"
+                                              },
+                                              "amountCurrency": {
+                                                "type": "text"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "dpa": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      },
+                                      "ra": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      },
+                                      "ta": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "amount": {
+                                            "properties": {
+                                              "amount": {
+                                                "type": "double"
+                                              },
+                                              "amountCurrency": {
+                                                "type": "text"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "tr": {
+                            "properties": {
+                              "record": {
+                                "type": "nested",
+                                "properties": {
+                                  "ta": {
+                                    "properties": {
+                                      "details": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double",
+                                            "index": false
+                                          }
+                                        }
+                                      },
+                                      "details1": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double",
+                                            "index": false
+                                          }
+                                        }
+                                      },
+                                      "rate": {
+                                        "type": "double",
+                                        "index": false
+                                      },
+                                      "tba": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      },
+                                      "tta": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "rri": {
+                    "type": "nested",
+                    "properties": {
+                      "originator": {
+                        "properties": {
+                          "ii": {
+                            "properties": {
+                              "oi": {
+                                "properties": {
+                                  "bob": {
+                                    "type": "keyword"
+                                  },
+                                  "LEI": {
+                                    "type": "text"
+                                  },
+                                  "other": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "pi": {
+                                "properties": {
+                                  "other": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "rli": {
+                    "properties": {
+                      "ri": {
+                        "type": "boolean",
+                        "index": false
+                      },
+                      "rri": {
+                        "type": "nested",
+                        "properties": {
+                          "originator": {
+                            "properties": {
+                              "ii": {
+                                "properties": {
+                                  "oi": {
+                                    "properties": {
+                                      "bob": {
+                                        "type": "keyword"
+                                      },
+                                      "LEI": {
+                                        "type": "text"
+                                      },
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "pi": {
+                                    "properties": {
+                                      "other": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "ii": {
+                                            "type": "keyword"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "ria": {
+                    "properties": {
+                      "amount": {
+                        "type": "double"
+                      },
+                      "amountCurrency": {
+                        "type": "text"
+                      }
+                    }
+                  },
+                  "risa": {
+                    "properties": {
+                      "amount": {
+                        "type": "double"
+                      },
+                      "amountCurrency": {
+                        "type": "text"
+                      }
+                    }
+                  },
+                  "si": {
+                    "properties": {
+                      "sa": {
+                        "properties": {
+                          "currency": {
+                            "type": "text"
+                          },
+                          "ii": {
+                            "properties": {
+                              "IBAN": {
+                                "type": "text"
+                              },
+                              "other": {
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "tx": {
+                    "properties": {
+                      "method": {
+                        "type": "keyword"
+                      },
+                      "record": {
+                        "type": "nested",
+                        "properties": {
+                          "ta": {
+                            "properties": {
+                              "details": {
+                                "properties": {
+                                  "amount": {
+                                    "type": "double",
+                                    "index": false
+                                  }
+                                }
+                              },
+                              "details1": {
+                                "type": "nested",
+                                "properties": {
+                                  "amount": {
+                                    "type": "double",
+                                    "index": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "uti": {
+                    "properties": {
+                      "aaar1": {
+                        "type": "nested",
+                        "properties": {
+                          "amount": {
+                            "type": "double",
+                            "index": false
+                          }
+                        }
+                      },
+                      "agent": {
+                        "type": "nested",
+                        "properties": {
+                          "account": {
+                            "properties": {
+                              "currency": {
+                                "type": "text"
+                              },
+                              "ii": {
+                                "properties": {
+                                  "IBAN": {
+                                    "type": "keyword"
+                                  },
+                                  "other": {
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "bi": {
+                            "properties": {
+                              "LEI": {
+                                "type": "text"
+                              }
+                            }
+                          },
+                          "cp": {
+                            "properties": {
+                              "identifier": {
+                                "properties": {
+                                  "version": {
+                                    "type": "integer",
+                                    "index": false
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "fii": {
+                            "properties": {
+                              "BIC": {
+                                "type": "text"
+                              },
+                              "LEI": {
+                                "type": "text"
+                              },
+                              "csmi": {
+                                "properties": {
+                                  "mi": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "name": {
+                                "type": "text"
+                              },
+                              "other": {
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "party": {
+                        "type": "nested",
+                        "properties": {
+                          "account": {
+                            "properties": {
+                              "currency": {
+                                "type": "text"
+                              },
+                              "ii": {
+                                "properties": {
+                                  "IBAN": {
+                                    "type": "keyword"
+                                  },
+                                  "other": {
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "cp": {
+                            "properties": {
+                              "identifier": {
+                                "properties": {
+                                  "version": {
+                                    "type": "integer",
+                                    "index": false
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "ii": {
+                            "properties": {
+                              "oi": {
+                                "properties": {
+                                  "bob": {
+                                    "type": "keyword"
+                                  },
+                                  "LEI": {
+                                    "type": "text"
+                                  },
+                                  "other": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "pi": {
+                                "properties": {
+                                  "other": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ii": {
+                                        "type": "keyword"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "role": {
+                            "type": "keyword",
+                            "index": false
+                          }
+                        }
+                      },
+                      "ri": {
+                        "properties": {
+                          "structured": {
+                            "type": "nested",
+                            "properties": {
+                              "iee": {
+                                "properties": {
+                                  "ii": {
+                                    "properties": {
+                                      "oi": {
+                                        "properties": {
+                                          "bob": {
+                                            "type": "keyword"
+                                          },
+                                          "LEI": {
+                                            "type": "text"
+                                          },
+                                          "other": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "ii": {
+                                                "type": "keyword"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "pi": {
+                                        "properties": {
+                                          "other": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "ii": {
+                                                "type": "keyword"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "ier": {
+                                "properties": {
+                                  "ii": {
+                                    "properties": {
+                                      "oi": {
+                                        "properties": {
+                                          "bob": {
+                                            "type": "keyword"
+                                          },
+                                          "LEI": {
+                                            "type": "text"
+                                          },
+                                          "other": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "ii": {
+                                                "type": "keyword"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "pi": {
+                                        "properties": {
+                                          "other": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "ii": {
+                                                "type": "keyword"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "rda": {
+                                "properties": {
+                                  "aaar": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double",
+                                        "index": false
+                                      }
+                                    }
+                                  },
+                                  "cna": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double"
+                                      },
+                                      "amountCurrency": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  },
+                                  "daa": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double"
+                                      },
+                                      "amountCurrency": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  },
+                                  "dpa": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double"
+                                      },
+                                      "amountCurrency": {
+                                        "type": "text"
+                                      }
+                                    }
+                                  },
+                                  "ra": {
+                                    "type": "double",
+                                    "index": false
+                                  },
+                                  "ta": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double",
+                                            "index": false
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "udd": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "amount": {
+                                        "properties": {
+                                          "amount": {
+                                            "type": "double"
+                                          },
+                                          "amountCurrency": {
+                                            "type": "text"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "rdi": {
+                                "type": "nested",
+                                "properties": {
+                                  "ldd": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "amount": {
+                                        "properties": {
+                                          "aaar": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "aaar": {
+                                                "properties": {
+                                                  "amount": {
+                                                    "type": "double",
+                                                    "index": false
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "cna": {
+                                            "properties": {
+                                              "amount": {
+                                                "type": "double"
+                                              },
+                                              "amountCurrency": {
+                                                "type": "text"
+                                              }
+                                            }
+                                          },
+                                          "daa": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "amount": {
+                                                "properties": {
+                                                  "amount": {
+                                                    "type": "double"
+                                                  },
+                                                  "amountCurrency": {
+                                                    "type": "text"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "dpa": {
+                                            "properties": {
+                                              "amount": {
+                                                "type": "double"
+                                              },
+                                              "amountCurrency": {
+                                                "type": "text"
+                                              }
+                                            }
+                                          },
+                                          "ra": {
+                                            "properties": {
+                                              "amount": {
+                                                "type": "double"
+                                              },
+                                              "amountCurrency": {
+                                                "type": "text"
+                                              }
+                                            }
+                                          },
+                                          "ta": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "amount": {
+                                                "properties": {
+                                                  "amount": {
+                                                    "type": "double"
+                                                  },
+                                                  "amountCurrency": {
+                                                    "type": "text"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "ii": {
+                                        "type": "nested",
+                                        "properties": {
+                                          "type": {
+                                            "type": "object"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "tr": {
+                                "properties": {
+                                  "record": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "ta": {
+                                        "properties": {
+                                          "details": {
+                                            "properties": {
+                                              "amount": {
+                                                "type": "double",
+                                                "index": false
+                                              }
+                                            }
+                                          },
+                                          "dt1": {
+                                            "type": "nested",
+                                            "properties": {
+                                              "amount": {
+                                                "type": "double",
+                                                "index": false
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "ugr": {
+                                "properties": {
+                                  "ug": {
+                                    "properties": {
+                                      "ii": {
+                                        "properties": {
+                                          "oi": {
+                                            "properties": {
+                                              "bob": {
+                                                "type": "keyword"
+                                              },
+                                              "LEI": {
+                                                "type": "text"
+                                              },
+                                              "other": {
+                                                "type": "nested",
+                                                "properties": {
+                                                  "ii": {
+                                                    "type": "keyword"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "pi": {
+                                            "properties": {
+                                              "other": {
+                                                "type": "nested",
+                                                "properties": {
+                                                  "ii": {
+                                                    "type": "keyword"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "uga": {
+                                    "properties": {
+                                      "ii": {
+                                        "properties": {
+                                          "oi": {
+                                            "properties": {
+                                              "bob": {
+                                                "type": "keyword"
+                                              },
+                                              "LEI": {
+                                                "type": "text"
+                                              },
+                                              "other": {
+                                                "type": "nested",
+                                                "properties": {
+                                                  "ii": {
+                                                    "type": "keyword"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "pi": {
+                                            "properties": {
+                                              "other": {
+                                                "type": "nested",
+                                                "properties": {
+                                                  "ii": {
+                                                    "type": "keyword"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "t": {
+                        "properties": {
+                          "record": {
+                            "type": "nested",
+                            "properties": {
+                              "ta": {
+                                "properties": {
+                                  "details": {
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double",
+                                        "index": false
+                                      }
+                                    }
+                                  },
+                                  "d1": {
+                                    "type": "nested",
+                                    "properties": {
+                                      "amount": {
+                                        "type": "double",
+                                        "index": false
+                                      },
+                                      "period": {
+                                        "type": "object"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "pd": {
+            "properties": {
+              "ai": {
+                "type": "nested",
+                "properties": {
+                  "dpu": {
+                    "type": "keyword",
+                    "index": false
+                  },
+                  "dpmu": {
+                    "type": "keyword",
+                    "index": false
+                  },
+                  "dptu": {
+                    "type": "keyword",
+                    "index": false
+                  },
+                  "omf": {
+                    "type": "keyword"
+                  }
+                }
+              },
+              "ch": {
+                "properties": {
+                  "rd": {
+                    "type": "nested",
+                    "properties": {
+                      "account": {
+                        "properties": {
+                          "currency": {
+                            "type": "text"
+                          },
+                          "ii": {
+                            "properties": {
+                              "IBAN": {
+                                "type": "keyword"
+                              },
+                              "other": {
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "agent": {
+                        "properties": {
+                          "bi": {
+                            "properties": {
+                              "LEI": {
+                                "type": "text"
+                              }
+                            }
+                          },
+                          "fii": {
+                            "properties": {
+                              "BIC": {
+                                "type": "text"
+                              },
+                              "LEI": {
+                                "type": "text"
+                              },
+                              "csmi": {
+                                "properties": {
+                                  "mi": {
+                                    "type": "text"
+                                  }
+                                }
+                              },
+                              "name": {
+                                "type": "text"
+                              },
+                              "other": {
+                                "properties": {
+                                  "ii": {
+                                    "type": "keyword"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "cva": {
+                "type": "nested",
+                "properties": {
+                  "amount": {
+                    "type": "double",
+                    "index": false
+                  },
+                  "ce": {
+                    "properties": {
+                      "er": {
+                        "type": "double",
+                        "index": false
+                      }
+                    }
+                  }
+                }
+              },
+              "gpi": {
+                "type": "nested",
+                "properties": {
+                  "ca": {
+                    "properties": {
+                      "amount": {
+                        "type": "double"
+                      },
+                      "amountCurrency": {
+                        "type": "text"
+                      }
+                    }
+                  }
+                }
+              },
+              "sae": {
+                "type": "nested",
+                "properties": {
+                  "saec": {
+                    "type": "boolean",
+                    "index": false
+                  }
+                }
+              }
+            }
+          },
+          "st": {
+            "properties": {
+              "ogis": {
+                "type": "nested",
+                "properties": {
+                  "nts": {
+                    "properties": {
+                      "dcs": {
+                        "type": "double",
+                        "index": false
+                      },
+                      "dnt": {
+                        "type": "integer",
+                        "index": false
+                      }
+                    }
+                  }
+                }
+              },
+              "opis": {
+                "type": "nested",
+                "properties": {
+                  "nts": {
+                    "properties": {
+                      "dcs": {
+                        "type": "double",
+                        "index": false
+                      },
+                      "dnt": {
+                        "type": "integer",
+                        "index": false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

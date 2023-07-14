@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -39,6 +40,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -805,6 +807,22 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertEquals("value4a", eval("inner_nested.0.f4.0", obj0));
         obj1 = obj.get(1);
         assertEquals("value4b", eval("inner_nested.0.f4.0", obj1));
+    }
+
+    public void testManyManyNestedFields() throws IOException {
+
+        String mappings = StreamsUtils.copyToStringFromClasspath("/org/elasticsearch/search/fetch/many-nested-mappings.json");
+        Settings settings = Settings.builder()
+            .put("index.mapping.nested_fields.limit", 250)
+            .put("index.mapping.total_fields.limit", 5000)
+            .build();
+        MapperService mapperService = createMapperService(IndexVersion.current(), settings, () -> true);
+        merge(mapperService, mappings);
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject();
+        source.endObject();
+
+        fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
     }
 
     @SuppressWarnings("unchecked")

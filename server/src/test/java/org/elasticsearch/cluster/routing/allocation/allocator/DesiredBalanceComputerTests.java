@@ -43,6 +43,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -721,6 +722,176 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             desiredDiskUsage.values(),
             everyItem(lessThanOrEqualTo(diskSize))
         );
+    }
+
+    public void testDoNotComputeUnnecessaryShardMovements() {
+
+        var nodesBuilder = DiscoveryNodes.builder().add(createDiscoveryNode("master", Set.of(DiscoveryNodeRole.MASTER_ROLE)));
+
+        // nodes
+        int hotNodes = randomIntBetween(3, 5);
+        for (int i = 0; i < hotNodes; i++) {
+            var id = "hot-node-" + i;
+            nodesBuilder.add(
+                DiscoveryNodeUtils.builder(id)
+                    .name(id)
+                    .roles(Set.of(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE))
+                    .attributes(Map.of("_tier", "hot"))
+                    .build()
+            );
+        }
+        int warmNodes = randomIntBetween(2, 5);
+        for (int i = 0; i < warmNodes; i++) {
+            var id = "warm-node-" + i;
+            nodesBuilder.add(
+                DiscoveryNodeUtils.builder(id)
+                    .name(id)
+                    .roles(Set.of(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE))
+                    .attributes(Map.of("_tier", "warm"))
+                    .build()
+            );
+        }
+
+        var metadataBuilder = Metadata.builder();
+        var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+
+        // regular indices
+        int indices = randomIntBetween(5, 25);
+        for (int i = 0; i < indices; i++) {
+            int shards = randomFrom(1, 2, 5);
+            int replicas = randomFrom(0, 1);
+
+            var indexMetadata = IndexMetadata.builder("index-" + i)
+                .settings(indexSettings(IndexVersion.current(), shards, replicas).put("index.routing.allocation.include._tier", "hot"))
+                .build();
+
+            metadataBuilder.put(indexMetadata, false);
+            routingTableBuilder.addAsNew(indexMetadata);
+
+            // TODO shard sizes
+        }
+
+        // data streams
+        int dataStreams = randomIntBetween(1, 5);
+        for (int i = 0; i < dataStreams; i++) {
+            int dataStreamIndices = randomIntBetween(1, 25);
+            int hotDataStreamIndices = randomIntBetween(1, dataStreamIndices);
+            int shards = 1;
+            int replicas = randomFrom(0, 1);
+
+            for (int j = 0; j < dataStreamIndices; j++) {
+
+                // TODO forecasts
+                var tier = j < hotDataStreamIndices ? "hot" : "warm";
+                var indexMetadata = IndexMetadata.builder("data-stream-" + i + "-" + j)
+                    .settings(indexSettings(IndexVersion.current(), shards, replicas).put("index.routing.allocation.include._tier", tier))
+                    .build();
+
+                metadataBuilder.put(indexMetadata, false);
+                routingTableBuilder.addAsNew(indexMetadata);
+
+                // TODO shard sizes
+            }
+        }
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(nodesBuilder)
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+
+        var desiredBalanceComputer = new DesiredBalanceComputer(
+            createBuiltInClusterSettings(),
+            mock(ThreadPool.class),
+            new BalancedShardsAllocator(Settings.EMPTY)
+        );
+
+        var clusterInfo = ClusterInfo.EMPTY;
+
+        var computation = new AtomicInteger();
+        var desiredBalance = desiredBalanceComputer.compute(
+            DesiredBalance.INITIAL,
+            new DesiredBalanceInput(
+                computation.getAndIncrement(),
+                routingAllocationWithDecidersOf(clusterState, clusterInfo, Settings.EMPTY),
+                List.of()
+            ),
+            queue(),
+            ignored -> true
+        );
+
+        int mutations = randomIntBetween(1, 50);
+        for (int m = 0; m < mutations; m++) {
+            int mutation = randomIntBetween(0, 2);
+            var change = "none";
+
+            // TODO check following scenarios:
+            // * grow index size
+            // * rollover data stream
+            // * grow data stream index (including past size estimate)
+            // * migrate data stream index from hot to warm
+            // * delete data stream index
+
+            switch (mutation) {
+                case 0 -> {
+                    int shards = randomFrom(1, 2, 5);
+                    int replicas = randomFrom(0, 1);
+                    var indexMetadata = IndexMetadata.builder("index-" + indices)
+                        .settings(
+                            indexSettings(IndexVersion.current(), shards, replicas).put("index.routing.allocation.include._tier", "hot")
+                        )
+                        .build();
+                    indices++;
+
+                    clusterState = ClusterState.builder(clusterState)
+                        .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, false).build())
+                        .routingTable(
+                            RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.routingTable())
+                                .addAsNew(indexMetadata)
+                                .build()
+                        )
+                        .build();
+                    change = "create index [" + indexMetadata.getIndex().getName() + "] with total [" + shards * replicas + "] shards";
+                }
+                case 1 -> {
+                    var indexToDelete = clusterState.metadata()
+                        .indices()
+                        .keySet()
+                        .stream()
+                        .filter(name -> name.startsWith("index-"))
+                        .sorted()
+                        .min(CharSequence::compare);
+
+                    if (indexToDelete.isPresent()) {
+                        clusterState = ClusterState.builder(clusterState)
+                            .metadata(Metadata.builder(clusterState.metadata()).remove(indexToDelete.get()).build())
+                            .routingTable(RoutingTable.builder(clusterState.routingTable()).remove(indexToDelete.get()).build())
+                            .build();
+                        change = "delete index " + indexToDelete.get();
+                    }
+                }
+                default -> {
+
+                }
+            }
+
+            var previousDesiredBalance = desiredBalance;
+            desiredBalance = desiredBalanceComputer.compute(
+                previousDesiredBalance,
+                new DesiredBalanceInput(
+                    computation.getAndIncrement(),
+                    routingAllocationWithDecidersOf(clusterState, clusterInfo, Settings.EMPTY),
+                    List.of()
+                ),
+                queue(),
+                ignored -> true
+            );
+
+            var moves = DesiredBalance.shardMovements(previousDesiredBalance, desiredBalance);
+            // TODO compute moved data size
+            logger.info("Computed {} moves after mutation: {}", moves, change);
+            // TODO set up quality barrier
+        }
     }
 
     private static long smallShardSizeDeviation(long originalSize) {

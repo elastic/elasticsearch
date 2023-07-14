@@ -265,22 +265,22 @@ s:double
 powIntUL
 row x = pow(1, 9223372036854775808);
 
-x:double
-1.0
+x:long
+1
 ;
 
 powLongUL
 row x = to_long(1) | eval x = pow(x, 9223372036854775808);
 
-x:double
-1.0
+x:long
+1
 ;
 
 powUnsignedLongUL
 row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
 
-x:double
-1.0
+x:long
+1
 ;
 
 powDoubleUL
@@ -290,25 +290,39 @@ x:double
 1.0
 ;
 
-powIntULInfinity
+powIntULOverrun
 row x = pow(2, 9223372036854775808);
 
-x:double
-Infinity
+x:long
+1
 ;
 
 powULInt
+row x = pow(9223372036854775808, -10);
+
+x:long
+9223372036854775807
+;
+
+powULIntOverrun
 row x = pow(9223372036854775808, 1);
 
-x:double
-9.223372036854776E18
+x:long
+0
 ;
 
 powULLong
+row x = to_long(-10) | eval x = pow(9223372036854775808, x);
+
+x:long
+9223372036854775807
+;
+
+powULLongOverrun
 row x = to_long(1) | eval x = pow(9223372036854775808, x);
 
-x:double
-9.223372036854776E18
+x:long
+0
 ;
 
 powULDouble

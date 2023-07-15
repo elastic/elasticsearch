@@ -148,7 +148,7 @@ public abstract class MappedFieldType {
      * Returns true if the field is searchable.
      */
     public boolean isSearchable() {
-        return isIndexed;
+        return isIndexed || hasDocValues();
     }
 
     /**

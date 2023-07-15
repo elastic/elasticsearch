@@ -9,7 +9,7 @@ steps:
           echo "Calling end-job..."
           echo "exitCode = $$exitCode"
           echo "exitCode2 = $$exitCode2"
-          pwsh -Command ".buildkite/scripts/windows-end-job.ps1 &"
+          bash -c "powershell .buildkite/scripts/windows-end-job.ps1 &"
           echo "Exiting with $$exitCode"
           exit $$exitCode
         timeout_in_minutes: 180
@@ -37,7 +37,7 @@ steps:
           echo "Calling end-job..."
           echo "exitCode = $$exitCode"
           echo "exitCode2 = $$exitCode2"
-          pwsh -Command ".buildkite/scripts/windows-end-job.ps1 &"
+          bash -c "powershell .buildkite/scripts/windows-end-job.ps1 &"
           echo "Exiting with $$exitCode"
           exit $$exitCode
         timeout_in_minutes: 360

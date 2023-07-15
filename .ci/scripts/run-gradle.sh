@@ -40,3 +40,7 @@ fi
 
 set -e
 $GRADLEW -S --max-workers=$MAX_WORKERS $@
+
+exitCode=$?
+echo "From bash: $exitCode"
+exit $exitCode

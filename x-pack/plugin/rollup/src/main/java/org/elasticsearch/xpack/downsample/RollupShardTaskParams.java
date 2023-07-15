@@ -98,7 +98,7 @@ public record RollupShardTaskParams(
         downsampleConfig.writeTo(out);
         out.writeString(rollupIndex);
         out.writeVLong(indexStartTimeMillis);
-        out.writeLong(indexEndTimeMillis);
+        out.writeVLong(indexEndTimeMillis);
         shardId.writeTo(out);
         out.writeStringArray(metrics);
         out.writeStringArray(labels);

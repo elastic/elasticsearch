@@ -33,12 +33,18 @@ public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShar
     public static final ObjectParser<RollupShardPersistentTaskState.Builder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {
-        PARSER.declareObject(
+        PARSER.declareField(
             RollupShardPersistentTaskState.Builder::status,
             (p, c) -> RollupShardIndexerStatus.valueOf(p.textOrNull()),
-            ROLLUP_SHARD_INDEXER_STATUS
+            ROLLUP_SHARD_INDEXER_STATUS,
+            ObjectParser.ValueType.STRING
         );
-        PARSER.declareObject(RollupShardPersistentTaskState.Builder::tsid, (p, c) -> new BytesRef(p.textOrNull()), TSID);
+        PARSER.declareField(
+            RollupShardPersistentTaskState.Builder::tsid,
+            (p, c) -> new BytesRef(p.textOrNull()),
+            TSID,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     public RollupShardPersistentTaskState(final StreamInput in) throws IOException {
@@ -49,7 +55,7 @@ public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShar
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ROLLUP_SHARD_INDEXER_STATUS.getPreferredName(), rollupShardIndexerStatus);
-        builder.field(TSID.getPreferredName(), tsid);
+        builder.field(TSID.getPreferredName(), tsid.utf8ToString());
         return builder.endObject();
     }
 

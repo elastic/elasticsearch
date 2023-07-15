@@ -24,7 +24,7 @@ public enum RollupShardIndexerStatus implements Writeable {
     CANCELLED;
 
     public static RollupShardIndexerStatus readFromStream(final StreamInput in) throws IOException {
-        return RollupShardIndexerStatus.valueOf(in.readString());
+        return in.readEnum(RollupShardIndexerStatus.class);
     }
 
     @Override

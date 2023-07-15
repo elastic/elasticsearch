@@ -225,7 +225,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             new NamedWriteableRegistry.Entry(
-                RollupShardPersistentTaskState.class,
+                PersistentTaskState.class,
                 RollupShardPersistentTaskState.NAME,
                 RollupShardPersistentTaskState::readFromStream
             ),

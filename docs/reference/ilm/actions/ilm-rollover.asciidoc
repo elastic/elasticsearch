@@ -129,6 +129,11 @@ opt in to rolling over empty indices, by adding a `"min_docs": 0` condition. Thi
 disabled on a cluster-wide basis by setting `indices.lifecycle.rollover.only_if_has_documents` to
 `false`.
 
+NOTE: The rollover action implicitly always rolls over a data stream or alias if one or more shards contain
+      200000000 or more documents. Normally a shard will reach 50GB long before it reaches 200M documents,
+      but this isn't the case for space efficient data sets. Search performance will very likely suffer
+      if a shard contains more than 200M documents. This is the reason of the builtin limit.
+
 [[ilm-rollover-ex]]
 ==== Example
 

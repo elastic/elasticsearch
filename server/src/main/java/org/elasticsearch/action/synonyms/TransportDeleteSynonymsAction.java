@@ -11,13 +11,14 @@ package org.elasticsearch.action.synonyms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportDeleteSynonymsAction extends HandledTransportAction<DeleteSynonymsAction.Request, DeleteSynonymsAction.Response> {
+public class TransportDeleteSynonymsAction extends HandledTransportAction<DeleteSynonymsAction.Request, AcknowledgedResponse> {
 
     private final SynonymsManagementAPIService synonymsManagementAPIService;
 
@@ -29,10 +30,7 @@ public class TransportDeleteSynonymsAction extends HandledTransportAction<Delete
     }
 
     @Override
-    protected void doExecute(Task task, DeleteSynonymsAction.Request request, ActionListener<DeleteSynonymsAction.Response> listener) {
-        synonymsManagementAPIService.deleteSynonymsSet(
-            request.synonymsSetId(),
-            listener.map(dr -> new DeleteSynonymsAction.Response(dr.synonymsOperationResult(), dr.reloadAnalyzersResponse()))
-        );
+    protected void doExecute(Task task, DeleteSynonymsAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        synonymsManagementAPIService.deleteSynonymsSet(request.synonymsSetId(), listener);
     }
 }

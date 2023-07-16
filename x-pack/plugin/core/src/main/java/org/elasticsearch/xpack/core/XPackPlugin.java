@@ -12,7 +12,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -368,14 +367,6 @@ public class XPackPlugin extends XPackClientPlugin
     // overridable for tests
     protected Class<? extends TransportAction<XPackInfoRequest, XPackInfoResponse>> getInfoAction() {
         return TransportXPackInfoAction.class;
-    }
-
-    @Override
-    public List<ActionType<? extends ActionResponse>> getClientActions() {
-        List<ActionType<? extends ActionResponse>> actions = new ArrayList<>();
-        actions.addAll(licensing.getClientActions());
-        actions.addAll(super.getClientActions());
-        return actions;
     }
 
     @Override

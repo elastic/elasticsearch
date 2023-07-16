@@ -70,7 +70,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.getNewTokenBytes;
-import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
+import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromAccessTokenBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -231,7 +231,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final byte[] refreshTokenBytes = getNewTokenBytes();
         tokenService.createOAuth2Tokens(userTokenBytes, refreshTokenBytes, authentication, authentication, tokenMetadata, future);
         final String accessToken = future.actionGet().getAccessToken();
-        mockGetTokenFromId(tokenService, userTokenBytes, authentication, tokenMetadata, false, client);
+        mockGetTokenFromAccessTokenBytes(tokenService, userTokenBytes, authentication, tokenMetadata, false, null, client);
 
         final OpenIdConnectLogoutRequest request = new OpenIdConnectLogoutRequest();
         request.setToken(accessToken);

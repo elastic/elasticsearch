@@ -79,7 +79,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.getNewTokenBytes;
-import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
+import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromAccessTokenBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -268,7 +268,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final byte[] refreshTokenBytes = getNewTokenBytes();
         tokenService.createOAuth2Tokens(userTokenBytes, refreshTokenBytes, authentication, authentication, tokenMetadata, future);
         final String accessToken = future.actionGet().getAccessToken();
-        mockGetTokenFromId(tokenService, userTokenBytes, authentication, tokenMetadata, false, client);
+        mockGetTokenFromAccessTokenBytes(tokenService, userTokenBytes, authentication, tokenMetadata, false, null, client);
 
         final SamlLogoutRequest request = new SamlLogoutRequest();
         request.setToken(accessToken);

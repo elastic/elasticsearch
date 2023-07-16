@@ -135,7 +135,7 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authentic
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.authc.TokenService.THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.getNewTokenBytes;
-import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
+import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromAccessTokenBytes;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -1910,7 +1910,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         String token = tokenFuture.get().getAccessToken();
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
-        mockGetTokenFromId(tokenService, userTokenBytes, expected, Map.of(), false, client);
+        mockGetTokenFromAccessTokenBytes(tokenService, userTokenBytes, expected, Map.of(), false, null, client);
         when(securityIndex.freeze()).thenReturn(securityIndex);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
@@ -2036,7 +2036,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     tokenFuture);
         }
         String token = tokenFuture.get().getAccessToken();
-        mockGetTokenFromId(tokenService, userTokenBytes, expected, Map.of(), true, client);
+        mockGetTokenFromAccessTokenBytes(tokenService, userTokenBytes, expected, Map.of(), true, null, client);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;

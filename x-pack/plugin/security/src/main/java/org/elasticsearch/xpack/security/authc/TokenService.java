@@ -194,8 +194,8 @@ public final class TokenService {
     );
 
     static final String TOKEN_DOC_TYPE = "token";
-    private static final int RAW_TOKEN_BYTES_LENGTH = 16;
-    private static final int RAW_TOKEN_DOC_ID_BYTES_LENGTH = 8;
+    static final int RAW_TOKEN_BYTES_LENGTH = 16;
+    static final int RAW_TOKEN_DOC_ID_BYTES_LENGTH = 8;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_LENGTH = 22;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
@@ -2210,6 +2210,10 @@ public final class TokenService {
         cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv), secureRandom);
         cipher.updateAAD(salt);
         return cipher;
+    }
+
+    Tuple<byte[], byte[]> getRandomTokenBytes(boolean includeRefreshToken) {
+        return getRandomTokenBytes(getTokenVersionCompatibility(), includeRefreshToken);
     }
 
     Tuple<byte[], byte[]> getRandomTokenBytes(TransportVersion version, boolean includeRefreshToken) {

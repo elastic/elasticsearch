@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.TokenServiceTests;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -106,7 +107,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         assertThat(ese.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
 
         request = new InvalidateTokenRequest(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), UUIDs.randomBase64UUID()),
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), TokenServiceTests.getNewTokenBytes()),
             REFRESH_TOKEN.getValue(),
             null,
             null
@@ -149,7 +150,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         assertThat(ese.status(), equalTo(RestStatus.BAD_REQUEST));
 
         request = new InvalidateTokenRequest(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), UUIDs.randomBase64UUID()),
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), TokenServiceTests.getNewTokenBytes()),
             REFRESH_TOKEN.getValue(),
             null,
             null

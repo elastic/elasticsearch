@@ -43,13 +43,6 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_U
  */
 public class XPackSettings {
 
-    private static final boolean IS_DARWIN_AARCH64;
-    static {
-        final String name = System.getProperty("os.name");
-        final String arch = System.getProperty("os.arch");
-        IS_DARWIN_AARCH64 = "aarch64".equals(arch) && name.startsWith("Mac OS X");
-    }
-
     private XPackSettings() {
         throw new IllegalStateException("Utility class should not be instantiated");
     }

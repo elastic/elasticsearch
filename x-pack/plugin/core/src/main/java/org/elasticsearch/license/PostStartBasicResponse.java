@@ -53,9 +53,6 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
             return errorMessage;
         }
 
-        RestStatus getRestStatus() {
-            return restStatus;
-        }
     }
 
     private final Status status;
@@ -130,10 +127,6 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
 
     public String getAcknowledgeMessage() {
         return acknowledgeMessage;
-    }
-
-    public Map<String, String[]> getAcknowledgeMessages() {
-        return acknowledgeMessages;
     }
 
     @Override

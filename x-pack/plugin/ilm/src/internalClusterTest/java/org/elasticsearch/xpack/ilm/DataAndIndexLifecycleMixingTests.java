@@ -208,7 +208,8 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
             ).actionGet();
             assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(1));
             ExplainIndexDataStreamLifecycle writeIndexDataStreamLifecycleExplain = dataStreamLifecycleExplainResponse.getIndices().get(0);
-            assertThat(writeIndexDataStreamLifecycleExplain.isManagedByLifecycle(), is(false));
+            // Since the data stream is not part ILM it will default to DLM
+            assertThat(writeIndexDataStreamLifecycleExplain.isManagedByLifecycle(), is(true));
         });
 
         // let's migrate this data stream to use the data stream lifecycle starting with the next generation

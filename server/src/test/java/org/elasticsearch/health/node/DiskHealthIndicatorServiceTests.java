@@ -167,68 +167,68 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             indexNameToNodeIdsMap.put(indexName, new HashSet<>(randomNonEmptySubsetOf(nodeIds)));
         }
         Set<DiscoveryNode> allNodes = Sets.union(Sets.union(dataNodes, masterNodes), otherNodes);
-        try (ClusterService clusterService = createClusterService(Set.of(), allNodes, indexNameToNodeIdsMap)) {
-            HealthStatus expectedStatus = HealthStatus.YELLOW;
-            HealthInfo healthInfo = createHealthInfo(new HealthInfoConfig(expectedStatus, allNodes.size(), allNodes));
-            DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
-            HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
-            assertThat(result.status(), equalTo(expectedStatus));
-            assertThat(result.symptom(), containsString("with roles: [data"));
-            assertThat(result.symptom(), containsString("out of disk or running low on disk space."));
-            assertThat(result.impacts().size(), equalTo(3));
-            HealthIndicatorImpact impact = result.impacts().get(0);
-            assertNotNull(impact);
-            List<ImpactArea> impactAreas = impact.impactAreas();
-            assertThat(impactAreas.size(), equalTo(1));
-            assertThat(impactAreas.get(0), equalTo(ImpactArea.INGEST));
-            assertThat(impact.severity(), equalTo(1));
-            assertThat(
-                impact.impactDescription(),
-                startsWith("The cluster is at risk of not being able to insert or update documents in the affected indices [")
-            );
-            assertThat(result.diagnosisList().size(), equalTo(3));
-            {
-                Diagnosis diagnosis = result.diagnosisList().get(0);
-                List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
-                assertThat(affectedResources.size(), equalTo(2));
-                assertThat(affectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
-                assertThat(affectedResources.get(0).getNodes().size(), is(dataNodes.size()));
-                List<DiscoveryNode> affectedNodes = dataNodes.stream()
-                    .sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR)
-                    .collect(Collectors.toList());
-                assertThat(affectedResources.get(0).getNodes(), equalTo(affectedNodes));
-                assertThat(affectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
-                assertThat(affectedResources.get(1).getValues(), containsInAnyOrder(indexNameToNodeIdsMap.keySet().toArray(new String[0])));
-            }
-            {
-                Diagnosis diagnosis = result.diagnosisList().get(1);
-                List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
-                assertThat(affectedResources.size(), equalTo(1));
-                assertThat(affectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
-                assertThat(affectedResources.get(0).getNodes().size(), is(masterNodes.size()));
-                List<DiscoveryNode> affectedNodes = masterNodes.stream()
-                    .sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR)
-                    .collect(Collectors.toList());
-                assertThat(affectedResources.get(0).getNodes(), equalTo(affectedNodes));
-            }
-            {
-                Diagnosis diagnosis = result.diagnosisList().get(2);
-                List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
-                assertThat(affectedResources.size(), equalTo(1));
-                assertThat(affectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
-                assertThat(affectedResources.get(0).getNodes().size(), is(otherNodes.size()));
-                List<DiscoveryNode> affectedNodes = otherNodes.stream()
-                    .sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR)
-                    .collect(Collectors.toList());
-                assertThat(affectedResources.get(0).getNodes(), equalTo(affectedNodes));
-            }
-            Map<String, Object> details = xContentToMap(result.details());
-            assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(0));
-            assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
-            assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(allNodes.size()));
-            assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(0));
-            assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(0));
+
+        final var clusterService = createClusterService(Set.of(), allNodes, indexNameToNodeIdsMap);
+        HealthStatus expectedStatus = HealthStatus.YELLOW;
+        HealthInfo healthInfo = createHealthInfo(new HealthInfoConfig(expectedStatus, allNodes.size(), allNodes));
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
+        HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
+        assertThat(result.status(), equalTo(expectedStatus));
+        assertThat(result.symptom(), containsString("with roles: [data"));
+        assertThat(result.symptom(), containsString("out of disk or running low on disk space."));
+        assertThat(result.impacts().size(), equalTo(3));
+        HealthIndicatorImpact impact = result.impacts().get(0);
+        assertNotNull(impact);
+        List<ImpactArea> impactAreas = impact.impactAreas();
+        assertThat(impactAreas.size(), equalTo(1));
+        assertThat(impactAreas.get(0), equalTo(ImpactArea.INGEST));
+        assertThat(impact.severity(), equalTo(1));
+        assertThat(
+            impact.impactDescription(),
+            startsWith("The cluster is at risk of not being able to insert or update documents in the affected indices [")
+        );
+        assertThat(result.diagnosisList().size(), equalTo(3));
+        {
+            Diagnosis diagnosis = result.diagnosisList().get(0);
+            List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
+            assertThat(affectedResources.size(), equalTo(2));
+            assertThat(affectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+            assertThat(affectedResources.get(0).getNodes().size(), is(dataNodes.size()));
+            List<DiscoveryNode> affectedNodes = dataNodes.stream()
+                .sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR)
+                .collect(Collectors.toList());
+            assertThat(affectedResources.get(0).getNodes(), equalTo(affectedNodes));
+            assertThat(affectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
+            assertThat(affectedResources.get(1).getValues(), containsInAnyOrder(indexNameToNodeIdsMap.keySet().toArray(new String[0])));
         }
+        {
+            Diagnosis diagnosis = result.diagnosisList().get(1);
+            List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
+            assertThat(affectedResources.size(), equalTo(1));
+            assertThat(affectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+            assertThat(affectedResources.get(0).getNodes().size(), is(masterNodes.size()));
+            List<DiscoveryNode> affectedNodes = masterNodes.stream()
+                .sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR)
+                .collect(Collectors.toList());
+            assertThat(affectedResources.get(0).getNodes(), equalTo(affectedNodes));
+        }
+        {
+            Diagnosis diagnosis = result.diagnosisList().get(2);
+            List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
+            assertThat(affectedResources.size(), equalTo(1));
+            assertThat(affectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+            assertThat(affectedResources.get(0).getNodes().size(), is(otherNodes.size()));
+            List<DiscoveryNode> affectedNodes = otherNodes.stream()
+                .sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR)
+                .collect(Collectors.toList());
+            assertThat(affectedResources.get(0).getNodes(), equalTo(affectedNodes));
+        }
+        Map<String, Object> details = xContentToMap(result.details());
+        assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(0));
+        assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
+        assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(allNodes.size()));
+        assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(0));
+        assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(0));
     }
 
     /*
@@ -783,16 +783,15 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 nonRedNodeIndices.add(indexName);
             }
         }
-        try (ClusterService clusterService = createClusterService(Set.of(), discoveryNodes.values(), indexNameToNodeIdsMap)) {
-            assertThat(
-                DiskHealthIndicatorService.DiskHealthAnalyzer.getIndicesForNodes(redNodes, clusterService.state()),
-                equalTo(redNodeIndices)
-            );
-            assertThat(
-                DiskHealthIndicatorService.DiskHealthAnalyzer.getIndicesForNodes(nonRedNodes, clusterService.state()),
-                equalTo(nonRedNodeIndices)
-            );
-        }
+        final var clusterService = createClusterService(Set.of(), discoveryNodes.values(), indexNameToNodeIdsMap);
+        assertThat(
+            DiskHealthIndicatorService.DiskHealthAnalyzer.getIndicesForNodes(redNodes, clusterService.state()),
+            equalTo(redNodeIndices)
+        );
+        assertThat(
+            DiskHealthIndicatorService.DiskHealthAnalyzer.getIndicesForNodes(nonRedNodes, clusterService.state()),
+            equalTo(nonRedNodeIndices)
+        );
     }
 
     public void testNodeHealthStatusCounts() {

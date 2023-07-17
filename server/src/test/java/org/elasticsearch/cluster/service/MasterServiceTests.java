@@ -53,6 +53,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.tasks.MockTaskManagerListener;
@@ -2372,6 +2373,78 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 });
             }
+
+            threadPool.getThreadContext().markAsSystemContext();
+            deterministicTaskQueue.runAllTasks();
+            assertEquals(2, actionCount.get());
+        }
+    }
+
+    public void testReleaseOnTimeout() {
+
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        try (var masterService = createMasterService(true, null, threadPool, new StoppableExecutorServiceWrapper(threadPool.generic()))) {
+
+            final var actionCount = new AtomicInteger();
+
+            class BlockingTask extends ClusterStateUpdateTask {
+                BlockingTask() {
+                    super(Priority.IMMEDIATE);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    var targetTime = deterministicTaskQueue.getCurrentTimeMillis() + between(1, 1000);
+                    deterministicTaskQueue.scheduleAt(targetTime, () -> {});
+
+                    while (deterministicTaskQueue.getCurrentTimeMillis() < targetTime) {
+                        deterministicTaskQueue.advanceTime();
+                    }
+
+                    return currentState;
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                    if (actionCount.get() < 1) {
+                        masterService.submitUnbatchedStateUpdateTask("blocker", BlockingTask.this);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            }
+
+            masterService.submitUnbatchedStateUpdateTask("blocker", new BlockingTask());
+
+            final var queue = masterService.createTaskQueue("queue", Priority.NORMAL, batchExecutionContext -> {
+                assertEquals(1, batchExecutionContext.taskContexts().size());
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
+                    taskContext.success(actionCount::incrementAndGet);
+                }
+                return batchExecutionContext.initialState();
+            });
+
+            final var reachabilityChecker = new ReachabilityChecker();
+
+            class TestTask implements ClusterStateTaskListener {
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(ProcessClusterEventTimeoutException.class));
+                    deterministicTaskQueue.scheduleNow(() -> {
+                        reachabilityChecker.ensureUnreachable();
+                        actionCount.incrementAndGet();
+                    });
+                }
+            }
+
+            final var timeout = TimeValue.timeValueMillis(between(1, 30000));
+            queue.submitTask("will timeout", reachabilityChecker.register(new TestTask()), timeout);
+            queue.submitTask("no timeout", new TestTask(), null);
 
             threadPool.getThreadContext().markAsSystemContext();
             deterministicTaskQueue.runAllTasks();

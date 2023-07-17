@@ -46,7 +46,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         // for those versions until the new format has propagated through serverless. Additionally,
         // the lucene version was previously read by inferring from either Version or IndexVersion.
         // Now the lucene version is read explicitly.
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_034)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_037)) {
             luceneVersion = in.readString();
         } else {
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
@@ -108,7 +108,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         // for those versions until the new format has propagated through serverless. Additionally,
         // the lucene version was previously inferred from either Version or IndexVersion.
         // Now the lucene version is written explicitly.
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_034)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_037)) {
             out.writeString(luceneVersion);
         } else {
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {

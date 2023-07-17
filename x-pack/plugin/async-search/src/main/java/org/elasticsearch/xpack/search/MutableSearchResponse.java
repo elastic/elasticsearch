@@ -212,7 +212,7 @@ class MutableSearchResponse {
         } else {
             /*
              * Build the response, reducing aggs if we haven't already and
-             * storing the result of the reduction so we won't have to reduce
+             * storing the result of the reduction, so we won't have to reduce
              * the same aggregation results a second time if nothing has changed.
              * This does cost memory because we have a reference to the finally
              * reduced aggs sitting around which can't be GCed until we get an update.
@@ -253,6 +253,7 @@ class MutableSearchResponse {
                 false,
                 startTime,
                 expirationTime,
+                startTime + finalResponse.getTook().millis(),
                 finalResponse.getTotalShards(),
                 finalResponse.getSuccessfulShards(),
                 finalResponse.getSkippedShards(),
@@ -268,6 +269,7 @@ class MutableSearchResponse {
                 true,
                 startTime,
                 expirationTime,
+                null,
                 totalShards,
                 successfulShards,
                 skippedShards,
@@ -282,6 +284,7 @@ class MutableSearchResponse {
             true,
             startTime,
             expirationTime,
+            null,
             totalShards,
             successfulShards,
             skippedShards,

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -138,7 +141,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         assertEquals(expected.getExpirationTime(), actual.getExpirationTime());
     }
 
-    public void testToXContent() throws IOException {
+    public void testToXContentWithoutSearchResponse() throws IOException {
         Date date = new Date();
         AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse("id", true, true, date.getTime(), date.getTime());
 
@@ -175,6 +178,212 @@ public class AsyncSearchResponseTests extends ESTestCase {
                     date.getTime(),
                     XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()),
                     date.getTime()
+                ),
+                Strings.toString(builder)
+            );
+        }
+    }
+
+    // completion_time should be present since search has completed
+    public void testToXContentWithSearchResponseAfterCompletion() throws IOException {
+        boolean isRunning = false;
+        long startTimeMillis = 1689352924517L;
+        long expirationTimeMillis = 1689784924517L;
+        long took = 22968L;
+        long expectedCompletionTime = startTimeMillis + took;
+
+        SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
+        SearchResponseSections sections = new SearchResponseSections(hits, null, null, false, null, null, 2);
+        SearchResponse searchResponse = new SearchResponse(
+            sections,
+            null,
+            10,
+            9,
+            1,
+            took,
+            new ShardSearchFailure[0],
+            SearchResponse.Clusters.EMPTY
+        );
+
+        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(
+            "id",
+            searchResponse,
+            null,
+            false,
+            isRunning,
+            startTimeMillis,
+            expirationTimeMillis
+        );
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.prettyPrint();
+            asyncSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            assertEquals(Strings.format("""
+                {
+                  "id" : "id",
+                  "is_partial" : false,
+                  "is_running" : false,
+                  "start_time_in_millis" : %s,
+                  "expiration_time_in_millis" : %s,
+                  "completion_time_in_millis" : %s,
+                  "response" : {
+                    "took" : %s,
+                    "timed_out" : false,
+                    "num_reduce_phases" : 2,
+                    "_shards" : {
+                      "total" : 10,
+                      "successful" : 9,
+                      "skipped" : 1,
+                      "failed" : 0
+                    },
+                    "hits" : {
+                      "max_score" : 0.0,
+                      "hits" : [ ]
+                    }
+                  }
+                }""", startTimeMillis, expirationTimeMillis, expectedCompletionTime, took), Strings.toString(builder));
+        }
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.prettyPrint();
+            builder.humanReadable(true);
+            asyncSearchResponse.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
+            assertEquals(
+                Strings.format(
+                    """
+                        {
+                          "id" : "id",
+                          "is_partial" : false,
+                          "is_running" : false,
+                          "start_time" : "%s",
+                          "start_time_in_millis" : %s,
+                          "expiration_time" : "%s",
+                          "expiration_time_in_millis" : %s,
+                          "completion_time" : "%s",
+                          "completion_time_in_millis" : %s,
+                          "response" : {
+                            "took" : %s,
+                            "timed_out" : false,
+                            "num_reduce_phases" : 2,
+                            "_shards" : {
+                              "total" : 10,
+                              "successful" : 9,
+                              "skipped" : 1,
+                              "failed" : 0
+                            },
+                            "hits" : {
+                              "max_score" : 0.0,
+                              "hits" : [ ]
+                            }
+                          }
+                        }""",
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(startTimeMillis)),
+                    startTimeMillis,
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expirationTimeMillis)),
+                    expirationTimeMillis,
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expectedCompletionTime)),
+                    expectedCompletionTime,
+                    took
+                ),
+                Strings.toString(builder)
+            );
+        }
+    }
+
+    // completion_time should NOT be present since search is still running
+    public void testToXContentWithSearchResponseWhileRunning() throws IOException {
+        boolean isRunning = true;
+        long startTimeMillis = 1689352924517L;
+        long expirationTimeMillis = 1689784924517L;
+        long took = 22968L;
+
+        SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
+        SearchResponseSections sections = new SearchResponseSections(hits, null, null, false, null, null, 2);
+        SearchResponse searchResponse = new SearchResponse(
+            sections,
+            null,
+            10,
+            9,
+            1,
+            took,
+            new ShardSearchFailure[0],
+            SearchResponse.Clusters.EMPTY
+        );
+
+        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(
+            "id",
+            searchResponse,
+            null,
+            true,
+            isRunning,
+            startTimeMillis,
+            expirationTimeMillis
+        );
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.prettyPrint();
+            asyncSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            assertEquals(Strings.format("""
+                {
+                  "id" : "id",
+                  "is_partial" : true,
+                  "is_running" : true,
+                  "start_time_in_millis" : %s,
+                  "expiration_time_in_millis" : %s,
+                  "response" : {
+                    "took" : %s,
+                    "timed_out" : false,
+                    "num_reduce_phases" : 2,
+                    "_shards" : {
+                      "total" : 10,
+                      "successful" : 9,
+                      "skipped" : 1,
+                      "failed" : 0
+                    },
+                    "hits" : {
+                      "max_score" : 0.0,
+                      "hits" : [ ]
+                    }
+                  }
+                }""", startTimeMillis, expirationTimeMillis, took), Strings.toString(builder));
+        }
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.prettyPrint();
+            builder.humanReadable(true);
+            asyncSearchResponse.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
+            assertEquals(
+                Strings.format(
+                    """
+                        {
+                          "id" : "id",
+                          "is_partial" : true,
+                          "is_running" : true,
+                          "start_time" : "%s",
+                          "start_time_in_millis" : %s,
+                          "expiration_time" : "%s",
+                          "expiration_time_in_millis" : %s,
+                          "response" : {
+                            "took" : %s,
+                            "timed_out" : false,
+                            "num_reduce_phases" : 2,
+                            "_shards" : {
+                              "total" : 10,
+                              "successful" : 9,
+                              "skipped" : 1,
+                              "failed" : 0
+                            },
+                            "hits" : {
+                              "max_score" : 0.0,
+                              "hits" : [ ]
+                            }
+                          }
+                        }""",
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(startTimeMillis)),
+                    startTimeMillis,
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expirationTimeMillis)),
+                    expirationTimeMillis,
+                    took
                 ),
                 Strings.toString(builder)
             );

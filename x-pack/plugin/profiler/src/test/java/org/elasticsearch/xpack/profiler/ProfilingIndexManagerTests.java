@@ -227,6 +227,12 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         indicesDeleted.set(0);
     }
 
+    public void testIndexMatchWithoutVersion() {
+        ProfilingIndexManager.ProfilingIndex idx = ProfilingIndexManager.ProfilingIndex.kv("profiling-test", 1);
+        assertTrue(idx.isMatchWithoutVersion(".profiling-test-v002"));
+        assertFalse(idx.isMatchWithoutVersion(".profiling-testing-v001"));
+    }
+
     private ActionResponse verifyIndexInstalled(
         AtomicInteger calledTimes,
         ActionType<?> action,

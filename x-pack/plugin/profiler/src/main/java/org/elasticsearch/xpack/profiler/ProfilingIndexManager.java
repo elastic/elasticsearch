@@ -354,7 +354,7 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         }
 
         public boolean isMatchWithoutVersion(String indexName) {
-            return indexName.startsWith("." + namePrefix);
+            return indexName.startsWith("." + namePrefix + "-v");
         }
 
         public boolean isMatchWithoutGeneration(String indexName) {

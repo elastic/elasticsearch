@@ -191,7 +191,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         ".logs-osquery_manager.action.responses-*",
                         "profiling-*"
                     )
-                    .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
+                    .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME, "indices:admin/data_stream/lifecycle/put")
                     .build(),
                 // Endpoint specific action responses. Kibana reads from these to display responses to the user.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.action.responses-*").privileges("read").build(),

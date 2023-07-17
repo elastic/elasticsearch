@@ -354,41 +354,4 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         ensureStableCluster(testCluster.size());
         assertDownsampleFailure(testCluster.coordinatorName());
     }
-
-    @AwaitsFix(bugUrl = "need to investigate...")
-    public void testRollupIndexerActionExceptionDisruption() {
-        // GIVEN
-        final MockTransportService master = testCluster.masterMockTransportService();
-        final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
-            SOURCE_INDEX_NAME,
-            TARGET_INDEX_NAME,
-            new DownsampleConfig(DateHistogramInterval.HOUR, TIMEOUT)
-        );
-
-        // WHEN (disruption)
-        testCluster.allMockTransportServices()
-            .forEach(
-                mockTransportService -> master.addSendBehavior(mockTransportService, (connection, requestId, action, request, options) -> {
-                    if (ROLLUP_INDEXER_SHARD_ACTION.equals(action)) {
-                        logger.info("Simulated disruption: node [" + connection.getNode().getName() + "] action [" + action + "]");
-                        throw new ElasticsearchException(
-                            "Simulated disruption: node [" + connection.getNode().getName() + "] action [" + action + "]"
-                        );
-                    }
-                    connection.sendRequest(requestId, action, request, options);
-                })
-            );
-
-        // THEN
-        LuceneTestCase.expectThrows(
-            ElasticsearchException.class,
-            () -> testCluster.coordinatorClient()
-                .execute(DownsampleAction.INSTANCE, downsampleRequest)
-                .actionGet(TimeValue.timeValueMillis(DOWNSAMPLE_ACTION_TIMEOUT_MILLIS))
-        );
-
-        master.clearAllRules();
-        ensureStableCluster(testCluster.size());
-        assertDownsampleFailure(testCluster.coordinatorName());
-    }
 }

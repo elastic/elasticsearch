@@ -8,7 +8,7 @@ and contextual meaning of a search query, instead of a match on query terms
 {es} provides semantic search capabilities using {ml-docs}/ml-nlp.html[natural
 language processing (NLP)] and vector search. Deploying an NLP model to {es}
 enables it to extract text embeddings out of text. Embeddings are vectors that
-provide a mathematical representation of a text. Pieces of content with similar
+provide a numeric representation of a text. Pieces of content with similar
 meaning have similar representations. 
 
 [[semantic-search-diagram]]
@@ -103,10 +103,29 @@ include::{es-repo-dir}/tab-widgets/semantic-search/search-widget.asciidoc[]
 [[semantic-search-hybrid-search]]
 === Beyond semantic search with hybrid search
 
+In some situations, lexical search may perform better than semantic search. For
+example, when searching for single words or IDs, like product numbers.
+
+Combining semantic and lexical search into one hybrid search request using
+<<rrf,reciprocal rank fusion>> provides the best of both worlds. Not only that,
+but hybrid search using reciprocal rank fusion has been shown to perform better
+in general.
+
 include::{es-repo-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc[]
 
 [discrete]
 [[semantic-search-read-more]]
 === Read more
+
+* Tutorials:
+** <<semantic-search-elser,Semantic search with ELSER>>
+** {ml-docs}/ml-nlp-text-emb-vector-search-example.html[Semantic search with the msmarco-MiniLM-L-12-v3 sentence-transformer model]
+* Blogs:
+** {blog-ref}/may-2023-launch-sparse-encoder-ai-model[Introducing Elastic Learned Sparse Encoder: Elastic's AI model for semantic search]
+** {blog-ref}/lexical-ai-powered-search-elastic-vector-database[How to get the best of lexical and AI-powered search with Elastic's vector database]
+** Information retrieval blog series:
+*** {blog-ref}/improving-information-retrieval-elastic-stack-search-relevance[Part 1: Steps to improve search relevance]
+*** {blog-ref}/improving-information-retrieval-elastic-stack-benchmarking-passage-retrieval[Part 2: Benchmarking passage retrieval]
+*** {blog-ref}/may-2023-launch-information-retrieval-elasticsearch-ai-model[Part 3: Introducing Elastic Learned Sparse Encoder, our new retrieval model]
 
 include::semantic-search-elser.asciidoc[]

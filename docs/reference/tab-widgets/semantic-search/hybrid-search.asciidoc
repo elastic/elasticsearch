@@ -1,12 +1,78 @@
 // tag::elser[]
 
-ELSER content placeholder
+Hybrid search between a semantic and lexical query can be achieved by using a
+`sub_searches` clause in your search request. In the `sub_searches` clause,
+provide a `text_expansion` query and a full-text query. Next to the
+`sub_searches` clause, also provide a <<request-body-rank,`rank`>> clause with
+the `rrf` parameter to rank documents using reciprocal rank fusion.
+
+[source,console]
+----
+GET my-index/_search
+{
+  "sub_searches": [
+    {
+      "query": {
+        "match": {
+          "my_text_field": "the query string"
+        }
+      }
+    },
+    {
+      "query": {
+        "text_expansion": {
+          "my_embeddings.tokens": {
+            "model_id": ".elser_model_1",
+            "model_text": "the query string"
+          }
+        }
+      }
+    }
+  ],
+  "rank": {
+    "rrf": {}
+  }
+}
+----
+// TEST[skip:TBD]
 
 // end::elser[]
 
 
 // tag::dense-vector[]
 
-Dense vector content placeholder
+Hybrid search between a semantic and lexical query can be achieved by providing:
+
+* a `query` clause for the full-text query;
+* a `knn` clause with the kNN search that queries the dense vector field;
+* and a `rank` clause with the `rrf` parameter to rank documents using 
+reciprocal rank fusion.
+
+[source,console]
+----
+GET my-index/_search
+{
+  "query": {
+    "match": {
+      "my_text_field": "the query string"
+    }
+  },
+  "knn": {
+    "field": "text_embedding.predicted_value",
+    "k": 10,
+    "num_candidates": 100,
+    "query_vector_builder": {
+      "text_embedding": {
+        "model_id": "sentence-transformers__msmarco-minilm-l-12-v3",
+        "model_text": "the query string"
+      }
+    }
+  },
+  "rank": {
+    "rrf": {}
+  }
+}
+----
+// TEST[skip:TBD]
 
 // end::dense-vector[]

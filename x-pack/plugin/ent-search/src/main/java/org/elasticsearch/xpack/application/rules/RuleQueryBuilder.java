@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -57,13 +56,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     public static final String NAME = "rule_query";
 
     private static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
-    private static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
+    protected static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
-
-    /**
-     * Defines the set of allowed match criteria, so that we can validate that rule query requests are sending in allowed/supported data.
-     */
-    static final Set<String> ALLOWED_MATCH_CRITERIA = Set.of("query_string");
 
     private final String rulesetId;
     private final Map<String, Object> matchCriteria;
@@ -111,11 +105,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         }
         if (matchCriteria == null || matchCriteria.isEmpty()) {
             throw new IllegalArgumentException("matchCriteria must not be null or empty");
-        }
-        for (String matchCriteriaKey : matchCriteria.keySet()) {
-            if (ALLOWED_MATCH_CRITERIA.contains(matchCriteriaKey) == false) {
-                throw new IllegalArgumentException("matchCriteria key [" + matchCriteriaKey + "] is not allowed");
-            }
         }
         if (Strings.isNullOrEmpty(rulesetId)) {
             throw new IllegalArgumentException("rulesetId must not be null or empty");

@@ -12,10 +12,6 @@ esplugin {
 // let the javaRestTest see the classpath of main
 GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
 
-dependencies {
-  clusterModules project(':test:external-modules:test-die-with-dignity')
-}
-
 tasks.named("test").configure {
   enabled = false
 }

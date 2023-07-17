@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.meter.ix;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -64,8 +67,8 @@ public class MeterIXPoller implements LifecycleComponent {
         mutex.lock();
         try {
             if (state == Lifecycle.State.INITIALIZED) {
-                next = threadPool.schedule(this::logIndexStats, TimeValue.timeValueSeconds(20), ThreadPool.Names.GENERIC);
                 state = Lifecycle.State.STARTED;
+                setScheduleNext();
             }
         } finally {
             mutex.unlock();
@@ -88,7 +91,26 @@ public class MeterIXPoller implements LifecycleComponent {
         }
     }
 
+    private void setScheduleNext() {
+        next = threadPool.schedule(this::logAndSchedule, TimeValue.timeValueSeconds(20), ThreadPool.Names.GENERIC);
+    }
+
+    public void logAndSchedule() {
+        logIndexStats();
+        mutex.lock();
+        try {
+            if (state == Lifecycle.State.STARTED) {
+                setScheduleNext();
+            }
+        } finally {
+            mutex.unlock();
+        }
+    }
+
     public void logIndexStats() {
         logger.warn("[STU] running logIndexStats");
+        NodeIndicesStats stats = indexServices.stats(new CommonStatsFlags(CommonStatsFlags.Flag.Segments));
+        SegmentsStats segmentsStats = stats.getSegments();
+        logger.warn("[STU] done running logIndexStats");
     }
 }

@@ -136,11 +136,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         DriverContext driverContext = new DriverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(new NullInsertingSourceOperator(simpleInput(end)));
-        List<Page> results = drive(
-            simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext),
-            input.iterator(),
-            driverContext
-        );
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
@@ -148,11 +144,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         DriverContext driverContext = new DriverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(nullGroups(simpleInput(end)));
-        List<Page> results = drive(
-            simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext),
-            input.iterator(),
-            driverContext
-        );
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
@@ -173,11 +165,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         DriverContext driverContext = new DriverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(nullValues(simpleInput(end)));
-        List<Page> results = drive(
-            simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext),
-            input.iterator(),
-            driverContext
-        );
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
@@ -198,11 +186,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         DriverContext driverContext = new DriverContext();
         int end = between(1_000, 100_000);
         List<Page> input = CannedSourceOperator.collectPages(mergeValues(simpleInput(end)));
-        List<Page> results = drive(
-            simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext),
-            input.iterator(),
-            driverContext
-        );
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
@@ -210,11 +194,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         DriverContext driverContext = new DriverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(new NullInsertingSourceOperator(mergeValues(simpleInput(end))));
-        List<Page> results = drive(
-            simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext),
-            input.iterator(),
-            driverContext
-        );
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
@@ -222,11 +202,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         DriverContext driverContext = new DriverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(nullGroups(mergeValues(simpleInput(end))));
-        List<Page> results = drive(
-            simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext),
-            input.iterator(),
-            driverContext
-        );
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
@@ -234,17 +210,13 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         DriverContext driverContext = new DriverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(nullValues(mergeValues(simpleInput(end))));
-        List<Page> results = drive(
-            simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext),
-            input.iterator(),
-            driverContext
-        );
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
     public final void testNullOnly() {
         DriverContext driverContext = new DriverContext();
-        assertNullOnly(List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)), driverContext);
+        assertNullOnly(List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)));
     }
 
     public final void testNullOnlyInputInitialFinal() {
@@ -253,8 +225,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             List.of(
                 simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
                 simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
-            ),
-            driverContext
+            )
         );
     }
 
@@ -265,14 +236,13 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
                 simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INTERMEDIATE).get(driverContext),
                 simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
-            ),
-            driverContext
+            )
         );
     }
 
-    private void assertNullOnly(List<Operator> operators, DriverContext driverContext) {
+    private void assertNullOnly(List<Operator> operators) {
         List<Page> source = List.of(new Page(LongVector.newVectorBuilder(1).appendLong(0).build().asBlock(), Block.constantNullBlock(1)));
-        List<Page> results = drive(operators, source.iterator(), driverContext);
+        List<Page> results = drive(operators, source.iterator());
 
         assertThat(results, hasSize(1));
         Block resultBlock = results.get(0).getBlock(1);
@@ -281,7 +251,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     public final void testNullSome() {
         DriverContext driverContext = new DriverContext();
-        assertNullSome(List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)), driverContext);
+        assertNullSome(List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)));
     }
 
     public final void testNullSomeInitialFinal() {
@@ -290,8 +260,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             List.of(
                 simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
                 simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
-            ),
-            driverContext
+            )
         );
     }
 
@@ -302,12 +271,11 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
                 simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INTERMEDIATE).get(driverContext),
                 simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
-            ),
-            driverContext
+            )
         );
     }
 
-    private void assertNullSome(List<Operator> operators, DriverContext driverContext) {
+    private void assertNullSome(List<Operator> operators) {
         List<Page> inputData = CannedSourceOperator.collectPages(simpleInput(1000));
         SortedSet<Long> seenGroups = seenGroups(inputData);
 
@@ -327,7 +295,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             source.add(new Page(groups.asBlock(), copiedValues.build()));
         }
 
-        List<Page> results = drive(operators, source.iterator(), driverContext);
+        List<Page> results = drive(operators, source.iterator());
 
         assertThat(results, hasSize(1));
         LongVector groups = results.get(0).<LongBlock>getBlock(0).asVector();
@@ -437,9 +405,9 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             }
 
             @Override
-            public GroupingAggregatorFunction groupingAggregator(DriverContext context) {
+            public GroupingAggregatorFunction groupingAggregator() {
                 return new GroupingAggregatorFunction() {
-                    GroupingAggregatorFunction delegate = supplier.groupingAggregator(context);
+                    GroupingAggregatorFunction delegate = supplier.groupingAggregator();
 
                     @Override
                     public AddInput prepareProcessPage(Page page) {

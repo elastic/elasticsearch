@@ -23,9 +23,6 @@ public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector
 $elseif(double)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector,
     $Type$BigArrayVector {
-$elseif(int)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
-    $Type$RangeVector {
 $else$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector {
 $endif$
@@ -109,22 +106,13 @@ $endif$
     }
 
 $if(int)$
-    /**
-     * Returns true iff the values in this vector are known to be ascending.
-     * A return value of false does not necessarily indicate that the values are not ascending, just
-     * that it is not known.
-     */
-    default boolean ascending() {
-        return false;
-    }
-
-    /**
-     * Returns an IntVector containing a sequence of values from startInclusive to endExclusive,
-     * where each value is equal to the previous value + 1. Vectors returned by this factory method
-     * have the {@link #ascending} property.
-     */
+    /** Create a vector for a range of ints. */
     static IntVector range(int startInclusive, int endExclusive) {
-        return new IntRangeVector(startInclusive, endExclusive);
+        int[] values = new int[endExclusive - startInclusive];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = startInclusive + i;
+        }
+        return new IntArrayVector(values, values.length);
     }
 $endif$
 

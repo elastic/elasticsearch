@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link MinIntAggregator}.
@@ -34,18 +33,14 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
-  public MinIntGroupingAggregatorFunction(List<Integer> channels, IntArrayState state,
-      DriverContext driverContext) {
+  public MinIntGroupingAggregatorFunction(List<Integer> channels, IntArrayState state) {
     this.channels = channels;
     this.state = state;
-    this.driverContext = driverContext;
   }
 
   public static MinIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays) {
-    return new MinIntGroupingAggregatorFunction(channels, new IntArrayState(bigArrays, MinIntAggregator.init(), driverContext), driverContext);
+      BigArrays bigArrays) {
+    return new MinIntGroupingAggregatorFunction(channels, new IntArrayState(bigArrays, MinIntAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -196,7 +191,6 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
         state.putNull(groupId);
       }
     }
-    GroupingAggregatorUtils.releaseVectors(driverContext, min, seen);
   }
 
   @Override

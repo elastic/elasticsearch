@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MedianAbsoluteDeviationIntAggregator}.
@@ -32,9 +31,8 @@ public final class MedianAbsoluteDeviationIntAggregatorFunctionSupplier implemen
   }
 
   @Override
-  public MedianAbsoluteDeviationIntGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
-    return MedianAbsoluteDeviationIntGroupingAggregatorFunction.create(channels, driverContext, bigArrays);
+  public MedianAbsoluteDeviationIntGroupingAggregatorFunction groupingAggregator() {
+    return MedianAbsoluteDeviationIntGroupingAggregatorFunction.create(channels, bigArrays);
   }
 
   @Override

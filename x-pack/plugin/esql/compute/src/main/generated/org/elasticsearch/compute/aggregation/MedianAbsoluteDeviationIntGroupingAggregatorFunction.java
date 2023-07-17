@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link MedianAbsoluteDeviationIntAggregator}.
@@ -34,21 +33,18 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
   private final BigArrays bigArrays;
 
   public MedianAbsoluteDeviationIntGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, BigArrays bigArrays, DriverContext driverContext) {
+      QuantileStates.GroupingState state, BigArrays bigArrays) {
     this.channels = channels;
     this.state = state;
     this.bigArrays = bigArrays;
-    this.driverContext = driverContext;
   }
 
   public static MedianAbsoluteDeviationIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays) {
-    return new MedianAbsoluteDeviationIntGroupingAggregatorFunction(channels, MedianAbsoluteDeviationIntAggregator.initGrouping(bigArrays), bigArrays, driverContext);
+      BigArrays bigArrays) {
+    return new MedianAbsoluteDeviationIntGroupingAggregatorFunction(channels, MedianAbsoluteDeviationIntAggregator.initGrouping(bigArrays), bigArrays);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

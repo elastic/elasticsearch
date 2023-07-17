@@ -18,8 +18,6 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
 
     private final BitArray values;
 
-    private boolean closed;
-
     public BooleanBigArrayVector(BitArray values, int positionCount) {
         super(positionCount);
         this.values = values;
@@ -52,8 +50,6 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
 
     @Override
     public void close() {
-        if (closed) return;
-        closed = true;
         values.close();
     }
 

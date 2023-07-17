@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MinLongAggregator}.
@@ -31,8 +30,8 @@ public final class MinLongAggregatorFunctionSupplier implements AggregatorFuncti
   }
 
   @Override
-  public MinLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return MinLongGroupingAggregatorFunction.create(channels, driverContext, bigArrays);
+  public MinLongGroupingAggregatorFunction groupingAggregator() {
+    return MinLongGroupingAggregatorFunction.create(channels, bigArrays);
   }
 
   @Override

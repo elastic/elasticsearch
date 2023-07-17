@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
 
@@ -28,8 +27,8 @@ public class CountAggregatorFunction implements AggregatorFunction {
             }
 
             @Override
-            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-                return CountGroupingAggregatorFunction.create(bigArrays, channels, driverContext);
+            public GroupingAggregatorFunction groupingAggregator() {
+                return CountGroupingAggregatorFunction.create(bigArrays, channels);
             }
 
             @Override

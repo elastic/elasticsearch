@@ -41,11 +41,9 @@ import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
-import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT;
-import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_UTILS;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
@@ -99,6 +97,7 @@ public class GroupingAggregatorImplementer {
         this.createParameters = createParameters.stream().anyMatch(p -> p.type().equals(BIG_ARRAYS))
             ? createParameters
             : Stream.concat(Stream.of(new Parameter(BIG_ARRAYS, "bigArrays")), createParameters.stream()).toList();
+
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
             (declarationType.getSimpleName() + "GroupingAggregatorFunction").replace("AggregatorGroupingAggregator", "GroupingAggregator")
@@ -150,7 +149,6 @@ public class GroupingAggregatorImplementer {
         );
         builder.addField(stateType, "state", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
-        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
         for (VariableElement p : init.getParameters()) {
             builder.addField(TypeName.get(p.asType()), p.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
@@ -180,14 +178,13 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
         builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
         builder.addParameter(LIST_INTEGER, "channels");
-        builder.addParameter(DRIVER_CONTEXT, "driverContext");
         for (Parameter p : createParameters) {
             builder.addParameter(p.type(), p.name());
         }
         if (init.getParameters().isEmpty()) {
-            builder.addStatement("return new $T(channels, $L, driverContext)", implementation, callInit());
+            builder.addStatement("return new $T(channels, $L)", implementation, callInit());
         } else {
-            builder.addStatement("return new $T(channels, $L, $L, driverContext)", implementation, callInit(), initParameters());
+            builder.addStatement("return new $T(channels, $L, $L)", implementation, callInit(), initParameters());
         }
         return builder.build();
     }
@@ -201,7 +198,7 @@ public class GroupingAggregatorImplementer {
         if (init.getReturnType().toString().equals(stateType.toString())) {
             builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParameters());
         } else {
-            builder.add("new $T(bigArrays, $T.$L($L), driverContext)", stateType, declarationType, init.getSimpleName(), initParameters());
+            builder.add("new $T(bigArrays, $T.$L($L))", stateType, declarationType, init.getSimpleName(), initParameters());
         }
         return builder.build();
     }
@@ -230,8 +227,6 @@ public class GroupingAggregatorImplementer {
             builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
             builder.addStatement("this.$N = $N", p.getSimpleName(), p.getSimpleName());
         }
-        builder.addParameter(DRIVER_CONTEXT, "driverContext");
-        builder.addStatement("this.driverContext = driverContext");
         return builder.build();
     }
 
@@ -479,10 +474,6 @@ public class GroupingAggregatorImplementer {
                 builder.addStatement("$T.combineIntermediate(state, groupId, " + intermediateStateRowAccess() + ")", declarationType);
             }
             builder.endControlFlow();
-        }
-        if (hasPrimitiveState()) {
-            var names = intermediateState.stream().map(IntermediateStateDesc::name).collect(joining(", "));
-            builder.addStatement("$T.releaseVectors(driverContext, " + names + ")", GROUPING_AGGREGATOR_UTILS);
         }
         return builder.build();
     }

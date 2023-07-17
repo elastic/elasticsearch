@@ -18,7 +18,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -178,13 +177,12 @@ public abstract class OperatorTestCase extends ESTestCase {
      * Run the {@code operators} once to entry in the {@code source}.
      */
     protected final List<Page> oneDriverPerPageList(Iterator<List<Page>> source, Supplier<List<Operator>> operators) {
-        DriverContext driverContext = new DriverContext();
         List<Page> result = new ArrayList<>();
         while (source.hasNext()) {
             List<Page> in = source.next();
             try (
                 Driver d = new Driver(
-                    driverContext,
+                    new DriverContext(),
                     new CannedSourceOperator(in.iterator()),
                     operators.get(),
                     new PageConsumerOperator(result::add),
@@ -194,26 +192,24 @@ public abstract class OperatorTestCase extends ESTestCase {
                 runDriver(d);
             }
         }
-        cleanUpDriverContext(driverContext);
         return result;
     }
 
     private void assertSimple(BigArrays bigArrays, int size) {
-        DriverContext driverContext = new DriverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(size));
-        List<Page> results = drive(simple(bigArrays.withCircuitBreaking()).get(new DriverContext()), input.iterator(), driverContext);
+        List<Page> results = drive(simple(bigArrays.withCircuitBreaking()).get(new DriverContext()), input.iterator());
         assertSimpleOutput(input, results);
     }
 
-    protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext driverContext) {
-        return drive(List.of(operator), input, driverContext);
+    protected final List<Page> drive(Operator operator, Iterator<Page> input) {
+        return drive(List.of(operator), input);
     }
 
-    protected final List<Page> drive(List<Operator> operators, Iterator<Page> input, DriverContext driverContext) {
+    protected final List<Page> drive(List<Operator> operators, Iterator<Page> input) {
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
-                driverContext,
+                new DriverContext(),
                 new CannedSourceOperator(input),
                 operators,
                 new PageConsumerOperator(results::add),
@@ -261,15 +257,6 @@ public abstract class OperatorTestCase extends ESTestCase {
     public static void assertDriverContext(DriverContext driverContext) {
         assertTrue(driverContext.isFinished());
         assertThat(driverContext.getSnapshot().releasables(), empty());
-    }
-
-    public static void cleanUpDriverContext(DriverContext driverContext) {
-        assertTrue(driverContext.isFinished());
-        var itr = driverContext.getSnapshot().releasables().iterator();
-        while (itr.hasNext()) {
-            Releasables.close(itr.next());
-            itr.remove();
-        }
     }
 
     public static int randomPageSize() {

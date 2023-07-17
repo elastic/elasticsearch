@@ -18,8 +18,6 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
 
     private final LongArray values;
 
-    private boolean closed;
-
     public LongBigArrayVector(LongArray values, int positionCount) {
         super(positionCount);
         this.values = values;
@@ -52,8 +50,6 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
 
     @Override
     public void close() {
-        if (closed) return;
-        closed = true;
         values.close();
     }
 

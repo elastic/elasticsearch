@@ -21,7 +21,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link CountDistinctDoubleAggregator}.
@@ -35,25 +34,21 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
   private final BigArrays bigArrays;
 
   private final int precision;
 
   public CountDistinctDoubleGroupingAggregatorFunction(List<Integer> channels,
-      HllStates.GroupingState state, BigArrays bigArrays, int precision,
-      DriverContext driverContext) {
+      HllStates.GroupingState state, BigArrays bigArrays, int precision) {
     this.channels = channels;
     this.state = state;
     this.bigArrays = bigArrays;
     this.precision = precision;
-    this.driverContext = driverContext;
   }
 
   public static CountDistinctDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays, int precision) {
-    return new CountDistinctDoubleGroupingAggregatorFunction(channels, CountDistinctDoubleAggregator.initGrouping(bigArrays, precision), bigArrays, precision, driverContext);
+      BigArrays bigArrays, int precision) {
+    return new CountDistinctDoubleGroupingAggregatorFunction(channels, CountDistinctDoubleAggregator.initGrouping(bigArrays, precision), bigArrays, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

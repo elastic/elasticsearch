@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link PercentileLongAggregator}.
@@ -35,8 +34,8 @@ public final class PercentileLongAggregatorFunctionSupplier implements Aggregato
   }
 
   @Override
-  public PercentileLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return PercentileLongGroupingAggregatorFunction.create(channels, driverContext, bigArrays, percentile);
+  public PercentileLongGroupingAggregatorFunction groupingAggregator() {
+    return PercentileLongGroupingAggregatorFunction.create(channels, bigArrays, percentile);
   }
 
   @Override

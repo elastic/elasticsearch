@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link CountDistinctIntAggregator}.
@@ -35,9 +34,8 @@ public final class CountDistinctIntAggregatorFunctionSupplier implements Aggrega
   }
 
   @Override
-  public CountDistinctIntGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
-    return CountDistinctIntGroupingAggregatorFunction.create(channels, driverContext, bigArrays, precision);
+  public CountDistinctIntGroupingAggregatorFunction groupingAggregator() {
+    return CountDistinctIntGroupingAggregatorFunction.create(channels, bigArrays, precision);
   }
 
   @Override

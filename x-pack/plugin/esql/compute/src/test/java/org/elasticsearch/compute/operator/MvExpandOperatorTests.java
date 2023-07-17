@@ -109,12 +109,10 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     }
 
     public void testNoopStatus() {
-        DriverContext driverContext = new DriverContext();
         MvExpandOperator op = new MvExpandOperator(0);
         List<Page> result = drive(
             op,
-            List.of(new Page(IntVector.newVectorBuilder(2).appendInt(1).appendInt(2).build().asBlock())).iterator(),
-            driverContext
+            List.of(new Page(IntVector.newVectorBuilder(2).appendInt(1).appendInt(2).build().asBlock())).iterator()
         );
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
@@ -124,10 +122,9 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     }
 
     public void testExpandStatus() {
-        DriverContext driverContext = new DriverContext();
         MvExpandOperator op = new MvExpandOperator(0);
         var builder = IntBlock.newBlockBuilder(2).beginPositionEntry().appendInt(1).appendInt(2).endPositionEntry();
-        List<Page> result = drive(op, List.of(new Page(builder.build())).iterator(), driverContext);
+        List<Page> result = drive(op, List.of(new Page(builder.build())).iterator());
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
         MvExpandOperator.Status status = (MvExpandOperator.Status) op.status();

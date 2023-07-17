@@ -18,8 +18,6 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
 
     private final IntArray values;
 
-    private boolean closed;
-
     public IntBigArrayVector(IntArray values, int positionCount) {
         super(positionCount);
         this.values = values;
@@ -52,8 +50,6 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
 
     @Override
     public void close() {
-        if (closed) return;
-        closed = true;
         values.close();
     }
 

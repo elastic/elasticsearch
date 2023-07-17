@@ -16,7 +16,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 public interface AggregatorFunctionSupplier extends Describable {
     AggregatorFunction aggregator();
 
-    GroupingAggregatorFunction groupingAggregator(DriverContext driverContext);
+    GroupingAggregatorFunction groupingAggregator();
 
     default Aggregator.Factory aggregatorFactory(AggregatorMode mode) {
         return new Aggregator.Factory() {
@@ -36,7 +36,7 @@ public interface AggregatorFunctionSupplier extends Describable {
         return new GroupingAggregator.Factory() {
             @Override
             public GroupingAggregator apply(DriverContext driverContext) {
-                return new GroupingAggregator(groupingAggregator(driverContext), mode);
+                return new GroupingAggregator(groupingAggregator(), mode);
             }
 
             @Override

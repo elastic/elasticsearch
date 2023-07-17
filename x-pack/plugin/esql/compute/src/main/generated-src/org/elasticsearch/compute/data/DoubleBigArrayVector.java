@@ -18,8 +18,6 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
 
     private final DoubleArray values;
 
-    private boolean closed;
-
     public DoubleBigArrayVector(DoubleArray values, int positionCount) {
         super(positionCount);
         this.values = values;
@@ -52,8 +50,6 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
 
     @Override
     public void close() {
-        if (closed) return;
-        closed = true;
         values.close();
     }
 

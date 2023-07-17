@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link MaxLongAggregator}.
@@ -33,18 +32,14 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
-  public MaxLongGroupingAggregatorFunction(List<Integer> channels, LongArrayState state,
-      DriverContext driverContext) {
+  public MaxLongGroupingAggregatorFunction(List<Integer> channels, LongArrayState state) {
     this.channels = channels;
     this.state = state;
-    this.driverContext = driverContext;
   }
 
   public static MaxLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays) {
-    return new MaxLongGroupingAggregatorFunction(channels, new LongArrayState(bigArrays, MaxLongAggregator.init(), driverContext), driverContext);
+      BigArrays bigArrays) {
+    return new MaxLongGroupingAggregatorFunction(channels, new LongArrayState(bigArrays, MaxLongAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -195,7 +190,6 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
         state.putNull(groupId);
       }
     }
-    GroupingAggregatorUtils.releaseVectors(driverContext, max, seen);
   }
 
   @Override

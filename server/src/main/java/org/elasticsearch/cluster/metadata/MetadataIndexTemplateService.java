@@ -1472,9 +1472,10 @@ public class MetadataIndexTemplateService {
             lifecycles.add(template.template().lifecycle());
         }
         DataStreamLifecycle composedConfiguration = composeDataLifecycles(lifecycles);
-        // If there is no lifecycle configuration we default to a managed data stream with infinite retention and no downsampling
+        // If there is no lifecycle configuration
         if (composedConfiguration == null) {
-            return new DataStreamLifecycle();
+            // In the case of a data stream we default to a managed data stream with infinite retention and no downsampling
+            return template.getDataStreamTemplate() != null ? new DataStreamLifecycle() : null;
             // If the configuration opts out of the lifecycle we remove it
         } else if (composedConfiguration == Template.NO_LIFECYCLE) {
             return null;

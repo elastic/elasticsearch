@@ -190,24 +190,37 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testLifecycleResolution() {
-        // No lifecycles result to {lifecycle: {} }
+        // No lifecycles result to {lifecycle: {} } for data streams
         {
-            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(createIndexTemplate(null), Map.of());
+            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(createIndexTemplate(true,null), Map.of());
             assertThat(result, equalTo(new DataStreamLifecycle()));
+        }
+        // No lifecycles result to {lifecycle: {} } for regular indices
+        {
+            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(createIndexTemplate(false,null), Map.of());
+            assertThat(result, nullValue());
         }
         // One lifecycle results to this lifecycle as the final
         {
             DataStreamLifecycle expected = new DataStreamLifecycle(randomRetention(), randomDownsampling());
             ;
-            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(createIndexTemplate(expected), Map.of());
+            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(createIndexTemplate(true, expected), Map.of());
             assertThat(result.getEffectiveDataRetention(), equalTo(expected.getEffectiveDataRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(expected.getDownsamplingRounds()));
         }
-        // If the lifecycle is opt-out
+        // If the lifecycle is opt-out for data streams
         {
             DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(
-                createIndexTemplate(Template.NO_LIFECYCLE),
+                createIndexTemplate(true, Template.NO_LIFECYCLE),
                 Map.of()
+            );
+            assertThat(result, nullValue());
+        }
+        // If the lifecycle is opt-out for regular indices
+        {
+            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(
+                    createIndexTemplate(true, Template.NO_LIFECYCLE),
+                    Map.of()
             );
             assertThat(result, nullValue());
         }
@@ -299,7 +312,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         return new DataStreamLifecycle.Downsampling.Round(after, fixedInterval);
     }
 
-    private static ComposableIndexTemplate createIndexTemplate(DataStreamLifecycle lifecycle) {
+    private static ComposableIndexTemplate createIndexTemplate(boolean isDataStream, DataStreamLifecycle lifecycle) {
         return new ComposableIndexTemplate(
             List.of(randomAlphaOfLength(4)),
             new Template(null, null, null, lifecycle),
@@ -307,7 +320,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean())
+            isDataStream ? new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean()) : null
         );
     }
 }

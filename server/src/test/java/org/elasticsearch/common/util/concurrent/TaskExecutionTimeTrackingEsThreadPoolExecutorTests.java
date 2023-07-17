@@ -19,6 +19,7 @@ import java.util.function.Function;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests for the automatic queue resizing of the {@code QueueResizingEsThreadPoolExecutorTests}
@@ -111,6 +112,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     }
 
     public void testGetOngoingTasks() throws Exception {
+        var testStartTimeNanos = System.nanoTime();
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
@@ -136,6 +138,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         safeAwait(taskRunningLatch);
         var ongoingTasks = executor.getOngoingTasks();
         assertThat(ongoingTasks.toString(), ongoingTasks.size(), equalTo(1));
+        assertThat(ongoingTasks.values().iterator().next(), greaterThanOrEqualTo(testStartTimeNanos));
         exitTaskLatch.countDown();
         assertBusy(() -> assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0)));
         assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L));

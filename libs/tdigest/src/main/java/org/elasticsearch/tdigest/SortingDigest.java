@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 
 /**
  * Simple implementation of the TDigest interface that stores internally and sorts all samples to calculate quantiles and CDFs.
@@ -48,21 +47,6 @@ public class SortingDigest extends AbstractTDigest {
         }
         max = Math.max(max, x);
         min = Math.min(min, x);
-    }
-
-    @Override
-    public void add(List<? extends TDigest> others) {
-        long valuesToAddCount = 0;
-        for (TDigest other : others) {
-            valuesToAddCount += other.size();
-        }
-        reserve(valuesToAddCount);
-
-        for (TDigest other : others) {
-            for (Centroid centroid : other.centroids()) {
-                add(centroid.mean(), centroid.count());
-            }
-        }
     }
 
     @Override

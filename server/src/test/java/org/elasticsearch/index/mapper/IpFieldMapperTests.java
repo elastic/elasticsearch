@@ -193,7 +193,7 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(IndexVersion.CURRENT, fieldMapping(b -> {
+            () -> createDocumentMapper(IndexVersion.current(), fieldMapping(b -> {
                 b.field("type", "ip");
                 b.field("null_value", ":1");
             }))

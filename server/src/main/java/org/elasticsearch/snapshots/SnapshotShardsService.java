@@ -11,7 +11,6 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -284,7 +284,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         final Snapshot snapshot,
         final IndexId indexId,
         final IndexShardSnapshotStatus snapshotStatus,
-        final Version entryVersion,
+        final IndexVersion entryVersion,
         final long entryStartTime
     ) {
         // separate method to make sure this lambda doesn't capture any heavy local objects like a SnapshotsInProgress.Entry
@@ -357,7 +357,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         final Snapshot snapshot,
         final IndexId indexId,
         final IndexShardSnapshotStatus snapshotStatus,
-        Version version,
+        IndexVersion version,
         final long entryStartTime,
         ActionListener<ShardSnapshotResult> resultListener
     ) {

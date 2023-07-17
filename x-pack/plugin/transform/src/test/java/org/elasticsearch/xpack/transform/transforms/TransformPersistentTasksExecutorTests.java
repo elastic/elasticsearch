@@ -429,6 +429,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             threadPool,
             clusterService,
             Settings.EMPTY,
+            Settings.EMPTY,
             TestIndexNameExpressionResolver.newInstance()
         );
     }

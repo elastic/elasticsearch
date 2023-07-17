@@ -55,6 +55,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
@@ -556,7 +557,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(random()),
             new Snapshot("repo", new SnapshotId("snap", UUIDs.randomBase64UUID(random()))),
-            Version.CURRENT,
+            IndexVersion.current(),
             new IndexId("index", UUIDs.randomBase64UUID(random()))
         );
         routingTable.addAsRestore(restoredIndexMetadata, recoverySource);

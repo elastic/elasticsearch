@@ -109,7 +109,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             Map<String, String> meta,
             OnScriptError onScriptError
         ) {
-            return createFieldType(name, factory, script, meta, IndexVersion.CURRENT, onScriptError);
+            return createFieldType(name, factory, script, meta, IndexVersion.current(), onScriptError);
         }
 
         @Override

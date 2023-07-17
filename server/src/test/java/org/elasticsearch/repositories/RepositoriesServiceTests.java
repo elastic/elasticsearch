@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -358,7 +358,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         public void deleteSnapshots(
             Collection<SnapshotId> snapshotIds,
             long repositoryStateId,
-            Version repositoryMetaVersion,
+            IndexVersion repositoryMetaVersion,
             SnapshotDeleteListener listener
         ) {
             listener.onFailure(new UnsupportedOperationException());

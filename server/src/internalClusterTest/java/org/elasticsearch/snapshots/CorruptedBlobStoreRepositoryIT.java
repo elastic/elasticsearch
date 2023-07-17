@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
@@ -302,7 +302,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         Files.write(
             repo.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + withoutVersions.getGenId()),
             BytesReference.toBytes(
-                BytesReference.bytes(withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT, true))
+                BytesReference.bytes(withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(), IndexVersion.current(), true))
             ),
             StandardOpenOption.TRUNCATE_EXISTING
         );
@@ -315,7 +315,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     .execute(
                         ActionRunnable.supply(
                             f,
-                            () -> SnapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)
+                            () -> SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null)
                         )
                     )
             ),
@@ -332,15 +332,15 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     .execute(
                         ActionRunnable.supply(
                             f,
-                            () -> SnapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)
+                            () -> SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null)
                         )
                     )
             ),
-            is(Version.CURRENT)
+            is(IndexVersion.current())
         );
         final RepositoryData finalRepositoryData = getRepositoryData(repoName);
         for (SnapshotId snapshotId : finalRepositoryData.getSnapshotIds()) {
-            assertThat(finalRepositoryData.getVersion(snapshotId), is(Version.CURRENT));
+            assertThat(finalRepositoryData.getVersion(snapshotId), is(IndexVersion.current()));
         }
     }
 
@@ -457,7 +457,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         Files.write(
             repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
             BytesReference.toBytes(
-                BytesReference.bytes(brokenRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))
+                BytesReference.bytes(brokenRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), IndexVersion.current()))
             ),
             StandardOpenOption.TRUNCATE_EXISTING
         );

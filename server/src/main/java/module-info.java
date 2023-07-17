@@ -370,7 +370,8 @@ module org.elasticsearch.server {
 
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
 
-    exports org.elasticsearch.action.dlm;
+    exports org.elasticsearch.action.datastreams.lifecycle;
+    exports org.elasticsearch.action.downsample;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;

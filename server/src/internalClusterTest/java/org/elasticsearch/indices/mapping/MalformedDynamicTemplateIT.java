@@ -8,11 +8,11 @@
 
 package org.elasticsearch.indices.mapping;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -54,7 +54,7 @@ public class MalformedDynamicTemplateIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(indexSettings())
                     .put("number_of_shards", 1)
-                    .put("index.version.created", VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
+                    .put("index.version.created", IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0).id())
             ).setMapping(mapping).get()
         );
         client().prepareIndex(indexName).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
@@ -64,7 +64,7 @@ public class MalformedDynamicTemplateIT extends ESIntegTestCase {
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
             () -> prepareCreate("malformed_dynamic_template_8.0").setSettings(
-                Settings.builder().put(indexSettings()).put("number_of_shards", 1).put("index.version.created", Version.CURRENT)
+                Settings.builder().put(indexSettings()).put("number_of_shards", 1).put("index.version.created", IndexVersion.current().id())
             ).setMapping(mapping).get()
         );
         assertThat(ex.getMessage(), containsString("dynamic template [my_template] has invalid content"));

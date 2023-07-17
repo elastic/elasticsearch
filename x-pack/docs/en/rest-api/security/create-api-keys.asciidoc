@@ -56,8 +56,6 @@ then the API key will have a _point in time snapshot of permissions of the
 authenticated user_. If you supply role descriptors then the resultant permissions
 would be an intersection of API keys permissions and authenticated user's permissions
 thereby limiting the access scope for API keys.
-The structure of role descriptor is the same as the request for create role API.
-For more details, see <<security-api-put-role, create or update roles API>>.
 +
 --
 NOTE: Due to the way in which this permission intersection is calculated, it is not
@@ -67,6 +65,49 @@ role descriptor with no privileges. The derived API key can be used for
 authentication; it will not have authority to call {es} APIs.
 
 --
++
+`applications`::: (list) A list of application privilege entries.
+`application` (required):::: (string) The name of the application to which this entry applies
+`privileges` (required):::: (list) A list of strings, where each element is the name of an application
+privilege or action.
+`resources` (required):::: (list) A list resources to which the privileges are applied.
+
+`cluster`::: (list) A list of cluster privileges. These privileges define the
+cluster level actions that API keys are able to execute.
+
+`global`::: (object) An object defining global privileges. A global privilege is
+a form of cluster privilege that is request-aware. Support for global privileges
+is currently limited to the management of application privileges.
+This field is optional.
+
+`indices`::: (list) A list of indices permissions entries.
+`field_security`:::: (object) The document fields that the API keys have
+read access to. For more information, see
+<<field-and-document-access-control>>.
+`names` (required):::: (list) A list of indices (or index name patterns) to which the
+permissions in this entry apply.
+`privileges`(required):::: (list) The index level privileges that the API keys
+have on the specified indices.
+`query`:::: A search query that defines the documents the API keys have
+read access to. A document within the specified indices must match this query in
+order for it to be accessible by the API keys.
+
+`metadata`::: (object) Optional meta-data. Within the `metadata` object, keys
+that begin with `_` are reserved for system usage.
+
+`restriction`::: (object) Optional restriction for when the role descriptor is allowed to be effective. For more information, see
+<<role-restriction>>.
+`workflows`:::: (list) A list of workflows to which the API key is restricted.
+For a full list see <<workflows-restriction>>.
++
+--
+NOTE: In order to use role restriction, an API key must be created with a *single role descriptor*.
+--
++
+
+`run_as`::: (list) A list of users that the API keys can impersonate.
+For more information, see
+<<run-as-privilege>>.
 
 `expiration`::
 (Optional, string) Expiration time for the API key. By default, API keys never
@@ -92,7 +133,7 @@ POST /_security/api_key
   "role_descriptors": { <2>
     "role-a": {
       "cluster": ["all"],
-      "index": [
+      "indices": [
         {
           "names": ["index-a*"],
           "privileges": ["read"]
@@ -101,7 +142,7 @@ POST /_security/api_key
     },
     "role-b": {
       "cluster": ["all"],
-      "index": [
+      "indices": [
         {
           "names": ["index-b*"],
           "privileges": ["all"]
@@ -170,3 +211,29 @@ echo -n "VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw" | base64 <1>
 ----
 <1> Use `-n` so that the `echo` command doesn't print the trailing newline
 character
+
+//tag::create-api-key-with-role-restriction-example[]
+The following example creates an API key with a <<role-restriction, restriction>> to the `search_application_query` workflow,
+which allows to call only <<search-application-search, Search Application Search API>>:
+
+[source,console]
+----
+POST /_security/api_key
+{
+  "name": "my-restricted-api-key",
+  "role_descriptors": {
+    "my-restricted-role-descriptor": {
+      "indices": [
+        {
+          "names": ["my-search-app"],
+          "privileges": ["read"]
+        }
+      ],
+      "restriction":  {
+        "workflows": ["search_application_query"]
+      }
+    }
+  }
+}
+----
+//end::create-api-key-with-role-restriction-example[]

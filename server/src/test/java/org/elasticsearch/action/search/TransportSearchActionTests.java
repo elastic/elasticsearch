@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -464,7 +465,7 @@ public class TransportSearchActionTests extends ESTestCase {
             MockTransportService remoteSeedTransport = RemoteClusterConnectionTests.startTransport(
                 "node_remote" + i,
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool
             );
@@ -504,7 +505,7 @@ public class TransportSearchActionTests extends ESTestCase {
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool,
                 null
@@ -569,7 +570,7 @@ public class TransportSearchActionTests extends ESTestCase {
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool,
                 null
@@ -824,7 +825,7 @@ public class TransportSearchActionTests extends ESTestCase {
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool,
                 null
@@ -1478,7 +1479,7 @@ public class TransportSearchActionTests extends ESTestCase {
         try {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool
             );

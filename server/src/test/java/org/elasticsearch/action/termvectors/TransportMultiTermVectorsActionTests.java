@@ -36,7 +36,6 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,12 +85,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             ),
             null,
             emptySet()
-        ) {
-            @Override
-            public TaskManager getTaskManager() {
-                return taskManager;
-            }
-        };
+        );
 
         final Index index1 = new Index("index1", randomBase64UUID());
         final Index index2 = new Index("index2", randomBase64UUID());

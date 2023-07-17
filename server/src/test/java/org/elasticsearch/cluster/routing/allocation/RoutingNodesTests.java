@@ -44,9 +44,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class RoutingNodesTests extends ESAllocationTestCase {
@@ -418,7 +417,14 @@ public class RoutingNodesTests extends ESAllocationTestCase {
     }
 
     public void testMoveShardWithDefaultRole() {
+        runMoveShardRolesTest(ShardRouting.Role.DEFAULT, ShardRouting.Role.DEFAULT);
+    }
 
+    public void testMoveShardWithPromotableOnlyRole() {
+        runMoveShardRolesTest(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.SEARCH_ONLY);
+    }
+
+    private void runMoveShardRolesTest(ShardRouting.Role primaryRole, ShardRouting.Role replicaRole) {
         var inSync = randomList(2, 2, UUIDs::randomBase64UUID);
         var indexMetadata = IndexMetadata.builder("index")
             .settings(indexSettings(Version.CURRENT, 1, 1))
@@ -428,8 +434,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
         var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
-            .addShard(TestShardRouting.newShardRouting(shardId, "node-1", null, true, STARTED, ShardRouting.Role.DEFAULT))
-            .addShard(TestShardRouting.newShardRouting(shardId, "node-2", null, false, STARTED, ShardRouting.Role.DEFAULT))
+            .addShard(TestShardRouting.newShardRouting(shardId, "node-1", null, true, STARTED, primaryRole))
+            .addShard(TestShardRouting.newShardRouting(shardId, "node-2", null, false, STARTED, replicaRole))
             .build();
 
         var node1 = newNode("node-1");
@@ -444,58 +450,13 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
         var routingNodes = clusterState.getRoutingNodes().mutableCopy();
 
-        routingNodes.relocateOrReinitializeShard(
-            routingNodes.node("node-1").getByShardId(shardId),
-            "node-3",
-            0L,
-            new RoutingChangesObserver() {
-            }
-        );
+        routingNodes.relocateShard(routingNodes.node("node-1").getByShardId(shardId), "node-3", 0L, new RoutingChangesObserver() {
+        });
 
         assertThat(routingNodes.node("node-1").getByShardId(shardId).state(), equalTo(RELOCATING));
         assertThat(routingNodes.node("node-2").getByShardId(shardId).state(), equalTo(STARTED));
         assertThat(routingNodes.node("node-3").getByShardId(shardId).state(), equalTo(INITIALIZING));
-    }
-
-    public void testMoveShardWithPromotableOnlyRole() {
-
-        var inSync = randomList(2, 2, UUIDs::randomBase64UUID);
-        var indexMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(Version.CURRENT, 1, 1))
-            .putInSyncAllocationIds(0, Set.copyOf(inSync))
-            .build();
-
-        var shardId = new ShardId(indexMetadata.getIndex(), 0);
-
-        var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
-            .addShard(TestShardRouting.newShardRouting(shardId, "node-1", null, true, STARTED, ShardRouting.Role.INDEX_ONLY))
-            .addShard(TestShardRouting.newShardRouting(shardId, "node-2", null, false, STARTED, ShardRouting.Role.SEARCH_ONLY))
-            .build();
-
-        var node1 = newNode("node-1");
-        var node2 = newNode("node-2");
-        var node3 = newNode("node-3");
-
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).build())
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
-
-        var routingNodes = clusterState.getRoutingNodes().mutableCopy();
-
-        routingNodes.relocateOrReinitializeShard(
-            routingNodes.node("node-1").getByShardId(shardId),
-            "node-3",
-            0L,
-            new RoutingChangesObserver() {
-            }
-        );
-
-        assertThat(routingNodes.node("node-1").getByShardId(shardId), nullValue());
-        assertThat(routingNodes.node("node-2").getByShardId(shardId), nullValue());
-        assertThat(routingNodes.node("node-3").getByShardId(shardId).state(), equalTo(INITIALIZING));
-        assertThat(routingNodes.unassigned().ignored(), hasSize(1));
+        assertThat(routingNodes.unassigned().ignored(), empty());
     }
 
     private boolean assertShardStats(RoutingNodes routingNodes) {

@@ -38,7 +38,14 @@ public class ESIndexInputTestCase extends ESTestCase {
     @BeforeClass
     public static void createExecutor() {
         final String name = "TEST-" + getTestClass().getSimpleName() + "#randomReadAndSlice";
-        executor = EsExecutors.newFixed(name, 10, 0, EsExecutors.daemonThreadFactory(name), new ThreadContext(Settings.EMPTY), false);
+        executor = EsExecutors.newFixed(
+            name,
+            10,
+            0,
+            EsExecutors.daemonThreadFactory(name),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
     }
 
     @AfterClass

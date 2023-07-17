@@ -32,6 +32,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -415,7 +416,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             final IndexNameExpressionResolver expressionResolver,
             final Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationService allocationService
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();

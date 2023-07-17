@@ -193,7 +193,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             assertThat(commitVersion, is(equalTo(Version.CURRENT)));
             final org.apache.lucene.util.Version commitLuceneVersion = shardSnapshotData.getCommitLuceneVersion();
             assertThat(commitLuceneVersion, is(notNullValue()));
-            assertThat(commitLuceneVersion, is(equalTo(IndexVersion.CURRENT.luceneVersion())));
+            assertThat(commitLuceneVersion, is(equalTo(IndexVersion.current().luceneVersion())));
 
             assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
             assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));

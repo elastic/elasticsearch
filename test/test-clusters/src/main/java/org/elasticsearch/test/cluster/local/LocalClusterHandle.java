@@ -11,12 +11,14 @@ package org.elasticsearch.test.cluster.local;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.ClusterHandle;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.LocalClusterFactory.Node;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.ExceptionUtils;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
@@ -154,6 +156,24 @@ public class LocalClusterHandle implements ClusterHandle {
             execute(() -> nodes.parallelStream().forEach(n -> n.start(version)));
         }
         waitUntilReady();
+    }
+
+    public String getName(int index) {
+        return nodes.get(index).getName();
+    }
+
+    @Override
+    public long getPid(int index) {
+        return nodes.get(index).getPid();
+    }
+
+    public void stopNode(int index) {
+        nodes.get(index).stop(false);
+    }
+
+    @Override
+    public InputStream getNodeLog(int index, LogType logType) {
+        return nodes.get(index).getLog(logType);
     }
 
     protected void waitUntilReady() {

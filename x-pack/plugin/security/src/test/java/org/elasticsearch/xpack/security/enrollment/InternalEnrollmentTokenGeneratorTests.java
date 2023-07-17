@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.node.Node;
@@ -80,7 +81,14 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "InternalEnrollmentTokenGeneratorTests").build();
         threadPool = new ThreadPool(
             settings,
-            new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.enrollment.thread_pool", false)
+            new FixedExecutorBuilder(
+                settings,
+                TokenService.THREAD_POOL_NAME,
+                1,
+                1000,
+                "xpack.security.enrollment.thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
         AuthenticationTestHelper.builder()
             .user(new User("foo"))

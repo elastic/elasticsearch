@@ -8,7 +8,6 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -30,6 +29,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
@@ -72,7 +72,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
     /**
      * Provides a supported version when the mapping was created.
      */
-    protected abstract Version randomSupportedVersion();
+    protected abstract IndexVersion randomSupportedVersion();
 
     /**
      * If this field is allowed to be executed when setting allow_expensive_queries us set to false.
@@ -278,7 +278,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         getGeoShapeMapping(mapping);
         mapping.endObject().endObject().endObject();
 
-        final Version version = randomSupportedVersion();
+        final IndexVersion version = randomSupportedVersion();
         CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("shapes")
             .setMapping(mapping)
             .setSettings(settings(version).build());
@@ -423,8 +423,8 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
 
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
-        Version version = randomSupportedVersion();
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
+        IndexVersion version = randomSupportedVersion();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version.id()).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("_doc")

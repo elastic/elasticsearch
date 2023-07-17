@@ -9,10 +9,13 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-archivesBaseName = 'x-pack-ent-search'
+base {
+  archivesName = 'x-pack-ent-search'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  implementation project(xpackModule('search-business-rules'))
   api project(':modules:lang-mustache')
 
   // JSON Schema dependencies
@@ -25,11 +28,14 @@ dependencies {
   implementation "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
 
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(":test:framework")
   testImplementation(project(':modules:lang-mustache'))
 
   javaRestTestImplementation(project(path: xpackModule('core')))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(project(':modules:lang-mustache'))
+
+  module ':modules:search-business-rules'
 }
 
 tasks.named("dependencyLicenses").configure {

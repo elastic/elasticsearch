@@ -220,7 +220,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 null,
                 ScriptCompiler.NONE,
                 false,
-                IndexVersion.CURRENT
+                IndexVersion.current()
             ).build(MapperBuilderContext.root(false));
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
             root.add(
@@ -230,7 +230,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     ScriptCompiler.NONE,
                     true,
-                    IndexVersion.CURRENT
+                    IndexVersion.current()
                 )
             );
             MetadataFieldMapper dtfm = DataStreamTestHelper.getDataStreamTimestampFieldMapper();

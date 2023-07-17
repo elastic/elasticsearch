@@ -721,7 +721,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     ScriptCompiler.NONE,
                     false,
                     false,
-                    IndexVersion.CURRENT,
+                    IndexVersion.current(),
                     null
                 ).build(MapperBuilderContext.root(false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
@@ -730,7 +730,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
-                MappedFieldType ft = new KeywordFieldMapper.Builder(field, IndexVersion.CURRENT).build(MapperBuilderContext.root(false))
+                MappedFieldType ft = new KeywordFieldMapper.Builder(field, IndexVersion.current()).build(MapperBuilderContext.root(false))
                     .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -744,7 +744,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     ScriptCompiler.NONE,
                     false,
                     false,
-                    IndexVersion.CURRENT,
+                    IndexVersion.current(),
                     null
                 ).build(MapperBuilderContext.root(false)).fieldType();
                 fieldTypes.put(ft.name(), ft);

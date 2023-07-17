@@ -241,8 +241,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(fields.get(0), instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields.get(0).binaryValue();
-        float[] decodedValues = decodeDenseVector(IndexVersion.CURRENT, vectorBR);
-        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(IndexVersion.CURRENT, vectorBR);
+        float[] decodedValues = decodeDenseVector(IndexVersion.current(), vectorBR);
+        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(IndexVersion.current(), vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
         assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
     }
@@ -650,11 +650,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 yield floats;
             }
         };
-    }
-
-    @Override
-    protected boolean allowsNullValues() {
-        return true;
     }
 
     public void testCannotBeUsedInMultifields() {

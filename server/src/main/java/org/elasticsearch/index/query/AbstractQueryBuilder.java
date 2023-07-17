@@ -322,7 +322,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return A {@link QueryBuilder} representing the rewritten query.
      */
     protected QueryBuilder doSearchRewrite(final SearchExecutionContext searchExecutionContext) throws IOException {
-        return this;
+        return doIndexMetadataRewrite(searchExecutionContext);
     }
 
     /**

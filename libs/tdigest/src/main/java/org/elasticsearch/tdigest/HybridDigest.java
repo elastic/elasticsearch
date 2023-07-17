@@ -20,7 +20,6 @@
 package org.elasticsearch.tdigest;
 
 import java.util.Collection;
-import java.util.List;
 
 /**
  * Uses a {@link SortingDigest} implementation under the covers for small sample populations, then switches to {@link MergingDigest}.
@@ -81,6 +80,16 @@ public class HybridDigest extends AbstractTDigest {
     }
 
     @Override
+    public void add(TDigest other) {
+        reserve(other.size());
+        if (mergingDigest != null) {
+            mergingDigest.add(other);
+        } else {
+            sortingDigest.add(other);
+        }
+    }
+
+    @Override
     public void reserve(long size) {
         if (mergingDigest != null) {
             mergingDigest.reserve(size);
@@ -98,15 +107,6 @@ public class HybridDigest extends AbstractTDigest {
             sortingDigest = null;
         } else {
             sortingDigest.reserve(size);
-        }
-    }
-
-    @Override
-    public void add(List<? extends TDigest> others) {
-        if (mergingDigest != null) {
-            mergingDigest.add(others);
-        } else {
-            sortingDigest.add(others);
         }
     }
 

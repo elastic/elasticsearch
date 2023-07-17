@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ccr.index.engine;
 
 import org.apache.lucene.store.IOContext;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -134,7 +134,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 snapshot,
-                Version.CURRENT,
+                IndexVersion.current(),
                 new IndexId("test", UUIDs.randomBase64UUID(random()))
             )
         );

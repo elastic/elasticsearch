@@ -1493,8 +1493,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         final IndexVersion[] indexVersions = new IndexVersion[] {
             oldVersion,
-            IndexVersion.CURRENT,
-            IndexVersion.fromId(IndexVersion.CURRENT.id() + 1) };
+            IndexVersion.current(),
+            IndexVersion.fromId(IndexVersion.current().id() + 1) };
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
         for (IndexVersion indexVersion : indexVersions) {

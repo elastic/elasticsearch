@@ -9,7 +9,9 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilterFactory;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 
 import java.util.List;
@@ -41,12 +43,20 @@ public interface TokenFilterFactory {
     /**
      * Rewrite the TokenFilterFactory to take into account the preceding analysis chain, or refer
      * to other TokenFilterFactories
+     * If the token filter is part of the definition of a  {@link ReloadableCustomAnalyzer},
+     * this function is called twice, once at index creation with {@link IndexCreationContext#CREATE_INDEX}
+     * and then later with {@link IndexCreationContext#RELOAD_ANALYZERS} on shard recovery.
+     * The {@link IndexCreationContext#RELOAD_ANALYZERS} context should be used to load expensive resources
+     * on a generic thread pool. See {@link SynonymGraphFilterFactory} for an example of how this context
+     * is used.
+     * @param context               the IndexCreationContext for the underlying index
      * @param tokenizer             the TokenizerFactory for the preceding chain
      * @param charFilters           any CharFilterFactories for the preceding chain
      * @param previousTokenFilters  a list of TokenFilterFactories in the preceding chain
      * @param allFilters            access to previously defined TokenFilterFactories
      */
     default TokenFilterFactory getChainAwareTokenFilterFactory(
+        IndexCreationContext context,
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,

@@ -812,7 +812,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             null
         ).build(MapperBuilderContext.root(false)).fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
@@ -825,7 +825,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             null
         ).nullValue(2.71f).build(MapperBuilderContext.root(false)).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
@@ -839,7 +839,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             null
         ).build(MapperBuilderContext.root(false)).fieldType();
         /*

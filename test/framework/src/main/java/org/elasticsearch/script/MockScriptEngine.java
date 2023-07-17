@@ -484,10 +484,6 @@ public class MockScriptEngine implements ScriptEngine {
                     return (boolean) script.apply(ctx);
                 }
 
-                @Override
-                public void setDocument(int doc) {
-                    docReader.setDocument(doc);
-                }
             };
         }
     }

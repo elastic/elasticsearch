@@ -942,8 +942,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final Translog.Location location;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             location = TransportShardBulkAction.performOnReplica(request, replica);
+            TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
         }
-        TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
     }
 
     /**

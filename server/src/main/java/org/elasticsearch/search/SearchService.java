@@ -713,33 +713,37 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = findReaderContext(request.contextId(), request.shardSearchRequest());
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        runAsync(getExecutor(readerContext.indexShard()), () -> {
-            readerContext.setAggregatedDfs(request.dfs());
-            try (
-                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);
-                SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
-            ) {
-                searchContext.searcher().setAggregatedDfs(request.dfs());
-                QueryPhase.execute(searchContext);
-                if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
-                    // no hits, we can release the context since there will be no fetch phase
-                    freeReaderContext(readerContext.id());
+        rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, listener.delegateFailure((l, rewritten) -> {
+            // fork the execution in the search thread pool
+            runAsync(getExecutor(readerContext.indexShard()), () -> {
+                readerContext.setAggregatedDfs(request.dfs());
+                try (
+                    SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);
+                    SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
+                ) {
+                    searchContext.searcher().setAggregatedDfs(request.dfs());
+                    QueryPhase.execute(searchContext);
+                    if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
+                        // no hits, we can release the context since there will be no fetch phase
+                        freeReaderContext(readerContext.id());
+                    }
+                    executor.success();
+                    // Pass the rescoreDocIds to the queryResult to send them the coordinating node
+                    // and receive them back in the fetch phase.
+                    // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
+                    final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
+                    searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
+                    readerContext.setRescoreDocIds(rescoreDocIds);
+                    searchContext.queryResult().incRef();
+                    return searchContext.queryResult();
+                } catch (Exception e) {
+                    assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
+                    logger.trace("Query phase failed", e);
+                    // we handle the failure in the failure listener below
+                    throw e;
                 }
-                executor.success();
-                // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
-                // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
-                final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
-                searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
-                readerContext.setRescoreDocIds(rescoreDocIds);
-                searchContext.queryResult().incRef();
-                return searchContext.queryResult();
-            } catch (Exception e) {
-                assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
-                logger.trace("Query phase failed", e);
-                // we handle the failure in the failure listener below
-                throw e;
-            }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+            }, wrapFailureListener(l, readerContext, markAsUsed));
+        }));
     }
 
     private Executor getExecutor(IndexShard indexShard) {
@@ -1662,10 +1666,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 shard.ensureShardSearchActive(b -> l.onResponse(request));
             }
         });
-        // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
-        // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
-        // adding a lot of overhead
-        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis), actionListener);
+        // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here.
+        // AliasFilters and other things may need to be rewritten on the data node, but not per individual shard.
+        // These are uncommon-cases but we are very efficient doing the rewrite here.
+        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getDataRewriteContext(request::nowInMillis), actionListener);
     }
 
     /**

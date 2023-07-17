@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.spatial.search;
 
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
@@ -84,19 +83,17 @@ public class ShapeQueryOverPointTests extends ShapeQueryTestCase {
 
         LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
 
-        try {
-            // LinearRing extends Line implements Geometry: expose the build process
-            ShapeQueryBuilder queryBuilder = new ShapeQueryBuilder(defaultFieldName, linearRing);
-            SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client(), SearchAction.INSTANCE);
-            searchRequestBuilder.setQuery(queryBuilder);
-            searchRequestBuilder.setIndices("test");
-            searchRequestBuilder.get();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(
-                e.getCause().getMessage(),
-                CoreMatchers.containsString("Field [" + defaultFieldName + "] does not support LINEARRING queries")
-            );
-        }
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ShapeQueryBuilder(defaultFieldName, linearRing)
+        );
+        assertThat(ex.getMessage(), CoreMatchers.containsString("[LINEARRING] geometries are not supported"));
+
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ShapeQueryBuilder(defaultFieldName, new GeometryCollection<>(List.of(linearRing)))
+        );
+        assertThat(ex.getMessage(), CoreMatchers.containsString("[LINEARRING] geometries are not supported"));
     }
 
     public void testQueryMultiLine() throws Exception {

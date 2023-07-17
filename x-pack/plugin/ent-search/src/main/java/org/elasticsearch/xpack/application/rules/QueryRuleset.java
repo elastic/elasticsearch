@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class QueryRuleset implements Writeable, ToXContentObject {
 
@@ -64,7 +65,7 @@ public class QueryRuleset implements Writeable, ToXContentObject {
         (params, resourceName) -> {
             final String id = (String) params[0];
             // Check that id matches the resource name. We don't want it to be updatable
-            if (id.equals(resourceName) == false) {
+            if (id != null && id.equals(resourceName) == false) {
                 throw new IllegalArgumentException(
                     "Query ruleset identifier [" + id + "] does not match the resource name: [" + resourceName + "]"
                 );
@@ -80,7 +81,7 @@ public class QueryRuleset implements Writeable, ToXContentObject {
     public static final ParseField RULES_FIELD = new ParseField("rules");
 
     static {
-        PARSER.declareString(constructorArg(), ID_FIELD);
+        PARSER.declareString(optionalConstructorArg(), ID_FIELD);
         PARSER.declareObjectArray(constructorArg(), (p, c) -> QueryRule.fromXContent(p), RULES_FIELD);
     }
 

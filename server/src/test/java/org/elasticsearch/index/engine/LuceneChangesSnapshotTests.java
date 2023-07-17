@@ -90,7 +90,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     false,
                     randomBoolean(),
                     randomBoolean(),
-                    IndexVersion.CURRENT
+                    IndexVersion.current()
                 )
             ) {
                 searcher = null;
@@ -109,7 +109,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     true,
                     randomBoolean(),
                     randomBoolean(),
-                    IndexVersion.CURRENT
+                    IndexVersion.current()
                 )
             ) {
                 searcher = null;
@@ -134,7 +134,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     false,
                     randomBoolean(),
                     randomBoolean(),
-                    IndexVersion.CURRENT
+                    IndexVersion.current()
                 )
             ) {
                 searcher = null;
@@ -152,7 +152,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     true,
                     randomBoolean(),
                     randomBoolean(),
-                    IndexVersion.CURRENT
+                    IndexVersion.current()
                 )
             ) {
                 searcher = null;
@@ -175,7 +175,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     true,
                     randomBoolean(),
                     randomBoolean(),
-                    IndexVersion.CURRENT
+                    IndexVersion.current()
                 )
             ) {
                 searcher = null;
@@ -237,7 +237,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 false,
                 randomBoolean(),
                 accessStats,
-                IndexVersion.CURRENT
+                IndexVersion.current()
             )
         ) {
             if (accessStats) {

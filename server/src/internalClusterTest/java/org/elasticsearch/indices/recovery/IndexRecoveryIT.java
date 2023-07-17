@@ -24,7 +24,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -679,7 +678,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                     ((SnapshotRecoverySource) recoveryState.getRecoverySource()).restoreUUID(),
                     new Snapshot(REPO_NAME, createSnapshotResponse.getSnapshotInfo().snapshotId()),
-                    Version.CURRENT,
+                    IndexVersion.current(),
                     repositoryData.resolveIndexId(INDEX_NAME)
                 );
                 assertRecoveryState(recoveryState, 0, recoverySource, true, Stage.DONE, null, nodeA);
@@ -1683,7 +1682,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             final Query query = new BooleanQuery.Builder().add(
                 LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, commitLocalCheckpoint + 1, Long.MAX_VALUE),
                 BooleanClause.Occur.MUST
-            ).add(Queries.newNonNestedFilter(IndexVersion.CURRENT), BooleanClause.Occur.MUST).build();
+            ).add(Queries.newNonNestedFilter(IndexVersion.current()), BooleanClause.Occur.MUST).build();
             final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
             for (LeafReaderContext leaf : directoryReader.leaves()) {
                 final Scorer scorer = weight.scorer(leaf);

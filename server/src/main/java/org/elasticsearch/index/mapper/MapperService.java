@@ -17,6 +17,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -525,10 +526,21 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mappingLookup().isMultiField(field);
     }
 
-    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, String resource) throws IOException {
+    /**
+     * Reload any search analyzers that have reloadable components if resource is {@code null},
+     * otherwise only the provided resource is reloaded.
+     * @param registry the analysis registry
+     * @param resource the name of the reloadable resource or {@code null} if all resources should be reloaded.
+     * @param preview {@code false} applies analyzer reloading. {@code true} previews the reloading operation, so analyzers are not reloaded
+     *               but the results retrieved. This is useful for understanding analyzers usage in the different indices.
+     * @return The names of reloaded resources (or resources that would be reloaded if {@code preview} is true).
+     * @throws IOException
+     */
+    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, @Nullable String resource, boolean preview)
+        throws IOException {
         logger.info("reloading search analyzers");
         // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722
-        return indexAnalyzers.reload(registry, indexSettings, resource);
+        return indexAnalyzers.reload(registry, indexSettings, resource, preview);
     }
 
     /**

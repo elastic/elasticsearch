@@ -219,7 +219,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected List<String> filteredWarnings() {
         return Stream.concat(
             super.filteredWarnings().stream(),
-            List.of("[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release.").stream()
+            Stream.of("[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release.")
         ).collect(Collectors.toList());
     }
 

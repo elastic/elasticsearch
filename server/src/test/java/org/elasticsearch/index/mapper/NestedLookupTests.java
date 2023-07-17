@@ -64,7 +64,7 @@ public class NestedLookupTests extends MapperServiceTestCase {
     }
 
     private static NestedObjectMapper buildMapper(String name) {
-        return new NestedObjectMapper.Builder(name, IndexVersion.CURRENT).build(MapperBuilderContext.root(false));
+        return new NestedObjectMapper.Builder(name, IndexVersion.current()).build(MapperBuilderContext.root(false));
     }
 
     public void testAllParentFilters() {

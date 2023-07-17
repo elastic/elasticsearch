@@ -11,10 +11,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.Collections;
 
@@ -93,20 +94,20 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 .put("index.similarity.my_similarity.after_effect", "l")
                 .build()
         );
-        service.verifyIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
+        service.verifyIndexMetadata(src, IndexVersion.MINIMUM_COMPATIBLE);
     }
 
     public void testIncompatibleVersion() {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
-        Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
-        Version indexCreated = Version.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
+        IndexVersion minCompat = IndexVersion.MINIMUM_COMPATIBLE;
+        IndexVersion indexCreated = IndexVersion.fromId(randomIntBetween(1000099, minCompat.id() - 1));
         final IndexMetadata metadata = newIndexMeta(
             "foo",
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated.id()).build()
         );
         String message = expectThrows(
             IllegalStateException.class,
-            () -> service.verifyIndexMetadata(metadata, Version.CURRENT.minimumIndexCompatibilityVersion())
+            () -> service.verifyIndexMetadata(metadata, IndexVersion.MINIMUM_COMPATIBLE)
         ).getMessage();
         assertThat(
             message,
@@ -120,16 +121,19 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                     + minCompat
                     + "]."
                     + " It should be re-indexed in Elasticsearch "
-                    + minCompat.major
+                    + (Version.CURRENT.major - 1)
                     + ".x before upgrading to "
-                    + Version.CURRENT.toString()
+                    + Version.CURRENT
                     + "."
             )
         );
 
-        indexCreated = VersionUtils.randomVersionBetween(random(), minCompat, Version.CURRENT);
-        IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build());
-        service.verifyIndexMetadata(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
+        indexCreated = IndexVersionUtils.randomVersionBetween(random(), minCompat, IndexVersion.current());
+        IndexMetadata goodMeta = newIndexMeta(
+            "foo",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated.id()).build()
+        );
+        service.verifyIndexMetadata(goodMeta, IndexVersion.MINIMUM_COMPATIBLE);
     }
 
     private IndexMetadataVerifier getIndexMetadataVerifier() {

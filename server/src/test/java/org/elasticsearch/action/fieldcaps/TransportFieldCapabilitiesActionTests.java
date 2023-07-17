@@ -9,10 +9,10 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -53,7 +53,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
         try {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool
             );

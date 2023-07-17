@@ -30,6 +30,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -170,7 +171,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     fakeOldSnapshot,
                     new RepositoryData.SnapshotDetails(
                         SnapshotState.SUCCESS,
-                        SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion(),
+                        IndexVersion.fromId(6080099),   // minimum node version compatible with 7.6.0
                         0L, // -1 would refresh RepositoryData and find the real version
                         0L, // -1 would refresh RepositoryData and find the real version,
                         "" // null would refresh RepositoryData and find the real version

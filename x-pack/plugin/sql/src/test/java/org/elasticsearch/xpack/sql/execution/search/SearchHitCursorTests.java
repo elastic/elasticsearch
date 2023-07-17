@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractorTests;
@@ -58,11 +57,6 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
             instance.includeFrozen() == false,
             instance.allowPartialSearchResults() == false
         );
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Cursors.getNamedWriteables());
     }
 
     @Override

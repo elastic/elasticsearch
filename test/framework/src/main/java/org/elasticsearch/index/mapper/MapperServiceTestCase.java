@@ -155,7 +155,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected IndexVersion getVersion() {
-        return IndexVersion.CURRENT;
+        return IndexVersion.current();
     }
 
     protected final MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
@@ -173,7 +173,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected final MapperService createMapperService(Settings settings, String mappings) throws IOException {
-        MapperService mapperService = createMapperService(IndexVersion.CURRENT, settings, () -> true, mapping(b -> {}));
+        MapperService mapperService = createMapperService(IndexVersion.current(), settings, () -> true, mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService;
     }

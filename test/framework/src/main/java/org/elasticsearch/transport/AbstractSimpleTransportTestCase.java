@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,6 +45,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
@@ -115,14 +117,22 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
-    protected static final Version version0 = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");
+    protected static final VersionInformation version0 = new VersionInformation(
+        Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0"),
+        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersion.current()
+    );
     protected static final TransportVersion transportVersion0 = TransportVersion.current();
 
     protected volatile DiscoveryNode nodeA;
     protected volatile MockTransportService serviceA;
     protected ClusterSettings clusterSettingsA;
 
-    protected static final Version version1 = Version.fromId(version0.id + 1);
+    protected static final VersionInformation version1 = new VersionInformation(
+        Version.fromId(version0.nodeVersion().id + 1),
+        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersion.current()
+    );
     protected static final TransportVersion transportVersion1 = TransportVersion.fromId(transportVersion0.id() + 1);
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
@@ -199,7 +209,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     private MockTransportService buildService(
         String name,
-        Version version,
+        VersionInformation version,
         TransportVersion transportVersion,
         @Nullable ClusterSettings clusterSettings,
         Settings settings,
@@ -235,7 +245,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected MockTransportService buildService(
         String name,
-        Version version,
+        VersionInformation version,
         TransportVersion transportVersion,
         @Nullable ClusterSettings clusterSettings,
         Settings settings,
@@ -254,13 +264,18 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         );
     }
 
-    protected MockTransportService buildService(String name, Version version, TransportVersion transportVersion, Settings settings) {
+    protected MockTransportService buildService(
+        String name,
+        VersionInformation version,
+        TransportVersion transportVersion,
+        Settings settings
+    ) {
         return buildService(name, version, transportVersion, null, settings);
     }
 
     protected MockTransportService buildService(
         String name,
-        Version version,
+        VersionInformation version,
         TransportVersion transportVersion,
         ClusterSettings clusterSettings,
         Settings settings
@@ -2205,7 +2220,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (
             MockTransportService service = buildService(
                 "TS_C",
-                Version.CURRENT.minimumCompatibilityVersion(),
+                new VersionInformation(
+                    Version.CURRENT.minimumCompatibilityVersion(),
+                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersion.current()
+                ),
                 transportVersion,
                 Settings.EMPTY
             )
@@ -2235,13 +2254,24 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (
             MockTransportService service = buildService(
                 "TS_C",
-                Version.CURRENT.minimumCompatibilityVersion(),
+                new VersionInformation(
+                    Version.CURRENT.minimumCompatibilityVersion(),
+                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersion.current()
+                ),
                 transportVersion,
                 Settings.EMPTY
             )
         ) {
             TransportAddress address = service.boundAddress().publishAddress();
-            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", address, emptyMap(), emptySet(), Version.fromString("2.0.0"));
+            DiscoveryNode node = new DiscoveryNode(
+                "TS_TPC",
+                "TS_TPC",
+                address,
+                emptyMap(),
+                emptySet(),
+                VersionInformation.inferVersions(Version.fromString("2.0.0"))
+            );
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(
                 1,
@@ -2264,7 +2294,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         ConnectionProfile defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
         ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile).setPingInterval(TimeValue.timeValueMillis(50))
             .build();
-        try (TransportService service = buildService("TS_TPC", Version.CURRENT, TransportVersion.current(), Settings.EMPTY)) {
+        try (TransportService service = buildService("TS_TPC", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)) {
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             DiscoveryNode node = new DiscoveryNode(
                 "TS_TPC",
@@ -2285,7 +2315,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testTcpHandshake() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
-        try (TransportService service = buildService("TS_TPC", Version.CURRENT, TransportVersion.current(), Settings.EMPTY)) {
+        try (TransportService service = buildService("TS_TPC", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)) {
             DiscoveryNode node = new DiscoveryNode(
                 "TS_TPC",
                 "TS_TPC",
@@ -2971,7 +3001,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
         BindTransportException bindTransportException = expectThrows(
             BindTransportException.class,
-            () -> buildService("test", Version.CURRENT, TransportVersion.current(), settings)
+            () -> buildService("test", VersionInformation.CURRENT, TransportVersion.current(), settings)
         );
         InetSocketAddress inetSocketAddress = serviceA.boundAddress().publishAddress().address();
         assertEquals("Failed to bind to " + NetworkAddress.format(inetSocketAddress), bindTransportException.getMessage());

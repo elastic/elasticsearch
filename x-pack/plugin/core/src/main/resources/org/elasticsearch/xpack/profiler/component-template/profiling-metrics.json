@@ -19,6 +19,10 @@
       "_source": {
         "enabled": false
       },
+      "_meta": {
+        "index-template-version": ${xpack.profiling.template.version},
+        "index-version": ${xpack.profiling.index.metrics.version}
+      },
       /*
        We intentionally allow dynamic mappings for metrics. Which metrics are added is guarded by
        the collector and we want to allow adding new metrics over time. As this is a datastream,

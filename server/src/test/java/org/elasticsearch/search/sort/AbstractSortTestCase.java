@@ -187,7 +187,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
             index,
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.CURRENT.id()).build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current().id()).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, mock(BitsetFilterCache.Listener.class));
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
@@ -195,7 +195,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             return builder.build(new IndexFieldDataCache.None(), null);
         };
         NestedLookup nestedLookup = NestedLookup.build(
-            List.of(new NestedObjectMapper.Builder("path", IndexVersion.CURRENT).build(MapperBuilderContext.root(false)))
+            List.of(new NestedObjectMapper.Builder("path", IndexVersion.current()).build(MapperBuilderContext.root(false)))
         );
         return new SearchExecutionContext(
             0,

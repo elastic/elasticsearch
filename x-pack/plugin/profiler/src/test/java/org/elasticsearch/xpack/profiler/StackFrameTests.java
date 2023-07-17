@@ -23,25 +23,6 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class StackFrameTests extends ESTestCase {
-    public void testCreateFromSyntheticSource() {
-        // tag::noformat
-        StackFrame frame = StackFrame.fromSource(
-            Map.of("Stackframe", Map.of(
-                "file", Map.of("name", "Main.java"),
-                "function", Map.of(
-                        "name", "helloWorld",
-                        "offset", 31733
-                    ),
-                "line", Map.of("number", 22))
-                )
-        );
-        // end::noformat
-        assertEquals(List.of("Main.java"), frame.fileName);
-        assertEquals(List.of("helloWorld"), frame.functionName);
-        assertEquals(List.of(31733), frame.functionOffset);
-        assertEquals(List.of(22), frame.lineNumber);
-    }
-
     public void testCreateFromRegularSource() {
         // tag::noformat
         StackFrame frame = StackFrame.fromSource(

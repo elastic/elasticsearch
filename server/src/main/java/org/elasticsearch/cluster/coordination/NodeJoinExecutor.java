@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
@@ -146,7 +148,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
-                        ensureIndexCompatibility(node.getVersion(), initialState.getMetadata());
+                        ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), initialState.getMetadata());
                         nodesBuilder.add(node);
                         transportVersions.put(node.getId(), transportVersion);
                         nodesChanged = true;
@@ -237,6 +239,11 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
     }
 
+    @SuppressForbidden(reason = "maintaining ClusterState#transportVersions requires reading them")
+    private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
+        return clusterState.transportVersions();
+    }
+
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
         ClusterState currentState,
         List<? extends TaskContext<JoinTask>> taskContexts,
@@ -258,7 +265,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         assert currentState.term() < term : term + " vs " + currentState;
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
-        Map<String, TransportVersion> transportVersions = new HashMap<>(currentState.transportVersions());
+        Map<String, TransportVersion> transportVersions = new HashMap<>(getTransportVersions(currentState));
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
 
         for (final var taskContext : taskContexts) {
@@ -316,35 +323,34 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     }
 
     /**
-     * Ensures that all indices are compatible with the given node version. This will ensure that all indices in the given metadata
+     * Ensures that all indices are compatible with the given index version. This will ensure that all indices in the given metadata
      * will not be created with a newer version of elasticsearch as well as that all indices are newer or equal to the minimum index
      * compatibility version.
-     * @see Version#minimumIndexCompatibilityVersion()
+     * @see IndexVersion#MINIMUM_COMPATIBLE
      * @throws IllegalStateException if any index is incompatible with the given version
      */
-    public static void ensureIndexCompatibility(final Version nodeVersion, Metadata metadata) {
-        Version supportedIndexVersion = nodeVersion.minimumIndexCompatibilityVersion();
+    public static void ensureIndexCompatibility(IndexVersion minSupportedVersion, IndexVersion maxSupportedVersion, Metadata metadata) {
         // we ensure that all indices in the cluster we join are compatible with us no matter if they are
         // closed or not we can't read mappings of these indices so we need to reject the join...
         for (IndexMetadata idxMetadata : metadata) {
-            if (idxMetadata.getCompatibilityVersion().after(nodeVersion)) {
+            if (idxMetadata.getCompatibilityVersion().after(maxSupportedVersion)) {
                 throw new IllegalStateException(
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
                         + idxMetadata.getCompatibilityVersion()
-                        + " the node version is: "
-                        + nodeVersion
+                        + " maximum compatible index version is: "
+                        + maxSupportedVersion
                 );
             }
-            if (idxMetadata.getCompatibilityVersion().before(supportedIndexVersion)) {
+            if (idxMetadata.getCompatibilityVersion().before(minSupportedVersion)) {
                 throw new IllegalStateException(
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
                         + idxMetadata.getCompatibilityVersion()
                         + " minimum compatible index version is: "
-                        + supportedIndexVersion
+                        + minSupportedVersion
                 );
             }
         }
@@ -427,7 +433,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> validators = new ArrayList<>();
         validators.add((node, state) -> {
             ensureNodesCompatibility(node.getVersion(), state.getNodes());
-            ensureIndexCompatibility(node.getVersion(), state.getMetadata());
+            ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), state.getMetadata());
         });
         validators.addAll(onJoinValidators);
         return Collections.unmodifiableCollection(validators);

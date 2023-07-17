@@ -87,8 +87,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             actionFilters,
             Request::new,
             NodeRequest::new,
-            ThreadPool.Names.FETCH_SHARD_STORE,
-            NodeStoreFilesMetadata.class
+            ThreadPool.Names.FETCH_SHARD_STORE
         );
         this.settings = settings;
         this.indicesService = indicesService;

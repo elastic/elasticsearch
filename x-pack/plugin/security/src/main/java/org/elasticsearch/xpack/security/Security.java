@@ -61,6 +61,7 @@ import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
@@ -623,7 +624,8 @@ public class Security extends Plugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         try {
             return createComponents(
@@ -1047,15 +1049,13 @@ public class Security extends Plugin
             logger.debug("Using default authentication failure handler");
             Supplier<Map<String, List<String>>> headersSupplier = () -> {
                 final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
-                realms.getActiveRealms().stream().forEach((realm) -> {
+                realms.getActiveRealms().forEach((realm) -> {
                     Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
-                    realmFailureHeaders.entrySet().stream().forEach((e) -> {
-                        String key = e.getKey();
-                        e.getValue()
-                            .stream()
+                    realmFailureHeaders.forEach(
+                        (key, value) -> value.stream()
                             .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v) == false)
-                            .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
-                    });
+                            .forEach(v -> defaultFailureResponseHeaders.get(key).add(v))
+                    );
                 });
 
                 if (TokenService.isTokenServiceEnabled(settings)) {
@@ -1823,14 +1823,21 @@ public class Security extends Plugin
         if (enabled) {
             final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
             return List.of(
-                new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool", false),
+                new FixedExecutorBuilder(
+                    settings,
+                    TokenService.THREAD_POOL_NAME,
+                    1,
+                    1000,
+                    "xpack.security.authc.token.thread_pool",
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                ),
                 new FixedExecutorBuilder(
                     settings,
                     SECURITY_CRYPTO_THREAD_POOL_NAME,
                     (allocatedProcessors + 1) / 2,
                     1000,
                     "xpack.security.crypto.thread_pool",
-                    false
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
                 )
             );
         }

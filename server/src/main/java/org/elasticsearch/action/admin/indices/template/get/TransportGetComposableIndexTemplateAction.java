@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -89,11 +89,11 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
                 throw new ResourceNotFoundException("index template matching [" + request.name() + "] not found");
             }
         }
-        if (request.includeDefaults() && DataLifecycle.isEnabled()) {
+        if (request.includeDefaults() && DataStreamLifecycle.isEnabled()) {
             listener.onResponse(
                 new GetComposableIndexTemplateAction.Response(
                     results,
-                    clusterSettings.get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
+                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
                 )
             );
         } else {

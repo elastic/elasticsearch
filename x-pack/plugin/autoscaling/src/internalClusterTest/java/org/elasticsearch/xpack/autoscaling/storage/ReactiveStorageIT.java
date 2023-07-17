@@ -531,12 +531,6 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         refreshClusterInfo();
     }
 
-    public GetAutoscalingCapacityAction.Response capacity() {
-        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request();
-        GetAutoscalingCapacityAction.Response response = client().execute(GetAutoscalingCapacityAction.INSTANCE, request).actionGet();
-        return response;
-    }
-
     private void putAutoscalingPolicy(String policyName, String role) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             policyName,

@@ -24,11 +24,15 @@ import java.util.jar.Manifest;
  */
 public record Build(Type type, String hash, String date, boolean isSnapshot, String version) {
 
+    private static final Build CURRENT;
+
     /**
      * The current build of Elasticsearch. Filled with information scanned at
      * startup from the jar.
      */
-    public static final Build CURRENT;
+    public static Build current() {
+        return CURRENT;
+    }
 
     public enum Type {
 

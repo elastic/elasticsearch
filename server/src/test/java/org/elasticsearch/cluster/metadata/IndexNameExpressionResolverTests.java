@@ -1783,10 +1783,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
             }
 
-            @Override
-            public boolean includeDataStreams() {
-                return false;
-            }
         };
         Index writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
         assertThat(writeIndex.getName(), equalTo("test-0"));
@@ -1821,10 +1817,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
             }
 
-            @Override
-            public boolean includeDataStreams() {
-                return false;
-            }
         };
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -1873,10 +1865,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictExpandOpenAndForbidClosed();
             }
 
-            @Override
-            public boolean includeDataStreams() {
-                return false;
-            }
         };
 
         IllegalArgumentException exception = expectThrows(

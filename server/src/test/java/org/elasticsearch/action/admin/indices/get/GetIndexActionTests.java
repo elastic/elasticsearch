@@ -53,7 +53,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        settingsFilter = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet()).getSettingsFilter();
+        settingsFilter = new SettingsModule(Settings.EMPTY, emptyList(), emptyList()).getSettingsFilter();
         threadPool = new TestThreadPool("GetIndexActionTests");
         clusterService = getInstanceFromNode(ClusterService.class);
         indicesService = getInstanceFromNode(IndicesService.class);

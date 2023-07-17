@@ -307,3 +307,39 @@ setup:
           mappings:
             _source:
               enabled: false
+
+---
+"Number for keyword routing field":
+  - skip:
+      version: " - 8.8.99"
+      reason: "Fix in 8.9"
+
+  - do:
+      bulk:
+        index: tsdb
+        refresh: true
+        body:
+          - '{ "index": {} }'
+          - '{ "key": "10", "val": 1, "@timestamp": "2021-10-01T00:00:10Z" }'
+          - '{ "index": {}}'
+          - '{ "key": "11", "val": 2, "@timestamp": "2021-10-01T00:00:00Z" }'
+
+  - do:
+      search:
+        index: tsdb
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2021-10-01T00:00:00Z"
+          size: 0
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+
+  - match: { hits.total.value: 2 }
+  - length: { aggregations: 1 }
+
+  - match: { aggregations.ts.buckets.0.key: { "key": "10" } }
+  - match: { aggregations.ts.buckets.0.doc_count: 1 }

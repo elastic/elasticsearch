@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupp
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -256,11 +256,10 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 listener.onFailure(e);
             };
             session.resolve(ActionListener.wrap((ldapData) -> {
-                final Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder()
-                    .put("ldap_dn", session.userDn())
-                    .put("ldap_groups", ldapData.groups)
-                    .putAll(ldapData.metadata)
-                    .map();
+                final Map<String, Object> metadata = new HashMap<>();
+                metadata.put("ldap_dn", session.userDn());
+                metadata.put("ldap_groups", ldapData.groups);
+                metadata.putAll(ldapData.metadata);
                 final UserData user = new UserData(username, session.userDn(), ldapData.groups, metadata, session.realm());
                 roleMapper.resolveRoles(user, ActionListener.wrap(roles -> {
                     IOUtils.close(session);

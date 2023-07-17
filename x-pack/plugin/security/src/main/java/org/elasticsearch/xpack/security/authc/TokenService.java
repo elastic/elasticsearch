@@ -2076,7 +2076,6 @@ public final class TokenService {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
-                assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH;
                 out.writeByteArray(accessTokenBytes);
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
@@ -2084,7 +2083,6 @@ public final class TokenService {
             try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
-                assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
                 out.writeString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
@@ -2124,7 +2122,6 @@ public final class TokenService {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
-                assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH;
                 out.writeByteArray(refreshTokenBytes);
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
@@ -2132,7 +2129,6 @@ public final class TokenService {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
-                assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
                 out.writeString(Base64.getUrlEncoder().withoutPadding().encodeToString(refreshTokenBytes));
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }

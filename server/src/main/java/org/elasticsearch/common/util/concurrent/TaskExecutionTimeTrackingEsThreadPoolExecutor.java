@@ -9,6 +9,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.Map;
@@ -28,6 +29,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
     private final LongAdder totalExecutionTime = new LongAdder();
+    private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
 
@@ -42,11 +44,12 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         ThreadFactory threadFactory,
         RejectedExecutionHandler handler,
         ThreadContext contextHolder,
-        double ewmaAlpha
+        TaskTrackingConfig trackingConfig
     ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
         this.runnableWrapper = runnableWrapper;
-        this.executionEWMA = new ExponentiallyWeightedMovingAverage(ewmaAlpha, 0);
+        this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getEwmaAlpha(), 0);
+        this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
     }
 
     @Override
@@ -87,7 +90,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
-        ongoingTasks.put(r, System.nanoTime());
+        if (trackOngoingTasks) {
+            ongoingTasks.put(r, System.nanoTime());
+        }
     }
 
     @Override
@@ -113,7 +118,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 totalExecutionTime.add(taskExecutionNanos);
             }
         } finally {
-            ongoingTasks.remove(r);
+            // if trackOngoingTasks is false -> ongoingTasks must be empty
+            assert trackOngoingTasks || ongoingTasks.isEmpty();
+            if (trackOngoingTasks) {
+                ongoingTasks.remove(r);
+            }
         }
     }
 
@@ -135,6 +144,6 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * task is reflected in at least one of those two values.
      */
     public Map<Runnable, Long> getOngoingTasks() {
-        return Map.copyOf(ongoingTasks);
+        return trackOngoingTasks ? Map.copyOf(ongoingTasks) : Map.of();
     }
 }

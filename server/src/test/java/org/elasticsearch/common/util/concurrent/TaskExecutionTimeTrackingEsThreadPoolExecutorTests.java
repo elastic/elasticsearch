@@ -9,12 +9,14 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -38,7 +40,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA
+            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA)
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -90,7 +92,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA
+            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA)
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -121,7 +123,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA
+            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA)
         );
         var taskRunningLatch = new CountDownLatch(1);
         var exitTaskLatch = new CountDownLatch(1);

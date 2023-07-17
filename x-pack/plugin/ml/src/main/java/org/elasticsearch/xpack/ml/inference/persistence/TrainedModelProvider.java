@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -59,9 +58,6 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -83,7 +79,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIden
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
@@ -124,9 +119,6 @@ public class TrainedModelProvider {
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
-    private static final ToXContent.Params FOR_INTERNAL_STORAGE_PARAMS = new ToXContent.MapParams(
-        Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
-    );
 
     public TrainedModelProvider(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = client;
@@ -187,7 +179,8 @@ public class TrainedModelProvider {
         }
         assert trainedModelConfig.getModelDefinition() == null;
 
-        IndexRequest request = createRequest(
+        IndexRequest request = IndexRequestCreator.create(
+            trainedModelConfig.getModelId(),
             trainedModelConfig.getModelId(),
             InferenceIndexConstants.LATEST_INDEX_NAME,
             trainedModelConfig
@@ -237,9 +230,8 @@ public class TrainedModelProvider {
             client,
             ML_ORIGIN,
             IndexAction.INSTANCE,
-            createRequest(VocabularyConfig.docId(modelId), vocabularyConfig.getIndex(), vocabulary).setRefreshPolicy(
-                WriteRequest.RefreshPolicy.IMMEDIATE
-            ),
+            IndexRequestCreator.create(modelId, VocabularyConfig.docId(modelId), vocabularyConfig.getIndex(), vocabulary)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
             ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     listener.onFailure(
@@ -276,7 +268,12 @@ public class TrainedModelProvider {
             client,
             ML_ORIGIN,
             IndexAction.INSTANCE,
-            createRequest(trainedModelDefinitionDoc.getDocId(), index, trainedModelDefinitionDoc),
+            IndexRequestCreator.create(
+                trainedModelDefinitionDoc.getModelId(),
+                trainedModelDefinitionDoc.getDocId(),
+                index,
+                trainedModelDefinitionDoc
+            ),
             ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     listener.onFailure(
@@ -318,7 +315,12 @@ public class TrainedModelProvider {
             client,
             ML_ORIGIN,
             IndexAction.INSTANCE,
-            createRequest(trainedModelMetadata.getDocId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelMetadata),
+            IndexRequestCreator.create(
+                trainedModelMetadata.getModelId(),
+                trainedModelMetadata.getDocId(),
+                InferenceIndexConstants.LATEST_INDEX_NAME,
+                trainedModelMetadata
+            ),
             ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     listener.onFailure(
@@ -430,11 +432,9 @@ public class TrainedModelProvider {
 
         BulkRequestBuilder bulkRequest = client.prepareBulk(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(createRequest(trainedModelConfig.getModelId(), trainedModelConfig));
+            .add(IndexRequestCreator.create(trainedModelConfig.getModelId(), trainedModelConfig.getModelId(), trainedModelConfig));
         trainedModelDefinitionDocs.forEach(
-            defDoc -> bulkRequest.add(
-                createRequest(TrainedModelDefinitionDoc.docId(trainedModelConfig.getModelId(), defDoc.getDocNum()), defDoc)
-            )
+            defDoc -> bulkRequest.add(IndexRequestCreator.create(defDoc.getModelId(), defDoc.getDocId(), defDoc))
         );
 
         ActionListener<Boolean> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
@@ -1320,25 +1320,6 @@ public class TrainedModelProvider {
         } catch (IOException e) {
             logger.error(() -> "[" + modelId + "] failed to parse model metadata", e);
             throw e;
-        }
-    }
-
-    private IndexRequest createRequest(String docId, String index, ToXContentObject body) {
-        return createRequest(new IndexRequest(index), docId, body);
-    }
-
-    private IndexRequest createRequest(String docId, ToXContentObject body) {
-        return createRequest(new IndexRequest(), docId, body);
-    }
-
-    private IndexRequest createRequest(IndexRequest request, String docId, ToXContentObject body) {
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            XContentBuilder source = body.toXContent(builder, FOR_INTERNAL_STORAGE_PARAMS);
-            return request.opType(DocWriteRequest.OpType.CREATE).id(docId).source(source);
-        } catch (IOException ex) {
-            // This should never happen. If we were able to deserialize the object (from Native or REST) and then fail to serialize it again
-            // that is not the users fault. We did something wrong and should throw.
-            throw ExceptionsHelper.serverError("Unexpected serialization exception for [" + docId + "]", ex);
         }
     }
 }

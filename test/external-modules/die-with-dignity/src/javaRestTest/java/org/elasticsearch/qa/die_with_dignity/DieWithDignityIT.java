@@ -33,8 +33,8 @@ public class DieWithDignityIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .nodes(1)
-        .distribution(DistributionType.DEFAULT)
+        .distribution(DistributionType.INTEG_TEST)
+        .module("test-die-with-dignity")
         .setting("xpack.security.enabled", "false")
         .environment("CLI_JAVA_OPTS", "-Ddie.with.dignity.test=true")
         .jvmArg("-XX:-ExitOnOutOfMemoryError")

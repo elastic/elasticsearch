@@ -1,6 +1,6 @@
 pr: 97705
-summary: "Fix to stop aggregatable subojects from being multifields, to support \"\
-  subobjects\": false"
+summary: "Fix to stop aggregatable subobjects from being considered multi-fields, to support \
+  `\"subobjects\": false` in data frame analytics"
 area: Machine Learning
 type: bug
 issues:

@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-rollup'
   description 'Elasticsearch Expanded Pack Plugin - Rollup'
@@ -11,6 +12,7 @@ base {
 }
 
 dependencies {
+  testImplementation project(path: ':test:framework')
   compileOnly project(path: xpackModule('core'))
   testImplementation project(':modules:data-streams')
   testImplementation project(path: xpackModule('ilm'))

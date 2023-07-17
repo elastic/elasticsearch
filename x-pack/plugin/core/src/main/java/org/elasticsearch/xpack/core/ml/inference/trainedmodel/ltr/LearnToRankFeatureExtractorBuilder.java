@@ -8,10 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -32,7 +29,4 @@ public interface LearnToRankFeatureExtractorBuilder
      * @throws Exception If the extractor is invalid.
      */
     void validate() throws Exception;
-
-    @Nullable
-    ParsedQuery parsedQuery(SearchExecutionContext context);
 }

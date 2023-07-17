@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -20,7 +18,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_CONFIG_QUERY_BAD_FORMAT;
@@ -104,29 +101,11 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query) imp
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        QueryExtractorBuilder that = (QueryExtractorBuilder) o;
-        return Objects.equals(featureName, that.featureName) && Objects.equals(query, that.query);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(featureName, query);
-    }
-
-    @Override
     public QueryExtractorBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         QueryProvider rewritten = Rewriteable.rewrite(query, ctx);
         if (rewritten == query) {
             return this;
         }
         return new QueryExtractorBuilder(featureName, rewritten);
-    }
-
-    @Override
-    public ParsedQuery parsedQuery(SearchExecutionContext executionContext) {
-        return executionContext.toQuery(query.getParsedQuery());
     }
 }

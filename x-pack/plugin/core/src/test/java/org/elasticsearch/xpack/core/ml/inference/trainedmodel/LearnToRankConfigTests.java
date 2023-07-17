@@ -12,9 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -189,11 +187,6 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
 
         @Override
         public void validate() throws Exception {}
-
-        @Override
-        public ParsedQuery parsedQuery(SearchExecutionContext context) {
-            return null;
-        }
 
         @Override
         public String getName() {

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.inference.rescorer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DisiPriorityQueue;
 import org.apache.lucene.search.DisiWrapper;
-import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DisjunctionDISIApproximation;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 
@@ -19,14 +19,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Extracts query features, e.g. _scores, from the provided weights and featureNames.
+ * For every document provided, this extractor iterates with the constructed scorers and collects the _score (if matched) for the
+ * respective feature name.
+ */
 public class QueryFeatureExtractor implements FeatureExtractor {
 
     private final List<String> featureNames;
     private final List<Weight> weights;
     private final List<Scorer> scorers;
-    private DisjunctionDISI rankerIterator;
+    private DisjunctionDISIApproximation rankerIterator;
 
     public QueryFeatureExtractor(List<String> featureNames, List<Weight> weights) {
+        if (featureNames.size() != weights.size()) {
+            throw new IllegalArgumentException("[featureNames] and [weights] must be the same size.");
+        }
         this.featureNames = featureNames;
         this.weights = weights;
         this.scorers = new ArrayList<>(weights.size());
@@ -47,7 +55,7 @@ public class QueryFeatureExtractor implements FeatureExtractor {
             }
             scorers.add(scorer);
         }
-        rankerIterator = new DisjunctionDISI(DocIdSetIterator.all(segmentContext.reader().maxDoc()), disiPriorityQueue);
+        rankerIterator = new DisjunctionDISIApproximation(disiPriorityQueue);
     }
 
     @Override
@@ -67,51 +75,4 @@ public class QueryFeatureExtractor implements FeatureExtractor {
         return featureNames;
     }
 
-    /**
-     * Helper to iterate scores based on if they match the passed document or not
-     */
-    private static class DisjunctionDISI extends DocIdSetIterator {
-        private final DocIdSetIterator main;
-        private final DisiPriorityQueue subIteratorsPriorityQueue;
-
-        DisjunctionDISI(DocIdSetIterator main, DisiPriorityQueue subIteratorsPriorityQueue) {
-            this.main = main;
-            this.subIteratorsPriorityQueue = subIteratorsPriorityQueue;
-        }
-
-        @Override
-        public int docID() {
-            return main.docID();
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            int doc = main.nextDoc();
-            advanceSubIterators(doc);
-            return doc;
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            int docId = main.advance(target);
-            advanceSubIterators(docId);
-            return docId;
-        }
-
-        private void advanceSubIterators(int target) throws IOException {
-            if (target == NO_MORE_DOCS || subIteratorsPriorityQueue.size() == 0) {
-                return;
-            }
-            DisiWrapper top = subIteratorsPriorityQueue.top();
-            while (top.doc < target) {
-                top.doc = top.iterator.advance(target);
-                top = subIteratorsPriorityQueue.updateTop();
-            }
-        }
-
-        @Override
-        public long cost() {
-            return main.cost();
-        }
-    }
 }

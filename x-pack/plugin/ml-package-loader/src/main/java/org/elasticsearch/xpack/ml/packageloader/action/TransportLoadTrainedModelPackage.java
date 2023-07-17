@@ -88,7 +88,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         CancellableTask downloadTask = createDownloadTask(request);
-        Client parentTaskAssigningClient = getParentTaskAssigningClient(downloadTask);
+        ParentTaskAssigningClient parentTaskAssigningClient = getParentTaskAssigningClient(downloadTask);
 
         ModelImporter modelImporter = new ModelImporter(
             parentTaskAssigningClient,
@@ -98,8 +98,6 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         );
 
         threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME)
-            // TODO: if we pass in the parentTaskAssigningClient then any requests after a cancel will be aborted which means we won't be
-            // able to send the notifications
             .execute(() -> importModel(client, taskManager, request, modelImporter, listener, downloadTask));
 
         if (request.isWaitForCompletion() == false) {
@@ -139,23 +137,6 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                 format("finished model import after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos))
             );
         } catch (ElasticsearchException e) {
-            logger.info("got an elasticsearch exception");
-
-            // if (e instanceof TaskCancelledException) {
-            // logger.info("got a task cancelled exception");
-            //
-            // try {
-            // var deleteRequest = new DeleteTrainedModelAction.Request(modelId);
-            // deleteRequest.setForce(true);
-            //
-            // client2.execute(DeleteTrainedModelAction.INSTANCE, deleteRequest
-            // // ActionListener.wrap((AcknowledgedResponse response) -> {}, deleteException -> {})
-            // ).actionGet();
-            // logger.info("deleted model!!!");
-            // } catch (Exception anotherException) {
-            // logger.error(format("got an exception while deleting model %s", anotherException));
-            // }
-            // }
             recordError(client, modelId, exceptionRef, e);
         } catch (MalformedURLException e) {
             recordError(client, modelId, "an invalid URL", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
@@ -232,14 +213,10 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     }
 
     private static void writeNotification(Client client, String modelId, String message, Level level) {
-        try {
-            client.execute(
-                AuditMlNotificationAction.INSTANCE,
-                new AuditMlNotificationAction.Request(AuditMlNotificationAction.AuditType.INFERENCE, modelId, message, level),
-                ActionListener.noop()
-            );
-        } catch (Exception e) {
-            logger.error(format("writing notification got an exception %s", e));
-        }
+        client.execute(
+            AuditMlNotificationAction.INSTANCE,
+            new AuditMlNotificationAction.Request(AuditMlNotificationAction.AuditType.INFERENCE, modelId, message, level),
+            ActionListener.noop()
+        );
     }
 }

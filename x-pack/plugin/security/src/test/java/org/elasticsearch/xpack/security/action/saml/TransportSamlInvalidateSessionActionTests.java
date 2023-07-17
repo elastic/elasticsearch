@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.TokenServiceTests;
 import org.elasticsearch.xpack.security.authc.saml.SamlLogoutRequestHandler;
 import org.elasticsearch.xpack.security.authc.saml.SamlNameId;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
@@ -86,7 +88,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -97,7 +98,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
-import static org.elasticsearch.xpack.security.authc.TokenServiceTests.getNewTokenBytes;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -124,7 +124,6 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     private TransportSamlInvalidateSessionAction action;
     private SamlLogoutRequestHandler.Result logoutRequest;
     private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> new SearchHit[0];
-    private Function<SearchScrollRequest, SearchHit[]> searchScrollFunction = ignore -> new SearchHit[0];
 
     @Before
     public void setup() throws Exception {
@@ -199,8 +198,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     listener.onResponse((Response) response);
                 } else if (SearchScrollAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(SearchScrollRequest.class));
-                    SearchScrollRequest searchScrollRequest = (SearchScrollRequest) request;
-                    final SearchHit[] hits = searchScrollFunction.apply(searchScrollRequest);
+                    final SearchHit[] hits = new SearchHit[0];
                     final SearchResponse response = new SearchResponse(
                         new SearchResponseSections(
                             new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
@@ -315,19 +313,24 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     }
 
     public void testInvalidateCorrectTokensFromLogoutRequest() throws Exception {
-        final byte[] userTokenBytes1 = getNewTokenBytes();
-        final byte[] refreshTokenBytes1 = getNewTokenBytes();
-        final byte[] userTokenBytes2 = getNewTokenBytes();
-        final byte[] refreshTokenBytes2 = getNewTokenBytes();
-        storeToken(logoutRequest.getNameId(), randomAlphaOfLength(10));
+        Tuple<byte[], byte[]> newTokenBytes1 = tokenService.getRandomTokenBytes(true);
+        Tuple<byte[], byte[]> newTokenBytes2 = tokenService.getRandomTokenBytes(true);
+        Tuple<byte[], byte[]> newTokenBytes3 = tokenService.getRandomTokenBytes(true);
+        Tuple<byte[], byte[]> newTokenBytes4 = tokenService.getRandomTokenBytes(true);
+        storeToken(newTokenBytes3.v1(), newTokenBytes3.v2(), logoutRequest.getNameId(), randomAlphaOfLength(10));
         final TokenService.CreateTokenResult tokenToInvalidate1 = storeToken(
-            userTokenBytes1,
-            refreshTokenBytes1,
+            newTokenBytes1.v1(),
+            newTokenBytes1.v2(),
             logoutRequest.getNameId(),
             logoutRequest.getSession()
         );
-        storeToken(userTokenBytes2, refreshTokenBytes2, logoutRequest.getNameId(), logoutRequest.getSession());
-        storeToken(new SamlNameId(NameID.PERSISTENT, randomAlphaOfLength(16), null, null, null), logoutRequest.getSession());
+        storeToken(newTokenBytes2.v1(), newTokenBytes2.v2(), logoutRequest.getNameId(), logoutRequest.getSession());
+        storeToken(
+            newTokenBytes4.v1(),
+            newTokenBytes4.v2(),
+            new SamlNameId(NameID.PERSISTENT, randomAlphaOfLength(16), null, null, null),
+            logoutRequest.getSession()
+        );
 
         assertThat(indexRequests, hasSize(4));
 
@@ -405,15 +408,19 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(
             List.of(updateRequest1.id(), updateRequest2.id()),
             containsInAnyOrder(
-                "token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes1)),
-                "token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes2))
+                "token_"
+                    + TokenServiceTests.tokenDocIdFromAccessTokenBytes(newTokenBytes1.v1(), tokenService.getTokenVersionCompatibility()),
+                "token_"
+                    + TokenServiceTests.tokenDocIdFromAccessTokenBytes(newTokenBytes2.v1(), tokenService.getTokenVersionCompatibility())
             )
         );
         assertThat(
             List.of(updateRequest3.id(), updateRequest4.id()),
             containsInAnyOrder(
-                "token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes1)),
-                "token_" + TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenBytes2))
+                "token_"
+                    + TokenServiceTests.tokenDocIdFromAccessTokenBytes(newTokenBytes1.v1(), tokenService.getTokenVersionCompatibility()),
+                "token_"
+                    + TokenServiceTests.tokenDocIdFromAccessTokenBytes(newTokenBytes2.v1(), tokenService.getTokenVersionCompatibility())
             )
         );
     }
@@ -447,12 +454,6 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(userTokenBytes, refreshTokenBytes, authentication, authentication, metadata, future);
         return future.actionGet();
-    }
-
-    private TokenService.CreateTokenResult storeToken(SamlNameId nameId, String session) {
-        final byte[] userTokenBytes = getNewTokenBytes();
-        final byte[] refreshTokenBytes = getNewTokenBytes();
-        return storeToken(userTokenBytes, refreshTokenBytes, nameId, session);
     }
 
     @SuppressWarnings("unchecked")

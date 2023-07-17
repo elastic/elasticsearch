@@ -1479,7 +1479,8 @@ public final class TokenService {
         );
     }
 
-    TransportVersion getTokenVersionCompatibility() {
+    // public for tests
+    public TransportVersion getTokenVersionCompatibility() {
         // newly minted tokens are compatible with the min transport version in the cluster
         return clusterService.state().getMinTransportVersion();
     }
@@ -2069,7 +2070,7 @@ public final class TokenService {
         }
     }
 
-    String prependVersionAndEncodeAccessToken(TransportVersion version, byte[] accessTokenBytes) throws IOException,
+    public String prependVersionAndEncodeAccessToken(TransportVersion version, byte[] accessTokenBytes) throws IOException,
         GeneralSecurityException {
         if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -2212,7 +2213,8 @@ public final class TokenService {
         return cipher;
     }
 
-    Tuple<byte[], byte[]> getRandomTokenBytes(boolean includeRefreshToken) {
+    // public to be used in tests
+    public Tuple<byte[], byte[]> getRandomTokenBytes(boolean includeRefreshToken) {
         return getRandomTokenBytes(getTokenVersionCompatibility(), includeRefreshToken);
     }
 

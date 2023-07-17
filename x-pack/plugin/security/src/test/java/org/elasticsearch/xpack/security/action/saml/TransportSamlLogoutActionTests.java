@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -78,7 +79,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
-import static org.elasticsearch.xpack.security.authc.TokenServiceTests.getNewTokenBytes;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromAccessTokenBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -264,11 +264,10 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final Authentication authentication = Authentication.newRealmAuthentication(user, realmRef);
 
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
-        final byte[] userTokenBytes = getNewTokenBytes();
-        final byte[] refreshTokenBytes = getNewTokenBytes();
-        tokenService.createOAuth2Tokens(userTokenBytes, refreshTokenBytes, authentication, authentication, tokenMetadata, future);
+        Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());
+        tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), authentication, authentication, tokenMetadata, future);
         final String accessToken = future.actionGet().getAccessToken();
-        mockGetTokenFromAccessTokenBytes(tokenService, userTokenBytes, authentication, tokenMetadata, false, null, client);
+        mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), authentication, tokenMetadata, false, null, client);
 
         final SamlLogoutRequest request = new SamlLogoutRequest();
         request.setToken(accessToken);

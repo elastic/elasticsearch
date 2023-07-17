@@ -134,7 +134,6 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.authc.TokenService.THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.security.authc.TokenServiceTests.getNewTokenBytes;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromAccessTokenBytes;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -1892,16 +1891,15 @@ public class AuthenticationServiceTests extends ESTestCase {
             .realmRef(new RealmRef("realm", "custom", "node"))
             .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
-        final byte[] userTokenBytes = getNewTokenBytes();
-        final byte[] refreshTokenBytes = getNewTokenBytes();
+        Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = AuthenticationTestHelper.builder()
                 .user(new User("creator"))
                 .realmRef(new RealmRef("test", "test", "test"))
                 .build(false);
             tokenService.createOAuth2Tokens(
-                userTokenBytes,
-                refreshTokenBytes,
+                newTokenBytes.v1(),
+                newTokenBytes.v2(),
                 expected,
                 originatingAuth,
                 Collections.emptyMap(),
@@ -1910,7 +1908,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         String token = tokenFuture.get().getAccessToken();
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
-        mockGetTokenFromAccessTokenBytes(tokenService, userTokenBytes, expected, Map.of(), false, null, client);
+        mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), expected, Map.of(), false, null, client);
         when(securityIndex.freeze()).thenReturn(securityIndex);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
@@ -2025,18 +2023,17 @@ public class AuthenticationServiceTests extends ESTestCase {
             .realmRef(new RealmRef("realm", "custom", "node"))
             .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
-        final byte[] userTokenBytes = getNewTokenBytes();
-        final byte[] refreshTokenBytes = getNewTokenBytes();
+        Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = AuthenticationTestHelper.builder()
                 .user(new User("creator"))
                 .realmRef(new RealmRef("test", "test", "test"))
                 .build(false);
-            tokenService.createOAuth2Tokens(userTokenBytes, refreshTokenBytes, expected, originatingAuth, Collections.emptyMap(),
+            tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), expected, originatingAuth, Collections.emptyMap(),
                     tokenFuture);
         }
         String token = tokenFuture.get().getAccessToken();
-        mockGetTokenFromAccessTokenBytes(tokenService, userTokenBytes, expected, Map.of(), true, null, client);
+        mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), expected, Map.of(), true, null, client);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;

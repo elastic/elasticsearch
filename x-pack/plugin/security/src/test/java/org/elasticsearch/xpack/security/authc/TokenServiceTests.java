@@ -1011,16 +1011,7 @@ public class TokenServiceTests extends ESTestCase {
         Map<String, Object> metadata
     ) {
         final TransportVersion tokenVersion = tokenService.getTokenVersionCompatibility();
-        final String userTokenId;
-        if (tokenVersion.onOrAfter(TokenService.VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
-            MessageDigest userTokenIdDigest = sha256();
-            userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
-            userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
-        } else if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
-            userTokenId = TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
-        } else {
-            userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes);
-        }
+        final String userTokenId = tokenDocIdFromAccessTokenBytes(accessTokenBytes, tokenVersion);
         final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
         return new UserToken(
             userTokenId,
@@ -1029,6 +1020,19 @@ public class TokenServiceTests extends ESTestCase {
             expirationTime != null ? expirationTime : tokenService.getExpirationTime(),
             metadata
         );
+    }
+
+    // public for tests
+    public static String tokenDocIdFromAccessTokenBytes(byte[] accessTokenBytes, TransportVersion tokenVersion) {
+        if (tokenVersion.onOrAfter(TokenService.VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+            MessageDigest userTokenIdDigest = sha256();
+            userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
+        } else if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            return TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
+        } else {
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes);
+        }
     }
 
     private void mockFindTokenFromRefreshToken(

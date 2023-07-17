@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A {@link LifecycleAction} which calls {@link org.elasticsearch.xpack.core.downsample.DownsampleAction} on an index
@@ -58,7 +59,7 @@ public class DownsampleAction implements LifecycleAction {
             ObjectParser.ValueType.STRING
         );
         PARSER.declareField(
-            constructorArg(),
+            optionalConstructorArg(),
             p -> TimeValue.parseTimeValue(p.textOrNull(), TIMEOUT_FIELD.getPreferredName()),
             TIMEOUT_FIELD,
             ObjectParser.ValueType.STRING

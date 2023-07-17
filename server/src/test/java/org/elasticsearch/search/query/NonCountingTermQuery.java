@@ -29,10 +29,11 @@ class NonCountingTermQuery extends TermQuery {
         super(term);
     }
 
+    @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         Weight w = super.createWeight(searcher, scoreMode, boost);
         return new FilterWeight(w) {
-            public int count(LeafReaderContext context) throws IOException {
+            public int count(LeafReaderContext context) {
                 return -1;
             }
         };

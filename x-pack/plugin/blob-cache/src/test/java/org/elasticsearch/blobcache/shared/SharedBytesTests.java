@@ -31,7 +31,8 @@ public class SharedBytesTests extends ESTestCase {
                 randomIntBetween(1, 16) * 4096L,
                 nodeEnv,
                 ignored -> {},
-                ignored -> {}
+                ignored -> {},
+                randomBoolean()
             );
             final var sharedBytesPath = nodeEnv.nodeDataPaths()[0].resolve("shared_snapshot_cache");
             assertTrue(Files.exists(sharedBytesPath));

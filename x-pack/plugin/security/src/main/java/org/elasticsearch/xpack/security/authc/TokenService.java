@@ -296,7 +296,7 @@ public final class TokenService {
     // public for testing
     public void createOAuth2Tokens(
         String accessToken,
-        String refreshToken,
+        @Nullable String refreshToken,
         Authentication authentication,
         Authentication originatingClientAuth,
         Map<String, Object> metadata,
@@ -340,7 +340,7 @@ public final class TokenService {
      */
     private void createOAuth2Tokens(
         String accessToken,
-        String refreshToken,
+        @Nullable String refreshToken,
         TransportVersion tokenVersion,
         SecurityIndexManager tokensIndex,
         Authentication authentication,
@@ -362,12 +362,14 @@ public final class TokenService {
             final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
             final String storedAccessToken;
             final String storedRefreshToken;
+            final String returnedRefreshToken;
             if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
                 storedAccessToken = hashTokenString(accessToken);
                 storedRefreshToken = (null == refreshToken) ? null : hashTokenString(refreshToken);
+                returnedRefreshToken = (null == refreshToken) ? null : prependVersionAndEncodeRefreshToken(tokenVersion, refreshToken);
             } else {
                 storedAccessToken = accessToken;
-                storedRefreshToken = refreshToken;
+                returnedRefreshToken = storedRefreshToken = refreshToken;
             }
             final UserToken userToken = new UserToken(storedAccessToken, tokenVersion, tokenAuth, getExpirationTime(), metadata);
             final BytesReference tokenDocument = createTokenDocument(userToken, storedRefreshToken, originatingClientAuth);
@@ -388,18 +390,8 @@ public final class TokenService {
                     indexTokenRequest,
                     ActionListener.wrap(indexResponse -> {
                         if (indexResponse.getResult() == Result.CREATED) {
-                            final String versionedAccessToken = prependVersionAndEncodeAccessToken(tokenVersion, accessToken);
-                            if (tokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
-                                final String versionedRefreshToken = refreshToken != null
-                                    ? prependVersionAndEncodeRefreshToken(tokenVersion, refreshToken)
-                                    : null;
-                                listener.onResponse(new CreateTokenResult(versionedAccessToken, versionedRefreshToken, authentication));
-                            } else {
-                                // prior versions of the refresh token are not version-prepended, as nodes on those
-                                // versions don't expect it.
-                                // Such nodes might exist in a mixed cluster during a rolling upgrade.
-                                listener.onResponse(new CreateTokenResult(versionedAccessToken, refreshToken, authentication));
-                            }
+                            String returnedAccessToken = prependVersionAndEncodeAccessToken(tokenVersion, accessToken);
+                            listener.onResponse(new CreateTokenResult(returnedAccessToken, returnedRefreshToken, authentication));
                         } else {
                             listener.onFailure(
                                 traceLog("create token", new ElasticsearchException("failed to create token document [{}]", indexResponse))
@@ -542,13 +534,8 @@ public final class TokenService {
                     return;
                 }
                 final String accessToken = in.readString();
-                // TODO Remove this conditional after backporting to 7.x
-                if (version.onOrAfter(VERSION_HASHED_TOKENS)) {
-                    final String userTokenId = hashTokenString(accessToken);
-                    getUserTokenFromId(userTokenId, version, listener);
-                } else {
-                    getUserTokenFromId(accessToken, version, listener);
-                }
+                final String userTokenId = hashTokenString(accessToken);
+                getUserTokenFromId(userTokenId, version, listener);
             } else {
                 // The token was created in a < VERSION_ACCESS_TOKENS_UUIDS cluster so we need to decrypt it to get the tokenId
                 if (in.available() < LEGACY_MINIMUM_BYTES) {
@@ -578,7 +565,6 @@ public final class TokenService {
                         } else {
                             // could happen with a token that is not ours
                             listener.onResponse(null);
-                            return;
                         }
                     }, listener::onFailure));
                 } else {

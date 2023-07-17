@@ -50,7 +50,7 @@ public class DeleteSynonymRuleActionResponseSerializingTests extends AbstractWir
         );
         ReloadAnalyzersResponse reloadAnalyzersResponse = new ReloadAnalyzersResponse(10, 5, 0, null, reloadedIndicesNodes);
         AcknowledgedResponse acknowledgedResponse = AcknowledgedResponse.of(true);
-        DeleteSynonymsAction.Response response = new DeleteSynonymsAction.Response(acknowledgedResponse, reloadAnalyzersResponse);
+        DeleteSynonymRuleAction.Response response = new DeleteSynonymRuleAction.Response(acknowledgedResponse, reloadAnalyzersResponse);
 
         String output = Strings.toString(response);
         assertEquals(XContentHelper.stripWhitespace("""

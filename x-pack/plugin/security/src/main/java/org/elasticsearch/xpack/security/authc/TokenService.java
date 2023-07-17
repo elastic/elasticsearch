@@ -387,7 +387,7 @@ public final class TokenService {
                     accessTokenToStore = null;
                     if (refreshTokenBytes != null) {
                         assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
-                        refreshTokenToStore = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(refreshTokenBytes));
+                        refreshTokenToStore = hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(refreshTokenBytes));
                         refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes);
                     } else {
                         refreshTokenToStore = refreshTokenToReturn = null;

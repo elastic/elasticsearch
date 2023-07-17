@@ -28,6 +28,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
@@ -49,6 +50,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntConsumer;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSeek;
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSlice;
@@ -69,6 +72,11 @@ public class IndexDirectory extends FilterDirectory {
      * the reference to hold the file for the time to execute a read operation.
      */
     private final Map<String, LocalFileRef> localFiles = new HashMap<>();
+
+    /**
+     * An estimation of local non-uploaded files on disk. It does not include deleted files.
+     */
+    private final AtomicLong estimatedSize = new AtomicLong();
 
     public IndexDirectory(Directory in, SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
         super(in);
@@ -108,6 +116,13 @@ public class IndexDirectory extends FilterDirectory {
         return cacheDirectory.fileLength(name);
     }
 
+    /**
+     * @return an estimate of the cumulative size of local non-uploaded files on disk
+     */
+    public long estimateSizeInBytes() {
+        return estimatedSize.get();
+    }
+
     @Override
     public IndexOutput createOutput(final String name, final IOContext context) throws IOException {
         return localFile(super.createOutput(name, context));
@@ -118,7 +133,7 @@ public class IndexDirectory extends FilterDirectory {
         return localFile(super.createTempOutput(prefix, suffix, context));
     }
 
-    private IndexOutput localFile(final IndexOutput output) throws IOException {
+    private IndexOutput localFile(IndexOutput output) throws IOException {
         boolean success = false;
         try {
             final String name = output.getName();
@@ -129,6 +144,7 @@ public class IndexDirectory extends FilterDirectory {
                 }
             }
             logger.trace("{} local file [{}] created", cacheDirectory.getShardId(), name);
+            output = new BytesSizeIndexOutput(output, estimatedSize::addAndGet);
             success = true;
             return output;
         } finally {
@@ -315,10 +331,23 @@ public class IndexDirectory extends FilterDirectory {
         @Override
         protected void closeInternal() {
             final String name = this.name;
+            long length = -1L;
             try {
-                logger.trace("{} deleting file {} from disk", cacheDirectory.getShardId(), name);
+                length = in.fileLength(name);
+                logger.trace("{} deleting file {} ({} bytes) from disk", cacheDirectory.getShardId(), name, length);
                 in.deleteFile(name);
+
+                var size = estimatedSize.addAndGet(-length);
+                assert size >= 0L : "directory estimated size cannot be negative: " + size;
             } catch (IOException e) {
+                logger.warn(
+                    "{} unable to delete local file [{}] of {} bytes size from disk (the file may or may not still exist on disk),"
+                        + " directory size will probably now diverge from real directory disk usage",
+                    cacheDirectory.getShardId(),
+                    name,
+                    (length == -1L ? "unknown" : length),
+                    e
+                );
                 throw new UncheckedIOException(e);
             }
         }
@@ -601,6 +630,28 @@ public class IndexDirectory extends FilterDirectory {
                 slice = new GenerationalDocsValuesIndexInput(sliceDescription, slice, localFile);
             }
             return slice;
+        }
+    }
+
+    private static class BytesSizeIndexOutput extends FilterIndexOutput {
+
+        private final IntConsumer consumer;
+
+        BytesSizeIndexOutput(IndexOutput out, IntConsumer consumer) {
+            super("BytesSizeIndexOutput(" + out.getName() + ')', out);
+            this.consumer = Objects.requireNonNull(consumer);
+        }
+
+        @Override
+        public void writeByte(byte b) throws IOException {
+            super.writeByte(b);
+            consumer.accept(1);
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) throws IOException {
+            super.writeBytes(b, offset, length);
+            consumer.accept(length);
         }
     }
 

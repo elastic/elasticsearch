@@ -335,7 +335,13 @@ public class DownsampleActionIT extends ESRestTestCase {
 
     public static String getRollupIndexName(RestClient client, String originalIndexName, DateHistogramInterval fixedInterval)
         throws IOException {
-        String endpoint = "/" + DownsampleAction.DOWNSAMPLED_INDEX_PREFIX + "*-" + originalIndexName + "-" + fixedInterval;
+        String endpoint = "/"
+            + DownsampleAction.DOWNSAMPLED_INDEX_PREFIX
+            + "*-"
+            + originalIndexName
+            + "-"
+            + fixedInterval
+            + "/?expand_wildcards=all";
         Response response = client.performRequest(new Request("GET", endpoint));
         Map<String, Object> asMap = responseAsMap(response);
         if (asMap.size() == 1) {

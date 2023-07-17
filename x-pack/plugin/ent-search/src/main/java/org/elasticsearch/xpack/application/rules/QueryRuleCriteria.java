@@ -181,25 +181,34 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
     public boolean isMatch(String matchString, CriteriaType matchType) {
         if (criteriaValue instanceof String criteriaValueString) {
-            switch (matchType) {
-                case EXACT -> {
-                    return criteriaValueString.equals(matchString);
-                }
-                case PREFIX -> {
-                    return matchString.startsWith(criteriaValueString);
-                }
-                case SUFFIX -> {
-                    return matchString.endsWith(criteriaValueString);
-                }
-                case CONTAINS -> {
-                    return matchString.contains(criteriaValueString);
-                }
-                default -> {
-                    return false;
-                }
-            }
+            return switch (matchType) {
+                case EXACT -> criteriaValueString.equals(matchString);
+                case PREFIX -> matchString.startsWith(criteriaValueString);
+                case SUFFIX -> matchString.endsWith(criteriaValueString);
+                case CONTAINS -> matchString.contains(criteriaValueString);
+            };
+        } else if (criteriaValue instanceof Number criteriaValueNumber) {
+            return switch (matchType) {
+                case EXACT -> matchStringEqualsNumber(criteriaValueNumber, matchString);
+                case PREFIX, SUFFIX, CONTAINS -> throw new IllegalStateException(
+                    "Cannot use " + matchType + " with a numeric criteria value"
+                );
+            };
         }
 
         return false;
     }
+
+    private boolean matchStringEqualsNumber(Number criteriaValue, String matchString) {
+        return switch (criteriaValue.getClass().getSimpleName()) {
+            case "Integer" -> criteriaValue.intValue() == Integer.parseInt(matchString);
+            case "Long" -> criteriaValue.longValue() == Long.parseLong(matchString);
+            case "Float" -> criteriaValue.floatValue() == Float.parseFloat(matchString);
+            case "Double" -> criteriaValue.doubleValue() == Double.parseDouble(matchString);
+            case "Byte" -> criteriaValue.byteValue() == Byte.parseByte(matchString);
+            case "Short" -> criteriaValue.shortValue() == Short.parseShort(matchString);
+            default -> false;
+        };
+    }
+
 }

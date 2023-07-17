@@ -11,9 +11,6 @@ import org.apache.lucene.search.Collector;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.query.CollectorResult;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
-import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.SingleThreadCollectorManager;
 
@@ -55,12 +52,7 @@ public class AggregationPhase {
         } else {
             collector = bucketCollector.asCollector();
         }
-        if (context.getProfilers() != null) {
-            InternalProfileCollector profileCollector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION);
-            context.aggregations().registerAggsCollectorManager(new InternalProfileCollectorManager(profileCollector));
-        } else {
-            context.aggregations().registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
-        }
+        context.aggregations().registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
     }
 
     private static List<Runnable> getCancellationChecks(SearchContext context) {

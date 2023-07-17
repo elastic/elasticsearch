@@ -789,6 +789,14 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         }
     }
 
+    /**
+     * The format class for a system index.
+     *
+     * @param version An integer version number. Newer versions must have higher values than
+     *                older versions.
+     * @param hash A hash of the descriptor's settings and mappings. The hash number for a version
+     *             should not change; if a new hash is required, the version should be incremented.
+     */
     public record IndexFormat(int version, String hash) {}
 
     /**

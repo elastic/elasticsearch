@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -23,9 +24,14 @@ public class TransportListQueryRulesetsAction extends HandledTransportAction<
     protected final QueryRulesIndexService systemIndexService;
 
     @Inject
-    public TransportListQueryRulesetsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+    public TransportListQueryRulesetsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        Client client
+    ) {
         super(ListQueryRulesetsAction.NAME, transportService, actionFilters, ListQueryRulesetsAction.Request::new);
-        this.systemIndexService = new QueryRulesIndexService(client);
+        this.systemIndexService = new QueryRulesIndexService(client, clusterService.getClusterSettings());
     }
 
     @Override

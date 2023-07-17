@@ -58,7 +58,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
                 includeDefaults = in.readBoolean();
             } else {
                 includeDefaults = false;
@@ -69,7 +69,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(name);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
                 out.writeBoolean(includeDefaults);
             }
         }
@@ -123,7 +123,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public Response(StreamInput in) throws IOException {
             super(in);
             indexTemplates = in.readMap(ComposableIndexTemplate::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
                 rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
             } else {
                 rolloverConfiguration = null;
@@ -147,7 +147,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(indexTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
         }

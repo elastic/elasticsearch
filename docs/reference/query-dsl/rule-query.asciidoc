@@ -73,7 +73,6 @@ GET /_search
 (Required, string) <<mapping-id-field, Document IDs>> <<query-rules-apis, query ruleset>> ID with query-based rules to match and apply as applicable.
 `match_criteria`::
 (Required, object) Defines the match criteria to apply to rules in the given query ruleset.
-
 The following `match_criteria` are supported:
 +
 --

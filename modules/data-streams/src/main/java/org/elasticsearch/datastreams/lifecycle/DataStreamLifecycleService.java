@@ -77,7 +77,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     public static final String DATA_STREAM_LIFECYCLE_POLL_INTERVAL = "data_streams.lifecycle.poll_interval";
     public static final Setting<TimeValue> DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING = Setting.timeSetting(
         DATA_STREAM_LIFECYCLE_POLL_INTERVAL,
-        TimeValue.timeValueMinutes(10),
+        TimeValue.timeValueMinutes(5),
         TimeValue.timeValueSeconds(1),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

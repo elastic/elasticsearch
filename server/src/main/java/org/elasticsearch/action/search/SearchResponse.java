@@ -598,6 +598,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 builder.field(TOTAL_FIELD.getPreferredName(), total);
                 builder.field(SUCCESSFUL_FIELD.getPreferredName(), getSuccessful());
                 builder.field(SKIPPED_FIELD.getPreferredName(), getSkipped());
+                if (clusterInfo.size() > 0) {
+                    builder.startObject("details");
+                    for (Cluster cluster : clusterInfo.values()) {
+                        cluster.toXContent(builder, params);
+                    }
+                    builder.endObject();
+                }
                 builder.endObject();
             }
             return builder;

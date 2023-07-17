@@ -8,6 +8,7 @@
 package org.elasticsearch.blobcache.shared;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -32,7 +33,7 @@ public class SharedBytesTests extends ESTestCase {
                 nodeEnv,
                 ignored -> {},
                 ignored -> {},
-                randomBoolean()
+                IOUtils.WINDOWS == false && randomBoolean()
             );
             final var sharedBytesPath = nodeEnv.nodeDataPaths()[0].resolve("shared_snapshot_cache");
             assertTrue(Files.exists(sharedBytesPath));

@@ -12,8 +12,8 @@ attributes. <<index-lifecycle-management, Index lifecycle management>> uses filt
 on custom node attributes to determine how to reallocate shards when moving
 between phases.
 
-The `cluster.routing.allocation` settings are dynamic, enabling live indices to
-be moved from one set of nodes to another. Shards are only relocated if it is
+The `cluster.routing.allocation` settings are dynamic, enabling existing indices to
+be moved immediately from one set of nodes to another. Shards are only relocated if it is
 possible to do so without breaking another routing constraint, such as never
 allocating a primary and replica shard on the same node.
 

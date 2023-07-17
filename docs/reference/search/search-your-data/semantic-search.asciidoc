@@ -26,7 +26,7 @@ an NLP model, to writing queries.
 === Select an NLP model
 
 {es} offers the usage of a 
-{ml-docs}ml-nlp-model-ref.html#ml-nlp-model-ref-text-embedding[wide range of NLP models], 
+{ml-docs}/ml-nlp-model-ref.html#ml-nlp-model-ref-text-embedding[wide range of NLP models], 
 including both dense and sparse vector models. Your choice of the language model 
 is critical for implementing semantic search successfully.
 
@@ -38,7 +38,7 @@ However, the model training process requires a team of data scientists and ML
 experts, making it expensive and time-consuming.
 
 To address this issue, Elastic provides a pre-trained representational model 
-called {ml-docs}ml-nlp-elser.html[Elastic Learned Sparse EncodeR (ELSER)]. 
+called {ml-docs}/ml-nlp-elser.html[Elastic Learned Sparse EncodeR (ELSER)]. 
 ELSER, currently available only for English, is an out-of-domain sparse vector 
 model that does not require fine-tuning. This adaptability makes it suitable for 
 various NLP use cases out of the box. Unless you have a team of ML specialists, 

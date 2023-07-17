@@ -9,7 +9,6 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.transport.TransportRequestOptions;
 
 /**
  * A generic action. Should strive to make it a singleton.

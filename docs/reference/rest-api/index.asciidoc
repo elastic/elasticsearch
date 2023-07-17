@@ -38,6 +38,7 @@ not be included yet.
 * <<ml-df-trained-models-apis,{ml-cap} trained model APIs>>
 * <<migration-api,Migration APIs>>
 * <<node-lifecycle-api,Node lifecycle API>>
+* <<query-rules-apis,Query rules APIs>>
 * <<indices-reload-analyzers,Reload search analyzers API>>
 * <<repositories-metering-apis,Repositories metering APIs>>
 * <<rollup-apis,Rollup APIs>>
@@ -82,6 +83,7 @@ include::{es-repo-dir}/ml/df-analytics/apis/index.asciidoc[]
 include::{es-repo-dir}/ml/trained-models/apis/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]
 include::{es-repo-dir}/shutdown/apis/shutdown-api.asciidoc[]
+include::{es-repo-dir}/query-rules/apis/index.asciidoc[]
 include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
 include::{es-repo-dir}/repositories-metering-api/repositories-metering-apis.asciidoc[]
 include::{es-repo-dir}/rollup/rollup-apis.asciidoc[]

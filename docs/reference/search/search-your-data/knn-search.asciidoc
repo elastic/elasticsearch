@@ -20,9 +20,11 @@ Common use cases for kNN include:
 === Prerequisites
 
 * To run a kNN search, you must be able to convert your data into meaningful
-vector values. You create these vectors outside of {es} and add them to
-documents as <<dense-vector,`dense_vector`>> field values. Queries are
-represented as vectors with the same dimension.
+vector values. You can
+{ml-docs}/ml-nlp-text-emb-vector-search-example.html[create these vectors using
+a natural language processing (NLP) model in {es}], or generate them outside
+{es}. Vectors can be added to documents as <<dense-vector,`dense_vector`>> field
+values. Queries are represented as vectors with the same dimension.
 +
 Design your vectors so that the closer a document's vector is to a query vector,
 based on a similarity metric, the better its match.
@@ -357,8 +359,8 @@ the dense vectors from the input data,
 * the text embedding NLP model deployment must be started.
 =====================
 
-Reference the deployed text embedding model in the `query_vector_builder` object
-and provide the search query as `model_text`:
+Reference the deployed text embedding model or the model deployment in the 
+`query_vector_builder` object and provide the search query as `model_text`:
 
 [source,js]
 ----
@@ -383,7 +385,8 @@ and provide the search query as `model_text`:
 <1> The {nlp} task to perform. It must be `text_embedding`.
 <2> The ID of the text embedding model to use to generate the dense vectors from
 the query string. Use the same model that generated the embeddings from the
-input text in the index you search against.
+input text in the index you search against. You can use the value of the 
+`deployment_id` instead in the `model_id` argument. 
 <3> The query string from which the model generates the dense vector
 representation.
 

@@ -262,13 +262,13 @@ public class Exporters extends AbstractLifecycleComponent {
         if (this.lifecycleState() != Lifecycle.State.STARTED) {
             listener.onFailure(new ExportException("Export service is not started"));
         } else if (docs != null && docs.size() > 0) {
-            wrapExportBulk(ActionListener.wrap(bulk -> {
+            wrapExportBulk(listener.delegateFailureAndWrap((l, bulk) -> {
                 if (bulk != null) {
-                    doExport(bulk, docs, listener);
+                    doExport(bulk, docs, l);
                 } else {
-                    listener.onResponse(null);
+                    l.onResponse(null);
                 }
-            }, listener::onFailure));
+            }));
         } else {
             listener.onResponse(null);
         }

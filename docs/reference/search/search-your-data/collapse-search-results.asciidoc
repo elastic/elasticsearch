@@ -267,7 +267,7 @@ GET /my-index-000001/_search
                 "value" : 1,
                 "relation" : "eq"
               },
-              "max_score" : null,
+              "max_score" : 0.5753642,
               "hits" : [
                 {
                   "_index" : "my-index-000001",
@@ -311,3 +311,9 @@ GET /my-index-000001/_search
   }
 }
 ----
+
+[discrete]
+=== Track Scores
+
+When `collapse` is used with `sort` on a field, scores are not computed.
+Setting `track_scores` to true instructs {es} to compute and track scores.

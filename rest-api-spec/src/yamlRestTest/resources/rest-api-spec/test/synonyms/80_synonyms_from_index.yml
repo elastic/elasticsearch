@@ -1,0 +1,189 @@
+setup:
+  - skip:
+      version: " - 8.9.99"
+      reason: Loading synonyms from index is introduced in 8.10.0
+
+  # Create a new synonyms set
+  - do:
+      synonyms.put:
+        synonyms_set: set1
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "synonym-rule-1"
+            - synonyms: "bye => goodbye"
+              id: "synonym-rule-2"
+
+  # Create an index with synonym_filter that uses that synonyms set
+  - do:
+      indices.create:
+        index: my_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+            analysis:
+              filter:
+                my_synonym_filter:
+                  type: synonym
+                  synonyms_set: set1
+                  updateable : true
+              analyzer:
+                my_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, my_synonym_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: my_analyzer
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "my_index", "_id": "1"}}'
+          - '{"my_field": "hello"}'
+          - '{"index": {"_index": "my_index", "_id": "2"}}'
+          - '{"my_field": "goodbye"}'
+---
+"Load synonyms from index for an analyzer":
+
+  # Confirm that synonyms from the synonyms set are used
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: hi
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: bye
+  - match: { hits.total.value: 1 }
+
+---
+"Update the synonym set and auto-reload analyzer":
+  - do:
+      synonyms.put:
+        synonyms_set: set1
+        body:
+          synonyms_set:
+            - synonyms: "hello, salute"
+            - synonyms: "ciao => goodbye"
+  - match: { result: "updated" }
+  - gte: { reload_analyzers_details._shards.total: 1 }
+  - match: { reload_analyzers_details.reload_details.0.index: "my_index" }
+  - match: { reload_analyzers_details.reload_details.0.reloaded_analyzers.0 : "my_analyzer" }
+
+  # Confirm that the index analyzers are reloaded
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: salute
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: ciao
+  - match: { hits.total.value: 1 }
+
+---
+"Update a single synonym rule and auto-reload analyzer":
+  - do:
+      synonym_rule.put:
+        synonyms_set: set1
+        synonym_rule: "synonym-rule-1"
+        body:
+          synonyms: "hello, hola"
+  - match: { result: "updated" }
+  - gte: { reload_analyzers_details._shards.total: 1 }
+  - match: { reload_analyzers_details.reload_details.0.index: "my_index" }
+  - match: { reload_analyzers_details.reload_details.0.reloaded_analyzers.0 : "my_analyzer" }
+
+  # Confirm that the index analyzers are reloaded
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: hola
+  - match: { hits.total.value: 1 }
+
+  # Other synonym rules are unchanged
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: bye
+  - match: { hits.total.value: 1 }
+
+  - do:
+      indices.close:
+        index: my_index
+
+  - do:
+      indices.open:
+        index: my_index
+
+  # Confirm that the index analyzers are reloaded
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: hola
+  - match: { hits.total.value: 1 }
+
+---
+"Fail loading synonyms from index if synonyms_set doesn't exist":
+  - do:
+      indices.create:
+        index: another_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+            analysis:
+              filter:
+                my_synonym_filter:
+                  type: synonym
+                  synonyms_set: set_missing
+                  updateable: true
+              analyzer:
+                my_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, my_synonym_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: my_analyzer
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: false }

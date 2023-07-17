@@ -598,7 +598,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return boundedBy(2 * allocatedProcessors, 2, Integer.MAX_VALUE);
     }
 
-    static int oneEighthAllocatedProcessors(final int allocatedProcessors) {
+    public static int oneEighthAllocatedProcessors(final int allocatedProcessors) {
         return boundedBy(allocatedProcessors / 8, 1, Integer.MAX_VALUE);
     }
 

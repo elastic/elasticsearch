@@ -42,18 +42,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class HealthPeriodicLogger implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
     public static final String HEALTH_FIELD_PREFIX = "elasticsearch.health";
 
-    public static final String HEALTH_PERIODIC_LOGGER_POLL_INTERVAL = "health.periodic_logger.poll_interval";
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
-        HEALTH_PERIODIC_LOGGER_POLL_INTERVAL,
+        "health.periodic_logger.poll_interval",
         TimeValue.timeValueSeconds(60),
         TimeValue.timeValueSeconds(15),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    public static final String HEALTH_PERIODIC_LOGGER_ENABLED = "health.periodic_logger.enabled";
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
-        HEALTH_PERIODIC_LOGGER_ENABLED,
+        "health.periodic_logger.enabled",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

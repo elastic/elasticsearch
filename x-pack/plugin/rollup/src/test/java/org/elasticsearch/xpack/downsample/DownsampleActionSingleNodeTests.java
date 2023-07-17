@@ -1466,8 +1466,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         }).start();
 
         assertTrue(rollupComplete.await(30, TimeUnit.SECONDS));
-        assertFalse(firstFailed.get() && secondFailed.get());
-        assertTrue(firstFailed.get() || secondFailed.get());
+        assertTrue(firstFailed.get() ^ secondFailed.get());
         assertRollupIndex(sourceIndex, targetIndex, config);
     }
 }

@@ -338,11 +338,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                         public void onResponse(
                                             PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask
                                         ) {
-                                            logger.info("onResponse for " + params.shardId());
+                                            logger.info(
+                                                "Downsampling task [" + persistentTask + " completed for shard " + params.shardId()
+                                            );
                                             if (countDown.decrementAndGet() != 0) {
                                                 return;
                                             }
-                                            logger.info("all shard level downsampling is done");
+                                            logger.info("All " + numberOfShards + " downsampling tasks completed");
 
                                             // 4. Make rollup index read-only and set the correct number of replicas
                                             final Settings.Builder settings = Settings.builder()

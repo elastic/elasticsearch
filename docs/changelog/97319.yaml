@@ -1,0 +1,20 @@
+pr: 97319
+summary: Change pre-configured and cached analyzer components to use IndexVersion instead of Version
+area: "Analysis"
+type: breaking-java
+breaking: "Java API"
+issues: []
+highlight:
+  title: Change pre-configured and cached analyzer components to use IndexVersion instead of Version
+  body: |-
+    As part of ongoing refactoring work, we are separating out various component versions into their own types.
+    For this, we have introduced a new `IndexVersion` type to represent the version of index data and metadata.
+
+    This PR changes the types used to obtain pre-configured components from Version to IndexVersion,
+    with corresponding changes to method names.
+
+    Prior to 8.10, there is a one-to-one mapping between node version and index version, with corresponding constants
+    in the IndexVersion class.
+    Starting in 8.10, IndexVersion is versioned independently of node version, and will be a simple incrementing number.
+    For more information on how to use IndexVersion and other version types, please see the contributing guide.
+  notable: false

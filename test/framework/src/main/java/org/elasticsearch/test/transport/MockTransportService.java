@@ -125,10 +125,19 @@ public class MockTransportService extends TransportService {
     }
 
     public static TcpTransport newMockTransport(Settings settings, TransportVersion version, ThreadPool threadPool) {
-        settings = Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build();
         SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
         var namedWriteables = CollectionUtils.concatLists(searchModule.getNamedWriteables(), ClusterModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+        return newMockTransport(settings, version, threadPool, namedWriteableRegistry);
+    }
+
+    public static TcpTransport newMockTransport(
+        Settings settings,
+        TransportVersion version,
+        ThreadPool threadPool,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
+        settings = Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build();
         return new Netty4Transport(
             settings,
             version,
@@ -454,9 +463,12 @@ public class MockTransportService extends TransportService {
      * @param duration the amount of time to delay sending and connecting.
      */
     public void addUnresponsiveRule(TransportAddress transportAddress, final TimeValue duration) {
-        final long startTime = System.currentTimeMillis();
+        final long startTimeInMillis = threadPool.relativeTimeInMillis();
 
-        Supplier<TimeValue> delaySupplier = () -> new TimeValue(duration.millis() - (System.currentTimeMillis() - startTime));
+        Supplier<TimeValue> delaySupplier = () -> {
+            long elapsed = threadPool.relativeTimeInMillis() - startTimeInMillis;
+            return new TimeValue(Math.max(duration.millis() - elapsed, 0));
+        };
 
         transport().addConnectBehavior(transportAddress, new StubbableTransport.OpenConnectionBehavior() {
             private CountDownLatch stopLatch = new CountDownLatch(1);
@@ -675,7 +687,7 @@ public class MockTransportService extends TransportService {
 
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
-        super.openConnection(node, connectionProfile, listener.delegateFailure((l, connection) -> {
+        super.openConnection(node, connectionProfile, listener.safeMap(connection -> {
             synchronized (openConnections) {
                 openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
                 connection.addCloseListener(ActionListener.running(() -> {
@@ -692,7 +704,7 @@ public class MockTransportService extends TransportService {
                     }
                 }));
             }
-            l.onResponse(connection);
+            return connection;
         }));
     }
 

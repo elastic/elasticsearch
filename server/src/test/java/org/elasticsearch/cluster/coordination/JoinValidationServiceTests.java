@@ -117,7 +117,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                                         case JoinValidationService.JOIN_VALIDATE_ACTION_NAME -> TransportResponse.Empty.INSTANCE;
                                         case TransportService.HANDSHAKE_ACTION_NAME -> new TransportService.HandshakeResponse(
                                             Version.CURRENT,
-                                            Build.CURRENT.hash(),
+                                            Build.current().hash(),
                                             node,
                                             ClusterName.DEFAULT
                                         );

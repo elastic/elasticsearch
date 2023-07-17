@@ -143,6 +143,8 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         }
     }
 
+    public abstract String getMaskToken();
+
     abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override

@@ -53,6 +53,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
@@ -1827,6 +1828,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith("profiling-")) {
             return true;
         }
+        if (name.startsWith("elastic-connectors")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
@@ -1849,6 +1853,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "security-index-template":
             case "data-streams-mappings":
             case "ecs@dynamic_templates":
+            case "search-acl-filter":
                 return true;
             default:
                 return false;
@@ -1964,6 +1969,32 @@ public abstract class ESRestTestCase extends ESTestCase {
             Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
             if (minVersion == null || minVersion.after(nodeVersion)) {
                 minVersion = nodeVersion;
+            }
+        }
+        assertNotNull(minVersion);
+        return minVersion;
+    }
+
+    /**
+     * Returns the minimum index version among all nodes of the cluster
+     */
+    protected static IndexVersion minimumIndexVersion() throws IOException {
+        final Request request = new Request("GET", "_nodes");
+        request.addParameter("filter_path", "nodes.*.version,nodes.*.max_index_version");
+
+        final Response response = adminClient().performRequest(request);
+        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
+
+        IndexVersion minVersion = null;
+        for (Map.Entry<String, Object> node : nodes.entrySet()) {
+            Map<?, ?> nodeData = (Map<?, ?>) node.getValue();
+            String versionStr = (String) nodeData.get("max_index_version");
+            // fallback on version if index version is not there
+            IndexVersion indexVersion = versionStr != null
+                ? IndexVersion.fromId(Integer.parseInt(versionStr))
+                : IndexVersion.fromId(Version.fromString((String) nodeData.get("version")).id);
+            if (minVersion == null || minVersion.after(indexVersion)) {
+                minVersion = indexVersion;
             }
         }
         assertNotNull(minVersion);

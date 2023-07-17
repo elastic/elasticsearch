@@ -360,7 +360,8 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
 
         private boolean isVersionNumber(String name, int startIndex) {
             final int versionNumberLength = 3;
-            return name.substring(startIndex, startIndex + versionNumberLength).chars().allMatch(Character::isDigit);
+            String versionNumberCandidate = name.substring(startIndex, Math.min(startIndex + versionNumberLength, name.length()));
+            return versionNumberCandidate.length() == versionNumberLength && versionNumberCandidate.chars().allMatch(Character::isDigit);
         }
 
         public boolean isMatchWithoutGeneration(String indexName) {

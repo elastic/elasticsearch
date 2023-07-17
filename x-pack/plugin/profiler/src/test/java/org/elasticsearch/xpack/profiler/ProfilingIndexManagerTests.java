@@ -232,6 +232,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         assertTrue(idx.isMatchWithoutVersion(".profiling-test-v002"));
         assertFalse(idx.isMatchWithoutVersion(".profiling-testing-v001"));
         assertFalse(idx.isMatchWithoutVersion(".profiling-test-verbose"));
+        assertFalse(idx.isMatchWithoutVersion(".profiling-test-v"));
     }
 
     private ActionResponse verifyIndexInstalled(

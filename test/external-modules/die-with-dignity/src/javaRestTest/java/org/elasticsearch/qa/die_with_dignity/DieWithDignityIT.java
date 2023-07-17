@@ -26,13 +26,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.oneOf;
 
 public class DieWithDignityIT extends ESRestTestCase {
 
@@ -81,8 +76,7 @@ public class DieWithDignityIT extends ESRestTestCase {
 
     private void assertJvmArgs(long pid, Matcher<String> matcher) throws IOException {
         final String jcmdPath = PathUtils.get(System.getProperty("tests.runtime.java"), "bin/jcmd").toString();
-        final Process jcmdProcess = new ProcessBuilder()
-            .command(jcmdPath, Long.toString(pid), "VM.command_line")
+        final Process jcmdProcess = new ProcessBuilder().command(jcmdPath, Long.toString(pid), "VM.command_line")
             .redirectErrorStream(true)
             .start();
         List<String> outputLines = readLines(jcmdProcess.getInputStream());

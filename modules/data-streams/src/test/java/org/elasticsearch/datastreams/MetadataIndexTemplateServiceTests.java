@@ -192,12 +192,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testLifecycleResolution() {
         // No lifecycles result to {lifecycle: {} } for data streams
         {
-            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(createIndexTemplate(true,null), Map.of());
+            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(createIndexTemplate(true, null), Map.of());
             assertThat(result, equalTo(new DataStreamLifecycle()));
         }
         // No lifecycles result to {lifecycle: {} } for regular indices
         {
-            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(createIndexTemplate(false,null), Map.of());
+            DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(createIndexTemplate(false, null), Map.of());
             assertThat(result, nullValue());
         }
         // One lifecycle results to this lifecycle as the final
@@ -219,8 +219,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // If the lifecycle is opt-out for regular indices
         {
             DataStreamLifecycle result = MetadataIndexTemplateService.resolveLifecycle(
-                    createIndexTemplate(true, Template.NO_LIFECYCLE),
-                    Map.of()
+                createIndexTemplate(true, Template.NO_LIFECYCLE),
+                Map.of()
             );
             assertThat(result, nullValue());
         }

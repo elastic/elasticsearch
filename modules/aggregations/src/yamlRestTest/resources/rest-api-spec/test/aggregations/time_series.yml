@@ -320,9 +320,9 @@ setup:
         refresh: true
         body:
           - '{ "index": {} }'
-          - '{ "key": "10", "val": 1, "@timestamp": "2021-10-01T00:00:10Z" }'
+          - '{ "key": 10, "val": 1, "@timestamp": "2021-10-01T00:00:10Z" }'
           - '{ "index": {}}'
-          - '{ "key": "11", "val": 2, "@timestamp": "2021-10-01T00:00:00Z" }'
+          - '{ "key": 11, "val": 2, "@timestamp": "2021-10-01T00:00:00Z" }'
 
   - do:
       search:

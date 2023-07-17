@@ -160,7 +160,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
 
     // Introduced for stateless plugin
     public static final TransportVersion V_8_500_036 = registerTransportVersion(8_500_036, "3343c64f-d7ac-4f02-9262-3e1acfc56f89");
-    public static final TransportVersion V_8_500_037 = registerTransportVersion(8_500_035, "ec065a44-b468-4f8a-aded-7b90ca8d792b");
+    public static final TransportVersion V_8_500_037 = registerTransportVersion(8_500_037, "ec065a44-b468-4f8a-aded-7b90ca8d792b");
 
     private static class CurrentHolder {
         private static final TransportVersion CURRENT = findCurrent(V_8_500_037);

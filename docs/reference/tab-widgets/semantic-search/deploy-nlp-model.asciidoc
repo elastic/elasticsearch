@@ -1,7 +1,7 @@
 // tag::elser[]
 
 To deploy ELSER, refer to 
-{ml-docs}ml-nlp-elser.html#download-deploy-elser[Download and deploy ELSER].
+{ml-docs}/ml-nlp-elser.html#download-deploy-elser[Download and deploy ELSER].
 
 // end::elser[]
 
@@ -9,6 +9,6 @@ To deploy ELSER, refer to
 // tag::dense-vector[]
 
 To deploy a third-party text embedding model, refer to 
-{ml-docs}ml-nlp-text-emb-vector-search-example.html#ex-te-vs-deploy[Deploy a text embedding model].
+{ml-docs}/ml-nlp-text-emb-vector-search-example.html#ex-te-vs-deploy[Deploy a text embedding model].
 
 // end::dense-vector[]

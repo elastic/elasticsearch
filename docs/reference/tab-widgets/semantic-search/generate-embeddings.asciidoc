@@ -69,7 +69,7 @@ PUT _ingest/pipeline/text-embeddings
 
 To ingest data through the pipeline to generate text embeddings with your chosen 
 model, refer to the 
-{ml-docs}ml-nlp-text-emb-vector-search-example.html#ex-text-emb-ingest[Add the text embedding model to an inference ingest pipeline] 
+{ml-docs}/ml-nlp-text-emb-vector-search-example.html#ex-text-emb-ingest[Add the text embedding model to an inference ingest pipeline] 
 section. The example shows how to create the pipeline with the inference 
 processor and reindex your data through the pipeline. After you successfully 
 ingested documents by using the pipeline, your index will contain the text 

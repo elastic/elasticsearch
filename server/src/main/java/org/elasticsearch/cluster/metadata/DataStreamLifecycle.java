@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Holds the data stream lifecycle metadata that are configuring how a data stream is managed. Currently, it supports the following
@@ -295,6 +296,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
             public static final ParseField AFTER_FIELD = new ParseField("after");
             public static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
+            public static final ParseField TIMEOUT = new ParseField("timeout");
 
             private static final ConstructingObjectParser<Round, Void> PARSER = new ConstructingObjectParser<>(
                 "downsampling_round",
@@ -313,6 +315,11 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                     p -> new DateHistogramInterval(p.text()),
                     new ParseField(FIXED_INTERVAL_FIELD.getPreferredName()),
                     ObjectParser.ValueType.STRING
+                );
+                PARSER.declareString(
+                    optionalConstructorArg(),
+                    value -> TimeValue.parseTimeValue(value, TIMEOUT.getPreferredName()),
+                    TIMEOUT
                 );
             }
 

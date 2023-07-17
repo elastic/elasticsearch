@@ -10,6 +10,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -202,6 +203,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     // Event
     public static class Event implements Writeable, ToXContentObject {
 
+        public static Event MISSING = new Event("", "", BytesArray.EMPTY, null);
+
         private static final class Fields {
             static final String INDEX = GetResult._INDEX;
             static final String ID = GetResult._ID;
@@ -252,7 +255,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             this.fetchFields = fetchFields;
         }
 
-        public Event(StreamInput in) throws IOException {
+        private Event(StreamInput in) throws IOException {
             index = in.readString();
             id = in.readString();
             source = in.readBytesReference();
@@ -261,6 +264,11 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 fetchFields = null;
             }
+        }
+
+        public static Event readFrom(StreamInput in) throws IOException {
+            Event result = new Event(in);
+            return result.equals(MISSING) ? MISSING : result;
         }
 
         @Override
@@ -395,7 +403,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         @SuppressWarnings("unchecked")
         public Sequence(StreamInput in) throws IOException {
             this.joinKeys = (List<Object>) in.readGenericValue();
-            this.events = in.readList(Event::new);
+            this.events = in.readList(Event::readFrom);
         }
 
         public static Sequence fromXContent(XContentParser parser) {
@@ -417,7 +425,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             if (events.isEmpty() == false) {
                 builder.startArray(Fields.EVENTS);
                 for (Event event : events) {
-                    if (event == null) {
+                    if (event == null || event == Event.MISSING) {
                         builder.startObject();
                         builder.field("missing", true);
                         builder.endObject();
@@ -483,7 +491,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 totalHits = null;
             }
-            events = in.readBoolean() ? in.readList(Event::new) : null;
+            events = in.readBoolean() ? in.readList(Event::readFrom) : null;
             sequences = in.readBoolean() ? in.readList(Sequence::new) : null;
         }
 

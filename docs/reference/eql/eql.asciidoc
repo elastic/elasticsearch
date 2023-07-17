@@ -32,7 +32,7 @@ describe activity that goes beyond IOCs.
 
 With the exception of sample queries, EQL searches require that the searched
 data stream or index  contains a _timestamp_ field. By default, EQL uses the
-`@timestamp` field from the {ecs-ref}[Elastic Common Schema (ECS)]. 
+`@timestamp` field from the {ecs-ref}[Elastic Common Schema (ECS)].
 
 EQL searches also require an _event category_ field, unless you use the
 <<eql-syntax-match-any-event-category,`any` keyword>> to search for  documents
@@ -555,9 +555,9 @@ GET /my-index*/_eql/search
 {
   "query": """
     sample by host
-      [any where uptime > 0] 
-      [any where port > 100] 
-      [any where bool == true] 
+      [any where uptime > 0]
+      [any where port > 100]
+      [any where bool == true]
   """
 }
 ----
@@ -691,7 +691,7 @@ each of the filters. Events are returned in the order of the filters they match:
   }
 }
 ----
-// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/97646]
 
 <1> The events in the first sample have a value of `doom` for `host`.
 <2> This event matches the first filter.
@@ -854,7 +854,7 @@ By default, the response of a sample query contains up to 10 samples, with one
 sample per unique set of join keys. Use the `size` parameter to get a smaller or
 larger set of samples. To retrieve more than one sample per set of join keys,
 use the `max_samples_per_key` parameter. Pipes are not supported for sample
-queries. 
+queries.
 
 [source,console]
 ----

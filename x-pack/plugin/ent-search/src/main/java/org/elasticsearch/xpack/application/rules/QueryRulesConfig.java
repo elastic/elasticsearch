@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.application.rules;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 
 import java.util.List;
 
@@ -36,6 +38,12 @@ public class QueryRulesConfig {
     public static List<Setting<?>> getSettings() {
         return List.of(MAX_RULE_LIMIT_SETTING);
     }
+
+    public static final LicensedFeature.Momentary QUERY_RULES_LICENSE_FEATURE = LicensedFeature.momentary(
+        null,
+        "query_rules",
+        License.OperationMode.PLATINUM
+    );
 
     private QueryRulesConfig() {}
 

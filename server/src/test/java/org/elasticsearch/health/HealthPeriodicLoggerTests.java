@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -35,7 +34,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -78,9 +76,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     public void setupServices() {
         threadPool = new TestThreadPool(getTestName());
 
-        Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        Settings settings = Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build();
-        this.clusterSettings = new ClusterSettings(settings, builtInClusterSettings);
+        this.clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         this.clusterService = createClusterService(this.threadPool, clusterSettings);
         this.client = getTestClient();
     }
@@ -479,9 +475,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     }
 
     private HealthPeriodicLogger createAndInitHealthPeriodicLogger(ClusterService clusterService, HealthService testHealthService) {
-        Settings settings = Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build();
-        testHealthPeriodicLogger = new HealthPeriodicLogger(settings, clusterService, this.client, testHealthService);
+        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, this.client, testHealthService);
         testHealthPeriodicLogger.init();
+        clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
         return testHealthPeriodicLogger;
     }
 }

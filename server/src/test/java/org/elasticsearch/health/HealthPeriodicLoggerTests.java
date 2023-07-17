@@ -98,25 +98,6 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         client.close();
     }
 
-    private List<HealthIndicatorResult> getTestIndicatorResults() {
-        var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
-
-        return List.of(networkLatency, slowTasks, shardsAvailable);
-    }
-
-    private String makeHealthStatusString(String key) {
-        return String.format(Locale.ROOT, "%s.%s.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX, key);
-    }
-
-    private HealthPeriodicLogger createAndInitHealthPeriodicLogger(ClusterService clusterService, HealthService testHealthService) {
-        Settings settings = Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build();
-        testHealthPeriodicLogger = new HealthPeriodicLogger(settings, clusterService, this.client, testHealthService);
-        testHealthPeriodicLogger.init();
-        return testHealthPeriodicLogger;
-    }
-
     public void testConvertToLoggedFields() {
         var results = getTestIndicatorResults();
         var overallStatus = HealthStatus.merge(results.stream().map(HealthIndicatorResult::status));
@@ -485,4 +466,22 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
     }
 
+    private List<HealthIndicatorResult> getTestIndicatorResults() {
+        var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
+
+        return List.of(networkLatency, slowTasks, shardsAvailable);
+    }
+
+    private String makeHealthStatusString(String key) {
+        return String.format(Locale.ROOT, "%s.%s.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX, key);
+    }
+
+    private HealthPeriodicLogger createAndInitHealthPeriodicLogger(ClusterService clusterService, HealthService testHealthService) {
+        Settings settings = Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build();
+        testHealthPeriodicLogger = new HealthPeriodicLogger(settings, clusterService, this.client, testHealthService);
+        testHealthPeriodicLogger.init();
+        return testHealthPeriodicLogger;
+    }
 }

@@ -42,8 +42,11 @@ public class RollupShardTask extends AllocatedPersistentTask {
         RollupShardIndexerStatus.INITIALIZED
     );
     private final RollupBulkStats rollupBulkStats;
-    private final AtomicReference<RollupBeforeBulkInfo> lastBeforeBulkInfo = new AtomicReference<>(null);
-    private final AtomicReference<RollupAfterBulkInfo> lastAfterBulkInfo = new AtomicReference<>(null);
+    // Need to set initial values, because these atomic references can be read before bulk indexing started or when downsampling empty index
+    private final AtomicReference<RollupBeforeBulkInfo> lastBeforeBulkInfo = new AtomicReference<>(new RollupBeforeBulkInfo(0, 0, 0, 0));
+    private final AtomicReference<RollupAfterBulkInfo> lastAfterBulkInfo = new AtomicReference<>(
+        new RollupAfterBulkInfo(0, 0, 0, 0, false, 0)
+    );
 
     public RollupShardTask(
         long id,

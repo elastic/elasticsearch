@@ -86,6 +86,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
@@ -301,6 +302,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     final Index sourceIndex = sourceIndexMetadata.getIndex();
                     // NOTE: before we set the number of replicas to 0, as a result here we are
                     // only dealing with primary shards.
+                    final AtomicInteger countDown = new AtomicInteger(numberOfShards);
                     for (int shardNum = 0; shardNum < numberOfShards; shardNum++) {
                         final ShardId shardId = new ShardId(sourceIndex, shardNum);
                         final String persistentRollupTaskId = createRollupShardTaskId(
@@ -323,7 +325,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             ActionListener.wrap(
                                 startedTask -> persistentTasksService.waitForPersistentTaskCondition(startedTask.getId(), runningTask -> {
                                     if (runningTask == null) {
-                                        return false;
+                                        // NOTE: don't need to wait if the persistent task completed and was removed
+                                        return true;
                                     }
                                     RollupShardPersistentTaskState runningPersistentTaskState = (RollupShardPersistentTaskState) runningTask
                                         .getState();
@@ -335,6 +338,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                         public void onResponse(
                                             PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask
                                         ) {
+                                            logger.info("onResponse for " + params.shardId());
+                                            if (countDown.decrementAndGet() != 0) {
+                                                return;
+                                            }
+                                            logger.info("all shard level downsampling is done");
+
                                             // 4. Make rollup index read-only and set the correct number of replicas
                                             final Settings.Builder settings = Settings.builder()
                                                 .put(IndexMetadata.SETTING_BLOCKS_WRITE, true);
@@ -446,7 +455,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             final RollupShardPersistentTaskState existingPersistentTaskState = (RollupShardPersistentTaskState) existingPersistentTask
                 .getState();
             return existingPersistentTaskState.done();
-        }, request.getDownsampleConfig().getTimeout(), ActionListener.wrap(response -> {}, listener::onFailure));
+        },
+            request.getDownsampleConfig().getTimeout(),
+            ActionListener.wrap(response -> { throw new AssertionError("implement this"); }, listener::onFailure)
+        );
     }
 
     private static RollupShardTaskParams createRollupShardTaskParams(

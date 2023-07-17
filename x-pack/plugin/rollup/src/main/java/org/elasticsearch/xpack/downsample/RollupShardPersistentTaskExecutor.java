@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -54,13 +55,29 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
     @Override
     protected void nodeOperation(final AllocatedPersistentTask task, final RollupShardTaskParams params, final PersistentTaskState state) {
         // NOTE: query the downsampling target index so that we can start the downsampling task from the latest indexed tsid.
-        client.threadPool().executor(Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME).execute(() -> {
-            final SearchRequest searchRequest = new SearchRequest(params.rollupIndex());
-            searchRequest.source().sort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC).size(1);
-            searchRequest.preference("_shards:" + params.shardId().id());
-            client.search(searchRequest, ActionListener.wrap(searchResponse -> {
-                startRollupShardIndexer(task, params, searchResponse.getHits().getHits());
-            }, e -> startRollupShardIndexer(task, params, new SearchHit[] {})));
+        final SearchRequest searchRequest = new SearchRequest(params.rollupIndex());
+        searchRequest.source().sort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC).size(1);
+        searchRequest.preference("_shards:" + params.shardId().id());
+        client.search(
+            searchRequest,
+            ActionListener.wrap(
+                searchResponse -> fork(task, params, searchResponse.getHits().getHits()),
+                e -> fork(task, params, new SearchHit[] {})
+            )
+        );
+    }
+
+    private void fork(final AllocatedPersistentTask task, final RollupShardTaskParams params, final SearchHit[] lastRollupTsidHits) {
+        client.threadPool().executor(Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                task.markAsFailed(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                startRollupShardIndexer(task, params, lastRollupTsidHits);
+            }
         });
     }
 

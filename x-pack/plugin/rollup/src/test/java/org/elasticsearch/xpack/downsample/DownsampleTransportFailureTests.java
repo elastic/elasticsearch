@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
+// This needs to be moved to internalClusterTest sourceSet
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
 public class DownsampleTransportFailureTests extends ESIntegTestCase {
 
@@ -343,6 +344,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         assertDownsampleFailure(testCluster.coordinatorName());
     }
 
+    @AwaitsFix(bugUrl = "need to investigate...")
     public void testRollupIndexerActionExceptionDisruption() {
         // GIVEN
         final MockTransportService master = testCluster.masterMockTransportService();

@@ -55,7 +55,9 @@ public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShar
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ROLLUP_SHARD_INDEXER_STATUS.getPreferredName(), rollupShardIndexerStatus);
-        builder.field(TSID.getPreferredName(), tsid.utf8ToString());
+        if (tsid != null) {
+            builder.field(TSID.getPreferredName(), tsid.utf8ToString());
+        }
         return builder.endObject();
     }
 

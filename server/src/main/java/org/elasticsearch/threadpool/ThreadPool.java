@@ -189,7 +189,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.GENERIC,
             new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
         );
-        builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, new TaskTrackingConfig(0.1)));
+        builders.put(
+            Names.WRITE,
+            new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, new TaskTrackingConfig(true, 0.1))
+        );
         builders.put(
             Names.GET,
             new FixedExecutorBuilder(
@@ -270,7 +273,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.SYSTEM_WRITE,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, new TaskTrackingConfig(0.1))
+            new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, new TaskTrackingConfig(true, 0.1))
         );
         builders.put(
             Names.SYSTEM_CRITICAL_READ,
@@ -278,7 +281,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.SYSTEM_CRITICAL_WRITE,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, new TaskTrackingConfig(0.1))
+            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, new TaskTrackingConfig(true, 0.1))
         );
 
         for (final ExecutorBuilder<?> builder : customBuilders) {

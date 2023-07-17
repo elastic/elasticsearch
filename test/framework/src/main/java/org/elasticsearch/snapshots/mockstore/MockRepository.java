@@ -251,10 +251,12 @@ public class MockRepository extends FsRepository {
     }
 
     public void setRandomControlIOExceptionRate(double randomControlIOExceptionRate) {
+        logger.debug("Setting random control I/O exception rate to [{}]", randomControlIOExceptionRate);
         this.randomControlIOExceptionRate = randomControlIOExceptionRate;
     }
 
     public void setRandomDataFileIOExceptionRate(double randomDataFileIOExceptionRate) {
+        logger.debug("Setting data file I/O exception rate to [{}]", randomDataFileIOExceptionRate);
         this.randomDataFileIOExceptionRate = randomDataFileIOExceptionRate;
     }
 

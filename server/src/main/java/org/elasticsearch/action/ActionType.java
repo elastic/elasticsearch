@@ -42,13 +42,6 @@ public class ActionType<Response extends ActionResponse> {
         return responseReader;
     }
 
-    /**
-     * Optional request options for the action.
-     */
-    public TransportRequestOptions transportOptions() {
-        return TransportRequestOptions.EMPTY;
-    }
-
     @Override
     public boolean equals(Object o) {
         return o instanceof ActionType && name.equals(((ActionType<?>) o).name());

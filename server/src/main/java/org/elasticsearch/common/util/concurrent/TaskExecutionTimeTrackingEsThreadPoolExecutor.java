@@ -28,6 +28,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
     private final LongAdder totalExecutionTime = new LongAdder();
+    // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
@@ -86,10 +87,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
-        super.beforeExecute(t, r);
-        assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
-        final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
-        ongoingTasks.put(r, timedRunnable.getStartTimeNanos());
+        ongoingTasks.put(r, System.nanoTime());
     }
 
     @Override

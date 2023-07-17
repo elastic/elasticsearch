@@ -1,0 +1,39 @@
+++++
+<div class="tabs" data-tab-group="model">
+  <div role="tablist" aria-label="model">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="elser-tab-select-nlp-model"
+            id="elser-select-nlp-model">
+      ELSER
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="dense-vector-tab-select-nlp-model"
+            id="dense-vector-select-nlp-model">
+      Dense vector models
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="elser-tab-select-nlp-model"
+       aria-labelledby="elser-select-nlp-model">
+++++
+
+include::select-nlp-model.asciidoc[tag=elser]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="dense-vector-tab-select-nlp-model"
+       aria-labelledby="dense-vector-select-nlp-model"
+       hidden="">
+++++
+
+include::select-nlp-model.asciidoc[tag=dense-vector]
+
+++++
+  </div>
+</div>
+++++

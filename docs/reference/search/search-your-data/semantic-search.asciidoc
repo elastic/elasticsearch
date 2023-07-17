@@ -1,0 +1,44 @@
+[[semantic-search]]
+== Semantic search
+
+[discrete]
+[[semantic-search-select-nlp-model]]
+=== Select an NLP model
+
+include::{es-repo-dir}/tab-widgets/semantic-search/select-nlp-model-widget.asciidoc[]
+
+[discrete]
+[[semantic-search-deploy-nlp-model]]
+=== Deploy the model
+
+include::{es-repo-dir}/tab-widgets/semantic-search/deploy-nlp-model-widget.asciidoc[]
+
+[discrete]
+[[semantic-search-field-mappings]]
+=== Map a field for the text embeddings
+
+include::{es-repo-dir}/tab-widgets/semantic-search/field-mappings-widget.asciidoc[]
+
+[discrete]
+[[semantic-search-generate-embeddings]]
+=== Generate text embeddings
+
+include::{es-repo-dir}/tab-widgets/semantic-search/generate-embeddings-widget.asciidoc[]
+
+[discrete]
+[[semantic-search-search]]
+=== Search the data
+
+include::{es-repo-dir}/tab-widgets/semantic-search/search-widget.asciidoc[]
+
+[discrete]
+[[semantic-search-hybrid-search]]
+=== Beyond semantic search with hybrid search
+
+include::{es-repo-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc[]
+
+[discrete]
+[[semantic-search-read-more]]
+=== Read more
+
+include::semantic-search-elser.asciidoc[]

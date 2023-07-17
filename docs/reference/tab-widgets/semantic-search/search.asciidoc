@@ -1,0 +1,12 @@
+// tag::elser[]
+
+ELSER content placeholder
+
+// end::elser[]
+
+
+// tag::dense-vector[]
+
+Dense vector content placeholder
+
+// end::dense-vector[]

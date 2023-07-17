@@ -634,15 +634,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return evictedCount;
     }
 
-    /**
-     * Evicts all entries from the cache.
-     *
-     * @return The number of entries evicted from the keyMapping.
-     */
-    public int forceEvictAll() {
-        return forceEvict(entry -> true);
-    }
-
     // used by tests
     int getFreq(CacheFileRegion cacheFileRegion) {
         return keyMapping.get(cacheFileRegion.regionKey).freq;

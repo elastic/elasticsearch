@@ -18,7 +18,7 @@ public class AbstractLifecycleComponentTests extends ESTestCase {
 
         final var stage = new AtomicInteger();
 
-        final var component = new AbstractLifecycleComponent(){
+        final var component = new AbstractLifecycleComponent() {
             @Override
             protected void doStart() {
                 assertTrue(stage.compareAndSet(0, 1));
@@ -49,7 +49,7 @@ public class AbstractLifecycleComponentTests extends ESTestCase {
 
         final var stage = new AtomicInteger();
 
-        final var component = new AbstractLifecycleComponent(){
+        final var component = new AbstractLifecycleComponent() {
             @Override
             protected void doStart() {
                 assertTrue(stage.compareAndSet(0, 1));

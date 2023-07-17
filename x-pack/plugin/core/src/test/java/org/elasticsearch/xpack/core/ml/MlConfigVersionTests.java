@@ -309,9 +309,13 @@ public class MlConfigVersionTests extends ESTestCase {
         assertEquals(unknownVersion.id(), MlConfigVersion.CURRENT.id() + 1);
         assertEquals(unknownVersion.isLegacy(), false);
 
-        for (String version : new String[] { "9", "10.2", "7.17.2.99" }) {
+        for (String version : new String[] { "10.2", "7.17.2.99" }) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> MlConfigVersion.fromString(version));
-            assertEquals("Illegal version " + version, e.getMessage());
+            assertEquals("the version needs to contain major, minor, and revision, and optionally the build: " + version, e.getMessage());
         }
+
+        String version = "9";
+        Exception e = expectThrows(IllegalArgumentException.class, () -> MlConfigVersion.fromString(version));
+        assertEquals("Illegal version " + version, e.getMessage());
     }
 }

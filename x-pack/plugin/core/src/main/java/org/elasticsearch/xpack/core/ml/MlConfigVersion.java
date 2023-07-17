@@ -32,7 +32,7 @@ import java.util.TreeMap;
 /**
  * The version number associated with various ML features.
  * <p>
- * Prior to 8.18.0, the release {@link Version} was used everywhere. This class separates the ML config format version
+ * Prior to 8.10.0, the release {@link Version} was used everywhere. This class separates the ML config format version
  * from the running node version.
  * <p>
  * Each ML config version constant has an id number, which for versions prior to 8.10.0 is the same as the release version
@@ -354,20 +354,7 @@ public record MlConfigVersion(int id, boolean isLegacy) implements Comparable<Ml
             return CURRENT;
         }
         if (str.contains(".")) {
-            long count = str.chars().filter(ch -> ch == '.').count();
-            if (count != 2) {
-                throw new IllegalArgumentException("Illegal version " + str);
-            }
-            String major = str.substring(0, str.indexOf('.'));
-            str = str.substring(str.indexOf('.') + 1);
-            String minor = str.substring(0, str.indexOf('.'));
-            String patch = str.substring(str.indexOf('.') + 1);
-
-            int id = Integer.parseInt(major) * 1000000 + Integer.parseInt(minor) * 10000 + Integer.parseInt(patch) * 100 + 99;
-
-            MlConfigVersion version = MlConfigVersion.fromId(id, true);
-            return version;
-
+            return MlConfigVersion.fromVersion(Version.fromString(str));
         }
         int versionNum = Integer.parseInt(str);
         if (versionNum < V_10.id) {

@@ -1602,21 +1602,16 @@ public class MasterService extends AbstractLifecycleComponent {
                 assert executing.isEmpty() : executing;
                 final var entryCount = queueSize.getAndSet(0);
                 var taskCount = 0;
+                final var tasks = new ArrayList<ExecutionResult<T>>(entryCount);
                 for (int i = 0; i < entryCount; i++) {
                     final var entry = queue.poll();
                     assert entry != null;
                     final var task = entry.acquireForExecution();
                     if (task != null) {
                         taskCount += 1;
-                        executing.add(
-                            new Entry<>(
-                                entry.source(),
-                                new AtomicReference<>(task),
-                                entry.insertionIndex(),
-                                entry.insertionTimeMillis(),
-                                entry.storedContextSupplier(),
-                                null
-                            )
+                        executing.add(entry);
+                        tasks.add(
+                            new ExecutionResult<>(entry.source(), task, threadPool.getThreadContext(), entry.storedContextSupplier())
                         );
                     }
                 }
@@ -1625,17 +1620,6 @@ public class MasterService extends AbstractLifecycleComponent {
                     return;
                 }
                 final var finalTaskCount = taskCount;
-                final var tasks = new ArrayList<ExecutionResult<T>>(finalTaskCount);
-                for (final var entry : executing) {
-                    tasks.add(
-                        new ExecutionResult<>(
-                            entry.source(),
-                            entry.taskHolder().get(),
-                            threadPool.getThreadContext(),
-                            entry.storedContextSupplier()
-                        )
-                    );
-                }
                 ActionListener.run(ActionListener.runBefore(listener, () -> {
                     assert executing.size() == finalTaskCount;
                     executing.clear();

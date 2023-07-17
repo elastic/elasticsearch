@@ -50,6 +50,7 @@ import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
+import co.elastic.elasticsearch.stateless.upgrade.StatelessUpgrader;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyVotingOnlyInfoTransportAction;
@@ -308,6 +309,9 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             clusterService,
             memoryMetricsService
         );
+
+        StatelessUpgrader statelessUpgrader = new StatelessUpgrader(client, clusterService);
+        clusterService.addListener(statelessUpgrader);
 
         return List.of(
             objectStoreService,

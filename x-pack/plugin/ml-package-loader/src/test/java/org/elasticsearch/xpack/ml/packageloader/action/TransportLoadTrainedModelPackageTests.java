@@ -43,7 +43,14 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         var task = mock(Task.class);
         var client = mock(Client.class);
 
-        TransportLoadTrainedModelPackage.importModel(client, taskManager, createRequest(true), uploader, ActionListener.noop(), task);
+        TransportLoadTrainedModelPackage.importModel(
+            client,
+            taskManager,
+            createRequestWithWaiting(),
+            uploader,
+            ActionListener.noop(),
+            task
+        );
 
         var notificationArg = ArgumentCaptor.forClass(AuditMlNotificationAction.Request.class);
         verify(client).execute(eq(AuditMlNotificationAction.INSTANCE), notificationArg.capture(), any());
@@ -91,12 +98,9 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         ModelImporter uploader = createUploader(null);
 
         var responseRef = new AtomicReference<AcknowledgedResponse>();
-        var listener = ActionListener.wrap((AcknowledgedResponse response) -> {
-            assertThat(response, is(AcknowledgedResponse.TRUE));
-            responseRef.set(response);
-        }, e -> fail("received an exception: " + e.getMessage()));
+        var listener = ActionListener.wrap(responseRef::set, e -> fail("received an exception: " + e.getMessage()));
 
-        TransportLoadTrainedModelPackage.importModel(client, taskManager, createRequest(true), uploader, listener, task);
+        TransportLoadTrainedModelPackage.importModel(client, taskManager, createRequestWithWaiting(), uploader, listener, task);
         assertThat(responseRef.get(), is(AcknowledgedResponse.TRUE));
     }
 
@@ -109,7 +113,7 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         TransportLoadTrainedModelPackage.importModel(
             client,
             taskManager,
-            createRequest(false),
+            createRequestWithoutWaiting(),
             uploader,
             ActionListener.running(ESTestCase::fail),
             task
@@ -134,11 +138,11 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         ModelImporter uploader = createUploader(thrownException);
 
         var failureRef = new AtomicReference<Exception>();
-        var listener = ActionListener.wrap((AcknowledgedResponse response) -> {
-            assertThat(response, is(AcknowledgedResponse.TRUE));
-            fail("received a acknowledged response: " + response.toString());
-        }, failureRef::set);
-        TransportLoadTrainedModelPackage.importModel(client, taskManager, createRequest(true), uploader, listener, task);
+        var listener = ActionListener.wrap(
+            (AcknowledgedResponse response) -> { fail("received a acknowledged response: " + response.toString()); },
+            failureRef::set
+        );
+        TransportLoadTrainedModelPackage.importModel(client, taskManager, createRequestWithWaiting(), uploader, listener, task);
 
         var notificationArg = ArgumentCaptor.forClass(AuditMlNotificationAction.Request.class);
         verify(client).execute(eq(AuditMlNotificationAction.INSTANCE), notificationArg.capture(), any());
@@ -161,7 +165,11 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         return uploader;
     }
 
-    private LoadTrainedModelPackageAction.Request createRequest(boolean waitForCompletion) {
-        return new LoadTrainedModelPackageAction.Request("id", mock(ModelPackageConfig.class), waitForCompletion);
+    private LoadTrainedModelPackageAction.Request createRequestWithWaiting() {
+        return new LoadTrainedModelPackageAction.Request("id", mock(ModelPackageConfig.class), true);
+    }
+
+    private LoadTrainedModelPackageAction.Request createRequestWithoutWaiting() {
+        return new LoadTrainedModelPackageAction.Request("id", mock(ModelPackageConfig.class), false);
     }
 }

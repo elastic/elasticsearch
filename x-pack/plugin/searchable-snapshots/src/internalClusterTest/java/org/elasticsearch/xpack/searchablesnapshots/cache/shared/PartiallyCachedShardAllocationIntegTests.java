@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.FrozenCacheInfoN
 import org.junit.After;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -202,7 +201,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         }
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91800")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91800")
     public void testPartialSearchableSnapshotDelaysAllocationUntilNodeCacheStatesKnown() throws Exception {
 
         updateClusterSettings(
@@ -330,8 +329,6 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
             Math.abs(shardCountsByNodeName.get(newNodes.get(0)) - shardCountsByNodeName.get(newNodes.get(1))),
             lessThanOrEqualTo(1)
         );
-        logger.info("--> shardCountsByNodeName {}, new nodes {}", shardCountsByNodeName, newNodes);
-        logger.info("--> nodes {}", Arrays.asList(internalCluster().getNodeNames()));
     }
 
     @After

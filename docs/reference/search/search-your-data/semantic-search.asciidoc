@@ -1,6 +1,26 @@
 [[semantic-search]]
 == Semantic search
 
+Semantic search is a search method that helps you find data based on the intent
+and contextual meaning of a search query, instead of a match on query terms
+(lexical search).
+
+{es} provides semantic search capabilities using {ml-docs}/ml-nlp.html[natural
+language processing (NLP)] and vector search. Deploying an NLP model to {es}
+enables it to extract text embeddings out of text. Embeddings are vectors that
+provide a mathematical representation of a text. Pieces of content with similar
+meaning have similar representations. 
+
+[[semantic-search-diagram]]
+.A simplified representation of encoding textual concepts as vectors
+image::images/search/vector-search-oversimplification.png[A simplified representation of encoding textual concepts as vectors,align="center"]
+
+At query time, {es} can use the same NLP model to convert a query into
+embeddings, enabling you to find documents with similar text embeddings.
+
+This guide shows you how to implement semantic search with {es}, from selecting
+an NLP model, to writing queries.
+
 [discrete]
 [[semantic-search-select-nlp-model]]
 === Select an NLP model

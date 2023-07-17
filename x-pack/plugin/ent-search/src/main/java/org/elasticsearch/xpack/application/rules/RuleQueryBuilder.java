@@ -284,10 +284,10 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     }
 
     public static RuleQueryBuilder fromXContent(XContentParser parser, XPackLicenseState licenseState) {
+        if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(licenseState) == false) {
+            throw LicenseUtils.newComplianceException(NAME);
+        }
         try {
-            if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(licenseState) == false) {
-                throw LicenseUtils.newComplianceException(NAME);
-            }
             return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);

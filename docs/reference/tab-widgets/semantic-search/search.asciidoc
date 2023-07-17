@@ -1,12 +1,54 @@
 // tag::elser[]
 
-ELSER content placeholder
+ELSER text embeddings can be queried using a 
+<<query-dsl-text-expansion-query,text expansion query>>. The text expansion 
+query enables you to query a rank features field, by providing the model ID of 
+the NLP model, and the query text:
+
+[source,console]
+----
+GET my-index/_search
+{
+   "query":{
+      "text_expansion":{
+         "my_embeddings.tokens":{ <1>
+            "model_id":".elser_model_1",
+            "model_text":"the query string"
+         }
+      }
+   }
+}
+----
+// TEST[skip:TBD]
+<1> The field of type `rank_features`.
 
 // end::elser[]
 
 
 // tag::dense-vector[]
 
-Dense vector content placeholder
+Text embeddings produced by dense vector models can be queried using a 
+<<knn-semantic-search,kNN search>>. In the `knn` clause, provide the name of the 
+dense vector field, and a `query_vector_builder` clause with the model ID and 
+the query text.
+
+[source,console]
+----
+GET my-index/_search
+{
+  "knn": {
+    "field": "my_embeddings.predicted_value",
+    "k": 10,
+    "num_candidates": 100,
+    "query_vector_builder": {
+      "text_embedding": { 
+        "model_id": "sentence-transformers__msmarco-minilm-l-12-v3", 
+        "model_text": "the query string" 
+      }
+    }
+  }
+}
+----
+// TEST[skip:TBD]
 
 // end::dense-vector[]

@@ -25,11 +25,41 @@ an NLP model, to writing queries.
 [[semantic-search-select-nlp-model]]
 === Select an NLP model
 
-include::{es-repo-dir}/tab-widgets/semantic-search/select-nlp-model-widget.asciidoc[]
+{es} offers the usage of a 
+{ml-docs}ml-nlp-model-ref.html#ml-nlp-model-ref-text-embedding[wide range of NLP models], 
+including both dense and sparse vector models. Your choice of the language model 
+is critical for implementing semantic search successfully.
+
+While it is possible to bring your own text embedding model, achieving good 
+search results through model tuning is challenging. Selecting an appropriate 
+model from our third-party model list is the first step. Training the model on 
+your own data is essential to ensure better search results than using only BM25. 
+However, the model training process requires a team of data scientists and ML 
+experts, making it expensive and time-consuming.
+
+To address this issue, Elastic provides a pre-trained representational model 
+called {ml-docs}ml-nlp-elser.html[Elastic Learned Sparse EncodeR (ELSER)]. 
+ELSER, currently available only for English, is an out-of-domain sparse vector 
+model that does not require fine-tuning. This adaptability makes it suitable for 
+various NLP use cases out of the box. Unless you have a team of ML specialists, 
+it is highly recommended to use the ELSER model.
+
+In the case of sparse vector representation, the vectors mostly consist of zero 
+values, with only a small subset containing non-zero values. This representation 
+is commonly used for textual data. In the case of ELSER, each document in an 
+index and the query text itself are represented by high-dimensional sparse 
+vectors. The interaction between these large sparse vectors can be very 
+sophisticated, as the dot product of those vectors provides greater details and 
+interpretability compared to dense vectors. This sophisticated interaction 
+enables ELSER to efficiently capture context.
+
 
 [discrete]
 [[semantic-search-deploy-nlp-model]]
 === Deploy the model
+
+After you decide which model you want to use for implementing semantic search, 
+you need to deploy the model in {es}.
 
 include::{es-repo-dir}/tab-widgets/semantic-search/deploy-nlp-model-widget.asciidoc[]
 
@@ -37,17 +67,35 @@ include::{es-repo-dir}/tab-widgets/semantic-search/deploy-nlp-model-widget.ascii
 [[semantic-search-field-mappings]]
 === Map a field for the text embeddings
 
+Before you start using the deployed model to generate embeddings based on your 
+input text, you need to prepare your index mapping first. The mapping of the 
+index depends on the type of model.
+
 include::{es-repo-dir}/tab-widgets/semantic-search/field-mappings-widget.asciidoc[]
 
 [discrete]
 [[semantic-search-generate-embeddings]]
 === Generate text embeddings
 
+Once you have created the mappings for the index, you can generate text 
+embeddings from your input text. This can be done by using an 
+<<ingest,ingest pipeline>> with an <<inference-processor,inference processor>>. 
+The ingest pipeline processes the input data and indexes it into the destination 
+index. At index time, the inference ingest processor uses the trained model to 
+infer against the data ingested through the pipeline. After you created the 
+ingest pipeline with the inference processor, you can ingest your data through 
+it to generate the model output.
+
 include::{es-repo-dir}/tab-widgets/semantic-search/generate-embeddings-widget.asciidoc[]
+
+Now it is time to perform semantic search!
 
 [discrete]
 [[semantic-search-search]]
 === Search the data
+
+Depending on the type of model you have deployed, you can query rank features 
+with a text expansion query, or dense vectors with a kNN search.
 
 include::{es-repo-dir}/tab-widgets/semantic-search/search-widget.asciidoc[]
 

@@ -151,8 +151,8 @@ public class PostWriteRefresh {
             unpromotableReplicaRequest,
             TransportRequestOptions.timeout(postWriteRefreshTimeout),
             new ActionListenerResponseHandler<>(
-                listener.delegateFailure((l, r) -> l.onResponse(wasForced)),
-                (in) -> ActionResponse.Empty.INSTANCE,
+                listener.safeMap(r -> wasForced),
+                in -> ActionResponse.Empty.INSTANCE,
                 ThreadPool.Names.REFRESH
             )
         );

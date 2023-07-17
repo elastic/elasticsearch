@@ -140,7 +140,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
             }
         };
         registry = new AnalysisModule(environment, singletonList(plugin), new StablePluginsRegistry()).getAnalysisRegistry();
-        indexAnalyzers = registry.build(this.indexSettings);
+        indexAnalyzers = registry.build(IndexService.IndexCreationContext.RELOAD_ANALYZERS, this.indexSettings);
         maxTokenCount = IndexSettings.MAX_TOKEN_COUNT_SETTING.getDefault(settings);
         idxMaxTokenCount = this.indexSettings.getMaxTokenCount();
     }

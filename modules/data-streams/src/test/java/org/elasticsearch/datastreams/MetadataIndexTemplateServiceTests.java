@@ -251,7 +251,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     private static DataStreamLifecycle.Downsampling randomNonEmptyDownsampling() {
-        var count = randomIntBetween(0, 10);
+        var count = randomIntBetween(0, 9);
         List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
         var previous = new DataStreamLifecycle.Downsampling.Round(
             TimeValue.timeValueDays(randomIntBetween(1, 365)),

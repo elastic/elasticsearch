@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NameOrDefinition;
@@ -443,7 +444,14 @@ public abstract class AggregationContext implements Releasable {
             List<NameOrDefinition> charFilters,
             List<NameOrDefinition> tokenFilters
         ) throws IOException {
-            return analysisRegistry.buildCustomAnalyzer(indexSettings, normalizer, tokenizer, charFilters, tokenFilters);
+            return analysisRegistry.buildCustomAnalyzer(
+                IndexService.IndexCreationContext.RELOAD_ANALYZERS,
+                indexSettings,
+                normalizer,
+                tokenizer,
+                charFilters,
+                tokenFilters
+            );
         }
 
         @Override

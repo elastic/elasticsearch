@@ -42,6 +42,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
@@ -150,7 +151,14 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             // verify that both sending and receiving files can be completed with a single thread
             threadPool = new TestThreadPool(
                 getTestName(),
-                new FixedExecutorBuilder(Settings.EMPTY, "recovery_executor", between(1, 16), between(16, 128), "recovery_executor", false)
+                new FixedExecutorBuilder(
+                    Settings.EMPTY,
+                    "recovery_executor",
+                    between(1, 16),
+                    between(16, 128),
+                    "recovery_executor",
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                )
             );
             recoveryExecutor = threadPool.executor("recovery_executor");
         }

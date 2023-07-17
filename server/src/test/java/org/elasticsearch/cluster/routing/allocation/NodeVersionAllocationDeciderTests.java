@@ -609,13 +609,13 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final SnapshotRecoverySource newVersionSnapshot = new SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-            newNode.node().getVersion().indexVersion,
+            newNode.node().getMaxIndexVersion(),
             indexId
         );
         final SnapshotRecoverySource oldVersionSnapshot = new SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-            oldNode.node().getVersion().indexVersion,
+            oldNode.node().getMaxIndexVersion(),
             indexId
         );
 
@@ -628,10 +628,10 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "node version ["
-                    + oldNode.node().getVersion()
+                "max supported index version ["
+                    + oldNode.node().getMaxIndexVersion()
                     + "] is older than the snapshot version ["
-                    + newNode.node().getVersion()
+                    + newNode.node().getMaxIndexVersion()
                     + "]"
             )
         );
@@ -645,10 +645,10 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "node version ["
-                    + newNode.node().getVersion()
+                "max supported index version ["
+                    + newNode.node().getMaxIndexVersion()
                     + "] is the same or newer than snapshot version ["
-                    + oldNode.node().getVersion()
+                    + oldNode.node().getMaxIndexVersion()
                     + "]"
             )
         );

@@ -97,6 +97,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -248,7 +249,6 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
-        ;
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
@@ -357,9 +357,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(response.getRedirectUrl(), startsWith(SamlRealmTestHelper.IDP_LOGOUT_URL));
         assertThat(response.getRedirectUrl(), containsString("SAMLResponse="));
 
-        // 1 to find the tokens for the realm
-        // 2 more to find the UserTokens from the 2 matching refresh tokens
-        assertThat(searchRequests, hasSize(3));
+        // only 1 search request to find the tokens for the realm
+        assertThat(searchRequests, hasSize(1));
 
         assertThat(searchRequests.get(0).source().query(), instanceOf(BoolQueryBuilder.class));
         final List<QueryBuilder> filter0 = ((BoolQueryBuilder) searchRequests.get(0).source().query()).filter();
@@ -376,21 +375,6 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(filter0.get(2), instanceOf(BoolQueryBuilder.class));
         assertThat(((BoolQueryBuilder) filter0.get(2)).should(), iterableWithSize(2));
 
-        assertThat(searchRequests.get(1).source().query(), instanceOf(BoolQueryBuilder.class));
-        final List<QueryBuilder> filter1 = ((BoolQueryBuilder) searchRequests.get(1).source().query()).filter();
-        assertThat(filter1, iterableWithSize(2));
-
-        assertThat(filter1.get(0), instanceOf(TermQueryBuilder.class));
-        assertThat(((TermQueryBuilder) filter1.get(0)).fieldName(), equalTo("doc_type"));
-        assertThat(((TermQueryBuilder) filter1.get(0)).value(), equalTo("token"));
-
-        assertThat(filter1.get(1), instanceOf(TermQueryBuilder.class));
-        assertThat(((TermQueryBuilder) filter1.get(1)).fieldName(), equalTo("refresh_token.token"));
-        assertThat(
-            ((TermQueryBuilder) filter1.get(1)).value(),
-            equalTo(TokenService.hashTokenString(TokenService.unpackVersionAndPayload(tokenToInvalidate1.getRefreshToken()).v2()))
-        );
-
         assertThat(
             tokenToInvalidate1.getAuthentication(),
             equalTo(
@@ -402,27 +386,29 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             )
         );
 
-        assertThat(bulkRequests, hasSize(4)); // 4 updates (refresh-token + access-token)
-        // Invalidate refresh token 1
+        assertThat(bulkRequests, hasSize(2)); // 2 updates (first for all (2) the refresh-tokens, second one for all (2) the access-tokens)
+        assertThat(bulkRequests.get(0).requests().size(), equalTo(2));
+        assertThat(bulkRequests.get(1).requests().size(), equalTo(2));
         assertThat(bulkRequests.get(0).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(0).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId1)));
-        UpdateRequest updateRequest1 = (UpdateRequest) bulkRequests.get(0).requests().get(0);
-        assertThat(updateRequest1.toString().contains("refresh_token"), equalTo(true));
-        // Invalidate access token 1
+        assertThat(bulkRequests.get(0).requests().get(1), instanceOf(UpdateRequest.class));
         assertThat(bulkRequests.get(1).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(1).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId1)));
-        UpdateRequest updateRequest2 = (UpdateRequest) bulkRequests.get(1).requests().get(0);
-        assertThat(updateRequest2.toString().contains("access_token"), equalTo(true));
-        // Invalidate refresh token 2
-        assertThat(bulkRequests.get(2).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(2).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId2)));
-        UpdateRequest updateRequest3 = (UpdateRequest) bulkRequests.get(2).requests().get(0);
-        assertThat(updateRequest3.toString().contains("refresh_token"), equalTo(true));
-        // Invalidate access token 2
-        assertThat(bulkRequests.get(3).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(3).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId2)));
-        UpdateRequest updateRequest4 = (UpdateRequest) bulkRequests.get(3).requests().get(0);
-        assertThat(updateRequest4.toString().contains("access_token"), equalTo(true));
+        assertThat(bulkRequests.get(1).requests().get(1), instanceOf(UpdateRequest.class));
+        UpdateRequest updateRequest1 = (UpdateRequest) bulkRequests.get(0).requests().get(0);
+        UpdateRequest updateRequest2 = (UpdateRequest) bulkRequests.get(0).requests().get(1);
+        UpdateRequest updateRequest3 = (UpdateRequest) bulkRequests.get(1).requests().get(0);
+        UpdateRequest updateRequest4 = (UpdateRequest) bulkRequests.get(1).requests().get(1);
+        assertThat(updateRequest1.toString(), containsString("refresh_token"));
+        assertThat(updateRequest2.toString(), containsString("refresh_token"));
+        assertThat(updateRequest3.toString(), containsString("access_token"));
+        assertThat(updateRequest4.toString(), containsString("access_token"));
+        assertThat(
+            List.of(updateRequest1.id(), updateRequest2.id()),
+            containsInAnyOrder("token_" + TokenService.hashTokenString(userTokenId1), "token_" + TokenService.hashTokenString(userTokenId2))
+        );
+        assertThat(
+            List.of(updateRequest3.id(), updateRequest4.id()),
+            containsInAnyOrder("token_" + TokenService.hashTokenString(userTokenId1), "token_" + TokenService.hashTokenString(userTokenId2))
+        );
     }
 
     private Function<SearchRequest, SearchHit[]> findTokenByRefreshToken(SearchHit[] searchHits) {

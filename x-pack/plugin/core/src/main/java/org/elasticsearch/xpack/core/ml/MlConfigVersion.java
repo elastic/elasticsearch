@@ -30,7 +30,9 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * The version number associated with various ML features.
+ * The version number associated with various ML features. This class is needed in addition to TransportVersion because
+ * transport version cannot be persisted in stored documents or cluster state metadata.
+ * Hence, this class is designed to be persisted in human-readable format, and indicate the age of that state or config.
  * <p>
  * Prior to 8.10.0, the release {@link Version} was used everywhere. This class separates the ML config format version
  * from the running node version.
@@ -49,7 +51,7 @@ import java.util.TreeMap;
  * <h2>Version compatibility</h2>
  * The earliest compatible version is hardcoded in the {@link #MINIMUM_COMPATIBLE} field. This cannot be dynamically calculated
  * from the major/minor versions of {@link Version}, because {@code MlConfigVersion} does not have separate major/minor version numbers.
- * So the minimum compatible version is hard-coded as the ML config version used by the first version of the previous major release.
+ * So the minimum compatible version is simply hard-coded as the earliest ML config version referenced in the code (currently 6.0.0).
  * {@link #MINIMUM_COMPATIBLE} should be updated appropriately whenever a major release happens.
  * <h2>Adding a new version</h2>
  * A new ML config version should be added <em>every time</em> a change is made to the serialization protocol of one or more classes.
@@ -97,6 +99,7 @@ public record MlConfigVersion(int id, boolean isLegacy) implements Comparable<Ml
     public static final String ML_CONFIG_VERSION_NODE_ATTR = "ml.config_version";
 
     public static final MlConfigVersion ZERO = registerLegacyMlConfigVersion(0, "00000000-0000-0000-0000-000000000000");
+    public static final MlConfigVersion V_6_0_0 = registerLegacyMlConfigVersion(6_00_00_99, "E3F1CC55-A992-4CB3-BCE6-EC310D156793");
     public static final MlConfigVersion V_7_0_0 = registerLegacyMlConfigVersion(7_00_00_99, "21906C88-0955-4BE3-B4B3-BFB6B9606112");
     public static final MlConfigVersion V_7_0_1 = registerLegacyMlConfigVersion(7_00_01_99, "7FF09B06-20B3-40FF-A6E0-EC94F55B8B56");
     public static final MlConfigVersion V_7_1_0 = registerLegacyMlConfigVersion(7_01_00_99, "BD49F37F-1E50-4BC1-B227-EE0AC88B677C");
@@ -164,7 +167,7 @@ public record MlConfigVersion(int id, boolean isLegacy) implements Comparable<Ml
      * Reference to the earliest compatible ML config version to this version of the codebase.
      * This is hard-coded as the ML config version used by the first version of the previous major release..
      */
-    public static final MlConfigVersion MINIMUM_COMPATIBLE = V_7_0_0;
+    public static final MlConfigVersion MINIMUM_COMPATIBLE = V_6_0_0;
 
     static {
         // see comment on IDS field
@@ -271,13 +274,6 @@ public record MlConfigVersion(int id, boolean isLegacy) implements Comparable<Ml
         return version1.id > version2.id ? version1 : version2;
     }
 
-    /**
-     * Returns {@code true} if the specified version is compatible with this running version of Elasticsearch.
-     */
-    public static boolean isCompatible(MlConfigVersion version) {
-        return version.onOrAfter(MINIMUM_COMPATIBLE);
-    }
-
     public boolean after(MlConfigVersion version) {
         if (this.isLegacy != version.isLegacy) {
             return this.isLegacy ? false : true;
@@ -322,23 +318,19 @@ public record MlConfigVersion(int id, boolean isLegacy) implements Comparable<Ml
         return Version.fromId(mlConfigVersion.id);
     }
 
-    public static MlConfigVersion getMinMlConfigVersion(DiscoveryNodes nodes, String mlConfigVersionNodeAttrName) {
-        return getMinMaxMlConfigVersion(nodes, mlConfigVersionNodeAttrName).v1();
+    public static MlConfigVersion getMinMlConfigVersion(DiscoveryNodes nodes) {
+        return getMinMaxMlConfigVersion(nodes).v1();
     }
 
-    public static MlConfigVersion getMaxMlConfigVersion(DiscoveryNodes nodes, String mlConfigVersionNodeAttrName) {
-        return getMinMaxMlConfigVersion(nodes, mlConfigVersionNodeAttrName).v2();
+    public static MlConfigVersion getMaxMlConfigVersion(DiscoveryNodes nodes) {
+        return getMinMaxMlConfigVersion(nodes).v2();
     }
 
-    public static Tuple<MlConfigVersion, MlConfigVersion> getMinMaxMlConfigVersion(
-        DiscoveryNodes nodes,
-        String mlConfigVersionNodeAttrName
-    ) {
+    public static Tuple<MlConfigVersion, MlConfigVersion> getMinMaxMlConfigVersion(DiscoveryNodes nodes) {
         MlConfigVersion minMlConfigVersion = MlConfigVersion.CURRENT;
         MlConfigVersion maxMlConfigVersion = MlConfigVersion.MINIMUM_COMPATIBLE;
         for (DiscoveryNode node : nodes) {
-            String mlConfigVersionStr = node.getAttributes().get(mlConfigVersionNodeAttrName);
-            MlConfigVersion mlConfigVersion = fromString(mlConfigVersionStr);
+            MlConfigVersion mlConfigVersion = getMlConfigVersionForNode(node);
             if (mlConfigVersion.before(minMlConfigVersion)) {
                 minMlConfigVersion = mlConfigVersion;
             }
@@ -349,18 +341,26 @@ public record MlConfigVersion(int id, boolean isLegacy) implements Comparable<Ml
         return new Tuple<>(minMlConfigVersion, maxMlConfigVersion);
     }
 
+    public static MlConfigVersion getMlConfigVersionForNode(DiscoveryNode node) {
+        String mlConfigVerStr = node.getAttributes().get(ML_CONFIG_VERSION_NODE_ATTR);
+        if (mlConfigVerStr == null) {
+            return fromVersion(node.getVersion());
+        }
+        return fromString(mlConfigVerStr);
+    }
+
     public static MlConfigVersion fromString(String str) {
         if (str == null) {
             return CURRENT;
         }
         if (str.contains(".")) {
-            return MlConfigVersion.fromVersion(Version.fromString(str));
+            return fromVersion(Version.fromString(str));
         }
         int versionNum = Integer.parseInt(str);
         if (versionNum < V_10.id) {
             throw new IllegalArgumentException("Illegal version " + versionNum);
         }
-        return MlConfigVersion.fromId(Integer.parseInt(str));
+        return fromId(Integer.parseInt(str));
     }
 
     @Override

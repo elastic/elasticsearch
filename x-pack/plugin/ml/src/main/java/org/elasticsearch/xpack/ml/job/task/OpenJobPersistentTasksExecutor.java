@@ -166,8 +166,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             // which is OK as we have already checked the node is >= 5.5.0.
             return true;
         }
-        return MlConfigVersion.fromString(node.getAttributes().get(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR))
-            .onOrAfter(job.getModelSnapshotMinVersion());
+        return MlConfigVersion.getMlConfigVersionForNode(node).onOrAfter(job.getModelSnapshotMinVersion());
     }
 
     public static String nodeFilter(DiscoveryNode node, Job job) {
@@ -184,8 +183,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 + "] or higher";
         }
 
-        if (Job.getCompatibleJobTypes(MlConfigVersion.fromString(node.getAttributes().get(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR)))
-            .contains(job.getJobType()) == false) {
+        if (Job.getCompatibleJobTypes(MlConfigVersion.getMlConfigVersionForNode(node)).contains(job.getJobType()) == false) {
             return "Not opening job ["
                 + jobId
                 + "] on node ["

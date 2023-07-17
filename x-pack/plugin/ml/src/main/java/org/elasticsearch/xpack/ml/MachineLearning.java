@@ -811,7 +811,6 @@ public class MachineLearning extends Plugin
                 Integer.toString(EsExecutors.allocatedProcessors(settings))
             );
             addMlNodeAttribute(additionalSettings, allocatedProcessorsAttrName, Double.toString(getAllocatedProcessors().count()));
-            addMlNodeAttribute(additionalSettings, mlConfigVersionAttrName, MlConfigVersion.CURRENT.toString());
             // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName);
         } else {
@@ -823,6 +822,7 @@ public class MachineLearning extends Plugin
                 allocatedProcessorsAttrName
             );
         }
+        addMlNodeAttribute(additionalSettings, mlConfigVersionAttrName, MlConfigVersion.CURRENT.toString());
         return additionalSettings.build();
     }
 

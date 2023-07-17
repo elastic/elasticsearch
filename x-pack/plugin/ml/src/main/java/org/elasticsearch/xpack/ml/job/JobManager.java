@@ -240,10 +240,7 @@ public class JobManager {
         ActionListener<PutJobAction.Response> actionListener
     ) throws IOException {
 
-        MlConfigVersion minNodeVersion = MlConfigVersion.getMinMlConfigVersion(
-            state.getNodes(),
-            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR
-        );
+        MlConfigVersion minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.getNodes());
 
         Job.Builder jobBuilder = request.getJobBuilder();
         jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimitSupplier.get());

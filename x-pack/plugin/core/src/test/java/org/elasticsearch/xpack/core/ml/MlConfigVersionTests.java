@@ -110,12 +110,10 @@ public class MlConfigVersionTests extends ESTestCase {
         DiscoveryNodeRole.DATA_ROLE
     );
 
-    public static final String ML_CONFIG_VERSION_NODE_ATTR = "ml.config_version";
-
     public void testGetMinMaxMlConfigVersion() {
-        Map<String, String> nodeAttr1 = Map.of(ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.V_7_1_0.toString());
-        Map<String, String> nodeAttr2 = Map.of(ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.V_8_2_0.toString());
-        Map<String, String> nodeAttr3 = Map.of(ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.V_10.toString());
+        Map<String, String> nodeAttr1 = Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.V_7_1_0.toString());
+        Map<String, String> nodeAttr2 = Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.V_8_2_0.toString());
+        Map<String, String> nodeAttr3 = Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.V_10.toString());
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
@@ -149,12 +147,32 @@ public class MlConfigVersionTests extends ESTestCase {
             )
             .build();
 
-        assertEquals(MlConfigVersion.getMinMlConfigVersion(nodes, ML_CONFIG_VERSION_NODE_ATTR), MlConfigVersion.V_7_1_0);
-        assertEquals(MlConfigVersion.getMaxMlConfigVersion(nodes, ML_CONFIG_VERSION_NODE_ATTR), MlConfigVersion.V_10);
+        assertEquals(MlConfigVersion.getMinMlConfigVersion(nodes), MlConfigVersion.V_7_1_0);
+        assertEquals(MlConfigVersion.getMaxMlConfigVersion(nodes), MlConfigVersion.V_10);
     }
 
-    private static String padNumber(String number) {
-        return number.length() == 1 ? "0" + number : number;
+    public void testGetMlConfigVersionForNode() {
+        DiscoveryNode node = new DiscoveryNode(
+            "_node_name4",
+            "_node_id4",
+            new TransportAddress(InetAddress.getLoopbackAddress(), 9303),
+            Collections.emptyMap(),
+            ROLES_WITH_ML,
+            VersionInformation.inferVersions(Version.fromString("8.7.0"))
+        );
+        MlConfigVersion mlConfigVersion = MlConfigVersion.getMlConfigVersionForNode(node);
+        assertEquals(mlConfigVersion, MlConfigVersion.fromVersion(Version.V_8_7_0));
+
+        DiscoveryNode node1 = new DiscoveryNode(
+            "_node_name5",
+            "_node_id5",
+            new TransportAddress(InetAddress.getLoopbackAddress(), 9304),
+            Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.V_8_5_0.toString()),
+            ROLES_WITH_ML,
+            VersionInformation.inferVersions(Version.fromString("8.7.0"))
+        );
+        MlConfigVersion mlConfigVersion1 = MlConfigVersion.getMlConfigVersionForNode(node1);
+        assertEquals(mlConfigVersion1, MlConfigVersion.fromVersion(Version.V_8_5_0));
     }
 
     public void testDefinedConstants() throws IllegalAccessException {

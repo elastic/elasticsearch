@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassifica
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor;
@@ -210,7 +209,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
         @Override
         public void accept(ClusterState state) {
-            minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.nodes(), MachineLearning.ML_CONFIG_VERSION_NODE_ATTR);
+            minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.nodes());
             try {
                 currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(state);
             } catch (Exception ex) {

@@ -34,7 +34,10 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     private final Object criteriaValue;
 
     public enum CriteriaType {
-        EXACT;
+        EXACT,
+        PREFIX,
+        SUFFIX,
+        CONTAINS;
 
         public static CriteriaType criteriaType(String criteriaType) {
             for (CriteriaType type : values()) {
@@ -62,10 +65,6 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         Objects.requireNonNull(criteriaType);
         Objects.requireNonNull(criteriaMetadata);
         Objects.requireNonNull(criteriaValue);
-
-        if ((criteriaType == CriteriaType.EXACT) == false) {
-            throw new IllegalArgumentException("Invalid criteriaType " + criteriaType);
-        }
 
         if (Strings.isNullOrEmpty(criteriaMetadata)) {
             throw new IllegalArgumentException("criteriaMetadata cannot be blank");
@@ -180,7 +179,27 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    public boolean isMatch(String matchString) {
-        return criteriaType == CriteriaType.EXACT && criteriaValue.equals(matchString);
+    public boolean isMatch(String matchString, CriteriaType matchType) {
+        if (criteriaValue instanceof String criteriaValueString) {
+            switch (matchType) {
+                case EXACT -> {
+                    return criteriaValueString.equals(matchString);
+                }
+                case PREFIX -> {
+                    return matchString.startsWith(criteriaValueString);
+                }
+                case SUFFIX -> {
+                    return matchString.endsWith(criteriaValueString);
+                }
+                case CONTAINS -> {
+                    return matchString.contains(criteriaValueString);
+                }
+                default -> {
+                    return false;
+                }
+            }
+        }
+
+        return false;
     }
 }

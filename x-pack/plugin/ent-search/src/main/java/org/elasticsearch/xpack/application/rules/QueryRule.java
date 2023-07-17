@@ -287,7 +287,8 @@ public class QueryRule implements Writeable, ToXContentObject {
         for (QueryRuleCriteria criterion : criteria) {
             for (String match : matchCriteria.keySet()) {
                 final String matchValue = matchCriteria.get(match).toString();
-                if (criterion.criteriaMetadata().equals(match) && criterion.isMatch(matchValue)) {
+                final QueryRuleCriteria.CriteriaType criteriaType = criterion.criteriaType();
+                if (criterion.criteriaMetadata().equals(match) && criterion.isMatch(matchValue, criteriaType)) {
                     if (actions.containsKey(IDS_FIELD.getPreferredName())) {
                         matchingPinnedIds.addAll((List<String>) actions.get(IDS_FIELD.getPreferredName()));
                     } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {

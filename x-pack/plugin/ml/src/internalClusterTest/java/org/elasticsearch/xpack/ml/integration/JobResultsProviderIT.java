@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -519,7 +518,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) mappings.get("_meta");
         assertThat(meta.keySet(), hasItem("version"));
-        assertThat(meta.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(meta.get("version"), equalTo(MlConfigVersion.CURRENT.toString()));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");

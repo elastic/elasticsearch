@@ -1429,7 +1429,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private final TimeValue timeout;
         private final String source;
-        private final AtomicReference<T> taskHolder;
+        private final AtomicReference<T> taskHolder; // atomically read and set to null by at most one of {execute, timeout}
 
         private TaskTimeoutHandler(TimeValue timeout, String source, AtomicReference<T> taskHolder) {
             this.timeout = timeout;
@@ -1605,7 +1605,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 for (int i = 0; i < entryCount; i++) {
                     final var entry = queue.poll();
                     assert entry != null;
-                    final var task = entry.taskHolder().getAndSet(null);
+                    final var task = entry.acquireForExecution();
                     if (task != null) {
                         taskCount += 1;
                         executing.add(

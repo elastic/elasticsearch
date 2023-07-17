@@ -63,6 +63,11 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     private HealthPeriodicLogger testHealthPeriodicLogger;
     private ClusterService testClusterService;
     private ClusterSettings clusterSettings;
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
+        .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        .build();
+    private ClusterState stateWithLocalHealthNode;
 
     private NodeClient getTestClient() {
         return mock(NodeClient.class);
@@ -75,7 +80,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     @Before
     public void setupServices() {
         threadPool = new TestThreadPool(getTestName());
-
+        stateWithLocalHealthNode = ClusterStateCreationUtils.state(node2, node1, node2, new DiscoveryNode[] { node1, node2 });
         this.clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         this.clusterService = createClusterService(this.threadPool, clusterSettings);
         this.client = getTestClient();
@@ -122,38 +127,24 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     public void testHealthNodeIsSelected() {
         HealthService testHealthService = this.getMockedHealthService();
 
-        // create a cluster topology
-        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
-        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
-            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
-            .build();
-        ClusterState current = ClusterStateCreationUtils.state(node2, node1, node2, new DiscoveryNode[] { node1, node2 });
-
-        testClusterService = createClusterService(current, this.threadPool);
+        testClusterService = createClusterService(stateWithLocalHealthNode, this.threadPool);
         testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(testClusterService, testHealthService, true);
 
         // test that it knows that it's not initially the health node
         assertFalse(testHealthPeriodicLogger.isHealthNode);
 
         // trigger a cluster change and recheck
-        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", current, ClusterState.EMPTY_STATE));
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
         assertTrue(testHealthPeriodicLogger.isHealthNode);
     }
 
     public void testJobScheduling() {
         HealthService testHealthService = this.getMockedHealthService();
 
-        // create a cluster topology
-        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
-        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
-            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
-            .build();
-        ClusterState current = ClusterStateCreationUtils.state(node2, node1, node2, new DiscoveryNode[] { node1, node2 });
-
-        testClusterService = createClusterService(current, this.threadPool, this.clusterSettings);
+        testClusterService = createClusterService(stateWithLocalHealthNode, this.threadPool, this.clusterSettings);
         testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(testClusterService, testHealthService, true);
 
-        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", current, ClusterState.EMPTY_STATE));
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
         assertTrue(testHealthPeriodicLogger.isHealthNode);
 
         SchedulerEngine scheduler = testHealthPeriodicLogger.getScheduler();
@@ -161,25 +152,18 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         assertTrue(scheduler.scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
 
         ClusterState noHealthNode = ClusterStateCreationUtils.state(node2, node1, new DiscoveryNode[] { node1, node2 });
-        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", noHealthNode, current));
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", noHealthNode, stateWithLocalHealthNode));
         assertFalse(testHealthPeriodicLogger.isHealthNode);
         assertFalse(scheduler.scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
     }
 
-    public void testEnabled() throws Exception {
+    public void testEnabled() {
         HealthService testHealthService = this.getMockedHealthService();
 
-        // create a cluster topology
-        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
-        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
-            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
-            .build();
-        ClusterState current = ClusterStateCreationUtils.state(node2, node1, node2, new DiscoveryNode[] { node1, node2 });
-
-        testClusterService = createClusterService(current, this.threadPool, this.clusterSettings);
+        testClusterService = createClusterService(stateWithLocalHealthNode, this.threadPool, this.clusterSettings);
         testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(testClusterService, testHealthService, true);
 
-        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", current, ClusterState.EMPTY_STATE));
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
         assertTrue(testHealthPeriodicLogger.isHealthNode);
 
         // disable it and then verify that the job is gone
@@ -202,24 +186,17 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     public void testUpdatePollInterval() throws Exception {
         HealthService testHealthService = this.getMockedHealthService();
 
-        // create a cluster topology
-        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
-        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
-            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
-            .build();
-        ClusterState current = ClusterStateCreationUtils.state(node2, node1, node2, new DiscoveryNode[] { node1, node2 });
-
         Settings settings = Settings.builder()
             .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), false)
             .put(HealthPeriodicLogger.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60))
             .build();
-        testClusterService = createClusterService(current, this.threadPool, this.clusterSettings);
+        testClusterService = createClusterService(stateWithLocalHealthNode, this.threadPool, this.clusterSettings);
 
         testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(testClusterService, testHealthService, false);
         testHealthPeriodicLogger.init();
         assertNull(testHealthPeriodicLogger.getScheduler());
 
-        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", current, ClusterState.EMPTY_STATE));
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
         assertTrue(testHealthPeriodicLogger.isHealthNode);
 
         // verify that updating the polling interval doesn't schedule the job

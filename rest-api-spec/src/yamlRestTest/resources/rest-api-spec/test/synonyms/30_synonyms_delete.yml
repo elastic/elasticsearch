@@ -20,8 +20,6 @@ setup:
 
   - match:
       acknowledged: true
-  - match: { reload_analyzers_details._shards.total: 0 }
-  - length: { reload_analyzers_details.reload_details: 0 }
 
   - do:
       catch: missing
@@ -62,3 +60,49 @@ setup:
           id: "test-other-1"
         - synonyms: "test => check"
           id: "test-other-2"
+
+---
+"Delete synonym set - index uses the synonym set, so it can't be deleted":
+
+  - do:
+      indices.create:
+        index: my_index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+            analysis:
+              filter:
+                my_synonym_filter:
+                  type: synonym_graph
+                  synonyms_set: test-get-synonyms
+                  updateable: true
+              analyzer:
+                my_analyzer1:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, my_synonym_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: my_analyzer1
+
+  - do:
+      catch: /Synonym set \[test-get-synonyms\] cannot be deleted as it is used in the following indices:\ my_index1/
+      synonyms.delete:
+        synonyms_set: test-get-synonyms
+
+  - do:
+      synonyms.get:
+        synonyms_set: test-get-synonyms
+
+  - match:
+      count: 2
+  - match:
+      synonyms_set:
+        - synonyms: "hello, hi"
+          id: "test-id-1"
+        - synonyms: "bye => goodbye"
+          id: "test-id-2"

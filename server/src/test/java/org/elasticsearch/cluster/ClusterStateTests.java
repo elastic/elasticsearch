@@ -1031,7 +1031,7 @@ public class ClusterStateTests extends ESTestCase {
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
-                        new ClusterBlock(1, "description", true, true, true, RestStatus.ACCEPTED, EnumSet.allOf((ClusterBlockLevel.class)))
+                        new ClusterBlock(3, "description", true, true, true, RestStatus.ACCEPTED, EnumSet.allOf((ClusterBlockLevel.class)))
                     )
                     .addBlocks(indexMetadata)
                     .addIndexBlock(
@@ -1125,6 +1125,8 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testGetMinTransportVersion() throws IOException {
+        assertEquals(TransportVersion.MINIMUM_COMPATIBLE, ClusterState.EMPTY_STATE.getMinTransportVersion());
+
         var builder = ClusterState.builder(buildClusterState());
         int numNodes = randomIntBetween(2, 20);
         TransportVersion minVersion = TransportVersion.current();
@@ -1137,5 +1139,13 @@ public class ClusterStateTests extends ESTestCase {
 
         var newState = builder.build();
         assertThat(newState.getMinTransportVersion(), equalTo(minVersion));
+
+        assertEquals(
+            TransportVersion.MINIMUM_COMPATIBLE,
+            ClusterState.builder(newState)
+                .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+                .build()
+                .getMinTransportVersion()
+        );
     }
 }

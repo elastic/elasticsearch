@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -33,11 +35,17 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     private final String criteriaMetadata;
     private final Object criteriaValue;
 
+    private final Logger logger = LogManager.getLogger(QueryRuleCriteria.class);
+
     public enum CriteriaType {
         EXACT,
         PREFIX,
         SUFFIX,
-        CONTAINS;
+        CONTAINS,
+        LT,
+        LTE,
+        GT,
+        GTE;
 
         public static CriteriaType criteriaType(String criteriaType) {
             for (CriteriaType type : values()) {
@@ -179,36 +187,35 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    public boolean isMatch(String matchString, CriteriaType matchType) {
-        if (criteriaValue instanceof String criteriaValueString) {
+    public boolean isMatch(Object matchValue, CriteriaType matchType) {
+        String matchString = matchValue.toString();
+        String criteriaValueString = criteriaValue.toString();
+        logger.info("matching: " + matchString + " against: " + criteriaValue);
+        if (matchValue instanceof String) {
             return switch (matchType) {
                 case EXACT -> criteriaValueString.equals(matchString);
                 case PREFIX -> matchString.startsWith(criteriaValueString);
                 case SUFFIX -> matchString.endsWith(criteriaValueString);
                 case CONTAINS -> matchString.contains(criteriaValueString);
+                case LT, LTE, GT, GTE -> false;
             };
-        } else if (criteriaValue instanceof Number criteriaValueNumber) {
-            return switch (matchType) {
-                case EXACT -> matchStringEqualsNumber(criteriaValueNumber, matchString);
-                case PREFIX, SUFFIX, CONTAINS -> throw new IllegalStateException(
-                    "Cannot use " + matchType + " with a numeric criteria value"
-                );
-            };
+        } else if (matchValue instanceof Number) {
+            try {
+                Number matchNumber = (Number) matchValue;
+                return switch (matchType) {
+                    case EXACT -> matchNumber.doubleValue() == Double.parseDouble(criteriaValueString);
+                    case LT -> matchNumber.doubleValue() < Double.parseDouble(criteriaValueString);
+                    case LTE -> matchNumber.doubleValue() <= Double.parseDouble(criteriaValueString);
+                    case GT -> matchNumber.doubleValue() > Double.parseDouble(criteriaValueString);
+                    case GTE -> matchNumber.doubleValue() >= Double.parseDouble(criteriaValueString);
+                    case PREFIX, SUFFIX, CONTAINS -> false;
+                };
+            } catch (NumberFormatException e) {
+                logger.debug("Query rule criteria [" + criteriaValue + "] type mismatch against [" + matchString + "]", e);
+                return false;
+            }
         }
 
         return false;
     }
-
-    private boolean matchStringEqualsNumber(Number criteriaValue, String matchString) {
-        return switch (criteriaValue.getClass().getSimpleName()) {
-            case "Integer" -> criteriaValue.intValue() == Integer.parseInt(matchString);
-            case "Long" -> criteriaValue.longValue() == Long.parseLong(matchString);
-            case "Float" -> criteriaValue.floatValue() == Float.parseFloat(matchString);
-            case "Double" -> criteriaValue.doubleValue() == Double.parseDouble(matchString);
-            case "Byte" -> criteriaValue.byteValue() == Byte.parseByte(matchString);
-            case "Short" -> criteriaValue.shortValue() == Short.parseShort(matchString);
-            default -> false;
-        };
-    }
-
 }

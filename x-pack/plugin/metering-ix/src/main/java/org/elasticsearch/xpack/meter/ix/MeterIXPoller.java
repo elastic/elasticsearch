@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.meter.ix;
+package org.elasticsearch.xpack.meter.ix;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

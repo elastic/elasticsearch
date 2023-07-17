@@ -22,6 +22,8 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -119,7 +121,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             throw new IllegalArgumentException("rulesetId must not be null or empty");
         }
 
-        // PinnedQueryBuilder will return an error if we attmept to return more than the maximum number of
+        // PinnedQueryBuilder will return an error if we attempt to return more than the maximum number of
         // pinned hits. Here, we truncate matching rules rather than return an error.
         if (pinnedIds != null && pinnedIds.size() > MAX_NUM_PINNED_HITS) {
             HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
@@ -281,7 +283,10 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         declareStandardFields(PARSER);
     }
 
-    public static RuleQueryBuilder fromXContent(XContentParser parser) {
+    public static RuleQueryBuilder fromXContent(XContentParser parser, XPackLicenseState licenseState) {
+        if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(licenseState) == false) {
+            throw LicenseUtils.newComplianceException(NAME);
+        }
         try {
             return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {

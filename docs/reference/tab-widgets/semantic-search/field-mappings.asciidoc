@@ -51,7 +51,7 @@ embeddings.
 
 To review a mapping of an index for an NLP model, refer to the mapping code 
 snippet in the 
-{ml-docs}ml-nlp-text-emb-vector-search-example.html#ex-text-emb-ingest[Add the text embedding model to an ingest inference pipeline] 
+{ml-docs}/ml-nlp-text-emb-vector-search-example.html#ex-text-emb-ingest[Add the text embedding model to an ingest inference pipeline] 
 section of the tutorial. The example shows how to create an index mapping that 
 defines the `my_embeddings.predicted_value` field - which will contain the model 
 output - as a `dense_vector` field.

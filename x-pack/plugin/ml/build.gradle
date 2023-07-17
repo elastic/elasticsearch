@@ -70,6 +70,7 @@ dependencies {
   testImplementation project(':modules:mapper-extras')
   // This should not be here
   testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation project(path: xpackModule('wildcard'))
   // ml deps
   api project(':libs:elasticsearch-grok')
   api "org.apache.commons:commons-math3:3.6.1"

@@ -171,8 +171,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
      * logic in VersionUtils.java. */
     private static BwcVersions resolveBwcVersions(File root) {
         File versionsFile = new File(root, DEFAULT_VERSION_JAVA_FILE_PATH);
-        try {
-            List<String> versionLines = IOUtils.readLines(new FileInputStream(versionsFile), "UTF-8");
+        try (var is = new FileInputStream(versionsFile)) {
+            List<String> versionLines = IOUtils.readLines(is, "UTF-8");
             return new BwcVersions(versionLines);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);

@@ -122,7 +122,7 @@ In this step, you load the data that you later use in the {infer} ingest
 pipeline to extract tokens from it.
 
 Use the `msmarco-passagetest2019-top1000` data set, which is a subset of the MS 
-MACRO Passage Ranking data set. It consists of 200 queries, each accompanied by 
+MARCO Passage Ranking data set. It consists of 200 queries, each accompanied by 
 a list of relevant text passages. All unique passages, along with their IDs, 
 have been extracted from that data set and compiled into a 
 https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarco-passagetest2019-unique.tsv[tsv file].

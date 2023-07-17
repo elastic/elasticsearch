@@ -190,6 +190,20 @@ public class MonitoringService extends AbstractLifecycleComponent {
         }
     }
 
+    // exposed for tests
+    public void unpause() {
+        synchronized (lifecycle) {
+            doStart();
+        }
+    }
+
+    // exposed for tests
+    public void pause() {
+        synchronized (lifecycle) {
+            doStop();
+        }
+    }
+
     @Override
     protected void doClose() {
         logger.debug("monitoring service is closing");

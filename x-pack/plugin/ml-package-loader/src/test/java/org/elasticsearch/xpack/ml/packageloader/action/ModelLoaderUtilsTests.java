@@ -15,7 +15,18 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
+import static org.hamcrest.core.Is.is;
+
 public class ModelLoaderUtilsTests extends ESTestCase {
+
+    public void testGetInputStreamFromModelRepositoryThrowsUnsupportedScheme() {
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ModelLoaderUtils.getInputStreamFromModelRepository(new URI("unknown:/home/ml/package.ext"))
+        );
+
+        assertThat(e.getMessage(), is("unsupported scheme"));
+    }
 
     public void testResolvePackageLocationTrailingSlash() throws URISyntaxException {
         assertEquals(new URI("file:/home/ml/package.ext"), ModelLoaderUtils.resolvePackageLocation("file:///home/ml", "package.ext"));

@@ -15,7 +15,11 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.threadpool.Scheduler;
@@ -26,14 +30,14 @@ import java.util.concurrent.locks.ReentrantLock;
 public class MeterIXPoller implements LifecycleComponent {
     private static final Logger logger = LogManager.getLogger(MeterIXPoller.class);
     final ThreadPool threadPool;
-    final IndicesService indexServices;
+    final IndicesService indicesService;
     Lifecycle.State state = Lifecycle.State.INITIALIZED;
     Scheduler.ScheduledCancellable next = null;
     private final ReentrantLock mutex = new ReentrantLock();
 
-    public MeterIXPoller(ThreadPool threadPool, IndicesService indexServices) {
+    public MeterIXPoller(ThreadPool threadPool, IndicesService indicesService) {
         this.threadPool = threadPool;
-        this.indexServices = indexServices;
+        this.indicesService = indicesService;
     }
 
     @Override
@@ -108,9 +112,47 @@ public class MeterIXPoller implements LifecycleComponent {
     }
 
     public void logIndexStats() {
-        logger.warn("[STU] running logIndexStats");
-        NodeIndicesStats stats = indexServices.stats(new CommonStatsFlags(CommonStatsFlags.Flag.Segments));
+        logger.warn("[STU] logIndexStats");
+        logFromShard();
+        logFromStats();
+        logger.warn("[STU] done logIndexStats");
+    }
+
+    public void logFromShard() {
+        logger.info("[STU] logFromShard");
+        for (final IndexService indexService : indicesService) {
+            for (final IndexShard shard : indexService) {
+                //SegmentsStats segmentsStats = engine.segmentsStats(true, false);
+                for (final Segment segment: shard.segments()) {
+                    logger.info("{}:{} -> {}", shard.shardId(), segment.getName(), segment.getSize().getBytes());
+                }
+            }
+        }
+        logger.info("[STU] done logFromShard");
+    }
+
+    public void logFromEngine() {
+        logger.info("[STU] logFromEngine");
+        for (final IndexService indexService : indicesService) {
+            for (final IndexShard shard : indexService) {
+                Engine engine = shard.getEngineOrNull();
+                if (engine == null) {
+                    continue;
+                }
+                engine.getLastCommittedSegmentInfos();
+                //SegmentsStats segmentsStats = engine.segmentsStats(true, false);
+                for (final Segment segment: shard.segments()) {
+                    logger.info("{}:{} -> {}", shard.shardId(), segment.getName(), segment.getSize().getBytes());
+                }
+            }
+        }
+        logger.info("[STU] done logFromEngine");
+    }
+
+    public void logFromStats() {
+        NodeIndicesStats stats = indicesService.stats(new CommonStatsFlags(CommonStatsFlags.Flag.Segments).includeSegmentFileSizes(true));
         SegmentsStats segmentsStats = stats.getSegments();
-        logger.warn("[STU] done running logIndexStats");
+        var files = segmentsStats.getFiles();
+        logger.info("files {}", files);
     }
 }

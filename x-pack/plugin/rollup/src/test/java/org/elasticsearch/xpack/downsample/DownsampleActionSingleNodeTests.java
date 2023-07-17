@@ -114,6 +114,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -1380,5 +1381,93 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         for (int i = 0; i < n; i++) {
             assertRollupIndex(sourceIndex, targets.get(i), config);
         }
+    }
+
+    public void testDuplicateRollupRequest() throws IOException, InterruptedException {
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForInterval(config.getInterval());
+            double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
+            int labelIntegerValue = randomInt();
+            long labelLongValue = randomLong();
+            String labelIpv4Address = NetworkAddress.format(randomIp(true));
+            String labelIpv6Address = NetworkAddress.format(randomIp(false));
+            Date labelDateValue = randomDate();
+            int keywordArraySize = randomIntBetween(2, 5);
+            String[] keywordArray = new String[keywordArraySize];
+            for (int i = 0; i < keywordArraySize; ++i) {
+                keywordArray[i] = randomAlphaOfLength(10);
+            }
+            int doubleArraySize = randomIntBetween(3, 10);
+            double[] doubleArray = new double[doubleArraySize];
+            for (int i = 0; i < doubleArraySize; ++i) {
+                doubleArray[i] = randomDouble();
+            }
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+                .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
+                .field(FIELD_NUMERIC_1, randomInt())
+                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .startObject(FIELD_AGG_METRIC)
+                .field("min", randomDoubleBetween(-2000, -1001, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", randomIntBetween(100, 10000))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
+                .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
+                .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
+                .field(FIELD_LABEL_INTEGER, labelIntegerValue)
+                .field(FIELD_LABEL_KEYWORD, ts)
+                .field(FIELD_LABEL_UNMAPPED, randomBoolean() ? labelLongValue : labelDoubleValue)
+                .field(FIELD_LABEL_TEXT, ts)
+                .field(FIELD_LABEL_BOOLEAN, randomBoolean())
+                .field(FIELD_LABEL_IPv4_ADDRESS, labelIpv4Address)
+                .field(FIELD_LABEL_IPv6_ADDRESS, labelIpv6Address)
+                .field(FIELD_LABEL_DATE, labelDateValue)
+                .field(FIELD_LABEL_KEYWORD_ARRAY, keywordArray)
+                .field(FIELD_LABEL_DOUBLE_ARRAY, doubleArray)
+                .startObject(FIELD_LABEL_AGG_METRIC)
+                .field("min", randomDoubleBetween(-2000, -1001, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
+                .endObject();
+        };
+        docCount = 512; // Hard code to have 512 documents in the source index, otherwise running this test take too long.
+        bulkIndex(sourceIndex, sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+
+        final CountDownLatch rollupComplete = new CountDownLatch(2);
+        final String targetIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        AtomicBoolean firstFailed = new AtomicBoolean(false);
+        AtomicBoolean secondFailed = new AtomicBoolean(false);
+        // NOTE: we expect one thread to run the downsample operation and the other one to fail
+        new Thread(() -> {
+            try {
+                rollup(sourceIndex, targetIndex, config);
+            } catch (ResourceAlreadyExistsException e) {
+                firstFailed.set(true);
+            } finally {
+                rollupComplete.countDown();
+            }
+
+        }).start();
+        new Thread(() -> {
+            try {
+                rollup(sourceIndex, targetIndex, config);
+            } catch (ResourceAlreadyExistsException e) {
+                secondFailed.set(true);
+            } finally {
+                rollupComplete.countDown();
+            }
+        }).start();
+
+        assertTrue(rollupComplete.await(30, TimeUnit.SECONDS));
+        assertFalse(firstFailed.get() && secondFailed.get());
+        assertTrue(firstFailed.get() || secondFailed.get());
+        assertRollupIndex(sourceIndex, targetIndex, config);
     }
 }

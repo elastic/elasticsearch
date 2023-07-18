@@ -693,8 +693,6 @@ public final class TokenService {
                 if (searchHits.getHits().length < 1) {
                     logger.debug("could not find token document for refresh token");
                     listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.NOT_FOUND));
-                } else if (searchHits.getHits().length > 1) {
-                    listener.onFailure(new IllegalStateException("multiple tokens share the same refresh token"));
                 } else {
                     final Tuple<UserToken, RefreshTokenStatus> parsedTokens = parseTokenAndRefreshStatus(
                         searchHits.getAt(0).getSourceAsMap()
@@ -993,8 +991,6 @@ public final class TokenService {
             if (searchHits.getHits().length < 1) {
                 logger.warn("could not find token document for refresh token");
                 onFailure.accept(invalidGrantException("could not refresh the requested token"));
-            } else if (searchHits.getHits().length > 1) {
-                onFailure.accept(new IllegalStateException("multiple tokens share the same refresh token"));
             } else {
                 final SearchHit tokenDocHit = searchHits.getAt(0);
                 final Authentication clientAuth = securityContext.getAuthentication();
@@ -1113,6 +1109,8 @@ public final class TokenService {
                         if (searchResponse.isTimedOut()) {
                             logger.debug("find token from refresh token response timed out, retrying");
                             maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
+                        } else if (searchResponse.getHits().getHits().length > 1) {
+                            listener.onFailure(new IllegalStateException("multiple tokens share the same refresh token"));
                         } else {
                             listener.onResponse(searchResponse.getHits());
                         }

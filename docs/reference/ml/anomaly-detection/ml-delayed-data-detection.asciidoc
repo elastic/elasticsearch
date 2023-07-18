@@ -16,6 +16,11 @@ if it is set too high, analysis drifts farther away from real-time. The balance
 that is struck depends upon each use case and the environmental factors of the
 cluster.
 
+IMPORTANT: If you get an error that says 
+`Datafeed has missed XXXX documents due to ingest latency`, check whether your 
+ingest pipeline delays indexing. If your ingest pipeline functions well, 
+consider increasing the valuse of `query_delay`.
+
 == Why worry about delayed data?
 
 If data are delayed randomly (and consequently are missing from analysis), the

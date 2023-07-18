@@ -111,8 +111,8 @@ example, when searching for single words or IDs, like product numbers.
 
 Combining semantic and lexical search into one hybrid search request using
 <<rrf,reciprocal rank fusion>> provides the best of both worlds. Not only that,
-but hybrid search using reciprocal rank fusion has been shown to perform better
-in general.
+but hybrid search using reciprocal rank fusion {blog-ref}improving-information-retrieval-elastic-stack-hybrid[has been shown to perform better
+in general].
 
 include::{es-repo-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc[]
 
@@ -124,11 +124,12 @@ include::{es-repo-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc
 ** <<semantic-search-elser,Semantic search with ELSER>>
 ** {ml-docs}/ml-nlp-text-emb-vector-search-example.html[Semantic search with the msmarco-MiniLM-L-12-v3 sentence-transformer model]
 * Blogs:
-** {blog-ref}/may-2023-launch-sparse-encoder-ai-model[Introducing Elastic Learned Sparse Encoder: Elastic's AI model for semantic search]
-** {blog-ref}/lexical-ai-powered-search-elastic-vector-database[How to get the best of lexical and AI-powered search with Elastic's vector database]
+** {blog-ref}may-2023-launch-sparse-encoder-ai-model[Introducing Elastic Learned Sparse Encoder: Elastic's AI model for semantic search]
+** {blog-ref}lexical-ai-powered-search-elastic-vector-database[How to get the best of lexical and AI-powered search with Elastic's vector database]
 ** Information retrieval blog series:
-*** {blog-ref}/improving-information-retrieval-elastic-stack-search-relevance[Part 1: Steps to improve search relevance]
-*** {blog-ref}/improving-information-retrieval-elastic-stack-benchmarking-passage-retrieval[Part 2: Benchmarking passage retrieval]
-*** {blog-ref}/may-2023-launch-information-retrieval-elasticsearch-ai-model[Part 3: Introducing Elastic Learned Sparse Encoder, our new retrieval model]
+*** {blog-ref}improving-information-retrieval-elastic-stack-search-relevance[Part 1: Steps to improve search relevance]
+*** {blog-ref}improving-information-retrieval-elastic-stack-benchmarking-passage-retrieval[Part 2: Benchmarking passage retrieval]
+*** {blog-ref}may-2023-launch-information-retrieval-elasticsearch-ai-model[Part 3: Introducing Elastic Learned Sparse Encoder, our new retrieval model]
+*** {blog-ref}improving-information-retrieval-elastic-stack-hybrid[Part 4: Hybrid retrieval]
 
 include::semantic-search-elser.asciidoc[]

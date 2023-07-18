@@ -99,7 +99,7 @@ class MutableSearchResponse {
         TotalHits totalHits,
         Supplier<InternalAggregations> reducedAggs,
         int reducePhase,
-        boolean isFinalLocalReduce
+        boolean isFinalLocalReduce // TODO: can be removed?
     ) {
         failIfFrozen();
         if (reducePhase < this.reducePhase) {

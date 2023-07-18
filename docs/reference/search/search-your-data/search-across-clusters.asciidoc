@@ -138,7 +138,18 @@ The API returns the following response:
   "_clusters": {
     "total": 1,
     "successful": 1,
-    "skipped": 0
+    "skipped": 0,
+    "details": {
+      "cluster_one": {  <1>
+        "status": "success",
+        "total_shards": 3,
+        "successful_shards": 3,
+        "skipped_shards": 0,
+        "failed_shards": 0,
+        "percent_shards_successful": "100.00",
+        "search_duration": 27
+      }
+    }
   },
   "hits": {
     "total" : {
@@ -148,7 +159,7 @@ The API returns the following response:
     "max_score": 1,
     "hits": [
       {
-        "_index": "cluster_one:my-index-000001", <1>
+        "_index": "cluster_one:my-index-000001", <2>
         "_id": "0",
         "_score": 1,
         "_source": {
@@ -171,9 +182,18 @@ The API returns the following response:
 // TESTRESPONSE[s/"took": 150/"took": "$body.took"/]
 // TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
 // TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
+// TESTRESPONSE[s/"total_shards": 3/"total_shards": "$body._clusters.details.cluster_one.total_shards"/]
+// TESTRESPONSE[s/"successful_shards": 3/"successful_shards": "$body._clusters.details.cluster_one.successful_shards"/]
+// TESTRESPONSE[s/"skipped_shards": 0/"skipped_shards": "$body._clusters.details.cluster_one.skipped_shards"/]
+// TESTRESPONSE[s/"failed_shards": 0/"failed_shards": "$body._clusters.details.cluster_one.failed_shards"/]
+// TESTRESPONSE[s/"percent_shards_successful": "100.00"/"percent_shards_successful": "$body._clusters.details.cluster_one.percent_shards_successful"/]
+// TESTRESPONSE[s/"search_duration": 27/"search_duration": "$body._clusters.details.cluster_one.search_duration"/]
 
-<1> The search response body includes the name of the remote cluster in the
+
+<1> The details section shows information about the search on each remote cluster.
+<2> The search response body includes the name of the remote cluster in the
 `_index` parameter.
+
 
 [discrete]
 [[ccs-search-multi-remote-cluster]]
@@ -208,15 +228,44 @@ The API returns the following response:
   "timed_out": false,
   "num_reduce_phases": 4,
   "_shards": {
-    "total": 3,
-    "successful": 3,
+    "total": 12,
+    "successful": 12,
     "failed": 0,
     "skipped": 0
   },
   "_clusters": {
     "total": 3,
     "successful": 3,
-    "skipped": 0
+    "skipped": 0,
+    "details": {
+      "(local)": {            <1>
+        "status": "success",
+        "total_shards": 5,
+        "successful_shards": 5,
+        "skipped_shards": 0,
+        "failed_shards": 0,
+        "percent_shards_successful": "100.00",
+        "search_duration": 21
+      },
+      "cluster_one": {
+        "status": "success",
+        "total_shards": 4,
+        "successful_shards": 4,
+        "skipped_shards": 0,
+        "failed_shards": 0,
+        "percent_shards_successful": "100.00",
+        "search_duration": 35
+      },
+      "cluster_two": {
+        "status": "success",
+        "total_shards": 3,
+        "successful_shards": 3,
+        "skipped_shards": 0,
+        "failed_shards": 0,
+        "percent_shards_successful": "100.00",
+        "search_duration": 37
+      }
+    }
   },
   "hits": {
     "total" : {
@@ -226,7 +275,7 @@ The API returns the following response:
     "max_score": 1,
     "hits": [
       {
-        "_index": "my-index-000001", <1>
+        "_index": "my-index-000001", <2>
         "_id": "0",
         "_score": 2,
         "_source": {
@@ -243,7 +292,7 @@ The API returns the following response:
         }
       },
       {
-        "_index": "cluster_one:my-index-000001", <2>
+        "_index": "cluster_one:my-index-000001", <3>
         "_id": "0",
         "_score": 1,
         "_source": {
@@ -260,7 +309,7 @@ The API returns the following response:
         }
       },
       {
-        "_index": "cluster_two:my-index-000001", <3>
+        "_index": "cluster_two:my-index-000001", <4>
         "_id": "0",
         "_score": 1,
         "_source": {
@@ -284,15 +333,25 @@ The API returns the following response:
 // TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
 // TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
 // TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
+// TESTRESPONSE[s/"total": 12/"total": "$body._shards.total"/]
+// TESTRESPONSE[s/"successful": 12/"successful": "$body._shards.successful"/]
+// TESTRESPONSE[s/"total_shards": 5/"total_shards": "$body._clusters.details.(local).total_shards"/]
+// TESTRESPONSE[s/"successful_shards": 5/"successful_shards": "$body._clusters.details.(local).successful_shards"/]
+// TESTRESPONSE[s/"search_duration": 21/"search_duration": "$body._clusters.details.(local).search_duration"/]
+// TESTRESPONSE[s/"total_shards": 4/"total_shards": "$body._clusters.details.cluster_one.total_shards"/]
+// TESTRESPONSE[s/"successful_shards": 4/"successful_shards": "$body._clusters.details.cluster_one.successful_shards"/]
+// TESTRESPONSE[s/"search_duration": 35/"search_duration": "$body._clusters.details.cluster_one.search_duration"/]
+// TESTRESPONSE[s/"total_shards": 3/"total_shards": "$body._clusters.details.cluster_two.total_shards"/]
+// TESTRESPONSE[s/"successful_shards": 3/"successful_shards": "$body._clusters.details.cluster_two.successful_shards"/]
+// TESTRESPONSE[s/"search_duration": 37/"search_duration": "$body._clusters.details.cluster_two.search_duration"/]
 
-<1> This document's `_index` parameter doesn't include a cluster name. This
+<1> The local (querying) cluster is identified as "(local)".
+<2> This document's `_index` parameter doesn't include a cluster name. This
 means the document came from the local cluster.
-<2> This document came from `cluster_one`.
-<3> This document came from `cluster_two`.
+<3> This document came from `cluster_one`.
+<4> This document came from `cluster_two`.
 
-
-
-
+BELOW THIS LINE, TESTS WILL FAIL - NOT UPDATED YET
 
 [discrete]
 [[ccs-async-search-minimize-roundtrips-true]]

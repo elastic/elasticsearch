@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase;
 import org.junit.Before;
 
@@ -21,9 +20,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
+import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.ql.SpecReader.Parser;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.csvConnection;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.executeCsvQuery;
-import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
 
 /**
  * Tests comparing sql queries executed against our jdbc client

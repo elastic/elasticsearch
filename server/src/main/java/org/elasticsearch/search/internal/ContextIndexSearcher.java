@@ -203,7 +203,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return computeSlices(leaves, queueSizeBasedExecutor.threadPoolExecutor.getPoolSize(), MINIMUM_DOCS_PER_SLICE);
+        return computeSlices(leaves, queueSizeBasedExecutor.threadPoolExecutor.getMaximumPoolSize(), MINIMUM_DOCS_PER_SLICE);
     }
 
     /**

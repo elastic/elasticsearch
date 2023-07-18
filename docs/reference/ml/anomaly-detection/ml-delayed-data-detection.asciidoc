@@ -17,9 +17,9 @@ that is struck depends upon each use case and the environmental factors of the
 cluster.
 
 IMPORTANT: If you get an error that says 
-`Datafeed has missed XXXX documents due to ingest latency`, check whether your 
-ingest pipeline delays indexing. If your ingest pipeline works as expected, 
-consider increasing the value of `query_delay`.
+`Datafeed has missed XXXX documents due to ingest latency`, check your ingestion 
+process end to end if it delays indexing. If it works as expected, consider 
+increasing the value of `query_delay`.
 
 == Why worry about delayed data?
 

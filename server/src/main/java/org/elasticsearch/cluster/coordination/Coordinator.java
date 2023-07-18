@@ -234,7 +234,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.joinValidationService = new JoinValidationService(
             settings,
             transportService,
-            this::getStateForMasterService, // TODO see https://github.com/elastic/elasticsearch/issues/97313
+            this::getStateForJoinValidationService,
+            () -> getLastAcceptedState().metadata(),
             this.onJoinValidators
         );
         this.persistedStateSupplier = persistedStateSupplier;
@@ -679,20 +680,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         // - if we're already master that it can make sense of the current cluster state.
         // - we have a healthy PING channel to the node
 
-        final ClusterState stateForJoinValidation;
-        synchronized (mutex) {
-            // similar to getStateForMasterService(), but don't rebuild the state if we're not the master since we don't use it in that case
-            final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
-            assert lastAcceptedState.nodes().getLocalNode() != null;
-            if (mode != Mode.LEADER || lastAcceptedState.term() != getCurrentTerm()) {
-                stateForJoinValidation = null;
-            } else {
-                stateForJoinValidation = lastAcceptedState;
-            }
-        }
-
+        final ClusterState stateForJoinValidation = getStateForJoinValidationService();
         final ListenableActionFuture<Empty> validateStateListener = new ListenableActionFuture<>();
-        if (stateForJoinValidation != null && stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
+        if (stateForJoinValidation != null) {
+            assert stateForJoinValidation.nodes().isLocalNodeElectedMaster();
             onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
             if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                 // We do this in a couple of places including the cluster update thread. This one here is really just best effort to ensure
@@ -1473,6 +1464,20 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             if (mode != Mode.LEADER || clusterState.term() != getCurrentTerm()) {
                 // the master service checks if the local node is the master node in order to fail execution of the state update early
                 return clusterStateWithNoMasterBlock(clusterState);
+            }
+            return clusterState;
+        }
+    }
+
+    private ClusterState getStateForJoinValidationService() {
+        synchronized (mutex) {
+            // similar to getStateForMasterService, but do not rebuild the state if not currently the master
+            final ClusterState clusterState = coordinationState.get().getLastAcceptedState();
+            assert clusterState.nodes().getLocalNode() != null;
+            if (mode != Mode.LEADER
+                || clusterState.term() != getCurrentTerm()
+                || clusterState.nodes().isLocalNodeElectedMaster() == false) {
+                return null;
             }
             return clusterState;
         }

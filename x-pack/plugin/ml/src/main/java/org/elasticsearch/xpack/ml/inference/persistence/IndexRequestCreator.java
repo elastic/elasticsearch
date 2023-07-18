@@ -34,8 +34,9 @@ public class IndexRequestCreator {
      */
     static final Set<String> PRE_PACKAGED_MODELS = Set.of(".elser_model_1");
 
-    public static IndexRequest create(String modelId, String docId, String index, ToXContentObject body) {
+    private IndexRequestCreator() {}
 
+    public static IndexRequest create(String modelId, String docId, String index, ToXContentObject body) {
         return create(new IndexRequest(index), docId, body, getOperation(modelId));
     }
 
@@ -59,6 +60,4 @@ public class IndexRequestCreator {
             throw ExceptionsHelper.serverError("Unexpected serialization exception for [" + docId + "]", ex);
         }
     }
-
-    private IndexRequestCreator() {}
 }

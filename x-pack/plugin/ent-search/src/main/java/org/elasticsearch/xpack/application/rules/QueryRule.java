@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -52,6 +54,8 @@ public class QueryRule implements Writeable, ToXContentObject {
     private final QueryRuleType type;
     private final List<QueryRuleCriteria> criteria;
     private final Map<String, Object> actions;
+
+    private final Logger logger = LogManager.getLogger(QueryRule.class);
 
     public enum QueryRuleType {
         PINNED;
@@ -284,35 +288,53 @@ public class QueryRule implements Writeable, ToXContentObject {
         List<String> matchingPinnedIds = new ArrayList<>();
         List<PinnedQueryBuilder.Item> matchingPinnedDocs = new ArrayList<>();
 
+        Boolean isMatch = null;
         for (QueryRuleCriteria criterion : criteria) {
             for (String match : matchCriteria.keySet()) {
                 final Object matchValue = matchCriteria.get(match);
                 final QueryRuleCriteria.CriteriaType criteriaType = criterion.criteriaType();
                 final String criteriaMetadata = criterion.criteriaMetadata();
-//                if (criterion.criteriaMatches(criterion.criteriaType(), criteriaMetadata, match)) {
-                if (criteriaType == QueryRuleCriteria.CriteriaType.GLOBAL
-                    || (criteriaMetadata != null && criteriaMetadata.equals(match) && criterion.isMatch(matchValue, criteriaType))) {
-                    if (actions.containsKey(IDS_FIELD.getPreferredName())) {
-                        matchingPinnedIds.addAll((List<String>) actions.get(IDS_FIELD.getPreferredName()));
-                    } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
-                        List<Map<String, String>> docsToPin = (List<Map<String, String>>) actions.get(DOCS_FIELD.getPreferredName());
-                        List<PinnedQueryBuilder.Item> items = docsToPin.stream()
-                            .map(
-                                map -> new PinnedQueryBuilder.Item(
-                                    map.get(INDEX_FIELD.getPreferredName()),
-                                    map.get(PinnedQueryBuilder.Item.ID_FIELD.getPreferredName())
-                                )
-                            )
-                            .toList();
-                        matchingPinnedDocs.addAll(items);
+
+                logger.info("Comparing criteriaType {} + criteriaMetadata {} with match {} and matchValue {} and actions of {}",
+                    criteriaType, criteriaMetadata, match, matchValue, actions.get(IDS_FIELD.getPreferredName()));
+                boolean shouldMatch = (criteriaType == QueryRuleCriteria.CriteriaType.GLOBAL || (criteriaMetadata != null && criteriaMetadata.equals(
+                    match)));
+                if (shouldMatch) {
+                    if (isMatch == null) {
+                        isMatch = criterion.isMatch(matchValue, criteriaType);
+                        logger.info("Initializing isMatch to {}", isMatch);
+                    } else {
+                        isMatch &= criterion.isMatch(matchValue, criteriaType);
+                        logger.info("Setting isMatch to {}", isMatch);
                     }
                 }
+            }
+        }
+
+        logger.info("Final status of isMatch: " + isMatch);
+        logger.info("Beginning matchingPinnedIds: " + matchingPinnedIds);
+        if (isMatch != null && isMatch) {
+            if (actions.containsKey(IDS_FIELD.getPreferredName())) {
+                logger.info("Adding pinned IDs: " + actions.get(IDS_FIELD.getPreferredName()));
+                matchingPinnedIds.addAll((List<String>) actions.get(IDS_FIELD.getPreferredName()));
+            } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
+                List<Map<String, String>> docsToPin = (List<Map<String, String>>) actions.get(DOCS_FIELD.getPreferredName());
+                List<PinnedQueryBuilder.Item> items = docsToPin.stream()
+                    .map(
+                        map -> new PinnedQueryBuilder.Item(
+                            map.get(INDEX_FIELD.getPreferredName()),
+                            map.get(PinnedQueryBuilder.Item.ID_FIELD.getPreferredName())
+                        )
+                    )
+                    .toList();
+                matchingPinnedDocs.addAll(items);
             }
         }
 
         List<String> pinnedIds = appliedRules.pinnedIds();
         List<PinnedQueryBuilder.Item> pinnedDocs = appliedRules.pinnedDocs();
         pinnedIds.addAll(matchingPinnedIds);
+        logger.info("Final pinnedIds: " + pinnedIds);
         pinnedDocs.addAll(matchingPinnedDocs);
         return new AppliedQueryRules(pinnedIds, pinnedDocs);
     }

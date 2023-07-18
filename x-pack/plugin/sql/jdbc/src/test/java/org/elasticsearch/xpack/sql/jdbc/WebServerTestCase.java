@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.rest.root.MainResponse;
@@ -50,8 +49,7 @@ public abstract class WebServerTestCase extends ESTestCase {
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
         Build build = new Build(Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(), version.toString());
-        TransportVersion transportVersion = TransportVersion.current();
-        return new MainResponse(nodeName, version, transportVersion, clusterName, clusterUuid, build);
+        return new MainResponse(nodeName, version, clusterName, clusterUuid, build);
     }
 
     String webServerAddress() {

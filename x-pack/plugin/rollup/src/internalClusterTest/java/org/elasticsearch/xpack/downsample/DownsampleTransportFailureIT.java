@@ -40,7 +40,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Assert;
 import org.junit.Before;
@@ -60,8 +59,6 @@ import java.util.stream.Collectors;
 // This needs to be moved to internalClusterTest sourceSet
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
 public class DownsampleTransportFailureIT extends ESIntegTestCase {
-
-    public static final String ROLLUP_INDEXER_SHARD_ACTION = DownsampleIndexerAction.NAME + "[s]";
 
     private static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 

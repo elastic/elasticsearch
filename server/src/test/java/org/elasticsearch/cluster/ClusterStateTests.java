@@ -151,7 +151,7 @@ public class ClusterStateTests extends ESTestCase {
                           "master_node": "nodeId1",
                           "blocks": {
                             "global": {
-                              "1": {
+                              "3": {
                                 "description": "description",
                                 "retryable": true,
                                 "disable_state_persistence": true,
@@ -406,7 +406,7 @@ public class ClusterStateTests extends ESTestCase {
                       "master_node" : "nodeId1",
                       "blocks" : {
                         "global" : {
-                          "1" : {
+                          "3" : {
                             "description" : "description",
                             "retryable" : true,
                             "disable_state_persistence" : true,
@@ -657,7 +657,7 @@ public class ClusterStateTests extends ESTestCase {
                       "master_node" : "nodeId1",
                       "blocks" : {
                         "global" : {
-                          "1" : {
+                          "3" : {
                             "description" : "description",
                             "retryable" : true,
                             "disable_state_persistence" : true,

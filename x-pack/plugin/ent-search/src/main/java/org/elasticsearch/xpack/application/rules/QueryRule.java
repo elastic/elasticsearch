@@ -287,35 +287,24 @@ public class QueryRule implements Writeable, ToXContentObject {
 
         List<String> matchingPinnedIds = new ArrayList<>();
         List<PinnedQueryBuilder.Item> matchingPinnedDocs = new ArrayList<>();
+        Boolean isRuleMatch = null;
 
-        Boolean isMatch = null;
+        // All specified criteria in a rule must match for the rule to be applied
         for (QueryRuleCriteria criterion : criteria) {
             for (String match : matchCriteria.keySet()) {
                 final Object matchValue = matchCriteria.get(match);
                 final QueryRuleCriteria.CriteriaType criteriaType = criterion.criteriaType();
                 final String criteriaMetadata = criterion.criteriaMetadata();
 
-                logger.info("Comparing criteriaType {} + criteriaMetadata {} with match {} and matchValue {} and actions of {}",
-                    criteriaType, criteriaMetadata, match, matchValue, actions.get(IDS_FIELD.getPreferredName()));
-                boolean shouldMatch = (criteriaType == QueryRuleCriteria.CriteriaType.GLOBAL || (criteriaMetadata != null && criteriaMetadata.equals(
-                    match)));
-                if (shouldMatch) {
-                    if (isMatch == null) {
-                        isMatch = criterion.isMatch(matchValue, criteriaType);
-                        logger.info("Initializing isMatch to {}", isMatch);
-                    } else {
-                        isMatch &= criterion.isMatch(matchValue, criteriaType);
-                        logger.info("Setting isMatch to {}", isMatch);
-                    }
+                if (criteriaType == QueryRuleCriteria.CriteriaType.GLOBAL || (criteriaMetadata != null && criteriaMetadata.equals(match))) {
+                    boolean singleCriterionMatches = criterion.isMatch(matchValue, criteriaType);
+                    isRuleMatch = (isRuleMatch == null) ? singleCriterionMatches : isRuleMatch & singleCriterionMatches;
                 }
             }
         }
 
-        logger.info("Final status of isMatch: " + isMatch);
-        logger.info("Beginning matchingPinnedIds: " + matchingPinnedIds);
-        if (isMatch != null && isMatch) {
+        if (isRuleMatch != null && isRuleMatch) {
             if (actions.containsKey(IDS_FIELD.getPreferredName())) {
-                logger.info("Adding pinned IDs: " + actions.get(IDS_FIELD.getPreferredName()));
                 matchingPinnedIds.addAll((List<String>) actions.get(IDS_FIELD.getPreferredName()));
             } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
                 List<Map<String, String>> docsToPin = (List<Map<String, String>>) actions.get(DOCS_FIELD.getPreferredName());
@@ -334,7 +323,6 @@ public class QueryRule implements Writeable, ToXContentObject {
         List<String> pinnedIds = appliedRules.pinnedIds();
         List<PinnedQueryBuilder.Item> pinnedDocs = appliedRules.pinnedDocs();
         pinnedIds.addAll(matchingPinnedIds);
-        logger.info("Final pinnedIds: " + pinnedIds);
         pinnedDocs.addAll(matchingPinnedDocs);
         return new AppliedQueryRules(pinnedIds, pinnedDocs);
     }

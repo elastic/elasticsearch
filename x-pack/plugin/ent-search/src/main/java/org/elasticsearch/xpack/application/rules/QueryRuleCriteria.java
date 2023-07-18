@@ -204,20 +204,14 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     public boolean isMatch(Object matchValue, CriteriaType matchType) {
 
         if (criteriaType == GLOBAL) {
-            logger.info("Global criteria type, returning true");
             return true;
         }
 
         LevenshteinDistance ld = new LevenshteinDistance();
-
         String matchString = matchValue.toString();
         String criteriaValueString = criteriaValue != null ? criteriaValue.toString() : null;
         if (criteriaValueString != null && matchValue instanceof String) {
-
-            float editDistance = ld.getDistance(matchString, criteriaValueString);
-            logger.info("Edit distance between {} and {} is {}", matchString, criteriaValueString, editDistance);
-
-            boolean strMatch = switch (matchType) {
+            return switch (matchType) {
                 case EXACT -> matchString.equals(criteriaValueString);
                 case EXACT_FUZZY -> ld.getDistance(matchString, criteriaValueString) > 0.75f; // TODO make configurable
                 case PREFIX -> matchString.startsWith(criteriaValueString);
@@ -225,12 +219,10 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
                 case CONTAINS -> matchString.contains(criteriaValueString);
                 default -> false;
             };
-            logger.info("strMatch: " + strMatch);
-            return strMatch;
         } else if (criteriaValueString != null && matchValue instanceof Number) {
             try {
                 Number matchNumber = (Number) matchValue;
-                boolean numMatch = switch (matchType) {
+                return switch (matchType) {
                     case EXACT -> matchNumber.doubleValue() == Double.parseDouble(criteriaValueString);
                     case LT -> matchNumber.doubleValue() < Double.parseDouble(criteriaValueString);
                     case LTE -> matchNumber.doubleValue() <= Double.parseDouble(criteriaValueString);
@@ -238,8 +230,6 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
                     case GTE -> matchNumber.doubleValue() >= Double.parseDouble(criteriaValueString);
                     default -> false;
                 };
-                logger.info("matchType " + matchType + " matchNumber " + matchNumber + " criteriaValueString " + criteriaValueString + "; numMatch: " + numMatch);
-                return numMatch;
             } catch (NumberFormatException e) {
                 logger.warn("Query rule criteria [" + criteriaValue + "] type mismatch against [" + matchString + "]", e);
                 return false;

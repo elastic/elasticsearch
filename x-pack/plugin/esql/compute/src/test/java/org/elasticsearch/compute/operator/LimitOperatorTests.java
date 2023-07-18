@@ -67,4 +67,16 @@ public class LimitOperatorTests extends OperatorTestCase {
         assertThat(status.limitRemaining(), equalTo(90));
         assertThat(status.pagesProcessed(), equalTo(1));
     }
+
+    public void testNeedInput() {
+        LimitOperator op = (LimitOperator) simple(BigArrays.NON_RECYCLING_INSTANCE).get(new DriverContext());
+        assertTrue(op.needsInput());
+        Page p = new Page(Block.constantNullBlock(10));
+        op.addInput(p);
+        assertFalse(op.needsInput());
+        op.getOutput();
+        assertTrue(op.needsInput());
+        op.finish();
+        assertFalse(op.needsInput());
+    }
 }

@@ -57,11 +57,12 @@ public class LimitOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return finished == false;
+        return finished == false && lastInput == null;
     }
 
     @Override
     public void addInput(Page page) {
+        assert lastInput == null : "has pending input page";
         lastInput = page;
     }
 

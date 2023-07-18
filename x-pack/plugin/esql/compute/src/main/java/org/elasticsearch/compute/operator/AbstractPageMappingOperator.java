@@ -41,6 +41,7 @@ public abstract class AbstractPageMappingOperator implements Operator {
 
     @Override
     public final void addInput(Page page) {
+        assert prev == null : "has pending input page";
         prev = page;
     }
 

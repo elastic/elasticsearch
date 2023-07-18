@@ -39,6 +39,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -767,6 +768,18 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             throw new AlreadyClosedException("File chunk is evicted");
         }
 
+        boolean tryRead(ByteBuffer buf, long offset) throws IOException {
+            int startingPos = buf.position();
+            try (SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos)) {
+                fileChannel.read(buf, physicalStartOffset() + getRegionRelativePosition(offset));
+            }
+            if (evicted.get() || hasReferences() == false) {
+                buf.position(startingPos);
+                return false;
+            }
+            return true;
+        }
+
         void populateAndRead(
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
@@ -884,6 +897,20 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         public KeyType getCacheKey() {
             return cacheKey;
+        }
+
+        public boolean tryRead(ByteBuffer buf, long offset) throws IOException {
+            final int startRegion = getRegion(offset);
+            final long end = offset + buf.remaining();
+            final int endRegion = getEndingRegion(end);
+            if (startRegion != endRegion) {
+                return false;
+            }
+            final CacheFileRegion fileRegion = get(cacheKey, length, startRegion);
+            if (fileRegion.tracker.checkAvailable(end) == false) {
+                return false;
+            }
+            return fileRegion.tryRead(buf, offset);
         }
 
         public int populateAndRead(

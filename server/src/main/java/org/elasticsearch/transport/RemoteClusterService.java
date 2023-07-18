@@ -412,6 +412,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
         try {
             future.get(timeValue.millis(), TimeUnit.MILLISECONDS);
+            logger.debug("connected to all configured remote clusters");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (TimeoutException ex) {

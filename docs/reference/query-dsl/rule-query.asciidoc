@@ -70,7 +70,7 @@ GET /_search
 ==== Top-level parameters for `rule_query`
 
 `ruleset_id`::
-(Required, string) <<mapping-id-field, Document IDs>> <<query-rules-apis, query ruleset>> ID with query-based rules to match and apply as applicable.
+(Required, string) A unique <<query-rules-apis, query ruleset>> ID with query-based rules to match and apply as applicable.
 `match_criteria`::
 (Required, object) Defines the match criteria to apply to rules in the given query ruleset.
 Match criteria should match the keys defined in the `criteria.metadata` field of the rule.

@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
@@ -674,13 +673,9 @@ public class RBACEngineTests extends ESTestCase {
                 ResourcePrivileges.builder("log*").addPrivileges(Collections.singletonMap("manage", false)).build(),
                 ResourcePrivileges.builder("foo?").addPrivileges(Collections.singletonMap("read", true)).build(),
                 ResourcePrivileges.builder("foo*").addPrivileges(Collections.singletonMap("read", false)).build(),
-                ResourcePrivileges.builder("abcd*").addPrivileges(mapBuilder().put("read", true).put("write", false).map()).build(),
-                ResourcePrivileges.builder("abc*xyz")
-                    .addPrivileges(mapBuilder().put("read", true).put("write", true).put("manage", false).map())
-                    .build(),
-                ResourcePrivileges.builder("a*xyz")
-                    .addPrivileges(mapBuilder().put("read", false).put("write", true).put("manage", false).map())
-                    .build()
+                ResourcePrivileges.builder("abcd*").addPrivileges(Map.of("read", true, "write", false)).build(),
+                ResourcePrivileges.builder("abc*xyz").addPrivileges(Map.of("read", true, "write", true, "manage", false)).build(),
+                ResourcePrivileges.builder("a*xyz").addPrivileges(Map.of("read", false, "write", true, "manage", false)).build()
             )
         );
         assertThat(response.getDetails().application().entrySet(), Matchers.iterableWithSize(1));
@@ -690,7 +685,7 @@ public class RBACEngineTests extends ESTestCase {
             Strings.collectionToCommaDelimitedString(kibanaPrivileges),
             kibanaPrivileges,
             containsInAnyOrder(
-                ResourcePrivileges.builder("*").addPrivileges(mapBuilder().put("read", true).put("write", false).map()).build(),
+                ResourcePrivileges.builder("*").addPrivileges(Map.of("read", true, "write", false)).build(),
                 ResourcePrivileges.builder("space/engineering/project-*")
                     .addPrivileges(Collections.singletonMap("space:view/dashboard", true))
                     .build(),
@@ -2011,10 +2006,6 @@ public class RBACEngineTests extends ESTestCase {
             assertThat(privilegesCheckResult2.getDetails(), notNullValue());
             return privilegesCheckResult2;
         }
-    }
-
-    private static MapBuilder<String, Boolean> mapBuilder() {
-        return MapBuilder.newMapBuilder();
     }
 
     private BytesArray randomDlsQuery() {

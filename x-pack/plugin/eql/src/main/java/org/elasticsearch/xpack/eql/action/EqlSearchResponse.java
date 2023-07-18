@@ -283,7 +283,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 fetchFields = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_035)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
                 missing = in.readBoolean();
             } else {
                 missing = false;
@@ -306,7 +306,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                     out.writeMap(fetchFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
                 }
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_035)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
                 out.writeBoolean(missing);
             }
         }

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.xpack.ilm.PolicyStepsRegistry.VersionedPolicyKey;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -55,6 +56,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VERSION_ONE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -75,18 +77,24 @@ public class PolicyStepsRegistryTests extends ESTestCase {
     public void testGetFirstStep() {
         String policyName = randomAlphaOfLengthBetween(2, 10);
         Step expectedFirstStep = new MockStep(MOCK_STEP_KEY, null);
-        Map<String, Step> firstStepMap = Collections.singletonMap(policyName, expectedFirstStep);
+        Map<VersionedPolicyKey, Step> firstStepMap = Collections.singletonMap(
+            new VersionedPolicyKey(VERSION_ONE, policyName),
+            expectedFirstStep
+        );
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, firstStepMap, null, NamedXContentRegistry.EMPTY, null, null);
-        Step actualFirstStep = registry.getFirstStep(policyName);
+        Step actualFirstStep = registry.getFirstStep(policyName, VERSION_ONE);
         assertThat(actualFirstStep, sameInstance(expectedFirstStep));
     }
 
     public void testGetFirstStepUnknownPolicy() {
         String policyName = randomAlphaOfLengthBetween(2, 10);
         Step expectedFirstStep = new MockStep(MOCK_STEP_KEY, null);
-        Map<String, Step> firstStepMap = Collections.singletonMap(policyName, expectedFirstStep);
+        Map<VersionedPolicyKey, Step> firstStepMap = Collections.singletonMap(
+            new VersionedPolicyKey(VERSION_ONE, policyName),
+            expectedFirstStep
+        );
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, firstStepMap, null, NamedXContentRegistry.EMPTY, null, null);
-        Step actualFirstStep = registry.getFirstStep(policyName + "unknown");
+        Step actualFirstStep = registry.getFirstStep(policyName + "unknown", VERSION_ONE);
         assertNull(actualFirstStep);
     }
 
@@ -235,7 +243,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         // add new policy
         registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
 
-        assertThat(registry.getFirstStep(newPolicy.getName()), equalTo(policySteps.get(0)));
+        assertThat(registry.getFirstStep(newPolicy.getName(), 1), equalTo(policySteps.get(0)));
         assertThat(registry.getLifecyclePolicyMap().size(), equalTo(1));
         assertNotNull(registry.getLifecyclePolicyMap().get(newPolicy.getName()));
         assertThat(registry.getLifecyclePolicyMap().get(newPolicy.getName()).getHeaders(), equalTo(headers));
@@ -263,8 +271,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         }
 
         Map<String, LifecyclePolicyMetadata> registryPolicyMap = registry.getLifecyclePolicyMap();
-        Map<String, Step> registryFirstStepMap = registry.getFirstStepMap();
-        Map<String, Map<Step.StepKey, Step>> registryStepMap = registry.getStepMap();
+        Map<VersionedPolicyKey, Step> registryFirstStepMap = registry.getFirstStepMap();
+        Map<VersionedPolicyKey, Map<Step.StepKey, Step>> registryStepMap = registry.getStepMap();
         registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
         assertThat(registry.getLifecyclePolicyMap(), equalTo(registryPolicyMap));
         assertThat(registry.getFirstStepMap(), equalTo(registryFirstStepMap));

@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
+import org.elasticsearch.xpack.ilm.PolicyStepsRegistry.VersionedPolicyKey;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryItem;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import org.junit.After;
@@ -93,6 +94,7 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VERSION_ONE;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -777,9 +779,9 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         StepKey firstStepKey = new StepKey("phase_1", "action_1", "step_1");
         StepKey secondStepKey = new StepKey("phase_1", "action_1", "step_2");
         Step firstStep = new MockStep(firstStepKey, secondStepKey);
-        Map<String, Step> firstStepMap = new HashMap<>();
-        firstStepMap.put(policyName, firstStep);
-        Map<String, Map<StepKey, Step>> stepMap = new HashMap<>();
+        Map<VersionedPolicyKey, Step> firstStepMap = new HashMap<>();
+        firstStepMap.put(new VersionedPolicyKey(VERSION_ONE, policyName), firstStep);
+        Map<VersionedPolicyKey, Map<StepKey, Step>> stepMap = new HashMap<>();
         Index index = new Index("test", "uuid");
 
         Step.StepKey MOCK_STEP_KEY = new Step.StepKey("mock", "mock", "mock");
@@ -835,9 +837,12 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 )
             )
         );
-        Map<String, Step> firstStepMap = Collections.singletonMap(policyName, step);
+        Map<VersionedPolicyKey, Step> firstStepMap = Collections.singletonMap(new VersionedPolicyKey(VERSION_ONE, policyName), step);
         Map<StepKey, Step> policySteps = Collections.singletonMap(step.getKey(), step);
-        Map<String, Map<StepKey, Step>> stepMap = Collections.singletonMap(policyName, policySteps);
+        Map<VersionedPolicyKey, Map<StepKey, Step>> stepMap = Collections.singletonMap(
+            new VersionedPolicyKey(VERSION_ONE, policyName),
+            policySteps
+        );
         PolicyStepsRegistry policyStepsRegistry = new PolicyStepsRegistry(
             lifecyclePolicyMap,
             firstStepMap,
@@ -1209,8 +1214,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         MockPolicyStepsRegistry(
             SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap,
-            Map<String, Step> firstStepMap,
-            Map<String, Map<StepKey, Step>> stepMap,
+            Map<VersionedPolicyKey, Step> firstStepMap,
+            Map<VersionedPolicyKey, Map<StepKey, Step>> stepMap,
             NamedXContentRegistry xContentRegistry,
             Client client
         ) {
@@ -1241,12 +1246,12 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         LifecyclePolicy policy = new LifecyclePolicy(policyName, new HashMap<>());
         SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap = new TreeMap<>();
         lifecyclePolicyMap.put(policyName, new LifecyclePolicyMetadata(policy, new HashMap<>(), 1, 1));
-        Map<String, Step> firstStepMap = new HashMap<>();
-        firstStepMap.put(policyName, steps.get(0));
-        Map<String, Map<StepKey, Step>> stepMap = new HashMap<>();
+        Map<VersionedPolicyKey, Step> firstStepMap = new HashMap<>();
+        firstStepMap.put(new VersionedPolicyKey(VERSION_ONE, policyName), steps.get(0));
+        Map<VersionedPolicyKey, Map<StepKey, Step>> stepMap = new HashMap<>();
         Map<StepKey, Step> policySteps = new HashMap<>();
         steps.forEach(step -> policySteps.put(step.getKey(), step));
-        stepMap.put(policyName, policySteps);
+        stepMap.put(new VersionedPolicyKey(VERSION_ONE, policyName), policySteps);
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         return new MockPolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, REGISTRY, client);

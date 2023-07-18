@@ -87,13 +87,14 @@ public final class IndexLifecycleTransition {
         final Set<Step.StepKey> cachedStepKeys = stepRegistry.parseStepKeysFromPhase(
             policyName,
             lifecycleState.phase(),
+            lifecycleState.actionsOrderVersion(),
             lifecycleState.phaseDefinition()
         );
         boolean isNewStepCached = cachedStepKeys != null && cachedStepKeys.contains(newStepKey);
 
         // Always allow moving to the terminal step or to a step that's present in the cached phase, even if it doesn't exist in the policy
         if (isNewStepCached == false
-            && (stepRegistry.stepExists(policyName, newStepKey) == false
+            && (stepRegistry.stepExists(policyName, lifecycleState.actionsOrderVersion(), newStepKey) == false
                 && newStepKey.equals(TerminalPolicyStep.KEY) == false
                 && newStepKey.equals(PhaseCompleteStep.stepKey(lifecycleState.phase())) == false)) {
             throw new IllegalArgumentException(
@@ -286,6 +287,7 @@ public final class IndexLifecycleTransition {
         updatedState.setAction(newStep.action());
         updatedState.setStep(newStep.name());
         updatedState.setStepTime(nowAsMillis);
+        updatedState.setActionsOrderVersion(existingState.actionsOrderVersion());
 
         // clear any step info or error-related settings from the current step
         updatedState.setFailedStep(null);
@@ -296,10 +298,13 @@ public final class IndexLifecycleTransition {
         if (currentStep == null || currentStep.phase().equals(newStep.phase()) == false || forcePhaseDefinitionRefresh) {
             final String newPhaseDefinition;
             final Phase nextPhase;
+            LifecyclePolicy policy = policyMetadata.getPolicy();
             if ("new".equals(newStep.phase()) || TerminalPolicyStep.KEY.equals(newStep)) {
                 nextPhase = null;
+                // when starting to manage the index we should use the latest actions order version
+                updatedState.setActionsOrderVersion(policy.getType().getLatestActionsOrderVersion());
             } else {
-                nextPhase = policyMetadata.getPolicy().getPhases().get(newStep.phase());
+                nextPhase = policy.getPhases().get(newStep.phase());
             }
             PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(
                 policyMetadata.getName(),
@@ -310,6 +315,11 @@ public final class IndexLifecycleTransition {
             newPhaseDefinition = Strings.toString(phaseExecutionInfo, false, false);
             updatedState.setPhaseDefinition(newPhaseDefinition);
             updatedState.setPhaseTime(nowAsMillis);
+
+            // we want to update to the latest actions order version only when we're transitioning to a new phase
+            if (currentStep != null && currentStep.phase().equals(newStep.phase()) == false) {
+                updatedState.setActionsOrderVersion(policy.getType().getLatestActionsOrderVersion());
+            }
         } else if (currentStep.phase().equals(InitializePolicyContextStep.INITIALIZATION_PHASE)) {
             // The "new" phase is the initialization phase, usually the phase
             // time would be set on phase transition, but since there is no
@@ -355,7 +365,7 @@ public final class IndexLifecycleTransition {
             return existingState;
         }
 
-        List<Step> policySteps = oldPolicy.toSteps(client, licenseState);
+        List<Step> policySteps = oldPolicy.toSteps(client, existingState.actionsOrderVersion(), licenseState);
         Optional<Step> currentStep = policySteps.stream().filter(step -> step.getKey().equals(currentStepKey)).findFirst();
 
         if (currentStep.isPresent() == false) {

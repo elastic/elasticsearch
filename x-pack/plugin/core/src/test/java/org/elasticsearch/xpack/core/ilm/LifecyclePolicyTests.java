@@ -31,6 +31,11 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_COLD_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_DELETE_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_FROZEN_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_HOT_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_WARM_ACTIONS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -235,11 +240,11 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
 
     private static Function<String, Set<String>> getPhaseToValidActions() {
         return (phase) -> new HashSet<>(switch (phase) {
-            case "hot" -> TimeseriesLifecycleType.VALID_HOT_ACTIONS;
-            case "warm" -> TimeseriesLifecycleType.VALID_WARM_ACTIONS;
-            case "cold" -> TimeseriesLifecycleType.VALID_COLD_ACTIONS;
-            case "frozen" -> TimeseriesLifecycleType.VALID_FROZEN_ACTIONS;
-            case "delete" -> TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+            case "hot" -> VALID_HOT_ACTIONS;
+            case "warm" -> VALID_WARM_ACTIONS;
+            case "cold" -> VALID_COLD_ACTIONS;
+            case "frozen" -> VALID_FROZEN_ACTIONS;
+            case "delete" -> VALID_DELETE_ACTIONS;
             default -> throw new IllegalArgumentException("invalid phase [" + phase + "]");
         });
     }

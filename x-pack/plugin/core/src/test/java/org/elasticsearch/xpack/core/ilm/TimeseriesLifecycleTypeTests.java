@@ -23,21 +23,24 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.ORDERED_VALID_COLD_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.ORDERED_VALID_DELETE_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.ORDERED_VALID_FROZEN_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.ORDERED_VALID_HOT_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.ORDERED_VALID_WARM_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_COLD_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_DELETE_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_FROZEN_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_HOT_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_WARM_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VERSION_ONE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.FROZEN_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_COLD_ACTIONS;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_DELETE_ACTIONS;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_HOT_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.INSTANCE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_PHASES;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_WARM_ACTIONS;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_COLD_ACTIONS;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_FROZEN_ACTIONS;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_HOT_ACTIONS;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_WARM_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateAllSearchableSnapshotActionsUseSameRepository;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateFrozenPhaseHasSearchableSnapshotAction;
@@ -45,7 +48,9 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateM
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class TimeseriesLifecycleTypeTests extends ESTestCase {
@@ -507,7 +512,10 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     public void testGetOrderedActionsInvalidPhase() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> TimeseriesLifecycleType.INSTANCE.getOrderedActions(new Phase("invalid", TimeValue.ZERO, Collections.emptyMap()))
+            () -> TimeseriesLifecycleType.INSTANCE.getOrderedActions(
+                new Phase("invalid", TimeValue.ZERO, Collections.emptyMap()),
+                INSTANCE.getLatestActionsOrderVersion()
+            )
         );
         assertThat(exception.getMessage(), equalTo("lifecycle type [timeseries] does not support phase [invalid]"));
     }
@@ -517,8 +525,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             .map(this::getTestAction)
             .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-        List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(hotPhase);
-        assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_HOT_ACTIONS));
+        int actionsOrderVersion = INSTANCE.getLatestActionsOrderVersion();
+        List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(hotPhase, actionsOrderVersion);
+        assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_HOT_ACTIONS.get(actionsOrderVersion)));
         assertThat(orderedActions.indexOf(TEST_PRIORITY_ACTION), equalTo(0));
     }
 
@@ -527,8 +536,17 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             .map(this::getTestAction)
             .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, actions);
-        List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(warmPhase);
-        assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_WARM_ACTIONS));
+        List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(
+            warmPhase,
+            INSTANCE.getLatestActionsOrderVersion()
+        );
+        assertTrue(
+            isSorted(
+                orderedActions,
+                LifecycleAction::getWriteableName,
+                ORDERED_VALID_WARM_ACTIONS.get(INSTANCE.getLatestActionsOrderVersion())
+            )
+        );
         assertThat(orderedActions.indexOf(TEST_PRIORITY_ACTION), equalTo(0));
     }
 
@@ -537,8 +555,17 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             .map(this::getTestAction)
             .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, actions);
-        List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(coldPhase);
-        assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_COLD_ACTIONS));
+        List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(
+            coldPhase,
+            INSTANCE.getLatestActionsOrderVersion()
+        );
+        assertTrue(
+            isSorted(
+                orderedActions,
+                LifecycleAction::getWriteableName,
+                ORDERED_VALID_COLD_ACTIONS.get(INSTANCE.getLatestActionsOrderVersion())
+            )
+        );
         assertThat(orderedActions.indexOf(TEST_PRIORITY_ACTION), equalTo(0));
     }
 
@@ -547,8 +574,17 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             .map(this::getTestAction)
             .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         Phase deletePhase = new Phase("delete", TimeValue.ZERO, actions);
-        List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(deletePhase);
-        assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_DELETE_ACTIONS));
+        List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(
+            deletePhase,
+            INSTANCE.getLatestActionsOrderVersion()
+        );
+        assertTrue(
+            isSorted(
+                orderedActions,
+                LifecycleAction::getWriteableName,
+                ORDERED_VALID_DELETE_ACTIONS.get(INSTANCE.getLatestActionsOrderVersion())
+            )
+        );
     }
 
     public void testShouldMigrateDataToTiers() {
@@ -814,6 +850,38 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                         + "[searchable_snapshot] action, but a searchable snapshot action is required in the frozen phase"
                 )
             );
+        }
+    }
+
+    public void testTimeseriesRegistryContainsAllActionsVersions() {
+        for (int version = INSTANCE.getLatestActionsOrderVersion(); version >= VERSION_ONE; version--) {
+            assertThat(ORDERED_VALID_HOT_ACTIONS.get(version), notNullValue());
+            assertThat(ORDERED_VALID_WARM_ACTIONS.get(version), notNullValue());
+            assertThat(ORDERED_VALID_COLD_ACTIONS.get(version), notNullValue());
+            assertThat(ORDERED_VALID_FROZEN_ACTIONS.get(version), notNullValue());
+            assertThat(ORDERED_VALID_DELETE_ACTIONS.get(version), notNullValue());
+        }
+    }
+
+    public void testTimeseriesRegistryDoesntRemoveActionsInFutureVersions() {
+        assertHigerVersionsContainActionsInLowerVersions(ORDERED_VALID_HOT_ACTIONS);
+
+        assertHigerVersionsContainActionsInLowerVersions(ORDERED_VALID_WARM_ACTIONS);
+
+        assertHigerVersionsContainActionsInLowerVersions(ORDERED_VALID_COLD_ACTIONS);
+
+        assertHigerVersionsContainActionsInLowerVersions(ORDERED_VALID_FROZEN_ACTIONS);
+
+        assertHigerVersionsContainActionsInLowerVersions(ORDERED_VALID_DELETE_ACTIONS);
+    }
+
+    private static void assertHigerVersionsContainActionsInLowerVersions(Map<Integer, List<String>> versionedActions) {
+        for (int i = VERSION_ONE; i <= INSTANCE.getLatestActionsOrderVersion() - 1; i++) {
+            List<String> previousVersionedActions = versionedActions.get(i);
+            List<String> nextVersionedActions = versionedActions.get(i + 1);
+
+            assertThat(previousVersionedActions.size(), lessThanOrEqualTo(nextVersionedActions.size()));
+            assertThat(nextVersionedActions, hasItems(previousVersionedActions.toArray(new String[] {})));
         }
     }
 

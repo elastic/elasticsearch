@@ -19,7 +19,7 @@ public interface LifecycleType extends NamedWriteable {
      */
     List<Phase> getOrderedPhases(Map<String, Phase> phases);
 
-    List<LifecycleAction> getOrderedActions(Phase phase);
+    List<LifecycleAction> getOrderedActions(Phase phase, int orderVersion);
 
     /**
      * validates whether the specified <code>phases</code> are valid for this
@@ -31,4 +31,6 @@ public interface LifecycleType extends NamedWriteable {
      *             if a specific phase or lack of a specific phase is invalid.
      */
     void validate(Collection<Phase> phases);
+
+    int getLatestActionsOrderVersion();
 }

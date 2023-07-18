@@ -35,12 +35,17 @@ public class TestLifecycleType implements LifecycleType {
     }
 
     @Override
+    public int getLatestActionsOrderVersion() {
+        return 1;
+    }
+
+    @Override
     public List<Phase> getOrderedPhases(Map<String, Phase> phases) {
         return new ArrayList<>(phases.values());
     }
 
     @Override
-    public List<LifecycleAction> getOrderedActions(Phase phase) {
+    public List<LifecycleAction> getOrderedActions(Phase phase, int orderVersion) {
         return new ArrayList<>(phase.getActions().values());
     }
 

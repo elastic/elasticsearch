@@ -227,7 +227,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         }
 
         @Override
-        public boolean stepExists(String policy, StepKey stepKey) {
+        public boolean stepExists(String policy, int actionsOrderVersion, StepKey stepKey) {
             return true;
         }
     }

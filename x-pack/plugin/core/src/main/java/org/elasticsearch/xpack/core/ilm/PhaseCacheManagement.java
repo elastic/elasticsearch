@@ -79,6 +79,7 @@ public final class PhaseCacheManagement {
             updatedPolicy.getModifiedDate()
         );
 
+        // we're not updating the actions order version here as we're still executing the same phase (and the step keys are identical)
         LifecycleExecutionState newExState = LifecycleExecutionState.builder(currentExState)
             .setPhaseDefinition(Strings.toString(pei, false, false))
             .build();
@@ -192,7 +193,9 @@ public final class PhaseCacheManagement {
         final Step.StepKey currentStepKey = Step.getCurrentStepKey(executionState);
         final String currentPhase = currentStepKey.phase();
 
-        final Set<Step.StepKey> newStepKeys = newPolicy.toSteps(client, licenseState)
+        // reading the same order version of the new policy as if we refresh the cached phase, being the same phase
+        // as it's currently executing, we won't update the actions order version
+        final Set<Step.StepKey> newStepKeys = newPolicy.toSteps(client, executionState.actionsOrderVersion(), licenseState)
             .stream()
             .map(Step::getKey)
             .collect(Collectors.toCollection(LinkedHashSet::new));

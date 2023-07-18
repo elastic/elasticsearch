@@ -248,9 +248,10 @@ public class IndexNameExpressionResolver {
             if (expressions == null || expressions.length == 0 || expressions.length == 1 && Metadata.ALL.equals(expressions[0])) {
                 return List.of();
             } else {
+                List<String> localExpressions = RemoteResourceNameFilter.filterRemoteIndexNames(List.of(expressions));
                 return ExplicitResourceNameFilter.filterUnavailable(
                     context,
-                    DateMathExpressionResolver.resolve(context, List.of(expressions))
+                    DateMathExpressionResolver.resolve(context, localExpressions)
                 );
             }
         } else {
@@ -259,9 +260,10 @@ public class IndexNameExpressionResolver {
                 || expressions.length == 1 && (Metadata.ALL.equals(expressions[0]) || Regex.isMatchAllPattern(expressions[0]))) {
                 return WildcardExpressionResolver.resolveAll(context);
             } else {
+                List<String> localExpressions = RemoteResourceNameFilter.filterRemoteIndexNames(List.of(expressions));
                 return WildcardExpressionResolver.resolve(
                     context,
-                    ExplicitResourceNameFilter.filterUnavailable(context, DateMathExpressionResolver.resolve(context, List.of(expressions)))
+                    ExplicitResourceNameFilter.filterUnavailable(context, DateMathExpressionResolver.resolve(context, localExpressions))
                 );
             }
         }
@@ -1539,6 +1541,27 @@ public class IndexNameExpressionResolver {
         }
     }
 
+    public static final class RemoteResourceNameFilter {
+        private RemoteResourceNameFilter() {
+            // Utility class
+        }
+        public static List<String> filterRemoteIndexNames(List<String> expressions) {
+            List<String> localExpressions = new ArrayList<>();
+            for (String expr: expressions) {
+                if (expr.contains(":")) {
+                    String probe = DateMathExpressionResolver.resolveExpression(expr);
+                    // check that `expr` is not a remote index name nor remote math expression
+                    if (probe.contains(":") == false && expr.equals(probe) == false) {
+                        localExpressions.add(expr);
+                    }
+                } else {
+                    localExpressions.add(expr);
+                }
+            }
+            return Collections.unmodifiableList(localExpressions);
+        }
+    }
+
     public static final class ExplicitResourceNameFilter {
 
         private ExplicitResourceNameFilter() {
@@ -1550,7 +1573,6 @@ public class IndexNameExpressionResolver {
          * Only explicit resource names are considered for filtering. Wildcard and exclusion expressions are kept in.
          */
         public static List<String> filterUnavailable(Context context, List<String> expressions) {
-            ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), expressions);
             List<String> result = new ArrayList<>(expressions.size());
             for (ExpressionList.Expression expression : new ExpressionList(context, expressions)) {
                 validateAliasOrIndex(expression);
@@ -1608,17 +1630,6 @@ public class IndexNameExpressionResolver {
             // if the expression can't be found.
             if (expression.expression().charAt(0) == '_') {
                 throw new InvalidIndexNameException(expression.expression(), "must not start with '_'.");
-            }
-        }
-
-        private static void ensureRemoteIndicesRequireIgnoreUnavailable(IndicesOptions options, List<String> indexExpressions) {
-            if (options.ignoreUnavailable() == false) {
-                List<String> crossClusterIndices = indexExpressions.stream().filter(index -> index.contains(":")).toList();
-                if (crossClusterIndices.size() > 0) {
-                    throw new IllegalArgumentException(
-                        "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
-                    );
-                }
             }
         }
     }

@@ -21,8 +21,18 @@ public class TrainedModelMetadataTests extends AbstractBWCSerializationTestCase<
     private boolean lenient;
 
     public static TrainedModelMetadata randomInstance() {
+        return randomInstance(randomAlphaOfLength(10));
+    }
+
+    /**
+     * Returns a random {@link TrainedModelMetadata} instance with the specified model id.
+     *
+     * @param modelId a string to set as the model id
+     * @return a randomly generated {@link TrainedModelMetadata} instance
+     */
+    public static TrainedModelMetadata randomInstance(String modelId) {
         return new TrainedModelMetadata(
-            randomAlphaOfLength(10),
+            modelId,
             Stream.generate(TotalFeatureImportanceTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList()),
             randomBoolean() ? null : FeatureImportanceBaselineTests.randomInstance(),
             randomBoolean()

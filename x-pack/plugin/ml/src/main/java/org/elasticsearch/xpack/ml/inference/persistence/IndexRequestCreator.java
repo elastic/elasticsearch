@@ -20,12 +20,19 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 
+/**
+ * A helper class for creating index requests that handles determining whether the model being indexed can be overwritten if it already
+ * exists.
+ */
 public class IndexRequestCreator {
     private static final ToXContent.Params FOR_INTERNAL_STORAGE_PARAMS = new ToXContent.MapParams(
         Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
     );
 
-    private static final Set<String> PRE_PACKAGED_MODELS = Set.of(".elser_model_1");
+    /**
+     * This is package private so the tests can access it
+     */
+    static final Set<String> PRE_PACKAGED_MODELS = Set.of(".elser_model_1");
 
     public static IndexRequest create(String modelId, String docId, String index, ToXContentObject body) {
 

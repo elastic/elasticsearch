@@ -247,11 +247,13 @@ public class ContextIndexSearcherTests extends ESTestCase {
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
+            1,
             randomBoolean(),
             executor
         ) {
             @Override
             protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+                // tests expects one slice per leaf
                 return slices(leaves, 1, 1);
             }
         };

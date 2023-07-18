@@ -123,6 +123,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.script.MockScriptService;
+import org.elasticsearch.search.ConcurrentSearchTestPlugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
@@ -2045,6 +2046,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (addMockTransportService()) {
             initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         }
+        if (addConcurrentSearch()) {
+            initialNodeSettings.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
+        }
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -2061,7 +2065,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
-                return ESIntegTestCase.this.nodePlugins();
+                List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
+                plugins.add(ConcurrentSearchTestPlugin.class);
+                return plugins;
             }
         };
     }
@@ -2072,6 +2078,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected boolean addMockTransportService() {
         return true;
+    }
+
+    /**
+     * Iff this returns true concurrent search is favour. Otherwise runs with default set up.
+     * The default is randomized.
+     */
+    protected boolean addConcurrentSearch() {
+        return randomBoolean();
     }
 
     /** Returns {@code true} iff this test cluster should use a dummy http transport */

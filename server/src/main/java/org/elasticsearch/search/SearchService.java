@@ -202,6 +202,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    // This setting is only registered on tests to force concurrent search even when segments contains very few documents.
+    public static final Setting<Integer> MINIMUM_DOCS_PER_SLICE = Setting.intSetting(
+        "search.minimum_docs_per_slice",
+        50_000,
+        1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT = Setting.intSetting(
         "search.max_open_scroll_context",
         500,
@@ -250,6 +259,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile long maxKeepAlive;
 
     private volatile TimeValue defaultSearchTimeout;
+
+    private volatile int minimumDocsPerSlice;
 
     private volatile boolean defaultAllowPartialSearchResults;
 
@@ -316,6 +327,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
 
+        minimumDocsPerSlice = MINIMUM_DOCS_PER_SLICE.get(settings);
+        if (MINIMUM_DOCS_PER_SLICE == clusterService.getClusterSettings().get(MINIMUM_DOCS_PER_SLICE.getKey())) {
+            // Only add it if the setting has been register which should only happen on tests
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(MINIMUM_DOCS_PER_SLICE, this::setMinimumDocsPerSlice);
+        }
+
         defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS, this::setDefaultAllowPartialSearchResults);
@@ -357,6 +374,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setDefaultSearchTimeout(TimeValue defaultSearchTimeout) {
         this.defaultSearchTimeout = defaultSearchTimeout;
+    }
+
+    private void setMinimumDocsPerSlice(int minimumDocsPerSlice) {
+        this.minimumDocsPerSlice = minimumDocsPerSlice;
     }
 
     private void setDefaultAllowPartialSearchResults(boolean defaultAllowPartialSearchResults) {
@@ -982,7 +1003,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean includeAggregations
     ) throws IOException {
         checkCancelled(task);
-        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout);
+        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, minimumDocsPerSlice);
         resultsType.addResultsObject(context);
         try {
             if (request.scroll() != null) {
@@ -1014,15 +1035,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
-            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout);
+            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, minimumDocsPerSlice);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
             return searchContext;
         }
     }
 
     @SuppressWarnings("unchecked")
-    private DefaultSearchContext createSearchContext(ReaderContext reader, ShardSearchRequest request, TimeValue timeout)
-        throws IOException {
+    private DefaultSearchContext createSearchContext(
+        ReaderContext reader,
+        ShardSearchRequest request,
+        TimeValue timeout,
+        int concurrentMinDocs
+    ) throws IOException {
         boolean success = false;
         DefaultSearchContext searchContext = null;
         try {
@@ -1037,6 +1062,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 shardTarget,
                 threadPool::relativeTimeInMillis,
                 timeout,
+                concurrentMinDocs,
                 fetchPhase,
                 lowLevelCancellation
             );

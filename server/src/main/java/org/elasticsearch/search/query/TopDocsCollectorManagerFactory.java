@@ -119,8 +119,7 @@ abstract class TopDocsCollectorManagerFactory {
                 if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
                     final int[] totalHits = new int[1];
                     TotalHitCountCollectorManager totalHitCountCollectorManager = new TotalHitCountCollectorManager();
-                    // TODO the wrapping is temporary, needed to bridge the type mismatch between <Void> and <Integer>: we
-                    // need to save the result of reduce for later retrieval. We will soon remove these supplies and simplify all this.
+                    // wrapping total hit count collector manager is needed to bridge the type mismatch between <Void> and <Integer>.
                     this.collectorManager = new CollectorManager<>() {
                         @Override
                         public Collector newCollector() throws IOException {

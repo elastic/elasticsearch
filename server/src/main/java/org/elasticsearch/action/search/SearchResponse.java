@@ -491,7 +491,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         // or equals/hashCode methods. They are needed for CCS only (async-search CCS in particular). If we need to write
         // these to the .async-search system index in the future, we may want to refactor Clusters to allow async-search
         // to subclass it.
-        private final transient int remoteClusters;  /// MP TODO: I think we can remove this field
         private final transient boolean ccsMinimizeRoundtrips;  /// MP TODO: make this Boolean so is null when unknown/not-CCS
 
         /**
@@ -516,7 +515,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
-            this.remoteClusters = remoteClusters;
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
             this.clusterInfo = new ConcurrentHashMap<>();
         }
@@ -533,7 +531,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = clusterAliases.size();
             this.successful = -1; // not used for minimize_roundtrips
             this.skipped = -1;    // not used for minimize_roundtrips
-            this.remoteClusters = clusterAliases.contains("") ? total - 1 : total;
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
             this.clusterInfo = new ConcurrentHashMap<>();
             for (String clusterAlias : clusterAliases) {
@@ -562,13 +559,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
-            this.remoteClusters = -1;  // means "unknown" and not needed for this usage
             this.ccsMinimizeRoundtrips = false;
             this.clusterInfo = Collections.emptyMap();  // will never be used if created from this constructor
         }
 
         public Clusters(StreamInput in) throws IOException {
-            // TODO: do asserts if successful > -1
             this.total = in.readVInt();
             this.successful = in.readVInt();
             this.skipped = in.readVInt();
@@ -577,8 +572,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             } else {
                 this.clusterInfo = Collections.emptyMap();
             }
-            this.remoteClusters = -1;  // means "unknown" and not needed for this usage
             this.ccsMinimizeRoundtrips = false;
+            assert total >= 0 : "total is negative: " + total;
+            assert total >= successful + skipped : "successful + skipped is larger than total. total: " + total +
+                " successful: " + successful + " skipped: " + skipped;
         }
 
         @Override
@@ -647,14 +644,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
-         * @return how many remote clusters were using during the execution of the search request
-         *         If not set, returns -1, meaning 'unknown'.
-         */
-        public int getRemoteClusters() {
-            return remoteClusters;
-        }
-
-        /**
          * @return whether this search was a cross cluster search done with ccsMinimizeRoundtrips=true
          */
         public boolean isCcsMinimizeRoundtrips() {
@@ -690,17 +679,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public String toString() {
             return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
         }
-
-        public String toStringExtended() {
-            return Strings.format(
-                "Clusters{total=%d, successful=%d, skipped=%d, remote=%d, ccsMinimizeRoundtrips=%s}",
-                total,
-                successful,
-                skipped,
-                remoteClusters,
-                ccsMinimizeRoundtrips
-            );
-        }
     }
 
     /**
@@ -714,7 +692,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     public static class Cluster implements ToXContentFragment, Writeable {
         private final String clusterAlias;
         private Status status;
-        private List<ShardSearchFailure> failures;
+        private final List<ShardSearchFailure> failures;
         private Integer totalShards;  // TODO: use these to update the _shards fields (otherwise skipped clusters aren't counted)
         private Integer successfulShards;
         private Integer skippedShards;

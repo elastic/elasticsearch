@@ -1343,7 +1343,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String clusterAlias,
             boolean skipUnavailable,
             CountDown countDown,
-            AtomicInteger skippedClusters,  /// MP TODO: remove?
+            AtomicInteger skippedClusters,
             AtomicReference<Exception> exceptions,
             SearchResponse.Cluster cluster,
             ActionListener<FinalResponse> originalListener

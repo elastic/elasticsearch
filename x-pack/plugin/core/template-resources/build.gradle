@@ -4,3 +4,8 @@ apply plugin: 'elasticsearch.build'
 base {
   archivesName = 'elasticsearch-x-pack-template-resources'
 }
+
+tasks.named('forbiddenApisMain').configure {
+  // lz4 does not depend on core, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+}

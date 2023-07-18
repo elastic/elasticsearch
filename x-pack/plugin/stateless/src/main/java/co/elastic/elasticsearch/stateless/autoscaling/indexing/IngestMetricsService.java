@@ -36,28 +36,29 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 
 public class IngestMetricsService implements ClusterStateListener {
-    // TODO: align defaults with leader/follower checks and default metric push frequency
+    // Ingest load samples older than this value will be considered not exact ingest loads.
     public static final Setting<TimeValue> ACCURATE_LOAD_WINDOW = Setting.timeSetting(
         "serverless.autoscaling.ingest_metrics.accurate_load_window",
-        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueSeconds(25),
         Setting.Property.NodeScope
     );
 
-    public static final Setting<TimeValue> INACCURATE_LOAD_WINDOW = Setting.timeSetting(
-        "serverless.autoscaling.ingest_metrics.inaccurate_load_window",
+    // Ingest load samples older than this value will be removed from the list of ingest loads.
+    public static final Setting<TimeValue> STALE_LOAD_WINDOW = Setting.timeSetting(
+        "serverless.autoscaling.ingest_metrics.stale_load_window",
         TimeValue.timeValueMinutes(10),
         Setting.Property.NodeScope
     );
 
     private final TimeValue accurateLoadWindow;
-    private final TimeValue inaccurateLoadWindow;
+    private final TimeValue staleLoadWindow;
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
     private final Map<String, NodeIngestLoad> nodesIngestLoad = ConcurrentCollections.newConcurrentMap();
 
     public IngestMetricsService(Settings settings, LongSupplier relativeTimeInNanosSupplier, MemoryMetricsService memoryMetricsService) {
         this.accurateLoadWindow = ACCURATE_LOAD_WINDOW.get(settings);
-        this.inaccurateLoadWindow = INACCURATE_LOAD_WINDOW.get(settings);
+        this.staleLoadWindow = STALE_LOAD_WINDOW.get(settings);
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.memoryMetricsService = memoryMetricsService;
     }
@@ -153,7 +154,7 @@ public class IngestMetricsService implements ClusterStateListener {
         }
 
         synchronized boolean isStale() {
-            return timeSinceLastSampleInNanos() >= inaccurateLoadWindow.getNanos();
+            return timeSinceLastSampleInNanos() >= staleLoadWindow.getNanos();
         }
 
         private long timeSinceLastSampleInNanos() {

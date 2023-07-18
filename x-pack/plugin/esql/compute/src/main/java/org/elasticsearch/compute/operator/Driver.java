@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
  */
 
 public class Driver implements Releasable, Describable {
-    public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMillis(200);
+    public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMinutes(5);
     public static final int DEFAULT_MAX_ITERATIONS = 10_000;
 
     private final String sessionId;

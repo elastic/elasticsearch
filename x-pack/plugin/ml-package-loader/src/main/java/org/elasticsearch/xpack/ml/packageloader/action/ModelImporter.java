@@ -88,7 +88,7 @@ class ModelImporter {
                 totalParts
             );
 
-            executeRequest(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest);
+            executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest);
         }
 
         // get the last part, this time verify the checksum and size
@@ -122,7 +122,7 @@ class ModelImporter {
             totalParts
         );
 
-        executeRequest(PutTrainedModelDefinitionPartAction.INSTANCE, finalModelPartRequest);
+        executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, finalModelPartRequest);
         logger.debug(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
     }
 
@@ -138,10 +138,10 @@ class ModelImporter {
             List.of()
         );
 
-        executeRequest(PutTrainedModelVocabularyAction.INSTANCE, request);
+        executeRequestIfNotCancelled(PutTrainedModelVocabularyAction.INSTANCE, request);
     }
 
-    private <Request extends ActionRequest, Response extends ActionResponse> void executeRequest(
+    private <Request extends ActionRequest, Response extends ActionResponse> void executeRequestIfNotCancelled(
         ActionType<Response> action,
         Request request
     ) {

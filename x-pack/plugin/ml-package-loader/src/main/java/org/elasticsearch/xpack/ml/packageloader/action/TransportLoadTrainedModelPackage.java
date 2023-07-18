@@ -88,17 +88,23 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         CancellableTask downloadTask = createDownloadTask(request);
-        ParentTaskAssigningClient parentTaskAssigningClient = getParentTaskAssigningClient(downloadTask);
 
-        ModelImporter modelImporter = new ModelImporter(
-            parentTaskAssigningClient,
-            request.getModelId(),
-            request.getModelPackageConfig(),
-            downloadTask
-        );
+        try {
+            ParentTaskAssigningClient parentTaskAssigningClient = getParentTaskAssigningClient(downloadTask);
 
-        threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME)
-            .execute(() -> importModel(client, taskManager, request, modelImporter, listener, downloadTask));
+            ModelImporter modelImporter = new ModelImporter(
+                parentTaskAssigningClient,
+                request.getModelId(),
+                request.getModelPackageConfig(),
+                downloadTask
+            );
+
+            threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME)
+                .execute(() -> importModel(client, taskManager, request, modelImporter, listener, downloadTask));
+        } catch (Exception e) {
+            taskManager.unregister(downloadTask);
+            throw e;
+        }
 
         if (request.isWaitForCompletion() == false) {
             listener.onResponse(AcknowledgedResponse.TRUE);
@@ -113,9 +119,14 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     /**
      * This is package scope so that we can test the logic directly.
      * This should only be called from the masterOperation method and the tests
+     *
+     * @param auditClient a client which should only be used to send audit notifications. This client cannot be associated with the passed
+     *                    in task, that way when the task is cancelled the notification requests can
+     *                    still be performed. If it is associated with the task (i.e. via ParentTaskAssigningClient),
+     *                    then the requests will throw a TaskCancelledException.
      */
     static void importModel(
-        Client client,
+        Client auditClient,
         TaskManager taskManager,
         Request request,
         ModelImporter modelImporter,
@@ -132,20 +143,20 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
             final long totalRuntimeNanos = System.nanoTime() - relativeStartNanos;
             logAndWriteNotificationAtInfo(
-                client,
+                auditClient,
                 modelId,
                 format("finished model import after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos))
             );
         } catch (ElasticsearchException e) {
-            recordError(client, modelId, exceptionRef, e);
+            recordError(auditClient, modelId, exceptionRef, e);
         } catch (MalformedURLException e) {
-            recordError(client, modelId, "an invalid URL", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
+            recordError(auditClient, modelId, "an invalid URL", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
         } catch (URISyntaxException e) {
-            recordError(client, modelId, "an invalid URL syntax", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
+            recordError(auditClient, modelId, "an invalid URL syntax", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
         } catch (IOException e) {
-            recordError(client, modelId, "an IOException", exceptionRef, e, RestStatus.SERVICE_UNAVAILABLE);
+            recordError(auditClient, modelId, "an IOException", exceptionRef, e, RestStatus.SERVICE_UNAVAILABLE);
         } catch (Exception e) {
-            recordError(client, modelId, "an Exception", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
+            recordError(auditClient, modelId, "an Exception", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
         } finally {
             taskManager.unregister(task);
 

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -29,6 +30,8 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType.GLOBAL;
 
 public class QueryRuleCriteria implements Writeable, ToXContentObject {
     private final CriteriaType criteriaType;
@@ -38,6 +41,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     private final Logger logger = LogManager.getLogger(QueryRuleCriteria.class);
 
     public enum CriteriaType {
+        GLOBAL,
         EXACT,
         PREFIX,
         SUFFIX,
@@ -65,27 +69,31 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     /**
      *
      * @param criteriaType The {@link CriteriaType}, indicating how the criteria is matched
-     * @param criteriaMetadata The metadata for this identifier, indicating the criteria key of what is matched against
+     * @param criteriaMetadata The metadata for this identifier, indicating the criteria key of what is matched against.
+     *                         Required unless the CriteriaType is GLOBAL.
      * @param criteriaValue The value to match against when evaluating {@link QueryRuleCriteria} against a {@link QueryRule}
+     *                      Required unless the CriteriaType is GLOBAL.
      */
-    public QueryRuleCriteria(CriteriaType criteriaType, String criteriaMetadata, Object criteriaValue) {
+    public QueryRuleCriteria(CriteriaType criteriaType, @Nullable String criteriaMetadata, @Nullable Object criteriaValue) {
 
         Objects.requireNonNull(criteriaType);
-        Objects.requireNonNull(criteriaMetadata);
-        Objects.requireNonNull(criteriaValue);
 
-        if (Strings.isNullOrEmpty(criteriaMetadata)) {
-            throw new IllegalArgumentException("criteriaMetadata cannot be blank");
+        if (criteriaType != GLOBAL) {
+            if (Strings.isNullOrEmpty(criteriaMetadata)) {
+                throw new IllegalArgumentException("criteriaMetadata cannot be blank");
+            }
+            Objects.requireNonNull(criteriaValue);
         }
 
-        this.criteriaType = criteriaType;
         this.criteriaMetadata = criteriaMetadata;
         this.criteriaValue = criteriaValue;
+        this.criteriaType = criteriaType;
+
     }
 
     public QueryRuleCriteria(StreamInput in) throws IOException {
         this.criteriaType = in.readEnum(CriteriaType.class);
-        this.criteriaMetadata = in.readString();
+        this.criteriaMetadata = in.readOptionalString();
         this.criteriaValue = in.readGenericValue();
     }
 
@@ -94,8 +102,8 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         false,
         (params, resourceName) -> {
             final CriteriaType type = CriteriaType.criteriaType((String) params[0]);
-            final String metadata = (String) params[1];
-            final Object value = params[2];
+            final String metadata = params.length >= 3 ? (String) params[1] : null;
+            final Object value = params.length >= 3 ? params[2] : null;
             return new QueryRuleCriteria(type, metadata, value);
         }
     );
@@ -106,8 +114,8 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareString(constructorArg(), TYPE_FIELD);
-        PARSER.declareString(constructorArg(), METADATA_FIELD);
-        PARSER.declareString(constructorArg(), VALUE_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), METADATA_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), VALUE_FIELD);
     }
 
     /**
@@ -141,8 +149,12 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         builder.startObject();
         {
             builder.field(TYPE_FIELD.getPreferredName(), criteriaType);
-            builder.field(METADATA_FIELD.getPreferredName(), criteriaMetadata);
-            builder.field(VALUE_FIELD.getPreferredName(), criteriaValue);
+            if (criteriaMetadata != null) {
+                builder.field(METADATA_FIELD.getPreferredName(), criteriaMetadata);
+            }
+            if (criteriaValue != null) {
+                builder.field(VALUE_FIELD.getPreferredName(), criteriaValue);
+            }
         }
         builder.endObject();
         return builder;
@@ -151,7 +163,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(criteriaType);
-        out.writeString(criteriaMetadata);
+        out.writeOptionalString(criteriaMetadata);
         out.writeGenericValue(criteriaValue);
     }
 
@@ -188,18 +200,22 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     }
 
     public boolean isMatch(Object matchValue, CriteriaType matchType) {
+
+        if (matchType == GLOBAL) {
+            return true;
+        }
+
         String matchString = matchValue.toString();
-        String criteriaValueString = criteriaValue.toString();
-        logger.info("matching: " + matchString + " against: " + criteriaValue);
-        if (matchValue instanceof String) {
+        String criteriaValueString = criteriaValue != null ? criteriaValue.toString() : null;
+        if (criteriaValueString != null && matchValue instanceof String) {
             return switch (matchType) {
-                case EXACT -> criteriaValueString.equals(matchString);
+                case EXACT -> matchString.equals(criteriaValueString);
                 case PREFIX -> matchString.startsWith(criteriaValueString);
                 case SUFFIX -> matchString.endsWith(criteriaValueString);
                 case CONTAINS -> matchString.contains(criteriaValueString);
-                case LT, LTE, GT, GTE -> false;
+                default -> false;
             };
-        } else if (matchValue instanceof Number) {
+        } else if (criteriaValueString != null && matchValue instanceof Number) {
             try {
                 Number matchNumber = (Number) matchValue;
                 return switch (matchType) {
@@ -208,7 +224,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
                     case LTE -> matchNumber.doubleValue() <= Double.parseDouble(criteriaValueString);
                     case GT -> matchNumber.doubleValue() > Double.parseDouble(criteriaValueString);
                     case GTE -> matchNumber.doubleValue() >= Double.parseDouble(criteriaValueString);
-                    case PREFIX, SUFFIX, CONTAINS -> false;
+                    default -> false;
                 };
             } catch (NumberFormatException e) {
                 logger.debug("Query rule criteria [" + criteriaValue + "] type mismatch against [" + matchString + "]", e);

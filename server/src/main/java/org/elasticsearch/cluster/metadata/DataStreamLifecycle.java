@@ -95,20 +95,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     private final Downsampling downsampling;
 
     public DataStreamLifecycle() {
-        this((TimeValue) null);
-    }
-
-    public DataStreamLifecycle(@Nullable TimeValue dataRetention) {
-        this(dataRetention == null ? null : new Retention(dataRetention), null);
+        this(null, null);
     }
 
     public DataStreamLifecycle(@Nullable Retention dataRetention, @Nullable Downsampling downsampling) {
         this.dataRetention = dataRetention;
         this.downsampling = downsampling;
-    }
-
-    public DataStreamLifecycle(long timeInMills) {
-        this(TimeValue.timeValueMillis(timeInMills));
     }
 
     /**
@@ -232,17 +224,35 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         return PARSER.parse(parser, null);
     }
 
+    public static Builder newBuilder(DataStreamLifecycle lifecycle) {
+        return new Builder().dataRetention(lifecycle.getDataRetention()).downsampling(lifecycle.getDownsampling());
+    }
+
+    public static Builder newBuilder() {
+        return new Builder();
+    }
+
     /**
      * This builder helps during the composition of the data stream lifecycle templates.
      */
-    static class Builder {
+    public static class Builder {
         @Nullable
         private Retention dataRetention = null;
         @Nullable
         private Downsampling downsampling = null;
 
-        Builder dataRetention(@Nullable Retention value) {
+        public Builder dataRetention(@Nullable Retention value) {
             dataRetention = value;
+            return this;
+        }
+
+        public Builder dataRetention(@Nullable TimeValue value) {
+            dataRetention = value == null ? null : new Retention(value);
+            return this;
+        }
+
+        public Builder dataRetention(long value) {
+            dataRetention = new Retention(TimeValue.timeValueMillis(value));
             return this;
         }
 
@@ -251,12 +261,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             return this;
         }
 
-        DataStreamLifecycle build() {
+        public DataStreamLifecycle build() {
             return new DataStreamLifecycle(dataRetention, downsampling);
-        }
-
-        static Builder newBuilder(DataStreamLifecycle lifecycle) {
-            return new Builder().dataRetention(lifecycle.getDataRetention()).downsampling(lifecycle.getDownsampling());
         }
     }
 

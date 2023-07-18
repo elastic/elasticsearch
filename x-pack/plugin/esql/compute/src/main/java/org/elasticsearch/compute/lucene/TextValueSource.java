@@ -11,10 +11,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.BaseKeywordDocValuesField;
+import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-
-import java.io.IOException;
 
 public class TextValueSource extends ValuesSource.Bytes {
 
@@ -25,10 +23,20 @@ public class TextValueSource extends ValuesSource.Bytes {
     }
 
     @Override
-    public SortedBinaryDocValues bytesValues(LeafReaderContext leafReaderContext) throws IOException {
+    public SortedBinaryDocValues bytesValues(LeafReaderContext leafReaderContext) {
         String fieldName = indexFieldData.getFieldName();
         LeafFieldData fieldData = indexFieldData.load(leafReaderContext);
-        BaseKeywordDocValuesField keywordDocValuesField = (BaseKeywordDocValuesField) fieldData.getScriptFieldFactory(fieldName);
-        return keywordDocValuesField.bytesValues();
+        return ((TextDocValuesFieldWrapper) fieldData.getScriptFieldFactory(fieldName)).bytesValues();
+    }
+
+    /** Wrapper around TextDocValuesField that provides access to the SortedBinaryDocValues. */
+    static final class TextDocValuesFieldWrapper extends TextDocValuesField {
+        TextDocValuesFieldWrapper(SortedBinaryDocValues input, String name) {
+            super(input, name);
+        }
+
+        SortedBinaryDocValues bytesValues() {
+            return input;
+        }
     }
 }

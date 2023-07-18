@@ -132,8 +132,4 @@ public abstract class BaseKeywordDocValuesField extends AbstractScriptFieldFacto
             }
         };
     }
-
-    public SortedBinaryDocValues bytesValues() {
-        return input;
-    }
 }

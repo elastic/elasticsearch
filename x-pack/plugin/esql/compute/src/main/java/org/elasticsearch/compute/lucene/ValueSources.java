@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -97,7 +96,7 @@ public final class ValueSources {
             IndexFieldData<?> fieldData = new StoredFieldSortedBinaryIndexFieldData(
                 fieldType.name(),
                 CoreValuesSourceType.KEYWORD,
-                TextDocValuesField::new
+                TextValueSource.TextDocValuesFieldWrapper::new
             ) {
                 @Override
                 protected BytesRef storedToBytesRef(Object stored) {
@@ -118,7 +117,7 @@ public final class ValueSources {
             CoreValuesSourceType.KEYWORD,
             SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(fieldType.name())),
             fieldDataContext.lookupSupplier().get(),
-            TextDocValuesField::new
+            TextValueSource.TextDocValuesFieldWrapper::new
         ).build(null, null); // Neither cache nor breakerService are used by SourceValueFetcherSortedBinaryIndexFieldData builder
         return new TextValueSource(fieldData);
     }

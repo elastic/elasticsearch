@@ -48,12 +48,13 @@ In the case of sparse vector representation, the vectors mostly consist of zero
 values, with only a small subset containing non-zero values. This representation 
 is commonly used for textual data. In the case of ELSER, each document in an 
 index and the query text itself are represented by high-dimensional sparse 
-vectors. Each non-zero element of the vector corresponds to a term in the model vocabulary.
-The ELSER vocabulary contains around 30000 terms, so the sparse vectors created by ELSER
-contain about 30000 values, the majority of which are zero. Effectively the ELSER model is
-replacing the terms in the original query with other terms that have been learnt to exist in the
-documents that best match the original search terms in a training dataset, and weights to
-control how important each is.
+vectors. Each non-zero element of the vector corresponds to a term in the model 
+vocabulary. The ELSER vocabulary contains around 30000 terms, so the sparse 
+vectors created by ELSER contain about 30000 values, the majority of which are 
+zero. Effectively the ELSER model is replacing the terms in the original query 
+with other terms that have been learnt to exist in the documents that best match 
+the original search terms in a training dataset, and weights to control how 
+important each is.
 
 
 [discrete]

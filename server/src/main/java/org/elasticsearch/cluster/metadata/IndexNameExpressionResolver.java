@@ -249,10 +249,7 @@ public class IndexNameExpressionResolver {
                 return List.of();
             } else {
                 List<String> localExpressions = RemoteResourceNameFilter.filterRemoteIndexNames(List.of(expressions));
-                return ExplicitResourceNameFilter.filterUnavailable(
-                    context,
-                    DateMathExpressionResolver.resolve(context, localExpressions)
-                );
+                return ExplicitResourceNameFilter.filterUnavailable(context, DateMathExpressionResolver.resolve(context, localExpressions));
             }
         } else {
             if (expressions == null
@@ -1545,9 +1542,10 @@ public class IndexNameExpressionResolver {
         private RemoteResourceNameFilter() {
             // Utility class
         }
+
         public static List<String> filterRemoteIndexNames(List<String> expressions) {
             List<String> localExpressions = new ArrayList<>();
-            for (String expr: expressions) {
+            for (String expr : expressions) {
                 if (expr.contains(":")) {
                     String probe = DateMathExpressionResolver.resolveExpression(expr);
                     // check that `expr` is not a remote index name nor remote math expression

@@ -354,7 +354,17 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         }
 
         public boolean isMatchWithoutVersion(String indexName) {
-            return indexName.startsWith("." + namePrefix);
+            String expectedPrefix = "." + namePrefix + "-v";
+            return indexName.startsWith(expectedPrefix) && isVersionNumber(indexName, expectedPrefix.length());
+        }
+
+        private boolean isVersionNumber(String name, int startIndex) {
+            final int versionNumberLength = 3;
+            String versionNumberCandidate = name.substring(startIndex, Math.min(startIndex + versionNumberLength, name.length()));
+            return versionNumberCandidate.length() == versionNumberLength
+                // do an explicit range check here for latin digits as Character#isDigit() also considers other
+                // Unicode digit characters that we don't want to recognize here.
+                && versionNumberCandidate.chars().allMatch((c) -> '0' <= c && c <= '9');
         }
 
         public boolean isMatchWithoutGeneration(String indexName) {

@@ -22,6 +22,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
@@ -344,7 +345,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                             if (countDown.decrementAndGet() != 0) {
                                                 return;
                                             }
-                                            logger.info("All " + numberOfShards + " downsampling tasks completed");
+                                            logger.info("All downsampling tasks completed [" + numberOfShards + "]");
 
                                             // 4. Make rollup index read-only and set the correct number of replicas
                                             final Settings.Builder settings = Settings.builder()
@@ -743,7 +744,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             "rollup",
             rollupIndexName,
             rollupIndexName
-        ).settings(builder.build()).mappings(mapping);
+        ).settings(builder.build()).mappings(mapping).waitForActiveShards(ActiveShardCount.ONE);
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         taskQueue.submitTask("create-rollup-index [" + rollupIndexName + "]", new RollupClusterStateUpdateTask(listener) {
             @Override

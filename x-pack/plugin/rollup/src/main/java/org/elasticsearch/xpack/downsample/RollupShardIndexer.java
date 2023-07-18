@@ -15,7 +15,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
@@ -46,7 +45,6 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -177,48 +175,34 @@ class RollupShardIndexer {
                 new RollupShardPersistentTaskState(RollupShardIndexerStatus.FAILED, null),
                 ActionListener.noop()
             );
-            logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " failed");
-            throw new ElasticsearchException(
-                "Shard ["
-                    + indexShard.shardId()
-                    + "] failed to index all rollup documents. Sent ["
-                    + task.getNumSent()
-                    + "], indexed ["
-                    + task.getNumIndexed()
-                    + "]."
-            );
+            final String error = "Downsampling task ["
+                + task.getPersistentTaskId()
+                + " on shard ["
+                + indexShard.shardId()
+                + "] failed indexing, "
+                + " indexed ["
+                + task.getNumIndexed()
+                + "] sent ["
+                + task.getNumSent()
+                + "]";
+            logger.info(error);
+            throw new RollupShardIndexerException(error, false);
         }
 
         if (task.getNumFailed() > 0) {
+            final String error = "Downsampling task ["
+                + task.getPersistentTaskId()
+                + " on shard ["
+                + indexShard.shardId()
+                + "] failed indexing ["
+                + task.getNumFailed()
+                + "]";
+            logger.info(error);
             task.updatePersistentTaskState(
                 new RollupShardPersistentTaskState(RollupShardIndexerStatus.FAILED, null),
-                ActionListener.wrap(response -> {
-                    final RollupShardTaskParams params = (RollupShardTaskParams) response.getParams();
-                    logger.info(
-                        "Downsampling task ["
-                            + task.getPersistentTaskId()
-                            + " on shard ["
-                            + params.shardId()
-                            + "] failed indexing ["
-                            + task.getNumFailed()
-                            + "] documents"
-                    );
-                    task.markAsFailed(new ElasticsearchException("Invalid number of indexed documents"));
-                }, e -> {
-                    task.markAsFailed(e);
-                    logger.error("Updating downsampling task state for [" + task.getPersistentTaskId() + " failed (FAILED)");
-                    throw new ElasticsearchException("Error while updating downsampling persistent task state", e);
-                })
+                ActionListener.noop()
             );
-            throw new ElasticsearchException(
-                "Shard ["
-                    + indexShard.shardId()
-                    + "] failed to index all rollup documents. Sent ["
-                    + task.getNumSent()
-                    + "], failed ["
-                    + task.getNumFailed()
-                    + "]."
-            );
+            throw new RollupShardIndexerException(error, false);
         }
 
         task.setRollupShardIndexerStatus(RollupShardIndexerStatus.COMPLETED);
@@ -227,7 +211,7 @@ class RollupShardIndexer {
         return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
 
-    private Query createQuery() throws IOException {
+    private Query createQuery() {
         if (this.state.started() && this.state.tsid() != null) {
             return SortedSetDocValuesField.newSlowRangeQuery(TimeSeriesIdFieldMapper.NAME, this.state.tsid(), null, true, false);
         }
@@ -235,7 +219,7 @@ class RollupShardIndexer {
     }
 
     private void checkCancelled() {
-        if (task.isCancelled() || abort) {
+        if (task.isCancelled()) {
             logger.warn(
                 "Shard [{}] rollup abort, sent [{}], indexed [{}], failed[{}]",
                 indexShard.shardId(),
@@ -249,7 +233,21 @@ class RollupShardIndexer {
                 ActionListener.noop()
             );
             logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " cancelled");
-            throw new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId()));
+        }
+        if (abort) {
+            logger.warn(
+                "Shard [{}] rollup abort, sent [{}], indexed [{}], failed[{}]",
+                indexShard.shardId(),
+                task.getNumSent(),
+                task.getNumIndexed(),
+                task.getNumFailed()
+            );
+            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED);
+            task.updatePersistentTaskState(
+                new RollupShardPersistentTaskState(RollupShardIndexerStatus.FAILED, null),
+                ActionListener.noop()
+            );
+            throw new RollupShardIndexerException("Bulk indexing failure", true);
         }
     }
 
@@ -448,7 +446,7 @@ class RollupShardIndexer {
         }
 
         @Override
-        public void preCollection() throws IOException {
+        public void preCollection() {
             // check cancel when start running
             checkCancelled();
         }

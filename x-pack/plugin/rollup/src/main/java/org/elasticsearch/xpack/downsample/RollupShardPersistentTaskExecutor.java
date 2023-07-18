@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 import org.elasticsearch.xpack.rollup.Rollup;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -106,12 +104,14 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
         try {
             rollupShardIndexer.execute();
             task.markAsCompleted();
-        } catch (IOException e) {
+        } catch (final RollupShardIndexerException e) {
+            if (e.isRetriable()) {
+                task.markAsLocallyAborted(e.getMessage());
+            } else {
+                task.markAsFailed(e);
+            }
+        } catch (final Exception e) {
             task.markAsFailed(e);
-            throw new ElasticsearchException(
-                "Error while running downsampling task [" + task.getPersistentTaskId() + "] on shard " + params.shardId(),
-                e
-            );
         }
     }
 

@@ -73,12 +73,7 @@ GET /_search
 (Required, string) <<mapping-id-field, Document IDs>> <<query-rules-apis, query ruleset>> ID with query-based rules to match and apply as applicable.
 `match_criteria`::
 (Required, object) Defines the match criteria to apply to rules in the given query ruleset.
-The following `match_criteria` are supported:
-+
---
-`query_string`::
-(Required, string) The exact query string to match against.
---
+Match criteria should match the keys defined in the `criteria.metadata` field of the rule.
 `organic`::
-Any choice of query used to return results, that may be modified by matching query rules.
-If no query rules are matched and applied, this query will return results.
+(Required, object) Any choice of <<query-dsl, query>> used to return results, that may be modified by matching query rules.
+If no query rules are matched and applied, this query will be executed with no modification.

@@ -531,6 +531,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
                         }
                         for (ShardSearchFailure shardFailure : searchResponse.getShardFailures()) {
+                            logger.warn("XXX TSA onResponse shardFailure: {}", shardFailure);
                             cluster.addFailure(shardFailure);
                         }
                     }
@@ -558,7 +559,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 @Override
                 public void onFailure(Exception e) {
                     SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
-                    cluster.addFailure(new ShardSearchFailure(e));
+                    ShardSearchFailure f = new ShardSearchFailure(e);
+                    cluster.addFailure(f);
+                    logger.info(
+                        "CCS remote cluster failure. Cluster [{}]. skip_unavailable: [{}]. Error: {}",
+                        clusterAlias,
+                        skipUnavailable,
+                        f
+                    );
                     if (skipUnavailable) {
                         cluster.setStatus(SearchResponse.Cluster.Status.SKIPPED);
                         cluster.setSearchLatencyMillis(timeProvider.buildTookInMillis());
@@ -790,6 +798,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
                     if (shardFailures != null) {
                         for (ShardSearchFailure shardFailure : shardFailures) {
+                            logger.warn("XXX TSA innerOnResponse shardFailure: {}", shardFailure);
                             cluster.addFailure(shardFailure);
                         }
                     }

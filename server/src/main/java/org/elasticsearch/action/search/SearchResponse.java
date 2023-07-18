@@ -487,11 +487,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         // key to map is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
         private final Map<String, Cluster> clusterInfo;
 
-        // NOTE: these two new fields (remoteClusters and ccsMinimizeRoundtrips) have not been added to the wire protocol
-        // or equals/hashCode methods. They are needed for CCS only (async-search CCS in particular). If we need to write
-        // these to the .async-search system index in the future, we may want to refactor Clusters to allow async-search
-        // to subclass it.
-        private final transient boolean ccsMinimizeRoundtrips;  /// MP TODO: make this Boolean so is null when unknown/not-CCS
+        // this field is not Writeable, as it is only needed on the initial "querying cluster" coordinator of a CCS search
+        private final transient boolean ccsMinimizeRoundtrips;
 
         /**
          * A Clusters object meant for use with CCS holding additional information about
@@ -530,8 +527,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public Clusters(Collection<String> clusterAliases, boolean ccsMinimizeRoundtrips) {
             this.total = clusterAliases.size();
             assert total >= 1 : "Cluster aliases collection passed in has size 0";
-            this.successful = -1; // calculated from clusterInfo map for minimize_roundtrips
-            this.skipped = -1;    // calculated from clusterInfo map for minimize_roundtrips
+            this.successful = 0; // calculated from clusterInfo map for minimize_roundtrips
+            this.skipped = 0;    // calculated from clusterInfo map for minimize_roundtrips
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
             this.clusterInfo = new ConcurrentHashMap<>();
             for (String clusterAlias : clusterAliases) {
@@ -549,8 +546,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public Clusters(int total, int successful, int skipped) {
             assert total >= 0 && successful >= 0 && skipped >= 0 && successful <= total
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
-            assert skipped == total - successful
-                : "total: " + total + " successful: " + successful + " skipped: " + skipped;
+            assert skipped == total - successful : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
@@ -562,15 +558,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = in.readVInt();
             this.successful = in.readVInt();
             this.skipped = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_032)) { /// MP FIXME - not right
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_053)) {
                 this.clusterInfo = in.readMapValues(Cluster::new, Cluster::getClusterAlias);
             } else {
                 this.clusterInfo = Collections.emptyMap();
             }
             this.ccsMinimizeRoundtrips = false;
             assert total >= 0 : "total is negative: " + total;
-            assert total >= successful + skipped : "successful + skipped is larger than total. total: " + total +
-                " successful: " + successful + " skipped: " + skipped;
+            assert total >= successful + skipped
+                : "successful + skipped is larger than total. total: " + total + " successful: " + successful + " skipped: " + skipped;
         }
 
         @Override
@@ -578,7 +574,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeVInt(total);
             out.writeVInt(successful);
             out.writeVInt(skipped);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_032)) { /// MP FIXME - not right
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_053)) {
                 out.writeMapValues(clusterInfo);
             }
         }
@@ -677,6 +673,22 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         @Override
         public String toString() {
             return "Clusters{total=" + total + ", successful=" + getSuccessful() + ", skipped=" + getSkipped() + '}';
+        }
+
+        /**
+         * @return true if any underlying Cluster objects have PARTIAL, SKIPPED, FAILED or RUNNING status.
+         */
+        public boolean hasPartialResults() {
+            for (Cluster cluster : clusterInfo.values()) {
+                switch (cluster.getStatus()) {
+                    case PARTIAL:
+                    case SKIPPED:
+                    case FAILED:
+                    case RUNNING:
+                        return true;
+                }
+            }
+            return false;
         }
     }
 

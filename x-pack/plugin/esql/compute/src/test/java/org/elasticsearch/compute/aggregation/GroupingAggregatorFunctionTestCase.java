@@ -419,7 +419,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
                                     LongBlock.Builder builder = LongBlock.newBlockBuilder(emitChunkSize);
                                     builder.copyFrom(groupIds, offset, Math.min(groupIds.getPositionCount(), offset + emitChunkSize));
-                                    delegateAddInput.add(offset, builder.build());
+                                    delegateAddInput.add(positionOffset + offset, builder.build());
                                 }
                             }
 
@@ -431,7 +431,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                     for (int i = offset; i < Math.min(groupIds.getPositionCount(), offset + emitChunkSize); i++) {
                                         chunk[count++] = groupIds.getLong(i);
                                     }
-                                    delegateAddInput.add(offset, new LongArrayVector(chunk, count));
+                                    delegateAddInput.add(positionOffset + offset, new LongArrayVector(chunk, count));
                                 }
                             }
                         };
@@ -445,7 +445,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                             for (int i = offset; i < Math.min(groupIds.getPositionCount(), offset + emitChunkSize); i++) {
                                 chunk[count++] = groupIds.getLong(i);
                             }
-                            delegate.addIntermediateInput(positionOffset, new LongArrayVector(chunk, count), page);
+                            delegate.addIntermediateInput(positionOffset + offset, new LongArrayVector(chunk, count), page);
                         }
                     }
 

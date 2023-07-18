@@ -51,5 +51,9 @@ public class SnippetsTaskTests {
         assertTrue(source.getMatches());
         assertEquals("console", source.getLanguage());
         assertEquals("snippet-name-1", source.getName());
+
+        source = SnippetsTask.matchSource("[source.merge.styled,foo]");
+        assertTrue(source.getMatches());
+        assertEquals("foo", source.getLanguage());
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -330,6 +331,10 @@ public class JoinValidationService {
             var cachedBytes = statesByVersion.get(version);
             var bytes = maybeSerializeClusterState(cachedBytes, discoveryNode, version);
             if (bytes == null) {
+                // Normally if we're not the master then the Coordinator sends a ping message just to validate connectivity instead of
+                // getting here. But if we were the master when the Coordinator checked then we might not be the master any more, so we
+                // get a null and fall back to a ping here too.
+
                 // noinspection ConstantConditions
                 assert cachedBytes == null;
                 transportService.sendRequest(
@@ -386,6 +391,7 @@ public class JoinValidationService {
         }
     }
 
+    @Nullable // if we are not the master according to the current cluster state
     private ReleasableBytesReference maybeSerializeClusterState(
         ReleasableBytesReference cachedBytes,
         DiscoveryNode discoveryNode,

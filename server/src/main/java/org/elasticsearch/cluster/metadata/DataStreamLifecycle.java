@@ -256,7 +256,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             return this;
         }
 
-        Builder downsampling(@Nullable Downsampling value) {
+        public Builder downsampling(@Nullable Downsampling value) {
             downsampling = value;
             return this;
         }

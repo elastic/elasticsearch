@@ -26,6 +26,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -65,9 +66,10 @@ public class AverageWriteLoadSampler {
 
     public void sample() {
         for (var name : WRITE_EXECUTORS) {
-            long currentTotalNanos = ((TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(name))
-                .getTotalTaskExecutionTime();
-            averageLoadPerExector.get(name).update(currentTotalNanos);
+            var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(name);
+            long currentTotalNanos = executor.getTotalTaskExecutionTime();
+            var ongoingTasks = executor.getOngoingTasks();
+            averageLoadPerExector.get(name).update(currentTotalNanos, ongoingTasks.values());
         }
     }
 
@@ -95,6 +97,7 @@ public class AverageWriteLoadSampler {
     static class AverageLoad {
         private volatile long previousTotalExecutionTimeNanos = 0;
         private ExponentiallyWeightedMovingAverage writeLoadEwma;
+        // The maximum execution time possible within a sampling period, which is samplingFrequency * threadpoolSize
         private final long maxExecutionTimePerSamplingPeriodNanos;
         private final TimeValue samplingFrequency;
 
@@ -104,20 +107,52 @@ public class AverageWriteLoadSampler {
             this.writeLoadEwma = new ExponentiallyWeightedMovingAverage(EWMAAlpha, 0.0);
         }
 
-        public void update(long currentTotalExecutionTimeNanos) {
+        public void update(long currentTotalExecutionTimeNanos, Collection<Long> ongoingTasksStartNanos) {
+            final long nowNanos = System.nanoTime();
             final long previous = previousTotalExecutionTimeNanos;
-            assert currentTotalExecutionTimeNanos >= previous;
-            // cap the value that is added to the EWMA to max time possible within a sampling period
-            // to avoid skewing the average due to very long tasks. This would is a workaround and ES-6391 should provide
-            // a better solution to this.
-            var taskExecutionTimeSinceLastSample = Math.min(
-                currentTotalExecutionTimeNanos - previous,
-                maxExecutionTimePerSamplingPeriodNanos
+            long taskExecutionTimeSinceLastSample = calculateTaskExecutionTimeSinceLastSample(
+                currentTotalExecutionTimeNanos,
+                previous,
+                ongoingTasksStartNanos,
+                nowNanos
             );
             synchronized (this) {
                 writeLoadEwma.addValue((double) taskExecutionTimeSinceLastSample / samplingFrequency.nanos());
             }
             previousTotalExecutionTimeNanos = currentTotalExecutionTimeNanos;
+        }
+
+        long calculateTaskExecutionTimeSinceLastSample(
+            long currentTotalExecutionTimeNanos,
+            long previousTotalExecutionTimeNanos,
+            Collection<Long> ongoingTasksStartNanos,
+            long nowNanos
+        ) {
+            assert currentTotalExecutionTimeNanos >= previousTotalExecutionTimeNanos;
+            // Cap current execution time of each running tasks to the sampling period, because even if a task
+            // has been running for several sampling periods, all we care about is how much that task contributes
+            // to the accumulated task execution time of the current sampling period, and this cannot be more than
+            // the sampling period itself.
+            long executionTimeOfOngoingTasks = ongoingTasksStartNanos.stream()
+                .map(t -> ensureRange(nowNanos - t, 0, samplingFrequency.nanos()))
+                .mapToLong(Long::longValue)
+                .sum();
+            assert executionTimeOfOngoingTasks >= 0;
+            // We also cap the total task execution time within a sampling period to the max possible value which is
+            // threadpool_size * sampling_period. This is necessary since for the estimation we use the currentTotalExecutionTimeNanos
+            // that is reported by the threadpool and the list of ongoing tasks. However, these two are not guaranteed to be exclusive
+            // with respect to the tasks that are executed.
+            // This means that it is possible that a task is finished, its execution time is included in currentTotalExecutionTimeNanos,
+            // but it is not removed from the list of ongoing tasks yet, and therefore we might double count it since
+            // {@code org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor.getOngoingTasks} ensures that
+            // we first add the task execution time to the total before removing it from ongoing tasks.
+            var taskExecutionTimeSinceLastSample = ensureRange(
+                currentTotalExecutionTimeNanos - previousTotalExecutionTimeNanos + executionTimeOfOngoingTasks,
+                0,
+                maxExecutionTimePerSamplingPeriodNanos
+            );
+            assert taskExecutionTimeSinceLastSample >= 0 && taskExecutionTimeSinceLastSample <= maxExecutionTimePerSamplingPeriodNanos;
+            return taskExecutionTimeSinceLastSample;
         }
 
         synchronized void updateEwmaAlpha(double ewmaAlpha) {
@@ -131,6 +166,10 @@ public class AverageWriteLoadSampler {
         public synchronized double get() {
             return writeLoadEwma.getAverage();
         }
+    }
+
+    static long ensureRange(long n, long min, long max) {
+        return Math.max(min, Math.min(n, max));
     }
 
 }

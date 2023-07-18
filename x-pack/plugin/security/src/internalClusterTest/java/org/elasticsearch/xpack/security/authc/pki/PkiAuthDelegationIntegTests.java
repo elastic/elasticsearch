@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.pki;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 @SuppressWarnings("removal")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97756")
 public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
     @Override

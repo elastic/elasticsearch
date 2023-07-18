@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -108,6 +110,7 @@ import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
 
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportSearchAction.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportSearchAction.class);
     public static final String FROZEN_INDICES_DEPRECATION_MESSAGE = "Searching frozen indices [{}] is deprecated."
         + " Consider cold or frozen tiers in place of frozen indices. The frozen feature will be removed in a feature release.";
@@ -1368,16 +1371,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         @Override
         public final void onFailure(Exception e) {
+            ShardSearchFailure f = new ShardSearchFailure(e);
+            logger.info("CCS remote cluster failure. Cluster [{}]. skip_unavailable: [{}]. Error: {}", clusterAlias, skipUnavailable, f);
             if (skipUnavailable) {
                 if (cluster != null) {
                     cluster.setStatus(SearchResponse.Cluster.Status.SKIPPED);
-                    cluster.addFailure(new ShardSearchFailure(e));
+                    cluster.addFailure(f);
                 }
                 skippedClusters.incrementAndGet();
             } else {
                 if (cluster != null) {
                     cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
-                    cluster.addFailure(new ShardSearchFailure(e));
+                    cluster.addFailure(f);
                 }
                 Exception exception = e;
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {

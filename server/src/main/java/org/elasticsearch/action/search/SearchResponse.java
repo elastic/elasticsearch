@@ -529,8 +529,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          */
         public Clusters(Collection<String> clusterAliases, boolean ccsMinimizeRoundtrips) {
             this.total = clusterAliases.size();
-            this.successful = -1; // not used for minimize_roundtrips
-            this.skipped = -1;    // not used for minimize_roundtrips
+            assert total >= 1 : "Cluster aliases collection passed in has size 0";
+            this.successful = -1; // calculated from clusterInfo map for minimize_roundtrips
+            this.skipped = -1;    // calculated from clusterInfo map for minimize_roundtrips
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
             this.clusterInfo = new ConcurrentHashMap<>();
             for (String clusterAlias : clusterAliases) {
@@ -539,22 +540,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
-         * Assumes ccsMinimizeRoundtrips=false.
-         * We are not tracking number of remote clusters in this search.
+         * Used for searches that are either not cross-cluster or CCS with minimize_roundtrips=false.
+         * For CCS minimize_roundtrips=true use {@code Clusters(Collection<String>, boolean)}.
+         * @param total total number of clusters in the search
+         * @param successful number of successful clusters in the search
+         * @param skipped number of skipped clusters (skipped can only happen for remote clusters with skip_unavailable=true)
          */
         public Clusters(int total, int successful, int skipped) {
-            this(total, successful, skipped, true);
-        }
-
-        /**
-         * @param finalState if true, then do an assert that total = successful + skipped. This is true
-         *                   only when the cluster is in its final state, not an initial or intermediate state.
-         */
-        /// MP: TODO I think we can change this and remove the finalState setting - that is not needed anymore? (what about MRT=false?)
-        Clusters(int total, int successful, int skipped, boolean finalState) {
             assert total >= 0 && successful >= 0 && skipped >= 0 && successful <= total
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
-            assert finalState == false || skipped == total - successful
+            assert skipped == total - successful
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             this.total = total;
             this.successful = successful;
@@ -567,7 +562,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = in.readVInt();
             this.successful = in.readVInt();
             this.skipped = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_032)) { // FIXME - not right
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_032)) { /// MP FIXME - not right
                 this.clusterInfo = in.readMapValues(Cluster::new, Cluster::getClusterAlias);
             } else {
                 this.clusterInfo = Collections.emptyMap();
@@ -583,7 +578,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeVInt(total);
             out.writeVInt(successful);
             out.writeVInt(skipped);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_032)) { // FIXME - not right
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_032)) { /// MP FIXME - not right
                 out.writeMapValues(clusterInfo);
             }
         }
@@ -651,8 +646,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
-         * @param clusterAlias The cluster alias as specified in the cluster sett
-         * @return
+         * @param clusterAlias The cluster alias as specified in the cluster collection
+         * @return Cluster object associated with teh clusterAlias or null if not present
          */
         public Cluster getCluster(String clusterAlias) {
             return clusterInfo.get(clusterAlias);
@@ -667,17 +662,21 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 return false;
             }
             Clusters clusters = (Clusters) o;
+            /// MP TODO: not sure what to do about successful and skipped here, since they are calculated differently
+            /// MP TODO: between CCS MRT=true and other search types
             return total == clusters.total && successful == clusters.successful && skipped == clusters.skipped;
         }
 
         @Override
         public int hashCode() {
+            /// MP TODO: not sure what to do about successful and skipped here, since they are calculated differently
+            /// MP TODO: between CCS MRT=true and other search types
             return Objects.hash(total, successful, skipped);
         }
 
         @Override
         public String toString() {
-            return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
+            return "Clusters{total=" + total + ", successful=" + getSuccessful() + ", skipped=" + getSkipped() + '}';
         }
     }
 

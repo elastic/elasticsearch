@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
@@ -178,7 +179,8 @@ public class InternalUsers {
             UsernamesField.SYNONYMS_ROLE_NAME,
             null,
             new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(ReloadAnalyzerAction.NAME).build(), },
             null,
             null,
             null,

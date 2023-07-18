@@ -6,7 +6,7 @@
     },
     "stability": "experimental",
     "visibility": "feature_flag",
-    "feature_flag": "es.synonyms_feature_flag_enabled",
+    "feature_flag": "es.synonyms_api_feature_flag_enabled",
     "headers": {
       "accept": [
         "application/json"

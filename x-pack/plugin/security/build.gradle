@@ -22,6 +22,7 @@ dependencies {
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('monitoring'))
   testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(path: xpackModule('wildcard'))
   testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('sql:sql-action'))

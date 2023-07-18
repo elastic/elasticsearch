@@ -55,12 +55,12 @@ public class FieldFetcher {
         Set<String> nestedMappingsInScope,
         String nestedScopePath
     ) {
-        // here we only need the nested paths that are closes to the root, e.g. only "foo" if also "foo.bar" is present.
+        // here we only need the nested paths that are closest to the root, e.g. only "foo" if also "foo.bar" is present.
         // the remaining nested field paths are handled recursively
         Set<String> nestedParentPaths = getParentPaths(nestedMappingsInScope, context);
 
         // Using a LinkedHashMap so fields are returned in the order requested.
-        // We won't formally guarantee this but but its good for readability of the response
+        // We won't formally guarantee this, but it's good for readability of the response
         Map<String, FieldContext> fieldContexts = new LinkedHashMap<>();
         List<String> unmappedFetchPattern = new ArrayList<>();
 

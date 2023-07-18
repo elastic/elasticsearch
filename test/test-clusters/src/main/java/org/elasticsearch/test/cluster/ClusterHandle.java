@@ -11,6 +11,7 @@ package org.elasticsearch.test.cluster;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.Closeable;
+import java.io.InputStream;
 
 /**
  * A handle to an {@link ElasticsearchCluster}.
@@ -72,6 +73,11 @@ public interface ClusterHandle extends Closeable {
     String getName(int index);
 
     /**
+     * Get the pid of the node for the given index.
+     */
+    long getPid(int index);
+
+    /**
      * Returns a comma-separated list of TCP transport endpoints for cluster. If this method is called on an unstarted cluster, the cluster
      * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
      *
@@ -122,4 +128,9 @@ public interface ClusterHandle extends Closeable {
      * Cleans up any resources created by this cluster.
      */
     void close();
+
+    /**
+     * Returns an {@link InputStream} for the given node log.
+     */
+    InputStream getNodeLog(int index, LogType logType);
 }

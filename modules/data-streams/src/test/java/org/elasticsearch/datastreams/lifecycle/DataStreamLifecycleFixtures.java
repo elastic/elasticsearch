@@ -116,7 +116,7 @@ public class DataStreamLifecycleFixtures {
             case 0 -> null;
             case 1 -> DataStreamLifecycle.Downsampling.NULL;
             default -> {
-                var count = randomIntBetween(0, 10);
+                var count = randomIntBetween(0, 9);
                 List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
                 var previous = new DataStreamLifecycle.Downsampling.Round(
                     TimeValue.timeValueDays(randomIntBetween(1, 365)),

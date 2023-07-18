@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.rules;
 
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -43,6 +44,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     public enum CriteriaType {
         GLOBAL,
         EXACT,
+        EXACT_FUZZY,
         PREFIX,
         SUFFIX,
         CONTAINS,
@@ -201,15 +203,22 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
     public boolean isMatch(Object matchValue, CriteriaType matchType) {
 
-        if (matchType == GLOBAL) {
+        if (criteriaType == GLOBAL) {
             return true;
         }
+
+        LevenshteinDistance ld = new LevenshteinDistance();
 
         String matchString = matchValue.toString();
         String criteriaValueString = criteriaValue != null ? criteriaValue.toString() : null;
         if (criteriaValueString != null && matchValue instanceof String) {
+
+            float editDistance = ld.getDistance(matchString, criteriaValueString);
+            logger.info("Edit distance between {} and {} is {}", matchString, criteriaValueString, editDistance);
+
             return switch (matchType) {
                 case EXACT -> matchString.equals(criteriaValueString);
+                case EXACT_FUZZY -> ld.getDistance(matchString, criteriaValueString) > 0.75f; // TODO make configurable
                 case PREFIX -> matchString.startsWith(criteriaValueString);
                 case SUFFIX -> matchString.endsWith(criteriaValueString);
                 case CONTAINS -> matchString.contains(criteriaValueString);

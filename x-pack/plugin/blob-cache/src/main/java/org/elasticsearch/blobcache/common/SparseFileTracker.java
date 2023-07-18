@@ -259,6 +259,10 @@ public class SparseFileTracker {
         }
     }
 
+    public boolean checkAvailable(long upTo) {
+        return complete >= upTo;
+    }
+
     /**
      * Called before reading a range from the file to ensure that this range is present. Unlike
      * {@link SparseFileTracker#waitForRange(ByteRange, ByteRange, ActionListener)} this method does not expect the caller to fill in any

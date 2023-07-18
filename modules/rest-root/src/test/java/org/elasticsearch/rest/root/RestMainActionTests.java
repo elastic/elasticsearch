@@ -9,7 +9,6 @@
 package org.elasticsearch.rest.root;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.bytes.BytesReference;

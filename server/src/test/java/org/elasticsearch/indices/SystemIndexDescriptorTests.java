@@ -161,28 +161,31 @@ public class SystemIndexDescriptorTests extends ESTestCase {
     }
 
     public void testPriorSystemIndexDescriptorValidation() {
-        SystemIndexDescriptor prior = priorSystemIndexDescriptorBuilder().build();
+        SystemIndexDescriptor prior = priorSystemIndexDescriptorBuilder(6).build();
 
         // same minimum node version
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> priorSystemIndexDescriptorBuilder().setPriorSystemIndexDescriptors(List.of(prior)).build()
+            () -> priorSystemIndexDescriptorBuilder(6).setPriorSystemIndexDescriptors(List.of(prior)).build()
         );
         assertThat(iae.getMessage(), containsString("same minimum node version"));
 
         // different min version but prior is after latest!
         iae = expectThrows(
             IllegalArgumentException.class,
-            () -> priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.fromString("6.8.0"))
+            () -> priorSystemIndexDescriptorBuilder(6).setMinimumNodeVersion(Version.fromString("6.8.0"))
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
         assertThat(iae.getMessage(), containsString("has minimum node version [7.0.0] which is after [6.8.0]"));
 
+        int priorVersionPlus1 = prior.getIndexFormat().version() + 1;
+        int priorVersionPlus2 = prior.getIndexFormat().version() + 2;
+
         // prior has another prior!
         iae = expectThrows(
             IllegalArgumentException.class,
-            () -> priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.V_7_5_0)
+            () -> priorSystemIndexDescriptorBuilder(priorVersionPlus2).setMinimumNodeVersion(Version.V_7_5_0)
                 .setPriorSystemIndexDescriptors(
                     List.of(
                         SystemIndexDescriptor.builder()
@@ -191,10 +194,11 @@ public class SystemIndexDescriptorTests extends ESTestCase {
                             .setPrimaryIndex(".system-1")
                             .setAliasName(".system")
                             .setType(Type.INTERNAL_MANAGED)
-                            .setSettings(Settings.EMPTY)
+                            .setSettings(Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), priorVersionPlus1).build())
                             .setMappings(MAPPINGS)
                             .setVersionMetaKey("version")
                             .setOrigin("system")
+                            .setIndexFormat(priorVersionPlus1)
                             .setMinimumNodeVersion(Version.V_7_4_1)
                             .setPriorSystemIndexDescriptors(List.of(prior))
                             .build()
@@ -207,7 +211,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         // different index patterns
         iae = expectThrows(
             IllegalArgumentException.class,
-            () -> priorSystemIndexDescriptorBuilder().setIndexPattern(".system1*")
+            () -> priorSystemIndexDescriptorBuilder(priorVersionPlus1).setIndexPattern(".system1*")
                 .setMinimumNodeVersion(Version.V_7_5_0)
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
@@ -217,7 +221,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         // different primary index
         iae = expectThrows(
             IllegalArgumentException.class,
-            () -> priorSystemIndexDescriptorBuilder().setPrimaryIndex(".system-2")
+            () -> priorSystemIndexDescriptorBuilder(priorVersionPlus1).setPrimaryIndex(".system-2")
                 .setMinimumNodeVersion(Version.V_7_5_0)
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
@@ -227,7 +231,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         // different alias
         iae = expectThrows(
             IllegalArgumentException.class,
-            () -> priorSystemIndexDescriptorBuilder().setAliasName(".system1")
+            () -> priorSystemIndexDescriptorBuilder(priorVersionPlus1).setAliasName(".system1")
                 .setMinimumNodeVersion(Version.V_7_5_0)
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
@@ -236,7 +240,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
 
         // success!
         assertNotNull(
-            priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.V_7_5_0)
+            priorSystemIndexDescriptorBuilder(priorVersionPlus1).setMinimumNodeVersion(Version.V_7_5_0)
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
@@ -255,20 +259,18 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setVersionMetaKey("version")
             .setOrigin("system")
             .setMinimumNodeVersion(Version.V_7_0_0)
-            .setIndexFormat(0)
             .build();
-        assert prior.isAutomaticallyManaged() : "Do not request index format for unmanaged system indices";
         final SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
             .setDescription("system stuff")
             .setPrimaryIndex(".system-1")
             .setAliasName(".system")
             .setType(Type.INTERNAL_MANAGED)
-            .setSettings(Settings.EMPTY)
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 1).build())
             .setMappings(mappings)
             .setVersionMetaKey("version")
             .setOrigin("system")
-            .setIndexFormat(1)
+            .setIndexFormat(prior.getIndexFormat().version() + 1)
             .setPriorSystemIndexDescriptors(List.of(prior))
             .build();
 
@@ -343,20 +345,21 @@ public class SystemIndexDescriptorTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
 
-        assertThat(e.getMessage(), equalTo("Descriptor index format does not match index format in managed settings"));
+        assertThat(e.getMessage(), equalTo("Descriptor index format version does not match index format version in managed settings"));
     }
 
-    private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder() {
+    private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder(int version) {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
             .setDescription("system stuff")
             .setPrimaryIndex(".system-1")
             .setAliasName(".system")
             .setType(Type.INTERNAL_MANAGED)
-            .setSettings(Settings.EMPTY)
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), version).build())
             .setMappings(MAPPINGS)
             .setVersionMetaKey("version")
             .setOrigin("system")
+            .setIndexFormat(version)
             .setMinimumNodeVersion(Version.V_7_0_0);
     }
 }

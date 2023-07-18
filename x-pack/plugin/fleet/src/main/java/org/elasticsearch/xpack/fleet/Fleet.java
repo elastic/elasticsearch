@@ -201,7 +201,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         request.source(loadTemplateSource("/fleet-secrets.json"), XContentType.JSON);
         return SystemIndexDescriptor.builder()
             .setType(Type.INTERNAL_MANAGED)
-            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
             .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())

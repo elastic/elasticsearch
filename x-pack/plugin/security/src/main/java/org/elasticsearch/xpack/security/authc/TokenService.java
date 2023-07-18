@@ -1056,15 +1056,17 @@ public final class TokenService {
                 final TransportVersion version = TransportVersion.readVersion(in);
                 in.setTransportVersion(version);
                 if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
-                    final byte[] unencodedRefreshToken = in.readByteArray();
-                    if (unencodedRefreshToken.length != RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH) {
+                    final byte[] refreshTokenBytes = in.readByteArray();
+                    if (refreshTokenBytes.length != RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH) {
                         listener.onResponse(null);
                     } else {
-                        final String hashedRefreshToken = Base64.getUrlEncoder()
+                        MessageDigest userTokenIdDigest = sha256();
+                        userTokenIdDigest.update(refreshTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
+                        final String userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
+                        final String storedRefreshToken = Base64.getUrlEncoder()
                             .withoutPadding()
-                            .encodeToString(sha256().digest(unencodedRefreshToken));
-                        // TODO
-                        findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
+                            .encodeToString(sha256().digest(refreshTokenBytes));
+                        getTokenDocById(userTokenId, version, null, storedRefreshToken, listener);
                     }
                 } else if (version.onOrAfter(VERSION_HASHED_TOKENS)) {
                     final String unencodedRefreshToken = in.readString();

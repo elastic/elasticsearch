@@ -31,9 +31,9 @@ class SequencePayload extends AbstractPayload {
             List<Event> events = new ArrayList<>(hits.size());
             for (SearchHit hit : hits) {
                 if (hit == null) {
-                    events.add(Event.MISSING);
+                    events.add(Event.MISSING_EVENT);
                 } else {
-                    events.add(new Event(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields()));
+                    events.add(new Event(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields(), false));
                 }
 
             }

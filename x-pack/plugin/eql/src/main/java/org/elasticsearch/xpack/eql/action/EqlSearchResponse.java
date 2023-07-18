@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -203,25 +204,39 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     // Event
     public static class Event implements Writeable, ToXContentObject {
 
-        public static Event MISSING = new Event("", "", BytesArray.EMPTY, null);
+        public static Event MISSING_EVENT = new Event(
+            "_missing",
+            "_missing",
+            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+            null,
+            true
+        );
 
         private static final class Fields {
             static final String INDEX = GetResult._INDEX;
             static final String ID = GetResult._ID;
             static final String SOURCE = SourceFieldMapper.NAME;
             static final String FIELDS = "fields";
+            static final String MISSING = "missing";
         }
 
         private static final ParseField INDEX = new ParseField(Fields.INDEX);
         private static final ParseField ID = new ParseField(Fields.ID);
         private static final ParseField SOURCE = new ParseField(Fields.SOURCE);
         private static final ParseField FIELDS = new ParseField(Fields.FIELDS);
+        private static final ParseField MISSING = new ParseField(Fields.MISSING);
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Event, Void> PARSER = new ConstructingObjectParser<>(
             "eql/search_response_event",
             true,
-            args -> new Event((String) args[0], (String) args[1], (BytesReference) args[2], (Map<String, DocumentField>) args[3])
+            args -> new Event(
+                (String) args[0],
+                (String) args[1],
+                (BytesReference) args[2],
+                (Map<String, DocumentField>) args[3],
+                (Boolean) args[4]
+            )
         );
 
         static {
@@ -241,6 +256,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 }
                 return fields;
             }, FIELDS);
+            PARSER.declareBoolean(optionalConstructorArg(), MISSING);
         }
 
         private String index;
@@ -248,11 +264,14 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         private final BytesReference source;
         private final Map<String, DocumentField> fetchFields;
 
-        public Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields) {
+        private final boolean missing;
+
+        public Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields, Boolean missing) {
             this.index = index;
             this.id = id;
             this.source = source;
             this.fetchFields = fetchFields;
+            this.missing = Boolean.TRUE.equals(missing);
         }
 
         private Event(StreamInput in) throws IOException {
@@ -264,11 +283,16 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 fetchFields = null;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_035)) {
+                missing = in.readBoolean();
+            } else {
+                missing = false;
+            }
         }
 
         public static Event readFrom(StreamInput in) throws IOException {
             Event result = new Event(in);
-            return result.equals(MISSING) ? MISSING : result;
+            return result.missing() ? MISSING_EVENT : result;
         }
 
         @Override
@@ -281,6 +305,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 if (fetchFields != null) {
                     out.writeMap(fetchFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
                 }
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_035)) {
+                out.writeBoolean(missing);
             }
         }
 
@@ -303,6 +330,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 }
                 builder.endObject();
             }
+            builder.field(Fields.MISSING, missing);
             builder.endObject();
             return builder;
         }
@@ -331,9 +359,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             return fetchFields;
         }
 
+        public boolean missing() {
+            return missing;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(index, id, source, fetchFields);
+            return Objects.hash(index, id, source, fetchFields, missing);
         }
 
         @Override
@@ -350,7 +382,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             return Objects.equals(index, other.index)
                 && Objects.equals(id, other.id)
                 && Objects.equals(source, other.source)
-                && Objects.equals(fetchFields, other.fetchFields);
+                && Objects.equals(fetchFields, other.fetchFields)
+                && Objects.equals(missing, other.missing);
         }
 
         @Override
@@ -425,13 +458,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             if (events.isEmpty() == false) {
                 builder.startArray(Fields.EVENTS);
                 for (Event event : events) {
-                    if (event == Event.MISSING) {
-                        builder.startObject();
-                        builder.field("missing", true);
-                        builder.endObject();
-                    } else {
-                        event.toXContent(builder, params);
-                    }
+                    event.toXContent(builder, params);
                 }
                 builder.endArray();
             }

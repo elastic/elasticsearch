@@ -1,0 +1,5 @@
+prLink: "https://github.com/elastic/elasticsearch/pull/97743"
+user: "LoggingResearch"
+type: enhancement
+description: >
+  Adds a debug log statement in the `initializeRemoteClusters` method of the `RemoteClusterService` class to output a message when a connection is successfully established to all configured remote clusters.

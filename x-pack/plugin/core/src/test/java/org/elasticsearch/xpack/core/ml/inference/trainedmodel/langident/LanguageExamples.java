@@ -31,7 +31,7 @@ public final class LanguageExamples {
     public LanguageExamples() {}
 
     public List<LanguageExampleEntry> getLanguageExamples() throws IOException {
-        String path = "/org/elasticsearch/xpack/core/ml/inference/language_examples.json";
+        String path = "/ml/inference/language_examples.json";
         URL resource = getClass().getResource(path);
         if (resource == null) {
             throw new ElasticsearchException("Could not find resource stored at [" + path + "]");

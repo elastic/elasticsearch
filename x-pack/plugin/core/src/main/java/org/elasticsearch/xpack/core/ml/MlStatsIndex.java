@@ -37,7 +37,7 @@ public class MlStatsIndex {
 
     public static String mapping() {
         return TemplateUtils.loadTemplate(
-            "/org/elasticsearch/xpack/core/ml/stats_index_mappings.json",
+            "/ml/stats_index_mappings.json",
             Version.CURRENT.toString(),
             MAPPINGS_VERSION_VARIABLE
         );

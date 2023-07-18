@@ -28,7 +28,7 @@ public final class MlMetaIndex {
 
     public static String mapping() {
         return TemplateUtils.loadTemplate(
-            "/org/elasticsearch/xpack/core/ml/meta_index_mappings.json",
+            "/ml/meta_index_mappings.json",
             Version.CURRENT.toString(),
             MAPPINGS_VERSION_VARIABLE
         );

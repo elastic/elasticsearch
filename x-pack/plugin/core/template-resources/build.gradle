@@ -1,0 +1,6 @@
+
+apply plugin: 'elasticsearch.build'
+
+base {
+  archivesName = 'elasticsearch-x-pack-template-resources'
+}

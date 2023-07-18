@@ -47,7 +47,7 @@ public final class InferenceIndexConstants {
 
     public static String mapping() {
         return TemplateUtils.loadTemplate(
-            "/org/elasticsearch/xpack/core/ml/inference_index_mappings.json",
+            "/ml/inference_index_mappings.json",
             Version.CURRENT.toString(),
             MAPPINGS_VERSION_VARIABLE
         );

@@ -226,7 +226,7 @@ public class NGramFeatureExtractorTests extends ESTestCase {
      * These nGram examples were created through running Google's CLD3 network
      */
     public List<NGramFeatureExtractorTests.NGramExampleEntry> getGoldenNGrams() throws Exception {
-        String path = "/org/elasticsearch/xpack/core/ml/inference/ngram_examples.json";
+        String path = "/ml/inference/ngram_examples.json";
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(

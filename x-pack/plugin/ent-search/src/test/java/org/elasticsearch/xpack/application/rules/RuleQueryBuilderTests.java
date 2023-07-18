@@ -30,7 +30,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.LocalStateEnterpriseSearch;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -60,7 +60,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(EnterpriseSearch.class);
+        return Collections.singletonList(LocalStateEnterpriseSearch.class);
     }
 
     public void testIllegalArguments() {

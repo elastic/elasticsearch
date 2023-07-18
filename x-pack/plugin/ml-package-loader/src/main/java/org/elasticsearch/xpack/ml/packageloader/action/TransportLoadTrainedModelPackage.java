@@ -80,7 +80,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         ModelImporter modelImporter = new ModelImporter(client, modelId, packageConfig);
 
         threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME)
-            .execute(() -> importModel(client, modelId, modelImporter, listener));
+            .execute(() -> importModel(client, request, modelImporter, listener));
 
         if (request.isWaitForCompletion() == false) {
             listener.onResponse(AcknowledgedResponse.TRUE);
@@ -91,7 +91,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
      * This is package scope so that we can test the logic directly.
      * This should only be called from the masterOperation method and the tests
      */
-    static void importModel(Client client, String modelId, ModelImporter modelImporter, ActionListener<AcknowledgedResponse> listener) {
+    static void importModel(Client client, Request request, ModelImporter modelImporter, ActionListener<AcknowledgedResponse> listener) {
+        String modelId = request.getModelId();
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
         try {
@@ -116,10 +117,12 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         } catch (Exception e) {
             recordError(client, modelId, "an Exception", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
         } finally {
-            if (exceptionRef.get() != null) {
-                listener.onFailure(exceptionRef.get());
-            } else {
-                listener.onResponse(AcknowledgedResponse.TRUE);
+            if (request.isWaitForCompletion()) {
+                if (exceptionRef.get() != null) {
+                    listener.onFailure(exceptionRef.get());
+                } else {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                }
             }
         }
     }

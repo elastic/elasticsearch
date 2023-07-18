@@ -264,14 +264,14 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         private final BytesReference source;
         private final Map<String, DocumentField> fetchFields;
 
-        private final boolean missing;
+        private final Boolean missing;
 
         public Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields, Boolean missing) {
             this.index = index;
             this.id = id;
             this.source = source;
             this.fetchFields = fetchFields;
-            this.missing = Boolean.TRUE.equals(missing);
+            this.missing = missing;
         }
 
         private Event(StreamInput in) throws IOException {
@@ -330,7 +330,10 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 }
                 builder.endObject();
             }
-            builder.field(Fields.MISSING, missing);
+            if (Boolean.TRUE.equals(missing)) {
+                // preserve original event structure (before introduction of missing events): avoid "missing: false" for normal events
+                builder.field(Fields.MISSING, missing);
+            }
             builder.endObject();
             return builder;
         }
@@ -360,7 +363,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         }
 
         public boolean missing() {
-            return missing;
+            return Boolean.TRUE.equals(missing);
         }
 
         @Override

@@ -1371,11 +1371,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (skipUnavailable) {
                 if (cluster != null) {
                     cluster.setStatus(SearchResponse.Cluster.Status.SKIPPED);
+                    cluster.addFailure(new ShardSearchFailure(e));
                 }
                 skippedClusters.incrementAndGet();
             } else {
                 if (cluster != null) {
                     cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
+                    cluster.addFailure(new ShardSearchFailure(e));
                 }
                 Exception exception = e;
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {

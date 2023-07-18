@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.ACCURATE_LOAD_WINDOW;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.INACCURATE_LOAD_WINDOW;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.STALE_LOAD_WINDOW;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -107,11 +107,11 @@ public class IngestMetricsServiceTests extends ESTestCase {
         var fakeClock = new AtomicLong();
 
         var inaccurateMetricTime = TimeValue.timeValueSeconds(25);
-        var inaccurateLoadTTL = TimeValue.timeValueMinutes(10);
+        var staleLoadWindow = TimeValue.timeValueMinutes(10);
         var service = new IngestMetricsService(
             Settings.builder()
                 .put(ACCURATE_LOAD_WINDOW.getKey(), inaccurateMetricTime)
-                .put(INACCURATE_LOAD_WINDOW.getKey(), inaccurateLoadTTL)
+                .put(STALE_LOAD_WINDOW.getKey(), staleLoadWindow)
                 .build(),
             fakeClock::get,
             new MemoryMetricsService()
@@ -172,7 +172,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             assertThat(indexNodeLoadAfterRejoining.metricQuality(), is(equalTo(MetricQuality.EXACT)));
         } else {
             // The node do not re-join after the max time
-            fakeClock.addAndGet(inaccurateLoadTTL.getNanos());
+            fakeClock.addAndGet(staleLoadWindow.getNanos());
 
             var indexTierMetricsAfterTTLExpires = service.getIndexTierMetrics();
             assertThat(indexTierMetricsAfterTTLExpires.nodesLoad(), hasSize(0));

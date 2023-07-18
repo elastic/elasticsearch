@@ -363,7 +363,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             IngestMetricsService.ACCURATE_LOAD_WINDOW,
-            IngestMetricsService.INACCURATE_LOAD_WINDOW,
+            IngestMetricsService.STALE_LOAD_WINDOW,
             IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
             AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
             ShardSizesCollector.PUSH_INTERVAL_SETTING,

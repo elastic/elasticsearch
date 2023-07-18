@@ -18,7 +18,7 @@ cluster.
 
 IMPORTANT: If you get an error that says 
 `Datafeed has missed XXXX documents due to ingest latency`, check whether your 
-ingest pipeline delays indexing. If your ingest pipeline functions well, 
+ingest pipeline delays indexing. If your ingest pipeline works as expected, 
 consider increasing the valuse of `query_delay`.
 
 == Why worry about delayed data?

@@ -224,7 +224,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         this.minTransportVersion = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
             ? TransportVersion.MINIMUM_COMPATIBLE
-            : transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(TransportVersion.MINIMUM_COMPATIBLE);
+            : transportVersions.values()
+                .stream()
+                .min(Comparator.naturalOrder())
+                // In practice transportVersions is always nonempty (except in tests) but use a conservative default anyway:
+                .orElse(TransportVersion.MINIMUM_COMPATIBLE);
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -765,8 +769,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return nodes;
         }
 
-        public Builder putTransportVersion(String node, TransportVersion version) {
-            transportVersions.put(node, Objects.requireNonNull(version, node));
+        public Builder putTransportVersion(String nodeId, TransportVersion version) {
+            transportVersions.put(nodeId, Objects.requireNonNull(version, nodeId));
             return this;
         }
 

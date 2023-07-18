@@ -36,9 +36,9 @@ PUT _ingest/pipeline/my-text-embeddings-pipeline
   ]
 }
 ----
-<1> The `field_map` object maps the input document field name (which is `text` 
-in this example) to the name of the field that the model expects (which is 
-always `text_field`).
+<1> The `field_map` object maps the input document field name (which is
+`my_text_field` in this example) to the name of the field that the model expects
+(which is always `text_field`).
 <2> The `text_expansion` inference type needs to be used in the inference ingest 
 processor.
 

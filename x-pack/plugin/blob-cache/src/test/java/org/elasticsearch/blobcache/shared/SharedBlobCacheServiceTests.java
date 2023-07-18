@@ -196,8 +196,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
 
-            assertEquals(1,cacheService.forceEvict( cK -> cK == cacheKey1));
-            assertEquals(1,cacheService.forceEvict(e -> true));
+            assertEquals(1, cacheService.forceEvict(cK -> cK == cacheKey1));
+            assertEquals(1, cacheService.forceEvict(e -> true));
         }
     }
 

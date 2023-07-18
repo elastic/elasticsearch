@@ -109,7 +109,17 @@ public class SearchIndexInput extends BufferedIndexInput {
     private void doReadInternal(ByteBuffer b) throws Exception {
         final long position = getAbsolutePosition();
         final int length = b.remaining();
+        try {
+            if (cacheFile.tryRead(b, position)) {
+                return;
+            }
+        } catch (Exception e) {
+            logger.debug("fast-path read failed to acquire cache page", e);
+        }
+        readInternalSlow(b, position, length);
+    }
 
+    private void readInternalSlow(ByteBuffer b, long position, int length) throws Exception {
         // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
         // accessing the byte buffer anymore that was passed to doReadInternal
         // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset

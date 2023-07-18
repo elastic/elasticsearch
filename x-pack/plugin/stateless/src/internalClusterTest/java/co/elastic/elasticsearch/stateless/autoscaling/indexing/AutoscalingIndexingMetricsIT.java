@@ -154,9 +154,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
                 }
             });
         }
-        // TODO: after https://elasticco.atlassian.net/browse/ES-6391 much smaller queues would also lead to higher ingestion load
-        // since the busy WRITE threads would be sampled as they are running.
-        var writeRequests = randomIntBetween(1500, 3000);
+        var writeRequests = randomIntBetween(100, 200);
         for (int i = 0; i < writeRequests; i++) {
             client().prepareBulk().add(new IndexRequest(indexName).source("field", i)).execute();
         }
@@ -171,6 +169,59 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().get(0).load(), greaterThan((double) executorThreads));
         });
         barrier.await(30, TimeUnit.SECONDS);
+    }
+
+    public void testOngoingTasksAreReflectedInIngestionLoad() throws Exception {
+        startMasterOnlyNode();
+        // Reduce the time between publications, so we can expect at least one publication per second.
+        var indexNodeName = startIndexNode(
+            Settings.builder()
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        var ingestMetricsService = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class);
+        final var metricPublicationBarrier = new CyclicBarrier(2);
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(PublishNodeIngestLoadAction.NAME)) {
+                    longAwait(metricPublicationBarrier);
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+        // Wait for a publication of the metrics
+        longAwait(metricPublicationBarrier);
+        var metrics = ingestMetricsService.getIndexTierMetrics();
+        assertThat(metrics.toString(), metrics.nodesLoad().size(), equalTo(1));
+        assertThat(metrics.toString(), metrics.nodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+        assertThat(metrics.toString(), metrics.nodesLoad().get(0).load(), equalTo(0.0));
+        // Block the executor workers to simulate long-running write tasks
+        var threadpool = internalCluster().getInstance(ThreadPool.class, indexNodeName);
+        var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadpool.executor(ThreadPool.Names.WRITE);
+        final var executorThreads = threadpool.info(ThreadPool.Names.WRITE).getMax();
+        var barrier = new CyclicBarrier(executorThreads + 1);
+        for (int i = 0; i < executorThreads; i++) {
+            executor.execute(() -> longAwait(barrier));
+        }
+        // Wait for another publication of the metrics
+        longAwait(metricPublicationBarrier);
+        // Eventually just because of the "long-running" tasks, the load will go up
+        assertBusy(() -> {
+            var metricsAfter = ingestMetricsService.getIndexTierMetrics();
+            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().size(), equalTo(1));
+            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(
+                metricsAfter.toString(),
+                metricsAfter.nodesLoad().get(0).load(),
+                allOf(greaterThan(0.0), lessThanOrEqualTo((double) executorThreads))
+            );
+        });
+        longAwait(barrier);
     }
 
     public void testAverageWriteLoadSamplerDynamicEwmaAlphaSetting() throws Exception {

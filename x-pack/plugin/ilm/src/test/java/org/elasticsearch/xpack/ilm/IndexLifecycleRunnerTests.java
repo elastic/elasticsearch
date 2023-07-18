@@ -387,6 +387,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
               "success": true,
               "state": {
                 "phase": "phase",
+                "actions_order_version":"1",
                 "action": "action",
                 "step": "next_cluster_state_action_step",
                 "step_time": "%s"
@@ -570,6 +571,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
               "success": true,
               "state": {
                 "phase": "phase",
+                "actions_order_version":"1",
                 "action": "action",
                 "step": "async_action_step",
                 "step_time": "0"

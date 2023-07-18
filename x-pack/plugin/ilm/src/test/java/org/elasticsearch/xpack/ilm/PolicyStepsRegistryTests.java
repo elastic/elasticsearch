@@ -249,7 +249,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         assertThat(registry.getLifecyclePolicyMap().get(newPolicy.getName()).getHeaders(), equalTo(headers));
         assertThat(registry.getFirstStepMap().size(), equalTo(1));
         assertThat(registry.getStepMap().size(), equalTo(1));
-        Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
+        Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(new VersionedPolicyKey(1, newPolicy.getName()));
         assertThat(registeredStepsForPolicy.size(), equalTo(policySteps.size()));
         for (Step step : policySteps) {
             LifecycleExecutionState.Builder newIndexState = LifecycleExecutionState.builder();
@@ -409,7 +409,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         // add new policy
         registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
 
-        Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
+        Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(new VersionedPolicyKey(1, newPolicy.getName()));
         Step shrinkStep = registeredStepsForPolicy.entrySet()
             .stream()
             .filter(e -> e.getKey().phase().equals("warm") && e.getKey().name().equals("shrink"))
@@ -438,7 +438,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         // Update the policies
         registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
 
-        registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
+        registeredStepsForPolicy = registry.getStepMap().get(new VersionedPolicyKey(1, newPolicy.getName()));
         shrinkStep = registeredStepsForPolicy.entrySet()
             .stream()
             .filter(e -> e.getKey().phase().equals("warm") && e.getKey().name().equals("shrink"))

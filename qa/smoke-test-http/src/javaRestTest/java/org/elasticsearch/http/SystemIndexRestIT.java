@@ -191,7 +191,6 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                         .setVersionMetaKey("version")
                         .setMappings(builder)
                         .setSettings(SETTINGS)
-                        .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "-1645110297"))
                         .setType(Type.INTERNAL_MANAGED)
                         .build()
                 );

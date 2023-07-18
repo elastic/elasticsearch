@@ -131,7 +131,6 @@ public class SearchApplicationIndexService {
             .setDescription("Contains Search Application configuration")
             .setMappings(getIndexMappings())
             .setSettings(getIndexSettings())
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "-733769000"))
             .setAliasName(SEARCH_APPLICATION_ALIAS_NAME)
             .setVersionMetaKey("version")
             .setOrigin(ENT_SEARCH_ORIGIN)

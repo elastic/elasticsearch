@@ -90,10 +90,10 @@ public class SynonymsManagementAPIService {
         .setDescription("Synonyms index for synonyms managed through APIs")
         .setPrimaryIndex(SYNONYMS_INDEX_CONCRETE_NAME)
         .setAliasName(SYNONYMS_ALIAS_NAME)
+        .setIndexFormat(SYNONYMS_INDEX_FORMAT)
         .setMappings(mappings())
         .setSettings(settings())
         .setVersionMetaKey("version")
-        .setIndexFormat(new SystemIndexDescriptor.IndexFormat(SYNONYMS_INDEX_FORMAT, "-879283649"))
         .setOrigin(SYNONYMS_ORIGIN)
         .build();
 

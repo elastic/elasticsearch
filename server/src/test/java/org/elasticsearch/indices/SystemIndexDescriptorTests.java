@@ -162,10 +162,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
 
     public void testPriorSystemIndexDescriptorValidation() {
         SystemIndexDescriptor prior = priorSystemIndexDescriptorBuilder().build();
-        SystemIndexDescriptor.IndexFormat incrementedIndexFormat = new SystemIndexDescriptor.IndexFormat(
-            prior.getIndexFormat().version() + 1,
-            "932155049"
-        );
 
         // same minimum node version
         IllegalArgumentException iae = expectThrows(
@@ -183,16 +179,10 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         );
         assertThat(iae.getMessage(), containsString("has minimum node version [7.0.0] which is after [6.8.0]"));
 
-        SystemIndexDescriptor.IndexFormat outerIndexFormat = new SystemIndexDescriptor.IndexFormat(
-            incrementedIndexFormat.version() + 1,
-            "932155048"
-        );
         // prior has another prior!
         iae = expectThrows(
             IllegalArgumentException.class,
             () -> priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.V_7_5_0)
-                .setIndexFormat(outerIndexFormat)
-                .setSettings(buildIndexFormatSettings(outerIndexFormat))
                 .setPriorSystemIndexDescriptors(
                     List.of(
                         SystemIndexDescriptor.builder()
@@ -206,8 +196,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
                             .setVersionMetaKey("version")
                             .setOrigin("system")
                             .setMinimumNodeVersion(Version.V_7_4_1)
-                            .setIndexFormat(incrementedIndexFormat)
-                            .setSettings(buildIndexFormatSettings(incrementedIndexFormat))
                             .setPriorSystemIndexDescriptors(List.of(prior))
                             .build()
                     )
@@ -221,8 +209,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> priorSystemIndexDescriptorBuilder().setIndexPattern(".system1*")
                 .setMinimumNodeVersion(Version.V_7_5_0)
-                .setIndexFormat(incrementedIndexFormat)
-                .setSettings(buildIndexFormatSettings(incrementedIndexFormat))
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
@@ -233,8 +219,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> priorSystemIndexDescriptorBuilder().setPrimaryIndex(".system-2")
                 .setMinimumNodeVersion(Version.V_7_5_0)
-                .setIndexFormat(incrementedIndexFormat)
-                .setSettings(buildIndexFormatSettings(incrementedIndexFormat))
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
@@ -245,8 +229,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> priorSystemIndexDescriptorBuilder().setAliasName(".system1")
                 .setMinimumNodeVersion(Version.V_7_5_0)
-                .setIndexFormat(incrementedIndexFormat)
-                .setSettings(buildIndexFormatSettings(incrementedIndexFormat))
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
@@ -255,8 +237,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         // success!
         assertNotNull(
             priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.V_7_5_0)
-                .setIndexFormat(incrementedIndexFormat)
-                .setSettings(buildIndexFormatSettings(incrementedIndexFormat))
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
@@ -275,24 +255,20 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setVersionMetaKey("version")
             .setOrigin("system")
             .setMinimumNodeVersion(Version.V_7_0_0)
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1114786311"))
+            .setIndexFormat(0)
             .build();
         assert prior.isAutomaticallyManaged() : "Do not request index format for unmanaged system indices";
-        SystemIndexDescriptor.IndexFormat incrementedIndexFormat = new SystemIndexDescriptor.IndexFormat(
-            prior.getIndexFormat().version() + 1,
-            "932155049"
-        );
         final SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
             .setDescription("system stuff")
             .setPrimaryIndex(".system-1")
             .setAliasName(".system")
             .setType(Type.INTERNAL_MANAGED)
-            .setSettings(buildIndexFormatSettings(incrementedIndexFormat))
+            .setSettings(Settings.EMPTY)
             .setMappings(mappings)
             .setVersionMetaKey("version")
             .setOrigin("system")
-            .setIndexFormat(incrementedIndexFormat)
+            .setIndexFormat(1)
             .setPriorSystemIndexDescriptors(List.of(prior))
             .build();
 
@@ -323,7 +299,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setType(Type.INTERNAL_MANAGED)
             .setMappings(MAPPINGS)
             .setVersionMetaKey("version")
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1079197036"))
             .setOrigin("system");
 
         builder.setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
@@ -362,13 +337,13 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setType(Type.INTERNAL_MANAGED)
             .setMappings(MAPPINGS)
             .setSettings(Settings.builder().put("index.format", 5).build())
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "932155053"))
+            .setIndexFormat(0)
             .setVersionMetaKey("version")
             .setOrigin("system");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
 
-        assertThat(e.getMessage(), equalTo("Descriptor index format version does not match index format version in managed settings"));
+        assertThat(e.getMessage(), equalTo("Descriptor index format does not match index format in managed settings"));
     }
 
     private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder() {
@@ -382,12 +357,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setMappings(MAPPINGS)
             .setVersionMetaKey("version")
             .setOrigin("system")
-            .setIndexFormat(new SystemIndexDescriptor.IndexFormat(0, "1114786311"))
             .setMinimumNodeVersion(Version.V_7_0_0);
     }
-
-    private static Settings buildIndexFormatSettings(SystemIndexDescriptor.IndexFormat indexFormat) {
-        return Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), indexFormat.version()).build();
-    }
-
 }

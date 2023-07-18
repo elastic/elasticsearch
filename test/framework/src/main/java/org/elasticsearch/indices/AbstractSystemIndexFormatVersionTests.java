@@ -21,7 +21,7 @@ public abstract class AbstractSystemIndexFormatVersionTests extends ESTestCase {
     public void testSystemIndexDescriptorFormats() {
         for (SystemIndexDescriptor descriptor : getSystemIndexDescriptors()) {
             assertTrue(descriptor.isAutomaticallyManaged());
-            assertThat(descriptor.getIndexFormat().hash(), is(notNullValue()));
+            assertThat(descriptor.getIndexFormat(), is(notNullValue()));
         }
     }
 }

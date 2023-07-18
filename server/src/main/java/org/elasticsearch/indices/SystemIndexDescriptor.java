@@ -188,7 +188,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @param mappings The mappings to apply to this index when auto-creating, if appropriate
      * @param settings The settings to apply to this index when auto-creating, if appropriate
      * @param aliasName An alias for the index, or null
-     * @param indexFormat An index format version number with a hash of that version's mappings and settings
+     * @param indexFormat A value for the `index.format` setting. Pass 0 or higher.
      * @param versionMetaKey a mapping key under <code>_meta</code> where a version can be found, which indicates the
     *                       Elasticsearch version when the index was created.
      * @param origin the client origin to use when creating this index. Internal system indices must not provide an origin, while external
@@ -208,7 +208,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         String mappings,
         Settings settings,
         String aliasName,
-        IndexFormat indexFormat,
+        int indexFormat,
         String versionMetaKey,
         String origin,
         Version minimumNodeVersion,
@@ -251,34 +251,24 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             }
         }
 
-        if (indexFormat.version < 0) {
+        if (indexFormat < 0) {
             throw new IllegalArgumentException("Index format cannot be negative");
         }
 
         Strings.requireNonEmpty(indexPattern, "indexPattern must be supplied");
 
         Objects.requireNonNull(type, "type must not be null");
-        Objects.requireNonNull(indexFormat);
-        this.indexFormat = indexFormat;
 
         if (type.isManaged()) {
             Objects.requireNonNull(settings, "Must supply settings for a managed system index");
             Strings.requireNonEmpty(mappings, "Must supply mappings for a managed system index");
 
-            Objects.requireNonNull(indexFormat.hash, "Must supply index format hash for a managed system index");
-
-            assert indexFormat.hash.equals(Integer.toString(getDescriptorHash(mappings, settings)))
-                : "Expected descriptor hash ["
-                    + indexFormat.hash
-                    + "] but runtime hash was ["
-                    + getDescriptorHash(mappings, settings)
-                    + "]";
+            this.indexFormat = new IndexFormat(indexFormat, getDescriptorHash(mappings, settings));
 
             Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex for a managed system index");
-            Objects.requireNonNull(this.indexFormat.hash, "Must supply index format hash for a managed system index");
             Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey for a managed system index");
             Strings.requireNonEmpty(origin, "Must supply origin for a managed system index");
-            if (settings.getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0) != indexFormat.version) {
+            if (settings.getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0) != this.indexFormat.version) {
                 throw new IllegalArgumentException(
                     "Descriptor index format version does not match index format version in managed settings"
                 );
@@ -290,6 +280,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             assert Objects.isNull(primaryIndex) : "Unmanaged index descriptors should not have a primary index";
             assert Objects.isNull(versionMetaKey) : "Unmanaged index descriptors should not have a version meta key";
             this.mappingVersion = null;
+            this.indexFormat = new IndexFormat(0, 0);
         }
 
         Objects.requireNonNull(allowedElasticProductOrigins, "allowedProductOrigins must not be null");
@@ -312,7 +303,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             Set<Version> versions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
             versions.add(minimumNodeVersion);
             Set<Integer> indexFormatVersions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
-            indexFormatVersions.add(indexFormat.version);
+            indexFormatVersions.add(this.indexFormat.version);
             for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
                 if (versions.add(prior.minimumNodeVersion) == false) {
                     throw new IllegalArgumentException(prior + " has the same minimum node version as another descriptor");
@@ -325,7 +316,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 if (indexFormatVersions.add(prior.indexFormat.version) == false) {
                     throw new IllegalArgumentException(prior + " has the same index format version as another descriptor");
                 }
-                if (prior.indexFormat.version > indexFormat.version) {
+                if (prior.indexFormat.version > this.indexFormat.version) {
                     throw new IllegalArgumentException(
                         prior + " has index format [" + prior.indexFormat + "] which is after [" + indexFormat + "]"
                     );
@@ -653,7 +644,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         private String mappings = null;
         private Settings settings = null;
         private String aliasName = null;
-        private IndexFormat indexFormat = new IndexFormat(0, null);
+        private int indexFormat = 0;
         private String versionMetaKey = null;
         private String origin = null;
         private Version minimumNodeVersion = Version.CURRENT.minimumCompatibilityVersion();
@@ -701,11 +692,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
-        // TODO[wrb]: index format usage
-        // * security system indices
-        // * watcher
-        // * tests
-        public Builder setIndexFormat(IndexFormat indexFormat) {
+        public Builder setIndexFormat(int indexFormat) {
             this.indexFormat = indexFormat;
             return this;
         }
@@ -797,7 +784,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @param hash A hash of the descriptor's settings and mappings. The hash number for a version
      *             should not change; if a new hash is required, the version should be incremented.
      */
-    public record IndexFormat(int version, String hash) {}
+    public record IndexFormat(int version, int hash) {}
 
     /**
      * Builds an automaton for matching index names against this descriptor's index pattern.

@@ -56,7 +56,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     public static final String NAME = "rule_query";
 
     private static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
-    protected static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
+    static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
     private final String rulesetId;

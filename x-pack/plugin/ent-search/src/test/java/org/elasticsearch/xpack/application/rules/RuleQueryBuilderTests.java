@@ -172,15 +172,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
         return super.simulateMethod(method, args);
     }
-
-    /**
-     * Returns a map where the keys are object names that won't trigger a standard exception (an exception that contains the string
-     * "unknown field [newField]") through {@link #testUnknownObjectException()}. The value is a string that is contained in the thrown
-     * exception or null in the case that no exception is thrown (including their children).
-     * Default is an empty Map. Can be overridden by subclasses that test queries which contain objects that get parsed on the data nodes
-     * (e.g. score functions) or objects that can contain arbitrary content (e.g. documents for percolate or more like this query, params
-     * for scripts) and/or expect some content(e.g documents with geojson geometries).
-     */
+    
     @Override
     protected Map<String, String> getObjectsHoldingArbitraryContent() {
         // document contains arbitrary content, no error expected when an object is added to it

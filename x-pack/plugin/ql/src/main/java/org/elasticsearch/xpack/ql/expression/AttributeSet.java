@@ -172,22 +172,12 @@ public class AttributeSet implements Set<Attribute> {
 
     @Override
     public boolean equals(Object o) {
-        if (o == this) return true;
-        if ((o instanceof Set) == false) return false;
-        Collection<?> c = (Collection<?>) o;
-        if (c.size() != size()) return false;
-        return containsAll(c);
+        return delegate.equals(o);
     }
 
     @Override
     public int hashCode() {
-        int h = 0;
-        Iterator<Attribute> i = iterator();
-        while (i.hasNext()) {
-            Attribute obj = i.next();
-            if (obj != null) h += obj.hashCode();
-        }
-        return h;
+        return delegate.hashCode();
     }
 
     @Override

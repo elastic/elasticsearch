@@ -17,10 +17,13 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -75,7 +78,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_500_024;
+        return TransportVersion.V_8_500_033;
     }
 
     public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, String rulesetId) {
@@ -118,13 +121,15 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             throw new IllegalArgumentException("rulesetId must not be null or empty");
         }
 
-        // PinnedQueryBuilder will return an error if we attmept to return more than the maximum number of
+        // PinnedQueryBuilder will return an error if we attempt to return more than the maximum number of
         // pinned hits. Here, we truncate matching rules rather than return an error.
         if (pinnedIds != null && pinnedIds.size() > MAX_NUM_PINNED_HITS) {
+            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
             pinnedIds = pinnedIds.subList(0, MAX_NUM_PINNED_HITS);
         }
 
         if (pinnedDocs != null && pinnedDocs.size() > MAX_NUM_PINNED_HITS) {
+            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
             pinnedDocs = pinnedDocs.subList(0, MAX_NUM_PINNED_HITS);
         }
 
@@ -224,7 +229,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                 }
                 QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(rulesetId, getResponse.getSourceAsBytesRef(), XContentType.JSON);
                 for (QueryRule rule : queryRuleset.rules()) {
-                    logger.info("Applying rule: " + rule);
                     rule.applyRule(appliedRules, matchCriteria);
                 }
                 pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());
@@ -279,7 +283,10 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         declareStandardFields(PARSER);
     }
 
-    public static RuleQueryBuilder fromXContent(XContentParser parser) {
+    public static RuleQueryBuilder fromXContent(XContentParser parser, XPackLicenseState licenseState) {
+        if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(licenseState) == false) {
+            throw LicenseUtils.newComplianceException(NAME);
+        }
         try {
             return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {

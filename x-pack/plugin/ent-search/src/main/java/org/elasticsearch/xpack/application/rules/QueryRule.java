@@ -35,6 +35,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.DOCS_FIELD;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.IDS_FIELD;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item.INDEX_FIELD;
+import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX_NUM_PINNED_HITS;
 
 /**
  * A query rule consists of:
@@ -113,11 +114,28 @@ public class QueryRule implements Writeable, ToXContentObject {
 
     private void validate() {
         if (type == QueryRuleType.PINNED) {
-            if (actions.containsKey("ids") == false && actions.containsKey("docs") == false) {
-                throw new ElasticsearchParseException("Pinned Query rule actions must contain either ids or docs");
+            boolean ruleContainsPinnedIds = actions.containsKey(IDS_FIELD.getPreferredName());
+            boolean ruleContainsPinnedDocs = actions.containsKey(DOCS_FIELD.getPreferredName());
+            if (ruleContainsPinnedIds ^ ruleContainsPinnedDocs) {
+                validatePinnedAction(actions.get(IDS_FIELD.getPreferredName()));
+                validatePinnedAction(actions.get(DOCS_FIELD.getPreferredName()));
+            } else {
+                throw new ElasticsearchParseException("pinned query rule actions must contain only one of either ids or docs");
             }
         } else {
             throw new IllegalArgumentException("Unsupported QueryRuleType: " + type);
+        }
+    }
+
+    private void validatePinnedAction(Object action) {
+        if (action != null) {
+            if (action instanceof List == false) {
+                throw new ElasticsearchParseException("pinned query rule actions must be a list");
+            } else if (((List<?>) action).isEmpty()) {
+                throw new ElasticsearchParseException("pinned query rule actions cannot be empty");
+            } else if (((List<?>) action).size() > MAX_NUM_PINNED_HITS) {
+                throw new ElasticsearchParseException("pinned hits cannot exceed " + MAX_NUM_PINNED_HITS);
+            }
         }
     }
 

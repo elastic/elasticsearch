@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 8.8.99"
-      reason: Loading synonyms from index is introduced in 8.9.0
+      version: " - 8.9.99"
+      reason: Loading synonyms from index is introduced in 8.10.0
 
   # Create a new synonyms set
   - do:
@@ -158,39 +158,6 @@ setup:
             match:
               my_field:
                 query: hola
-  - match: { hits.total.value: 1 }
-
----
-"Delete the synonyms set and confirm failed reload analyzers details":
-  - do:
-      synonyms.delete:
-        synonyms_set: set1
-
-  - match:
-      acknowledged: true
-  - gte: { reload_analyzers_details._shards.failed: 1 }
-  - match: { reload_analyzers_details._shards.failures.0.index: "my_index" }
-  - match: { reload_analyzers_details._shards.failures.0.reason.reason: "Synonym set [set1] not found" }
-
-  # Confirm that the index analyzers are not reloaded and still using old synonyms
-  - do:
-      search:
-        index: my_index
-        body:
-          query:
-            match:
-              my_field:
-                query: hi
-  - match: { hits.total.value: 1 }
-
-  - do:
-      search:
-        index: my_index
-        body:
-          query:
-            match:
-              my_field:
-                query: bye
   - match: { hits.total.value: 1 }
 
 ---

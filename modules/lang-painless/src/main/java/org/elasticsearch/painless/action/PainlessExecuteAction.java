@@ -20,6 +20,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -27,6 +28,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -44,6 +46,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -80,6 +85,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -175,6 +181,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 );
             }
 
+            @Nullable // null means local cluster
+            private final transient String clusterAlias;  // this field is not Writeable, as it is needed only on the initial receiving node
             private final String index;
             private final BytesReference document;
             private final QueryBuilder query;
@@ -188,19 +196,63 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             }
 
             ContextSetup(String index, BytesReference document, QueryBuilder query) {
-                this.index = index;
+                Tuple<String, String> clusterAliasAndIndex = parseClusterAliasAndIndex(index);
+                this.clusterAlias = clusterAliasAndIndex.v1();
+                this.index = clusterAliasAndIndex.v2();
                 this.document = document;
                 this.query = query;
             }
 
             ContextSetup(StreamInput in) throws IOException {
-                index = in.readOptionalString();
+                this.clusterAlias = null;
+                this.index = in.readOptionalString();
                 document = in.readOptionalBytesReference();
                 String optionalXContentType = in.readOptionalString();
                 if (optionalXContentType != null) {
                     this.xContentType = XContentType.fromMediaType(optionalXContentType);
                 }
                 query = in.readOptionalNamedWriteable(QueryBuilder.class);
+            }
+
+            /**
+             * @param indexExpression should be of the form "index" or "cluster:index". Wildcards are OK.
+             * @return Tuple where first entry is clusterAlias, which will be null if not in the indexExpression
+             *         and second entry is the index name
+             *         Tuple(null, null) will be returned if indexExpression is null
+             * @throws IllegalArgumentException if the indexExpression starts or ends with the REMOTE_CLUSTER_INDEX_SEPARATOR (":")
+             *         (ignoring whitespace)
+             */
+            static Tuple<String, String> parseClusterAliasAndIndex(String indexExpression) {
+                if (indexExpression == null) {
+                    return new Tuple<>(null, null);
+                }
+                String trimmed = indexExpression.trim();
+                if (trimmed.startsWith(":") || trimmed.endsWith(":")) {
+                    throw new IllegalArgumentException(
+                        "Unable to parse one single valid index name from the provided index: [" + indexExpression + "]"
+                    );
+                }
+
+                // The parser here needs to ensure that the indexExpression is not of the form "remote1:blogs,remote2:blogs"
+                // because (1) only a single index is allowed for Painless Execute and
+                // (2) if this method returns Tuple("remote1", "blogs,remote2:blogs") that will not fail with "index not found".
+                // Instead, it will fail with the inaccurate and confusing error message:
+                // "Cross-cluster calls are not supported in this context but remote indices were requested: [blogs,remote1:blogs]"
+                // which comes later out of the IndexNameExpressionResolver pathway this code uses.
+                String[] parts = indexExpression.split(":", 2);
+                if (parts.length == 1) {
+                    return new Tuple<>(null, parts[0]);
+                } else if (parts.length == 2 && parts[1].contains(":") == false) {
+                    return new Tuple<>(parts[0], parts[1]);
+                } else {
+                    throw new IllegalArgumentException(
+                        "Unable to parse one single valid index name from the provided index: [" + indexExpression + "]"
+                    );
+                }
+            }
+
+            public String getClusterAlias() {
+                return clusterAlias;
             }
 
             public String getIndex() {
@@ -241,6 +293,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
+                // clusterAlias is not included as only the original coordinator needs to see it
+                // if forwarded to a remote cluster, the remote cluster will execute it locally
                 out.writeOptionalString(index);
                 out.writeOptionalBytesReference(document);
                 out.writeOptionalString(xContentType != null ? xContentType.mediaTypeWithoutParameters() : null);
@@ -249,17 +303,14 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
             @Override
             public String toString() {
-                return "ContextSetup{"
-                    + ", index='"
-                    + index
-                    + '\''
-                    + ", document="
-                    + document
-                    + ", query="
-                    + query
-                    + ", xContentType="
-                    + xContentType
-                    + '}';
+                return Strings.format(
+                    "ContextSetup{index=%s, cluster=%s, document=%s, query=%s, xContentType=%s}",
+                    index,
+                    clusterAlias,
+                    document,
+                    query,
+                    xContentType
+                );
             }
 
             @Override
@@ -467,6 +518,18 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             );
             this.scriptService = scriptService;
             this.indicesServices = indicesServices;
+        }
+
+        @Override
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            if (request.getContextSetup() == null || request.getContextSetup().getClusterAlias() == null) {
+                super.doExecute(task, request, listener);
+            } else {
+                // forward to remote cluster
+                String clusterAlias = request.getContextSetup().getClusterAlias();
+                Client remoteClusterClient = transportService.getRemoteClusterService().getRemoteClusterClient(threadPool, clusterAlias);
+                remoteClusterClient.admin().cluster().execute(PainlessExecuteAction.INSTANCE, request, listener);
+            }
         }
 
         @Override

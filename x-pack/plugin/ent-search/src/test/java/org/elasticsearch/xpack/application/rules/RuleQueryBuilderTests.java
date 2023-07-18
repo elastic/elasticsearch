@@ -172,7 +172,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
         return super.simulateMethod(method, args);
     }
-    
+
     @Override
     protected Map<String, String> getObjectsHoldingArbitraryContent() {
         // document contains arbitrary content, no error expected when an object is added to it

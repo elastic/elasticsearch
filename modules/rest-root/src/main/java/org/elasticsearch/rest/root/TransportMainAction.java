@@ -46,7 +46,6 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
             new MainResponse(
                 nodeName,
                 Version.CURRENT,
-                TransportVersion.current(),
                 clusterState.getClusterName(),
                 clusterState.metadata().clusterUUID(),
                 Build.CURRENT

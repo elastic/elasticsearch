@@ -35,10 +35,9 @@ public class RestMainActionTests extends ESTestCase {
         final ClusterName clusterName = new ClusterName("cluster1");
         final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final Version version = Version.CURRENT;
-        final TransportVersion transportVersion = TransportVersion.current();
         final Build build = Build.CURRENT;
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, transportVersion, clusterName, clusterUUID, build);
+        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build);
         XContentBuilder builder = JsonXContent.contentBuilder();
         RestRequest restRequest = new FakeRestRequest() {
             @Override
@@ -60,11 +59,10 @@ public class RestMainActionTests extends ESTestCase {
         final ClusterName clusterName = new ClusterName("cluster1");
         final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final Version version = Version.CURRENT;
-        final TransportVersion transportVersion = TransportVersion.current();
         final Build build = Build.CURRENT;
         final boolean prettyPrint = randomBoolean();
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, transportVersion, clusterName, clusterUUID, build);
+        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build);
         XContentBuilder builder = JsonXContent.contentBuilder();
 
         Map<String, String> params = new HashMap<>();

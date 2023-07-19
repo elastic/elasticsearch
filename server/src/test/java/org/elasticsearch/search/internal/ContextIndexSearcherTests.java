@@ -479,7 +479,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
             true,
             (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(1, 5))
         );
-        searcher.addQueryCancellation(() -> { throw searcher.getTimeExceededException(); });
+        searcher.addQueryCancellation(searcher::throwTimeExceededException);
         boolean[] called = new boolean[1];
         CollectorManager<Collector, Void> manager = new CollectorManager<>() {
             @Override

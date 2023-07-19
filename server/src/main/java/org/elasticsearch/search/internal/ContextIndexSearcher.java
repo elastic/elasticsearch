@@ -277,7 +277,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final C firstCollector = collectorManager.newCollector();
         // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
         query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
-        final Weight weight = createWeight(query, firstCollector.scoreMode(), 1);
+        final Weight weight;
+        try {
+            weight = createWeight(query, firstCollector.scoreMode(), 1);
+        } catch (@SuppressWarnings("unused") TimeExceededException e) {
+            timeExceeded = false;
+            return collectorManager.reduce(Collections.singletonList(firstCollector));
+        }
         return search(weight, collectorManager, firstCollector);
     }
 
@@ -353,7 +359,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 searchLeaf(ctx, weight, collector);
             }
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
-            // ideally we should just throw an error here if we don't want partial results
             timeExceeded = true;
         }
 
@@ -364,8 +369,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return timeExceeded;
     }
 
-    public RuntimeException getTimeExceededException() {
-        return new TimeExceededException();
+    public void throwTimeExceededException() {
+        throw new TimeExceededException();
     }
 
     private static class TimeExceededException extends RuntimeException {

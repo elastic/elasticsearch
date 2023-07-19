@@ -317,7 +317,7 @@ public class QueryPhase {
             return () -> {
                 final long time = searchContext.getRelativeTimeInMillis();
                 if (time > maxTime) {
-                    throw searchContext.searcher().getTimeExceededException();
+                    searchContext.searcher().throwTimeExceededException();
                 }
             };
         } else {

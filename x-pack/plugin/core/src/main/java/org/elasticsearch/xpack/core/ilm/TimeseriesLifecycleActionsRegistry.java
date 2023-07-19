@@ -24,16 +24,29 @@ import java.util.stream.Stream;
 public final class TimeseriesLifecycleActionsRegistry {
 
     public static final int VERSION_ONE = 1;
-    public static final int CURRENT_VERSION = VERSION_ONE;
+    // moves the downsample action after the migrate action in the warm and cold phases
+    public static final int VERSION_TWO = 2;
+    public static final int CURRENT_VERSION = VERSION_TWO;
 
-    static final String HOT_PHASE = "hot";
-    static final String WARM_PHASE = "warm";
-    static final String COLD_PHASE = "cold";
-    static final String FROZEN_PHASE = "frozen";
-    static final String DELETE_PHASE = "delete";
+    public static final String HOT_PHASE = "hot";
+    public static final String WARM_PHASE = "warm";
+    public static final String COLD_PHASE = "cold";
+    public static final String FROZEN_PHASE = "frozen";
+    public static final String DELETE_PHASE = "delete";
 
     public static final Map<Integer, List<String>> ORDERED_VALID_HOT_ACTIONS = Map.of(
         VERSION_ONE,
+        Stream.of(
+            SetPriorityAction.NAME,
+            UnfollowAction.NAME,
+            RolloverAction.NAME,
+            ReadOnlyAction.NAME,
+            DownsampleAction.NAME,
+            ShrinkAction.NAME,
+            ForceMergeAction.NAME,
+            SearchableSnapshotAction.NAME
+        ).filter(Objects::nonNull).toList(),
+        VERSION_TWO,
         Stream.of(
             SetPriorityAction.NAME,
             UnfollowAction.NAME,
@@ -57,6 +70,17 @@ public final class TimeseriesLifecycleActionsRegistry {
             MigrateAction.NAME,
             ShrinkAction.NAME,
             ForceMergeAction.NAME
+        ).filter(Objects::nonNull).toList(),
+        VERSION_TWO,
+        Stream.of(
+            SetPriorityAction.NAME,
+            UnfollowAction.NAME,
+            ReadOnlyAction.NAME,
+            AllocateAction.NAME,
+            MigrateAction.NAME,
+            DownsampleAction.NAME,
+            ShrinkAction.NAME,
+            ForceMergeAction.NAME
         ).filter(Objects::nonNull).toList()
     );
 
@@ -71,15 +95,30 @@ public final class TimeseriesLifecycleActionsRegistry {
             AllocateAction.NAME,
             MigrateAction.NAME,
             FreezeAction.NAME
+        ).filter(Objects::nonNull).toList(),
+        VERSION_TWO,
+        Stream.of(
+            SetPriorityAction.NAME,
+            UnfollowAction.NAME,
+            ReadOnlyAction.NAME,
+            SearchableSnapshotAction.NAME,
+            AllocateAction.NAME,
+            MigrateAction.NAME,
+            DownsampleAction.NAME,
+            FreezeAction.NAME
         ).filter(Objects::nonNull).toList()
     );
 
     public static final Map<Integer, List<String>> ORDERED_VALID_FROZEN_ACTIONS = Map.of(
         VERSION_ONE,
+        List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME),
+        VERSION_TWO,
         List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME)
     );
     public static final Map<Integer, List<String>> ORDERED_VALID_DELETE_ACTIONS = Map.of(
         VERSION_ONE,
+        List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME),
+        VERSION_TWO,
         List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME)
     );
 

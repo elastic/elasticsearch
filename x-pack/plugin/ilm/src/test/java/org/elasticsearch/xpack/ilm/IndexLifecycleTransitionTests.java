@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,6 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.core.ilm.AbstractStepTestCase;
 import org.elasticsearch.xpack.core.ilm.DataTierMigrationRoutedStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
@@ -41,11 +44,15 @@ import org.elasticsearch.xpack.core.ilm.MockStep;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
+import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.RolloverStep;
+import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,12 +60,18 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.eligibleToCheckForRefresh;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.refreshPhaseDefinition;
+import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction.CONDITIONAL_SKIP_ACTION_STEP;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.COLD_PHASE;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.CURRENT_VERSION;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.HOT_PHASE;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VERSION_ONE;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleRunnerTests.createOneStepPolicyStepRegistry;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleTransition.moveStateToNextActionAndUpdateCachedPhase;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
@@ -69,6 +82,19 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndexLifecycleTransitionTests extends ESTestCase {
+
+    private Client client;
+
+    @Before
+    public void setupClient() {
+        client = new NoOpClient(getTestName()) {
+        };
+    }
+
+    @After
+    public void closeClient() {
+        client.close();
+    }
 
     public void testMoveClusterStateToNextStep() {
         String indexName = "my_index";
@@ -121,6 +147,246 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         index = clusterState.metadata().index(indexName).getIndex();
         newClusterState = IndexLifecycleTransition.moveClusterStateToStep(index, clusterState, nextStep, () -> now, stepsRegistry, false);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
+    }
+
+    public void testActionsOrderVersionManagementOnMoveToNextStep() {
+        String indexName = "my_index";
+        String policyName = "ilm_policy";
+        Map<String, LifecycleAction> hotActions = Map.of(
+            RolloverAction.NAME,
+            new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
+            ReadOnlyAction.NAME,
+            new ReadOnlyAction()
+        );
+        Map<String, LifecycleAction> coldActions = Map.of(
+            SearchableSnapshotAction.NAME,
+            new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10))
+        );
+        LifecyclePolicy policy = new LifecyclePolicy(
+            policyName,
+            Map.of(
+                HOT_PHASE,
+                new Phase(HOT_PHASE, TimeValue.ZERO, hotActions),
+                COLD_PHASE,
+                new Phase(COLD_PHASE, TimeValue.ZERO, coldActions)
+            )
+        );
+
+        List<LifecyclePolicyMetadata> policyMetadatas = Collections.singletonList(
+            new LifecyclePolicyMetadata(policy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
+
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(
+            new TreeMap<>(),
+            new HashMap<>(),
+            new HashMap<>(),
+            NamedXContentRegistry.EMPTY,
+            client,
+            null
+        );
+        registry.update(
+            new IndexLifecycleMetadata(
+                Map.of(policyName, new LifecyclePolicyMetadata(policy, Collections.emptyMap(), 2L, 2L)),
+                OperationMode.RUNNING
+            )
+        );
+        long now = randomNonNegativeLong();
+
+        Step.StepKey waitForRolloverReadyStepKey = new Step.StepKey(HOT_PHASE, RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
+        Step.StepKey rolloverStepKey = new Step.StepKey(HOT_PHASE, RolloverAction.NAME, RolloverStep.NAME);
+
+        {
+            // test going from null lifecycle settings to next step
+            ClusterState clusterState = buildClusterState(
+                indexName,
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy.getName()),
+                LifecycleExecutionState.builder().build(), // actions version is 1 by default
+                policyMetadatas
+            );
+            Index index = clusterState.metadata().index(indexName).getIndex();
+            ClusterState newClusterState = IndexLifecycleTransition.moveClusterStateToStep(
+                index,
+                clusterState,
+                InitializePolicyContextStep.KEY,
+                () -> now,
+                registry,
+                false
+            );
+            LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
+            assertThat(newLifecycleState.phase(), is(InitializePolicyContextStep.KEY.phase()));
+            assertThat(newLifecycleState.action(), is(InitializePolicyContextStep.KEY.action()));
+            assertThat(newLifecycleState.step(), is(InitializePolicyContextStep.KEY.name()));
+            // as we moved from the new phase to the hot phase, the version of the actions order should be the latest
+            assertThat(newLifecycleState.actionsOrderVersion(), is(CURRENT_VERSION));
+        }
+
+        {
+            // let's move to the next step within the same phase - the actions order version must remain the same (we'll start with an older
+            // version)
+            Step waitForRolloverStep = new WaitForRolloverReadyStep(
+                waitForRolloverReadyStepKey,
+                rolloverStepKey,
+                client,
+                RolloverConditions.newBuilder().addMaxIndexDocsCondition(1L).build()
+            );
+
+            LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+            lifecycleState.setPhase(waitForRolloverStep.getKey().phase());
+            lifecycleState.setAction(waitForRolloverStep.getKey().action());
+            lifecycleState.setStep(waitForRolloverStep.getKey().name());
+            lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+            lifecycleState.setActionsOrderVersion(VERSION_ONE);
+
+            ClusterState currentState = buildClusterState(
+                indexName,
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy.getName()),
+                lifecycleState.build(),
+                policyMetadatas
+            );
+
+            Index index = currentState.metadata().index(indexName).getIndex();
+            ClusterState newClusterState = IndexLifecycleTransition.moveClusterStateToStep(
+                index,
+                currentState,
+                waitForRolloverStep.getNextStepKey(),
+                () -> now,
+                registry,
+                false
+            );
+            // as we didn't switch phases so the actions order version should continue to be ONE
+            assertThat(newClusterState.metadata().index(index).getLifecycleExecutionState().actionsOrderVersion(), is(VERSION_ONE));
+        }
+
+        {
+            // let's switch from hot to cold (starting in version ONE)
+            Step.StepKey lastHotKey = PhaseCompleteStep.stepKey(HOT_PHASE);
+            Step.StepKey coldKey = new Step.StepKey(COLD_PHASE, SearchableSnapshotAction.NAME, CONDITIONAL_SKIP_ACTION_STEP);
+
+            LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+            lifecycleState.setPhase(lastHotKey.phase());
+            lifecycleState.setAction(lastHotKey.action());
+            lifecycleState.setStep(lastHotKey.name());
+            lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+            lifecycleState.setActionsOrderVersion(VERSION_ONE);
+
+            ClusterState currentState = buildClusterState(
+                indexName,
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy.getName()),
+                lifecycleState.build(),
+                policyMetadatas
+            );
+
+            Index index = currentState.metadata().index(indexName).getIndex();
+            ClusterState newClusterState = IndexLifecycleTransition.moveClusterStateToStep(
+                index,
+                currentState,
+                coldKey,
+                () -> now,
+                registry,
+                false
+            );
+            // as we switched phase we need to be in the latest version now
+            assertThat(newClusterState.metadata().index(index).getLifecycleExecutionState().actionsOrderVersion(), is(CURRENT_VERSION));
+        }
+
+        {
+            // let's switch from hot to cold (starting in version CURRENT)
+            Step.StepKey lastHotKey = PhaseCompleteStep.stepKey(HOT_PHASE);
+            Step.StepKey coldKey = new Step.StepKey(COLD_PHASE, SearchableSnapshotAction.NAME, CONDITIONAL_SKIP_ACTION_STEP);
+
+            LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+            lifecycleState.setPhase(lastHotKey.phase());
+            lifecycleState.setAction(lastHotKey.action());
+            lifecycleState.setStep(lastHotKey.name());
+            lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+            lifecycleState.setActionsOrderVersion(CURRENT_VERSION);
+
+            ClusterState currentState = buildClusterState(
+                indexName,
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy.getName()),
+                lifecycleState.build(),
+                policyMetadatas
+            );
+
+            Index index = currentState.metadata().index(indexName).getIndex();
+            ClusterState newClusterState = IndexLifecycleTransition.moveClusterStateToStep(
+                index,
+                currentState,
+                coldKey,
+                () -> now,
+                registry,
+                false
+            );
+            assertThat(newClusterState.metadata().index(index).getLifecycleExecutionState().actionsOrderVersion(), is(CURRENT_VERSION));
+        }
+
+        {
+            // only refreshing the cached phase will not bump the actions order version (we start in version ONE)
+            Step waitForRolloverStep = new WaitForRolloverReadyStep(
+                waitForRolloverReadyStepKey,
+                rolloverStepKey,
+                client,
+                RolloverConditions.newBuilder().addMaxIndexDocsCondition(1L).build()
+            );
+
+            LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+            lifecycleState.setPhase(waitForRolloverStep.getKey().phase());
+            lifecycleState.setAction(waitForRolloverStep.getKey().action());
+            lifecycleState.setStep(waitForRolloverStep.getKey().name());
+            lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+            lifecycleState.setActionsOrderVersion(VERSION_ONE);
+
+            ClusterState currentState = buildClusterState(
+                indexName,
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy.getName()),
+                lifecycleState.build(),
+                policyMetadatas
+            );
+
+            Index index = currentState.metadata().index(indexName).getIndex();
+            ClusterState newClusterState = IndexLifecycleTransition.moveClusterStateToStep(
+                index,
+                currentState,
+                waitForRolloverStep.getNextStepKey(),
+                () -> now,
+                registry,
+                true
+            );
+            // as we didn't switch phases so the actions order version should continue to be ONE
+            assertThat(newClusterState.metadata().index(index).getLifecycleExecutionState().actionsOrderVersion(), is(VERSION_ONE));
+        }
+
+        {
+            // refreshing the cached phase whilst also transitioning to a new phase (maybe via a move-to-step API) should fetch the latest
+            // actions order
+            Step.StepKey lastHotKey = PhaseCompleteStep.stepKey(HOT_PHASE);
+            Step.StepKey coldKey = new Step.StepKey(COLD_PHASE, SearchableSnapshotAction.NAME, CONDITIONAL_SKIP_ACTION_STEP);
+
+            LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+            lifecycleState.setPhase(lastHotKey.phase());
+            lifecycleState.setAction(lastHotKey.action());
+            lifecycleState.setStep(lastHotKey.name());
+            lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+            lifecycleState.setActionsOrderVersion(VERSION_ONE);
+
+            ClusterState currentState = buildClusterState(
+                indexName,
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy.getName()),
+                lifecycleState.build(),
+                policyMetadatas
+            );
+
+            Index index = currentState.metadata().index(indexName).getIndex();
+            ClusterState newClusterState = IndexLifecycleTransition.moveClusterStateToStep(
+                index,
+                currentState,
+                coldKey,
+                () -> now,
+                registry,
+                true
+            );
+            assertThat(newClusterState.metadata().index(index).getLifecycleExecutionState().actionsOrderVersion(), is(CURRENT_VERSION));
+        }
     }
 
     public void testMoveClusterStateToNextStepSamePhase() {

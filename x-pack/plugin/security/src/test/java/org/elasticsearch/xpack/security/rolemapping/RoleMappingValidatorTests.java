@@ -5,24 +5,29 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
+package org.elasticsearch.xpack.security.rolemapping;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
-public class RoleMapperExpressionValidatorTests extends ESTestCase {
+public class RoleMappingValidatorTests extends ESTestCase {
+
+    private static final Settings SETTINGS = Settings.builder().put("xpack.security.role_mapping.rules.strict", "true").build();
 
     public void testSimpleFieldExpressionWithoutRealm() throws IOException {
         final String json = """
             { "field": { "username" : "*@shield.gov" } }
             """;
         RoleMapperExpression expression = parse(json);
-        var e = expectThrows(Exception.class, () -> RoleMapperExpressionValidator.validate(expression));
+        var e = expectThrows(Exception.class, () -> RoleMappingValidator.validateMappingRules(expression, SETTINGS));
         assertThat(e.getMessage(), Matchers.containsString("role mapping must be scoped to a concrete realm name"));
     }
 
@@ -40,7 +45,7 @@ public class RoleMapperExpressionValidatorTests extends ESTestCase {
             ] }""";
         final RoleMapperExpression expression = parse(json);
 
-        var e = expectThrows(Exception.class, () -> RoleMapperExpressionValidator.validate(expression));
+        var e = expectThrows(Exception.class, () -> RoleMappingValidator.validateMappingRules(expression, SETTINGS));
         assertThat(e.getMessage(), Matchers.containsString("role mapping must be scoped to a concrete realm name"));
     }
 
@@ -59,7 +64,7 @@ public class RoleMapperExpressionValidatorTests extends ESTestCase {
             ] }""";
         final RoleMapperExpression expression = parse(json);
 
-        var e = expectThrows(Exception.class, () -> RoleMapperExpressionValidator.validate(expression));
+        var e = expectThrows(Exception.class, () -> RoleMappingValidator.validateMappingRules(expression, SETTINGS));
         assertThat(e.getMessage(), Matchers.containsString("role mapping must be scoped to a concrete realm name"));
     }
 
@@ -68,16 +73,16 @@ public class RoleMapperExpressionValidatorTests extends ESTestCase {
             { "field": { "realm.name": "*" } }
             """;
         final RoleMapperExpression expression = parse(json);
-        var e = expectThrows(Exception.class, () -> RoleMapperExpressionValidator.validate(expression));
+        var e = expectThrows(Exception.class, () -> RoleMappingValidator.validateMappingRules(expression, SETTINGS));
         assertThat(e.getMessage(), Matchers.containsString("role mapping must be scoped to a concrete realm name"));
     }
 
     public void testSimpleExpressionWithRealmRestriction() throws IOException {
         final String json = """
-            { "field": { "realm.name": "jwt1" } }
+            { "field": { "realm.name": [ "jwt1", "jwt2" ] } }
             """;
         RoleMapperExpression expression = parse(json);
-        RoleMapperExpressionValidator.validate(expression);
+        RoleMappingValidator.validateMappingRules(expression, SETTINGS);
     }
 
     public void testComplexAnyExpressionWithRealm() throws IOException {
@@ -96,7 +101,7 @@ public class RoleMapperExpressionValidatorTests extends ESTestCase {
               ] }
             ] }""";
         final RoleMapperExpression expression = parse(json);
-        RoleMapperExpressionValidator.validate(expression);
+        RoleMappingValidator.validateMappingRules(expression, SETTINGS);
     }
 
     public void testComplexAllExpressionWithRealm() throws IOException {
@@ -109,7 +114,7 @@ public class RoleMapperExpressionValidatorTests extends ESTestCase {
               { "field": { "username" : "*" } }
             ] }""";
         final RoleMapperExpression expression = parse(json);
-        RoleMapperExpressionValidator.validate(expression);
+        RoleMappingValidator.validateMappingRules(expression, SETTINGS);
     }
 
     private RoleMapperExpression parse(String json) throws IOException {

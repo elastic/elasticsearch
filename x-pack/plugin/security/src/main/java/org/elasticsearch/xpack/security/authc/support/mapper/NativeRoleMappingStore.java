@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
+import org.elasticsearch.xpack.security.rolemapping.RoleMappingValidator;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
@@ -175,6 +176,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         for (TemplateRoleName templateRoleName : request.getRoleTemplates()) {
             templateRoleName.validate(scriptService);
         }
+        RoleMappingValidator.validateMappingRules(request.getRules(), settings);
         modifyMapping(request.getName(), this::innerPutMapping, request, listener);
     }
 

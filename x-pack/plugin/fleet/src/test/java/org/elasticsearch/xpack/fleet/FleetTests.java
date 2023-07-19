@@ -57,6 +57,8 @@ public class FleetTests extends ESTestCase {
 
         assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-actions")));
         assertFalse(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-actions-results")));
+
+        assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-secrets")));
     }
 
     public void testFleetFeature() {

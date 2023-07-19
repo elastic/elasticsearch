@@ -51,17 +51,20 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
-import org.elasticsearch.xpack.fleet.action.DeleteFleetSecretsAction;
-import org.elasticsearch.xpack.fleet.action.GetFleetSecretsAction;
+import org.elasticsearch.xpack.fleet.action.DeleteSecretAction;
+import org.elasticsearch.xpack.fleet.action.GetSecretAction;
 import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsAction;
 import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsShardAction;
-import org.elasticsearch.xpack.fleet.action.PostFleetSecretsAction;
-import org.elasticsearch.xpack.fleet.rest.RestDeleteFleetSecretsAction;
+import org.elasticsearch.xpack.fleet.action.PostSecretAction;
+import org.elasticsearch.xpack.fleet.action.TransportDeleteSecretAction;
+import org.elasticsearch.xpack.fleet.action.TransportGetSecretAction;
+import org.elasticsearch.xpack.fleet.action.TransportPostSecretAction;
+import org.elasticsearch.xpack.fleet.rest.RestDeleteSecretsAction;
 import org.elasticsearch.xpack.fleet.rest.RestFleetMultiSearchAction;
 import org.elasticsearch.xpack.fleet.rest.RestFleetSearchAction;
-import org.elasticsearch.xpack.fleet.rest.RestGetFleetSecretsAction;
+import org.elasticsearch.xpack.fleet.rest.RestGetSecretsAction;
 import org.elasticsearch.xpack.fleet.rest.RestGetGlobalCheckpointsAction;
-import org.elasticsearch.xpack.fleet.rest.RestPostFleetSecretsAction;
+import org.elasticsearch.xpack.fleet.rest.RestPostSecretsAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -349,9 +352,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         return List.of(
             new ActionHandler<>(GetGlobalCheckpointsAction.INSTANCE, GetGlobalCheckpointsAction.TransportAction.class),
             new ActionHandler<>(GetGlobalCheckpointsShardAction.INSTANCE, GetGlobalCheckpointsShardAction.TransportAction.class),
-            new ActionHandler<>(GetFleetSecretsAction.INSTANCE, GetFleetSecretsAction.TransportAction.class),
-            new ActionHandler<>(PostFleetSecretsAction.INSTANCE, PostFleetSecretsAction.TransportAction.class),
-            new ActionHandler<>(DeleteFleetSecretsAction.INSTANCE, DeleteFleetSecretsAction.TransportAction.class)
+            new ActionHandler<>(GetSecretAction.INSTANCE, TransportGetSecretAction.class),
+            new ActionHandler<>(PostSecretAction.INSTANCE, TransportPostSecretAction.class),
+            new ActionHandler<>(DeleteSecretAction.INSTANCE, TransportDeleteSecretAction.class)
         );
     }
 
@@ -369,9 +372,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             new RestGetGlobalCheckpointsAction(),
             new RestFleetSearchAction(restController.getSearchUsageHolder()),
             new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder()),
-            new RestGetFleetSecretsAction(),
-            new RestPostFleetSecretsAction(),
-            new RestDeleteFleetSecretsAction()
+            new RestGetSecretsAction(),
+            new RestPostSecretsAction(),
+            new RestDeleteSecretsAction()
         );
     }
 }

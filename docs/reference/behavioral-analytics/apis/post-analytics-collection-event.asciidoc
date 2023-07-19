@@ -56,22 +56,14 @@ POST _application/analytics/my_analytics_collection/event/search_click
   "user": {
     "id": "5f26f01a-bbee-4202-9298-81261067abbd"
   },
-  "page": {
-    "url": "https://www.elastic.co/"
-  },
   "search":{
     "query": "search term",
-    "filters": {},
-    "page": {"current": 1, "size": 10},
     "results": {
       "items": [
         {
           "document": {
             "id": "123",
             "index": "products"
-          },
-          "page": {
-            "url": "http://www.elastic.co/"
           }
         }
       ],
@@ -83,7 +75,8 @@ POST _application/analytics/my_analytics_collection/event/search_click
     "search_application": "website"
   },
   "document":{
-    "id": "123"
+    "id": "123",
+    "index": "products"
   }
 }
 ----

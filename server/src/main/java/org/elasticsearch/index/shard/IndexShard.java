@@ -227,7 +227,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
     // ensure happens-before relation between addRefreshListener() and postRecovery()
-    private final Object postRecoveryMutex = new Object();
     private volatile SubscribableListener<Void> postRecoveryComplete;
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
     private final Object engineMutex = new Object(); // lock ordering: engineMutex -> mutex
@@ -1688,14 +1687,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we need to refresh again to expose all operations that were index until now. Otherwise
             // we may not expose operations that were indexed with a refresh listener that was immediately
             // responded to in addRefreshListener. The refresh must happen under the same mutex used in addRefreshListener
-            if (state == IndexShardState.CLOSED) {
-                throw new IndexShardClosedException(shardId);
+            synchronized (mutex) {
+                if (state == IndexShardState.CLOSED) {
+                    throw new IndexShardClosedException(shardId);
+                }
+                if (state == IndexShardState.STARTED) {
+                    throw new IndexShardStartedException(shardId);
+                }
+                recoveryState.setStage(RecoveryState.Stage.DONE);
+                changeState(IndexShardState.POST_RECOVERY, reason);
             }
-            if (state == IndexShardState.STARTED) {
-                throw new IndexShardStartedException(shardId);
-            }
-            recoveryState.setStage(RecoveryState.Stage.DONE);
-            changeState(IndexShardState.POST_RECOVERY, reason);
             indexEventListener.afterIndexShardRecovery(this, finalListener);
         } catch (Exception e) {
             finalListener.onFailure(e);
@@ -3935,21 +3936,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param listener for the refresh.
      */
     public void addRefreshListener(long checkpoint, boolean allowUnIssuedSequenceNumber, ActionListener<Void> listener) {
-        final boolean readAllowed;
-        if (isReadAllowed()) {
-            readAllowed = true;
+        if (postRecoveryComplete != null) {
+            postRecoveryComplete.addListener(new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    if (isReadAllowed()) {
+                        refreshListeners.addOrNotify(checkpoint, allowUnIssuedSequenceNumber, listener);
+                    } else {
+                        listener.onFailure(new IllegalIndexShardStateException(shardId, state, "Read not allowed on IndexShard"));
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            }, EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.getThreadContext());
         } else {
-            // check again under postRecoveryMutex. this is important to create a happens before relationship
-            // between the switch to POST_RECOVERY + associated refresh. Otherwise we may respond
-            // to a listener before a refresh actually happened that contained that operation.
-            synchronized (postRecoveryMutex) {
-                readAllowed = isReadAllowed();
-            }
-        }
-        if (readAllowed) {
-            refreshListeners.addOrNotify(checkpoint, allowUnIssuedSequenceNumber, listener);
-        } else {
-            // we're not yet ready for reads, fail to notify client
             listener.onFailure(new IllegalIndexShardStateException(shardId, state, "Read not allowed on IndexShard"));
         }
     }

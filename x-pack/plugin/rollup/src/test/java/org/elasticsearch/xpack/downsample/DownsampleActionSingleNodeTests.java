@@ -124,7 +124,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
@@ -723,7 +722,18 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, indexer::execute);
-        assertThat(exception.getMessage(), startsWith("Shard [" + shard.shardId() + "] failed to index all rollup documents."));
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "Downsampling task ["
+                    + task.getPersistentTaskId()
+                    + "] on shard "
+                    + shard.shardId()
+                    + " failed indexing ["
+                    + task.getNumFailed()
+                    + "]"
+            )
+        );
     }
 
     public void testTooManyBytesInFlight() throws IOException {

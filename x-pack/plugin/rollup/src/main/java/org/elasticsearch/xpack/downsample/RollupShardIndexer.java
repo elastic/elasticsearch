@@ -45,6 +45,7 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -177,9 +178,9 @@ class RollupShardIndexer {
             );
             final String error = "Downsampling task ["
                 + task.getPersistentTaskId()
-                + " on shard ["
+                + "] on shard "
                 + indexShard.shardId()
-                + "] failed indexing, "
+                + " failed indexing, "
                 + " indexed ["
                 + task.getNumIndexed()
                 + "] sent ["
@@ -192,9 +193,9 @@ class RollupShardIndexer {
         if (task.getNumFailed() > 0) {
             final String error = "Downsampling task ["
                 + task.getPersistentTaskId()
-                + " on shard ["
+                + "] on shard "
                 + indexShard.shardId()
-                + "] failed indexing ["
+                + " failed indexing ["
                 + task.getNumFailed()
                 + "]";
             logger.info(error);
@@ -232,7 +233,8 @@ class RollupShardIndexer {
                 new RollupShardPersistentTaskState(RollupShardIndexerStatus.CANCELLED, null),
                 ActionListener.noop()
             );
-            logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " cancelled");
+            logger.info("Downsampling task [" + task.getPersistentTaskId() + "] on shard " + indexShard.shardId() + " cancelled");
+            throw new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId()));
         }
         if (abort) {
             logger.warn(

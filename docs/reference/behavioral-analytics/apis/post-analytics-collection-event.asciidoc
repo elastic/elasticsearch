@@ -44,11 +44,11 @@ Occurs either when the event type is unknown or when event payload contains inva
 [[post-analytics-collection-event-example]]
 ==== {api-examples-title}
 
-The following example send a `page_view` event to an Analytics Collection called `my_analytics_collection`:
+The following example send a `search_click` event to an Analytics Collection called `my_analytics_collection`:
 
 [source,console]
 ----
-POST _application/analytics/my_analytics_collection/event/page_view
+POST _application/analytics/my_analytics_collection/event/search_click
 {
   "session": {
     "id": "1797ca95-91c9-4e2e-b1bd-9c38e6f386a9"
@@ -58,6 +58,32 @@ POST _application/analytics/my_analytics_collection/event/page_view
   },
   "page": {
     "url": "https://www.elastic.co/"
+  },
+  "search":{
+    "query": "search term",
+    "filters": {},
+    "page": {"current": 1, "size": 10},
+    "results": {
+      "items": [
+        {
+          "document": {
+            "id": "123",
+            "index": "products"
+          },
+          "page": {
+            "url": "http://www.elastic.co/"
+          }
+        }
+      ],
+      "total_results": 10
+    },
+    "sort": {
+      "name": "relevance"
+    },
+    "search_application": "website"
+  },
+  "document":{
+    "id": "123"
   }
 }
 ----

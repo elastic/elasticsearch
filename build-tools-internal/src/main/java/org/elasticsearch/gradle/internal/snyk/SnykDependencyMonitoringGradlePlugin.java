@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal.snyk;
 
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;

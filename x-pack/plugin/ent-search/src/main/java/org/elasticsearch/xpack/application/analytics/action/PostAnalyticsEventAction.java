@@ -353,10 +353,11 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         public RestStatus status() {
             return RestStatus.ACCEPTED;
         }
+
         private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
-                "post_analytics_event_response",
-                false,
-                (params) -> new Response((boolean) params[0])
+            "post_analytics_event_response",
+            false,
+            (params) -> new Response((boolean) params[0])
         );
 
         static {

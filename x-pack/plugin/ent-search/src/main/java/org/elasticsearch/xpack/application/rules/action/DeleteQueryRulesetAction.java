@@ -14,11 +14,17 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class DeleteQueryRulesetAction extends ActionType<AcknowledgedResponse> {
 
@@ -29,8 +35,10 @@ public class DeleteQueryRulesetAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements ToXContentObject {
         private final String rulesetId;
+
+        public static final ParseField RULES_ID = new ParseField("rules_id");
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -73,6 +81,29 @@ public class DeleteQueryRulesetAction extends ActionType<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             return Objects.hash(rulesetId);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(RULES_ID.getPreferredName(), rulesetId);
+            builder.endObject();
+            return builder;
+        }
+
+        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
+            "delete_query_ruleset",
+            false,
+            (p) -> {
+                return new Request((String) p[0]);
+            }
+        );
+        static {
+            PARSER.declareString(constructorArg(), RULES_ID);
+        }
+
+        public static Request parse(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
     }
 

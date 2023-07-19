@@ -37,7 +37,9 @@ public class PostAnalyticsEventResponseBWCSerializingTests extends AbstractBWCSe
 
     @Override
     protected PostAnalyticsEventAction.Response mutateInstanceForVersion(
-            PostAnalyticsEventAction.Response instance, TransportVersion version) {
+        PostAnalyticsEventAction.Response instance,
+        TransportVersion version
+    ) {
         return new PostAnalyticsEventAction.Response(instance.isAccepted());
     }
 }

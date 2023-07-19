@@ -19,11 +19,8 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -70,8 +67,6 @@ public class MultiShardTermsEnumTests extends ESTestCase {
             for (int q = 0; q < numSearches; q++) {
                 String searchPrefix = randomAlphaOfLengthBetween(0, 3).toLowerCase(Locale.ROOT);
                 Automaton a = AutomatonQueries.caseInsensitivePrefix(searchPrefix);
-                a = Operations.concatenate(a, Automata.makeAnyString());
-                a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
                 CompiledAutomaton automaton = new CompiledAutomaton(a);
 
                 MultiShardTermsEnum.Builder builder = new MultiShardTermsEnum.Builder();

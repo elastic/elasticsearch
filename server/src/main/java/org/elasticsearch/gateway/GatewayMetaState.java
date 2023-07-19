@@ -356,7 +356,7 @@ public class GatewayMetaState implements Closeable {
                 1,
                 daemonThreadFactory(nodeName, THREAD_NAME),
                 threadPool.getThreadContext(),
-                false
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
             this.persistedState = persistedState;
         }

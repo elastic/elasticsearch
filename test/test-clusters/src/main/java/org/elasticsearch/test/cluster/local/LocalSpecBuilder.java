@@ -126,4 +126,9 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Adds a system property to node JVM arguments.
      */
     T systemProperty(String property, String value);
+
+    /**
+     * Adds an additional command line argument to node JVM arguments.
+     */
+    T jvmArg(String arg);
 }

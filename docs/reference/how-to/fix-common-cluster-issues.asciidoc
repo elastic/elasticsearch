@@ -443,13 +443,10 @@ GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node
 {
   "index": "my-index",
   "shard": 0,
-  "primary": false,
-  "current_node": "my-node"
+  "primary": false
 }
 ----
 // TEST[s/^/PUT my-index\n/]
-// TEST[s/"primary": false,/"primary": false/]
-// TEST[s/"current_node": "my-node"//]
 
 [discrete]
 [[fix-red-yellow-cluster-status]]

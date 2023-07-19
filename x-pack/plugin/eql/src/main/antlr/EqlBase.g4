@@ -66,7 +66,7 @@ sequenceTerm
    ;
 
 subquery
-    : (LB | MISSING_EVENT_OPEN) eventFilter RB
+    : LB eventFilter RB
     ;
 
 eventQuery
@@ -212,7 +212,6 @@ LP: '(';
 RP: ')';
 PIPE: '|';
 OPTIONAL: '?';
-MISSING_EVENT_OPEN: '![';
 
 fragment STRING_ESCAPE
     : '\\' [btnfr"'\\]

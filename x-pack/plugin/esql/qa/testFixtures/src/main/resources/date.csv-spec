@@ -430,3 +430,13 @@ emp_no:integer  | new_date:datetime          | birth_date:datetime       | bool:
 10049           | null                       | null                      | null
 10050           | 1958-05-21T00:00:00.000Z   | 1958-05-21T00:00:00.000Z  | true
 ;
+
+dateFields
+from employees | where emp_no == 10049 or emp_no == 10050 
+| eval year = date_extract(birth_date, "year"), month = date_extract(birth_date, "month_of_year"), day = date_extract(birth_date, "day_of_month")
+| keep emp_no, year, month, day;
+
+emp_no:integer | year:long    | month:long    | day:long
+10049          | null         | null          | null
+10050          | 1958         | 5             | 21
+;

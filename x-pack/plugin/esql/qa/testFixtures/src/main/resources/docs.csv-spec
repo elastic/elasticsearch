@@ -287,6 +287,20 @@ Udi            |Jansch         |1.93
 Uri            |Lenart         |1.75
 ;
 
+
+dateExtract
+// tag::dateExtract[]
+ROW date = DATE_PARSE("2022-05-06", "yyyy-MM-dd")
+| EVAL year = DATE_EXTRACT(date, "year")
+// end::dateExtract[]
+;
+
+// tag::dateExtract-result[]
+date:date                 | year:long
+2022-05-06T00:00:00.000Z  | 2022
+// end::dateExtract-result[]
+;
+
 docsSubstring
 // tag::substring[]
 FROM employees
@@ -414,4 +428,15 @@ Georgi         |Facello
 Bezalel        |Simmel
 Parto          |Bamford
 // end::notIsNull-result[]
+;
+
+dateParse
+// tag::dateParse[]
+ROW date_string = "2022-05-06"
+| EVAL date = DATE_PARSE(date_string, "yyyy-MM-dd")
+// end::dateParse[]
+;
+
+date_string:keyword | date:date
+2022-05-06          | 2022-05-06T00:00:00.000Z
 ;

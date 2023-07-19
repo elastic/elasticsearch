@@ -182,6 +182,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (withoutNull.equals(Arrays.asList(numerics())) || withoutNull.equals(Arrays.asList(representableNumerics()))) {
             return "numeric";
         }
+        if (withoutNull.equals(List.of(DataTypes.DATETIME))) {
+            return "datetime";
+        }
         if (validTypes.equals(Set.copyOf(Arrays.asList(representable())))) {
             return "representable";
         }

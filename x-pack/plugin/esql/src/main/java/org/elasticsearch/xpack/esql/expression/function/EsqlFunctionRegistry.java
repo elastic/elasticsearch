@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
@@ -107,6 +108,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(StartsWith.class, StartsWith::new, "starts_with") },
             // date
             new FunctionDefinition[] {
+                def(DateExtract.class, DateExtract::new, "date_extract"),
                 def(DateFormat.class, DateFormat::new, "date_format"),
                 def(DateParse.class, DateParse::new, "date_parse"),
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"),

@@ -165,7 +165,7 @@ public record Build(String flavor, Type type, String hash, String date, boolean 
 
     public static Build readBuild(StreamInput in) throws IOException {
         final String flavor;
-        if (in.getTransportVersion().before(TransportVersion.V_8_3_0) || in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_3_0) || in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_039)) {
             flavor = in.readString();
         } else {
             flavor = "default";
@@ -182,7 +182,7 @@ public record Build(String flavor, Type type, String hash, String date, boolean 
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersion.V_8_3_0)
-            || out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
+            || out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_039)) {
             out.writeString(build.flavor());
         }
         out.writeString(build.type().displayName());

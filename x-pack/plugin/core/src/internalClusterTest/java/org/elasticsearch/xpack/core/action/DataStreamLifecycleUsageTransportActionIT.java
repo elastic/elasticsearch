@@ -120,7 +120,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     systemDataStream,
                     randomBoolean(),
                     IndexMode.STANDARD,
-                    hasLifecycle ? new DataStreamLifecycle(retentionMillis) : null
+                    hasLifecycle ? DataStreamLifecycle.newBuilder().dataRetention(retentionMillis).build() : null
                 );
                 dataStreamMap.put(dataStream.getName(), dataStream);
             }

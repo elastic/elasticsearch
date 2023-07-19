@@ -22,6 +22,7 @@ public class PostSecretResponse extends ActionResponse {
     public PostSecretResponse(RestStatus status) {
         this.status = Objects.requireNonNull(status);
     }
+
     public PostSecretResponse(StreamInput in) throws IOException {
         super(in);
         this.status = in.readEnum(RestStatus.class);

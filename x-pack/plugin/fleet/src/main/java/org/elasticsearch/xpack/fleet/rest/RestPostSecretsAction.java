@@ -30,9 +30,7 @@ public class RestPostSecretsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(RestRequest.Method.POST, "/_fleet/_fleet_secrets")
-        );
+        return List.of(new Route(RestRequest.Method.POST, "/_fleet/_fleet_secrets"));
     }
 
     @Override
@@ -46,9 +44,7 @@ public class RestPostSecretsAction extends BaseRestHandler {
                 @Override
                 protected void processResponse(PostSecretResponse response) throws Exception {
                     // TODO: does not throw Exception
-                    channel.sendResponse(
-                        new RestResponse(response.status(), XContentType.JSON.mediaType(), BytesArray.EMPTY)
-                    );
+                    channel.sendResponse(new RestResponse(response.status(), XContentType.JSON.mediaType(), BytesArray.EMPTY));
                 }
             }
         );

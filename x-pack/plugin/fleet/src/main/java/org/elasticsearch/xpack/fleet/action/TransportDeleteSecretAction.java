@@ -26,10 +26,7 @@ public class TransportDeleteSecretAction extends HandledTransportAction<DeleteSe
         this.client = client;
     }
 
-    protected void doExecute(
-        Task task,
-        DeleteSecretRequest request,
-        ActionListener<DeleteSecretResponse> listener) {
+    protected void doExecute(Task task, DeleteSecretRequest request, ActionListener<DeleteSecretResponse> listener) {
         client.prepareDelete(".fleet-secrets", request.id())
             .execute(
                 ActionListener.wrap(

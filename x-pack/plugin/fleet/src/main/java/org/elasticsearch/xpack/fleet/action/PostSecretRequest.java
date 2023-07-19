@@ -26,6 +26,7 @@ public class PostSecretRequest extends ActionRequest {
         this.source = Objects.requireNonNull(source);
         this.xContentType = Objects.requireNonNull(xContentType);
     }
+
     public PostSecretRequest(StreamInput in) throws IOException {
         super(in);
         this.source = in.readString();
@@ -46,8 +47,9 @@ public class PostSecretRequest extends ActionRequest {
         out.writeString(source);
         XContentHelper.writeTo(out, xContentType);
     }
+
     @Override
-    public ActionRequestValidationException validate()  {
+    public ActionRequestValidationException validate() {
         return null;
     }
 

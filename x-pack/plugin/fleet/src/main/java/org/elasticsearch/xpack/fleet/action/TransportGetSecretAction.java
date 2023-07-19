@@ -24,10 +24,7 @@ public class TransportGetSecretAction extends HandledTransportAction<GetSecretRe
         this.client = client;
     }
 
-    protected void doExecute(
-        Task task,
-        GetSecretRequest request,
-        ActionListener<GetSecretResponse> listener) {
+    protected void doExecute(Task task, GetSecretRequest request, ActionListener<GetSecretResponse> listener) {
         listener.onResponse(new GetSecretResponse(request.id(), "foo")); // TODO: actual impl
     }
 }

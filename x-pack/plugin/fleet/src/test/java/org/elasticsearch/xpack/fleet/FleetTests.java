@@ -25,6 +25,7 @@ public class FleetTests extends ESTestCase {
         SystemIndexPlugin plugin = new Fleet();
         return plugin.getSystemIndexDescriptors(Settings.EMPTY);
     }
+
     public void testSystemIndexDescriptorFormats() {
         for (SystemIndexDescriptor descriptor : getSystemIndexDescriptors()) {
             assertTrue(descriptor.isAutomaticallyManaged());

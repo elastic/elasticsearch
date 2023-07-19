@@ -25,13 +25,13 @@ import java.util.List;
 public class RestDeleteSecretsAction extends BaseRestHandler {
 
     @Override
-    public String getName() { return "fleet_delete_secrets"; }
+    public String getName() {
+        return "fleet_delete_secrets";
+    }
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(RestRequest.Method.DELETE, "/_fleet/_fleet_secrets/{id}")
-        );
+        return List.of(new Route(RestRequest.Method.DELETE, "/_fleet/_fleet_secrets/{id}"));
     }
 
     @Override

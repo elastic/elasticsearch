@@ -25,10 +25,7 @@ public class TransportPostSecretAction extends HandledTransportAction<PostSecret
         this.client = client;
     }
 
-    protected void doExecute(
-        Task task,
-        PostSecretRequest request,
-        ActionListener<PostSecretResponse> listener) {
+    protected void doExecute(Task task, PostSecretRequest request, ActionListener<PostSecretResponse> listener) {
         client.prepareIndex(".fleet-secrets")
             .setSource(request.source(), request.xContentType())
             .execute(

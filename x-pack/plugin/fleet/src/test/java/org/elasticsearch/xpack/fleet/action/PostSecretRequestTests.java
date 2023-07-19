@@ -25,9 +25,6 @@ public class PostSecretRequestTests extends AbstractWireSerializingTestCase<Post
 
     @Override
     protected PostSecretRequest mutateInstance(PostSecretRequest instance) {
-        return new PostSecretRequest(
-            instance.source() + randomAlphaOfLength(1),
-            instance.xContentType()
-        );
+        return new PostSecretRequest(instance.source() + randomAlphaOfLength(1), instance.xContentType());
     }
 }

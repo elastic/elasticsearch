@@ -39,7 +39,7 @@ public class GetSecretRequest extends ActionRequest {
     }
 
     @Override
-    public ActionRequestValidationException validate()  {
+    public ActionRequestValidationException validate() {
         return null;
     }
 

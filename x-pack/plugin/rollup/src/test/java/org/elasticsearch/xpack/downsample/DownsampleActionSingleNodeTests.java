@@ -38,6 +38,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -149,6 +150,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
+    public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     private String sourceIndex, rollupIndex;
     private long startTime;
@@ -565,7 +567,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 fail("Rollup failed: " + e.getMessage());
             }
         };
-        client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config), rollupListener);
+        client().execute(
+            DownsampleAction.INSTANCE,
+            new DownsampleAction.Request(sourceIndex, rollupIndex, TIMEOUT, config),
+            rollupListener
+        );
         assertBusy(() -> {
             try {
                 assertEquals(indicesAdmin().prepareGetIndex().addIndices(rollupIndex).get().getIndices().length, 1);
@@ -923,7 +929,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private void rollup(String sourceIndex, String rollupIndex, DownsampleConfig config) {
         assertAcked(
-            client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config)).actionGet()
+            client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, TIMEOUT, config)).actionGet()
         );
     }
 

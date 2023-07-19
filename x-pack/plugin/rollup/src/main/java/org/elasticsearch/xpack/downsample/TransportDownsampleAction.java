@@ -49,7 +49,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -88,7 +87,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
@@ -103,7 +101,6 @@ import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDE
 public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportDownsampleAction.class);
-    public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
 
     private final Client client;
     private final IndicesService indicesService;
@@ -335,7 +332,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                     RollupShardPersistentTaskState runningPersistentTaskState = (RollupShardPersistentTaskState) runningTask
                                         .getState();
                                     return runningPersistentTaskState != null && runningPersistentTaskState.done();
-                                }, TIMEOUT, new PersistentTasksService.WaitForPersistentTaskListener<>() {
+                                }, request.getTimeout(), new PersistentTasksService.WaitForPersistentTaskListener<>() {
                                     @Override
                                     public void onResponse(
                                         PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask
@@ -445,7 +442,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             final RollupShardPersistentTaskState existingPersistentTaskState = (RollupShardPersistentTaskState) existingPersistentTask
                 .getState();
             return existingPersistentTaskState.done();
-        }, TIMEOUT, ActionListener.wrap(response -> { throw new AssertionError("implement this"); }, listener::onFailure));
+        }, request.getTimeout(), ActionListener.wrap(response -> { throw new AssertionError("implement this"); }, listener::onFailure));
     }
 
     private static RollupShardTaskParams createRollupShardTaskParams(

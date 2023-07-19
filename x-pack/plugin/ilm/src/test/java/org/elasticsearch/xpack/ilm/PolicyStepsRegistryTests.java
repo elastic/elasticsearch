@@ -56,6 +56,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.CURRENT_VERSION;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VERSION_ONE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -249,7 +250,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         assertThat(registry.getLifecyclePolicyMap().get(newPolicy.getName()).getHeaders(), equalTo(headers));
         assertThat(registry.getFirstStepMap().size(), equalTo(1));
         assertThat(registry.getStepMap().size(), equalTo(1));
-        Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(new VersionedPolicyKey(1, newPolicy.getName()));
+        Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap()
+            .get(new VersionedPolicyKey(CURRENT_VERSION, newPolicy.getName()));
         assertThat(registeredStepsForPolicy.size(), equalTo(policySteps.size()));
         for (Step step : policySteps) {
             LifecycleExecutionState.Builder newIndexState = LifecycleExecutionState.builder();
@@ -409,7 +411,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         // add new policy
         registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
 
-        Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(new VersionedPolicyKey(1, newPolicy.getName()));
+        Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap()
+            .get(new VersionedPolicyKey(CURRENT_VERSION, newPolicy.getName()));
         Step shrinkStep = registeredStepsForPolicy.entrySet()
             .stream()
             .filter(e -> e.getKey().phase().equals("warm") && e.getKey().name().equals("shrink"))
@@ -438,7 +441,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         // Update the policies
         registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
 
-        registeredStepsForPolicy = registry.getStepMap().get(new VersionedPolicyKey(1, newPolicy.getName()));
+        registeredStepsForPolicy = registry.getStepMap().get(new VersionedPolicyKey(CURRENT_VERSION, newPolicy.getName()));
         shrinkStep = registeredStepsForPolicy.entrySet()
             .stream()
             .filter(e -> e.getKey().phase().equals("warm") && e.getKey().name().equals("shrink"))

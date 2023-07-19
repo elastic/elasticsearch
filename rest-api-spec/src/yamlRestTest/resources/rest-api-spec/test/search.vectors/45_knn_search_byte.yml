@@ -66,9 +66,6 @@ setup:
 
 ---
 "kNN search plus query":
-  - skip:
-      version: all
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/97144"
   - do:
       search:
         index: test

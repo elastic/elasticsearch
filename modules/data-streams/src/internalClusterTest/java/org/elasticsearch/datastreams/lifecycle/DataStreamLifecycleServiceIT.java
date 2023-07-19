@@ -132,7 +132,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testRolloverAndRetention() throws Exception {
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle(TimeValue.timeValueMillis(0));
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(0).build();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
 
@@ -163,7 +163,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
          * days ago, and one with an origination date 1 day ago. After data stream lifecycle runs, we expect the one with the old
          * origination date to have been deleted, and the one with the newer origination date to remain.
          */
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle(TimeValue.timeValueDays(7).millis());
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(7)).build();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
 

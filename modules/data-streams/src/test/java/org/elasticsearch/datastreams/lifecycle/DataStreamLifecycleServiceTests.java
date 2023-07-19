@@ -142,7 +142,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataStreamLifecycle(TimeValue.timeValueMillis(0)),
+            DataStreamLifecycle.newBuilder().dataRetention(0).build(),
             now
         );
         builder.put(dataStream);
@@ -175,7 +175,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataStreamLifecycle((TimeValue) null),
+            new DataStreamLifecycle(),
             now
         );
         builder.put(dataStream);
@@ -195,7 +195,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataStreamLifecycle(TimeValue.timeValueDays(700)),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
             now
         );
         builder.put(dataStream);
@@ -215,7 +215,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy").put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-            new DataStreamLifecycle(TimeValue.timeValueMillis(0)),
+            DataStreamLifecycle.newBuilder().dataRetention(0).build(),
             now
         );
         builder.put(dataStream);
@@ -302,7 +302,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataStreamLifecycle(TimeValue.timeValueDays(700)),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
             now
         );
         // all backing indices are in the error store
@@ -348,7 +348,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numBackingIndices,
             settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
-            new DataStreamLifecycle(TimeValue.MAX_VALUE),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -459,7 +459,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numBackingIndices,
             settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
-            new DataStreamLifecycle(TimeValue.MAX_VALUE),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -631,7 +631,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataStreamLifecycle(TimeValue.MAX_VALUE),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -819,7 +819,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataStreamLifecycle(TimeValue.MAX_VALUE),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);

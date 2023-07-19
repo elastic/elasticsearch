@@ -1,8 +1,7 @@
-import org.gradle.api.tasks.SourceSet
-
 plugins {
     id("elasticsearch.internal-es-plugin")
     id("elasticsearch.internal-cluster-test")
+    id("elasticsearch.internal-yaml-rest-test")
 }
 
 esplugin {
@@ -38,9 +37,19 @@ dependencies {
     testImplementation(testArtifact("org.elasticsearch:server"))
 }
 
+restResources {
+    restApi {
+        include("_common", "indices", "index")
+    }
+}
+
 tasks {
     test {
         exclude("**/S3RegisterCASLinearizabilityTests.class")
+    }
+
+    yamlRestTest {
+        usesDefaultDistribution()
     }
 
     register<Test>("statelessS3ThirdPartyTests") {

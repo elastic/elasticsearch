@@ -1,0 +1,23 @@
+{
+  "_internal.post_clear_blob_cache":{
+    "documentation":{
+      "url":"",
+      "description": "This API clears the serverless blob caches"
+    },
+    "stability":"experimental",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_internal/blob_caches/clear",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    }
+  }
+}

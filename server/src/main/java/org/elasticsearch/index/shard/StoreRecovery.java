@@ -408,84 +408,91 @@ public final class StoreRecovery {
      * Recovers the state of the shard from the store.
      */
     private void internalRecoverFromStore(IndexShard indexShard, ActionListener<Void> outerListener) {
-        indexShard.preRecovery(outerListener.delegateFailure((listener, ignored) -> ActionRunnable.run(listener, () -> {
-            final RecoveryState recoveryState = indexShard.recoveryState();
-            final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
-            indexShard.prepareForIndexRecovery();
-            SegmentInfos si = null;
-            final Store store = indexShard.store();
-            store.incRef();
-            try {
+        indexShard.preRecovery(outerListener.delegateFailure((listener, ignored) -> new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                final RecoveryState recoveryState = indexShard.recoveryState();
+                final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
+                indexShard.prepareForIndexRecovery();
+                SegmentInfos si = null;
+                final Store store = indexShard.store();
+                store.incRef();
+                boolean triggeredPostRecovery = false;
                 try {
-                    store.failIfCorrupted();
                     try {
-                        si = store.readLastCommittedSegmentsInfo();
-                    } catch (Exception e) {
-                        String files = "_unknown_";
+                        store.failIfCorrupted();
                         try {
-                            files = Arrays.toString(store.directory().listAll());
-                        } catch (Exception inner) {
-                            files += " (failure=" + ExceptionsHelper.stackTrace(inner) + ")";
+                            si = store.readLastCommittedSegmentsInfo();
+                        } catch (Exception e) {
+                            String files = "_unknown_";
+                            try {
+                                files = Arrays.toString(store.directory().listAll());
+                            } catch (Exception inner) {
+                                files += " (failure=" + ExceptionsHelper.stackTrace(inner) + ")";
+                            }
+                            if (indexShouldExists) {
+                                throw new IndexShardRecoveryException(
+                                    shardId,
+                                    "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files,
+                                    e
+                                );
+                            }
                         }
-                        if (indexShouldExists) {
-                            throw new IndexShardRecoveryException(
-                                shardId,
-                                "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files,
-                                e
-                            );
+                        if (si != null && indexShouldExists == false) {
+                            // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
+                            // its a "new index create" API, we have to do something, so better to clean it than use same data
+                            logger.trace("cleaning existing shard, shouldn't exists");
+                            Lucene.cleanLuceneIndex(store.directory());
+                            si = null;
                         }
+                    } catch (Exception e) {
+                        throw new IndexShardRecoveryException(shardId, "failed to fetch index version after copying it over", e);
                     }
-                    if (si != null && indexShouldExists == false) {
-                        // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
-                        // its a "new index create" API, we have to do something, so better to clean it than use same data
-                        logger.trace("cleaning existing shard, shouldn't exists");
-                        Lucene.cleanLuceneIndex(store.directory());
-                        si = null;
-                    }
-                } catch (Exception e) {
-                    throw new IndexShardRecoveryException(shardId, "failed to fetch index version after copying it over", e);
-                }
-                if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-                    assert indexShouldExists;
-                    bootstrap(indexShard, store);
-                    writeEmptyRetentionLeasesFile(indexShard);
-                } else if (indexShouldExists) {
-                    if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
-                        store.bootstrapNewHistory();
+                    if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
+                        assert indexShouldExists;
+                        bootstrap(indexShard, store);
                         writeEmptyRetentionLeasesFile(indexShard);
-                    }
-                    // since we recover from local, just fill the files and size
-                    final RecoveryState.Index index = recoveryState.getIndex();
-                    try {
-                        if (si != null) {
-                            addRecoveredFileDetails(si, store, index);
+                    } else if (indexShouldExists) {
+                        if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
+                            store.bootstrapNewHistory();
+                            writeEmptyRetentionLeasesFile(indexShard);
                         }
-                    } catch (IOException e) {
-                        logger.debug("failed to list file details", e);
+                        // since we recover from local, just fill the files and size
+                        final RecoveryState.Index index = recoveryState.getIndex();
+                        try {
+                            if (si != null) {
+                                addRecoveredFileDetails(si, store, index);
+                            }
+                        } catch (IOException e) {
+                            logger.debug("failed to list file details", e);
+                        }
+                        index.setFileDetailsComplete();
+                    } else {
+                        store.createEmpty();
+                        final String translogUUID = Translog.createEmptyTranslog(
+                            indexShard.shardPath().resolveTranslog(),
+                            SequenceNumbers.NO_OPS_PERFORMED,
+                            shardId,
+                            indexShard.getPendingPrimaryTerm()
+                        );
+                        store.associateIndexWithNewTranslog(translogUUID);
+                        writeEmptyRetentionLeasesFile(indexShard);
+                        indexShard.recoveryState().getIndex().setFileDetailsComplete();
                     }
-                    index.setFileDetailsComplete();
-                } else {
-                    store.createEmpty();
-                    final String translogUUID = Translog.createEmptyTranslog(
-                        indexShard.shardPath().resolveTranslog(),
-                        SequenceNumbers.NO_OPS_PERFORMED,
-                        shardId,
-                        indexShard.getPendingPrimaryTerm()
-                    );
-                    store.associateIndexWithNewTranslog(translogUUID);
-                    writeEmptyRetentionLeasesFile(indexShard);
-                    indexShard.recoveryState().getIndex().setFileDetailsComplete();
+                    indexShard.openEngineAndRecoverFromTranslog();
+                    indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+                    indexShard.finalizeRecovery();
+                    indexShard.postRecovery("post recovery from shard_store", ActionListener.runBefore(listener, store::decRef));
+                    triggeredPostRecovery = true;
+                } catch (EngineException | IOException e) {
+                    listener.onFailure(new IndexShardRecoveryException(shardId, "failed to recover from gateway", e));
+                } finally {
+                    if (triggeredPostRecovery == false) {
+                        store.decRef();
+                    }
                 }
-                indexShard.openEngineAndRecoverFromTranslog();
-                indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
-                indexShard.finalizeRecovery();
-                indexShard.postRecovery("post recovery from shard_store");
-            } catch (EngineException | IOException e) {
-                throw new IndexShardRecoveryException(shardId, "failed to recover from gateway", e);
-            } finally {
-                store.decRef();
             }
-        }).run()));
+        }.run()));
     }
 
     private static void writeEmptyRetentionLeasesFile(IndexShard indexShard) throws IOException {
@@ -531,8 +538,7 @@ public final class StoreRecovery {
                 indexShard.openEngineAndRecoverFromTranslog();
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
-                indexShard.postRecovery("restore done");
-                listener.onResponse(true);
+                indexShard.postRecovery("restore done", listener.map(voidValue -> true));
             }, e -> listener.onFailure(new IndexShardRestoreFailedException(shardId, "restore failed", e)));
             try {
                 translogState.totalOperations(0);

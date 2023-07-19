@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -307,7 +308,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             try {
                 // this might still throw an exception ie. if the shard is CLOSED due to some other event.
                 // it's safer to decrement the reference in a try finally here.
-                indexShard.postRecovery("peer recovery done");
+                PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+                indexShard.postRecovery("peer recovery done", future);
+                future.actionGet();
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                 decRef();

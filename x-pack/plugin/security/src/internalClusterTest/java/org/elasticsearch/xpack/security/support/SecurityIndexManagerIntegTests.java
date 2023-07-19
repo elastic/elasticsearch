@@ -7,7 +7,14 @@
 package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
@@ -21,6 +28,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
@@ -77,6 +91,52 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             // this test, either created or updated is sufficient to prove that the security
             // index is created. So we don't need to assert the value.
             future.actionGet().created();
+        }
+    }
+
+    public void testTemplateSettingsDontAffectSecurityIndex() throws Exception {
+        List<String> securityIndexNames = List.of(
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS + "*",
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
+            ".security-7",
+            ".security-7*",
+            "*",
+            ".*"
+        );
+        assertAcked(
+            indicesAdmin().preparePutTemplate("template-covering-the-main-security-index")
+                .setPatterns(securityIndexNames)
+                .setSettings(Settings.builder().put("index.refresh_interval", "1234s").put("index.priority", "9876").build())
+                .get()
+        );
+        ComposableIndexTemplate cit = new ComposableIndexTemplate(
+            securityIndexNames,
+            new Template(Settings.builder().put("index.refresh_interval", "1234s").put("index.priority", "9876").build(), null, null),
+            null,
+            4L,
+            5L,
+            null
+        );
+        assertAcked(
+            client().execute(
+                PutComposableIndexTemplateAction.INSTANCE,
+                new PutComposableIndexTemplateAction.Request("composable-template-covering-the-main-security-index").indexTemplate(cit)
+            ).get()
+        );
+        final PutUserResponse putUserResponse = new PutUserRequestBuilder(client()).username("user")
+            .password(new SecureString("test-user-password".toCharArray()), getFastStoredHashAlgoForTests())
+            .roles(randomAlphaOfLengthBetween(1, 16))
+            .get();
+        assertTrue(putUserResponse.created());
+        GetIndexRequest getIndexRequest = new GetIndexRequest();
+        getIndexRequest.indices(SECURITY_MAIN_ALIAS);
+        getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();
+        assertThat(getIndexResponse.getIndices().length, is(1));
+        for (Settings settings : getIndexResponse.getSettings().values()) {
+            assertThat(settings.get("index.refresh_interval"), nullValue());
+            assertThat(settings.get("index.priority"), notNullValue());
+            assertThat(settings.get("index.priority"), not("9876"));
         }
     }
 

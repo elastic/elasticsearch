@@ -1532,8 +1532,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         String ctEmptyLifecycle = "ct_empty_lifecycle";
         state = addComponentTemplate(service, state, ctEmptyLifecycle, emptyLifecycle);
 
-        String ctNullLifecycle = "ct_null_lifecycle";
-        state = addComponentTemplate(service, state, ctNullLifecycle, Template.NO_LIFECYCLE);
+        String ctDisabledLifecycle = "ct_disabled_lifecycle";
+        state = addComponentTemplate(service, state, ctDisabledLifecycle, DataStreamLifecycle.newBuilder().enabled(false).build());
 
         String ctNoLifecycle = "ct_no_lifecycle";
         state = addComponentTemplate(service, state, ctNoLifecycle, null);
@@ -1599,19 +1599,19 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Composable Z: "lifecycle": null
         // Result: null aka unmanaged
-        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), Template.NO_LIFECYCLE, null);
+        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), DataStreamLifecycle.newBuilder().enabled(false).build(), null);
 
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": null
         // Composable Z: -
         // Result: null aka unmanaged
-        assertLifecycleResolution(service, state, List.of(ct30d, ctNullLifecycle), null, null);
+        assertLifecycleResolution(service, state, List.of(ct30d, ctDisabledLifecycle), null, null);
 
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": null
         // Composable Z: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Result: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
-        assertLifecycleResolution(service, state, List.of(ct30d, ctNullLifecycle), lifecycle45d, lifecycle45d);
+        assertLifecycleResolution(service, state, List.of(ct30d, ctDisabledLifecycle), lifecycle45d, lifecycle45d);
     }
 
     private ClusterState addComponentTemplate(

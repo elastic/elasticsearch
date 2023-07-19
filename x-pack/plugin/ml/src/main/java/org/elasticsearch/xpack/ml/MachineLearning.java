@@ -1247,7 +1247,8 @@ public class MachineLearning extends Plugin
             trainedModelAssignmentService,
             trainedModelAllocationClusterServiceSetOnce.get(),
             deploymentManager.get(),
-            nodeAvailabilityZoneMapper
+            nodeAvailabilityZoneMapper,
+            machineLearningExtension.get()
         );
     }
 

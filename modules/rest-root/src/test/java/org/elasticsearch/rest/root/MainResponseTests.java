@@ -40,7 +40,7 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
         IndexVersion indexVersion = IndexVersionUtils.randomVersion();
         TransportVersion transportVersion = TransportVersionUtils.randomVersion();
         Build build = new Build(Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(), version.toString());
-        return new MainResponse(nodeName, version, indexVersion, transportVersion, clusterName, clusterUuid, build);
+        return new MainResponse(nodeName, version, indexVersion.luceneVersion().toString(), clusterName, clusterUuid, build);
     }
 
     @Override
@@ -59,12 +59,10 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
         Build build = new Build(current.type(), current.hash(), current.date(), current.isSnapshot(), current.qualifiedVersion());
         Version version = Version.CURRENT;
         IndexVersion indexVersion = IndexVersion.current();
-        TransportVersion transportVersion = TransportVersion.current();
         MainResponse response = new MainResponse(
             "nodeName",
             version,
-            indexVersion,
-            transportVersion,
+            indexVersion.luceneVersion().toString(),
             new ClusterName("clusterName"),
             clusterUUID,
             build
@@ -87,10 +85,8 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
                                 "build_date": "%s",
                                 "build_snapshot": %s,
                                 "lucene_version": "%s",
-                                "index_version": "%s",
                                 "minimum_wire_compatibility_version": "%s",
-                                "minimum_index_compatibility_version": "%s",
-                                "transport_version": "%s"
+                                "minimum_index_compatibility_version": "%s"
                             },
                             "tagline": "You Know, for Search"
                         }
@@ -102,10 +98,8 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
                     current.date(),
                     current.isSnapshot(),
                     indexVersion.luceneVersion().toString(),
-                    indexVersion.toString(),
                     version.minimumCompatibilityVersion().toString(),
-                    version.minimumIndexCompatibilityVersion().toString(),
-                    transportVersion.toString()
+                    version.minimumIndexCompatibilityVersion().toString()
                 )
             ),
             Strings.toString(builder)
@@ -117,11 +111,10 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
         String clusterUuid = mutateInstance.getClusterUuid();
         Build build = mutateInstance.getBuild();
         Version version = mutateInstance.getVersion();
-        IndexVersion indexVersion = mutateInstance.getIndexVersion();
-        TransportVersion transportVersion = mutateInstance.getTransportVersion();
+        String luceneVersion = mutateInstance.getLuceneVersion();
         String nodeName = mutateInstance.getNodeName();
         ClusterName clusterName = mutateInstance.getClusterName();
-        switch (randomIntBetween(0, 6)) {
+        switch (randomIntBetween(0, 5)) {
             case 0 -> clusterUuid = clusterUuid + randomAlphaOfLength(5);
             case 1 -> nodeName = nodeName + randomAlphaOfLength(5);
             case 2 ->
@@ -129,9 +122,11 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
                 build = new Build(Build.Type.UNKNOWN, build.hash(), build.date(), build.isSnapshot() == false, build.qualifiedVersion());
             case 3 -> version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
             case 4 -> clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
-            case 5 -> transportVersion = randomValueOtherThan(transportVersion, () -> TransportVersionUtils.randomVersion(random()));
-            case 6 -> indexVersion = randomValueOtherThan(indexVersion, () -> IndexVersionUtils.randomVersion(random()));
+            case 5 -> luceneVersion = randomValueOtherThan(
+                luceneVersion,
+                () -> IndexVersionUtils.randomVersion(random()).luceneVersion().toString()
+            );
         }
-        return new MainResponse(nodeName, version, indexVersion, transportVersion, clusterName, clusterUuid, build);
+        return new MainResponse(nodeName, version, luceneVersion, clusterName, clusterUuid, build);
     }
 }

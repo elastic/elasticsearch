@@ -705,7 +705,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     static void updateLifecycle(String dataStreamName, TimeValue dataRetention) {
         PutDataStreamLifecycleAction.Request putDataLifecycleRequest = new PutDataStreamLifecycleAction.Request(
             new String[] { dataStreamName },
-            dataRetention
+            dataRetention,
+            true
         );
         AcknowledgedResponse putDataLifecycleResponse = client().execute(PutDataStreamLifecycleAction.INSTANCE, putDataLifecycleRequest)
             .actionGet();

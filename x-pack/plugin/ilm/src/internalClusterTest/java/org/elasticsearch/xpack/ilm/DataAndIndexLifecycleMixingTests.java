@@ -214,7 +214,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
         // let's migrate this data stream to use the data stream lifecycle starting with the next generation
         client().execute(
             PutDataStreamLifecycleAction.INSTANCE,
-            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90), true)
         );
 
         // at this point we should be able to rollover the data stream by indexing only one document (as the data stream lifecycle is
@@ -380,7 +380,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
         // let's migrate this data stream to use the data stream lifecycle starting with the next generation
         client().execute(
             PutDataStreamLifecycleAction.INSTANCE,
-            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90), true)
         );
 
         putComposableIndexTemplate(
@@ -558,7 +558,7 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
         // managed by ILM to data stream lifecycle)
         client().execute(
             PutDataStreamLifecycleAction.INSTANCE,
-            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90), true)
         );
 
         // at this point, the write index of the data stream is managed by data stream lifecycle and not by ILM anymore so we can just index

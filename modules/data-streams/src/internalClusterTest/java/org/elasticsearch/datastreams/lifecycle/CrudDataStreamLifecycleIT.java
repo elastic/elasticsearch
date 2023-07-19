@@ -162,7 +162,8 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
             TimeValue dataRetention = randomBoolean() ? null : TimeValue.timeValueMillis(randomMillisUpToYear9999());
             PutDataStreamLifecycleAction.Request putDataLifecycleRequest = new PutDataStreamLifecycleAction.Request(
                 new String[] { "*" },
-                dataRetention
+                dataRetention,
+                true
             );
             assertThat(
                 client().execute(PutDataStreamLifecycleAction.INSTANCE, putDataLifecycleRequest).get().isAcknowledged(),

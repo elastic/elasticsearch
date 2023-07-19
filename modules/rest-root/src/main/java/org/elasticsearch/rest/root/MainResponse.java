@@ -103,7 +103,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             Version.writeVersion(Version.CURRENT, out);
         }
 
-
         // Index version and transport version were briefly included in the main response, but
         // removed before the 8.9.0 release. Writing code remains here (writing the latest versions)
         // for those versions until the new format has propagated through serverless. Additionally,

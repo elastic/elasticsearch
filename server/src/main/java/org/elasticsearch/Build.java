@@ -22,7 +22,7 @@ import java.util.jar.Manifest;
 /**
  * Information about a build of Elasticsearch.
  */
-public record Build(Type type, String hash, String date, boolean isSnapshot, String version) {
+public record Build(String flavor, Type type, String hash, String date, boolean isSnapshot, String version) {
 
     private static final Build CURRENT;
 
@@ -139,7 +139,7 @@ public record Build(Type type, String hash, String date, boolean isSnapshot, Str
             );
         }
 
-        CURRENT = new Build(type, hash, date, isSnapshot, version);
+        CURRENT = new Build("default", type, hash, date, isSnapshot, version);
     }
 
     /**
@@ -153,27 +153,27 @@ public record Build(Type type, String hash, String date, boolean isSnapshot, Str
     }
 
     public static Build readBuild(StreamInput in) throws IOException {
-        final Type type;
-        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-        if (in.getTransportVersion().before(TransportVersion.V_8_3_0)) {
-            // this was the flavor, which is always the default distribution now
-            in.readString();
+        final String flavor;
+        if (in.getTransportVersion().before(TransportVersion.V_8_3_0) || in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
+            flavor = in.readString();
+        } else {
+            flavor = "default";
         }
         // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-        type = Type.fromDisplayName(in.readString(), false);
+        final Type type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
         String date = in.readString();
         boolean snapshot = in.readBoolean();
+        final String version = in.readString();
 
-        final String version;
-        version = in.readString();
-        return new Build(type, hash, date, snapshot, version);
+        return new Build(flavor, type, hash, date, snapshot, version);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersion.V_8_3_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_3_0)
+            || out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
             // this was the flavor, which is always the default distribution now
-            out.writeString("default");
+            out.writeString(build.flavor());
         }
         out.writeString(build.type().displayName());
         out.writeString(build.hash());

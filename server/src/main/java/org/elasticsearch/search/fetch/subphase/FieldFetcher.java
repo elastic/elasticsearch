@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.NestedValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.NestedUtils;
+import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -100,6 +101,8 @@ public class FieldFetcher {
         List<String> unmappedFetchPatterns
     ) {
 
+        final boolean includeUnmapped = unmappedFetchPatterns.isEmpty() == false;
+
         List<String> nestedMappers = context.nestedLookup().getImmediateChildMappers(nestedScope);
         Map<String, List<ResolvedField>> fieldsByNestedMapper = NestedUtils.partitionByChildren(
             nestedScope,
@@ -118,21 +121,25 @@ public class FieldFetcher {
                     output.put(ff.field, new FieldContext(ff.field, buildValueFetcher(context, ff)));
                 }
             } else {
-                // These fields are in a child scope, so build a nested mapper for them
-                Map<String, FieldContext> scopedFields = buildFieldContexts(
-                    context,
-                    scope,
-                    fieldsByNestedMapper.get(scope),
-                    unmappedFetchPatterns
-                );
-                UnmappedFieldFetcher unmappedFieldFetcher = buildUnmappedFieldFetcher(
-                    context,
-                    scopedFields.keySet(),
-                    scope,
-                    unmappedFetchPatterns
-                );
-                NestedValueFetcher nvf = new NestedValueFetcher(scope, new FieldFetcher(scopedFields, unmappedFieldFetcher));
-                output.put(scope, new FieldContext(scope, nvf));
+                // don't create nested fetchers if no children have been requested as part of the fields
+                // request, unless we are trying to also fetch unmapped fields
+                if (includeUnmapped || fieldsByNestedMapper.get(scope).isEmpty() == false) {
+                    // These fields are in a child scope, so build a nested mapper for them
+                    Map<String, FieldContext> scopedFields = buildFieldContexts(
+                        context,
+                        scope,
+                        fieldsByNestedMapper.get(scope),
+                        unmappedFetchPatterns
+                    );
+                    UnmappedFieldFetcher unmappedFieldFetcher = buildUnmappedFieldFetcher(
+                        context,
+                        scopedFields.keySet(),
+                        scope,
+                        unmappedFetchPatterns
+                    );
+                    NestedValueFetcher nvf = new NestedValueFetcher(scope, new FieldFetcher(scopedFields, unmappedFieldFetcher));
+                    output.put(scope, new FieldContext(scope, nvf));
+                }
             }
         }
         return output;

@@ -95,6 +95,12 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
     }
 
     public void testTemplateSettingsDontAffectSecurityIndex() throws Exception {
+        deleteSecurityIndex();
+        GetIndexRequest getIndexRequest = new GetIndexRequest();
+        getIndexRequest.indices(SECURITY_MAIN_ALIAS);
+        getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();
+        assertThat(getIndexResponse.getIndices().length, is(0));
         List<String> securityIndexNames = List.of(
             SecuritySystemIndices.SECURITY_MAIN_ALIAS + "*",
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
@@ -128,10 +134,7 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             .roles(randomAlphaOfLengthBetween(1, 16))
             .get();
         assertTrue(putUserResponse.created());
-        GetIndexRequest getIndexRequest = new GetIndexRequest();
-        getIndexRequest.indices(SECURITY_MAIN_ALIAS);
-        getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();
+        getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();
         assertThat(getIndexResponse.getIndices().length, is(1));
         for (Settings settings : getIndexResponse.getSettings().values()) {
             assertThat(settings.get("index.refresh_interval"), nullValue());

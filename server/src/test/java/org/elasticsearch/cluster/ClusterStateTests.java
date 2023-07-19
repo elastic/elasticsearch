@@ -151,7 +151,7 @@ public class ClusterStateTests extends ESTestCase {
                           "master_node": "nodeId1",
                           "blocks": {
                             "global": {
-                              "1": {
+                              "3": {
                                 "description": "description",
                                 "retryable": true,
                                 "disable_state_persistence": true,
@@ -406,7 +406,7 @@ public class ClusterStateTests extends ESTestCase {
                       "master_node" : "nodeId1",
                       "blocks" : {
                         "global" : {
-                          "1" : {
+                          "3" : {
                             "description" : "description",
                             "retryable" : true,
                             "disable_state_persistence" : true,
@@ -657,7 +657,7 @@ public class ClusterStateTests extends ESTestCase {
                       "master_node" : "nodeId1",
                       "blocks" : {
                         "global" : {
-                          "1" : {
+                          "3" : {
                             "description" : "description",
                             "retryable" : true,
                             "disable_state_persistence" : true,
@@ -1031,7 +1031,7 @@ public class ClusterStateTests extends ESTestCase {
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
-                        new ClusterBlock(1, "description", true, true, true, RestStatus.ACCEPTED, EnumSet.allOf((ClusterBlockLevel.class)))
+                        new ClusterBlock(3, "description", true, true, true, RestStatus.ACCEPTED, EnumSet.allOf((ClusterBlockLevel.class)))
                     )
                     .addBlocks(indexMetadata)
                     .addIndexBlock(
@@ -1125,6 +1125,8 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testGetMinTransportVersion() throws IOException {
+        assertEquals(TransportVersion.MINIMUM_COMPATIBLE, ClusterState.EMPTY_STATE.getMinTransportVersion());
+
         var builder = ClusterState.builder(buildClusterState());
         int numNodes = randomIntBetween(2, 20);
         TransportVersion minVersion = TransportVersion.current();
@@ -1137,5 +1139,13 @@ public class ClusterStateTests extends ESTestCase {
 
         var newState = builder.build();
         assertThat(newState.getMinTransportVersion(), equalTo(minVersion));
+
+        assertEquals(
+            TransportVersion.MINIMUM_COMPATIBLE,
+            ClusterState.builder(newState)
+                .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+                .build()
+                .getMinTransportVersion()
+        );
     }
 }

@@ -155,7 +155,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             client,
             licenseState,
             jobManagerHolder,
-            new MachineLearningTests.MlTestExtension(true, true, isAnomalyDetectionEnabled, isDataFrameAnalyticsEnabled, isNlpEnabled)
+            new MachineLearningExtensionHolder(
+                new MachineLearningTests.MlTestExtension(true, true, isAnomalyDetectionEnabled, isDataFrameAnalyticsEnabled, isNlpEnabled)
+            )
         );
     }
 

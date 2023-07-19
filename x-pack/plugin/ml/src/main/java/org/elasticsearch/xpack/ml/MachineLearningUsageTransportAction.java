@@ -87,7 +87,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         Client client,
         XPackLicenseState licenseState,
         JobManagerHolder jobManagerHolder,
-        MachineLearningExtension machineLearningExtension
+        MachineLearningExtensionHolder machineLearningExtensionHolder
     ) {
         super(
             XPackUsageFeatureAction.MACHINE_LEARNING.name(),
@@ -100,7 +100,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.licenseState = licenseState;
         this.jobManagerHolder = jobManagerHolder;
-        this.machineLearningExtension = machineLearningExtension;
+        this.machineLearningExtension = machineLearningExtensionHolder.getMachineLearningExtension();
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(environment.settings());
     }
 

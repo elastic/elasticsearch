@@ -82,7 +82,11 @@ public class FeatureFlagTests extends ESTestCase {
             Hex.encodeHexString(randomByteArrayOfLength(20)),
             Instant.now().toString(),
             isSnapshot,
-            VersionUtils.randomVersion(random()).toString()
+            VersionUtils.randomVersion(random()).toString(),
+            VersionUtils.randomVersion(random()).toString(),
+            VersionUtils.randomVersion(random()).toString(),
+            randomBoolean(),
+            randomAlphaOfLength(10)
         );
     }
 

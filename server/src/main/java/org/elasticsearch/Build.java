@@ -23,7 +23,18 @@ import java.util.jar.Manifest;
 /**
  * Information about a build of Elasticsearch.
  */
-public record Build(String flavor, Type type, String hash, String date, boolean isSnapshot, String version) {
+public record Build(
+    String flavor,
+    Type type,
+    String hash,
+    String date,
+    boolean isSnapshot,
+    String version,
+    String minWireCompatVersion,
+    String minIndexCompatVersion,
+    boolean isProductionRelease,
+    String displayString
+) {
 
     private static class CurrentHolder {
         private static final Build CURRENT = findCurrent();
@@ -103,7 +114,13 @@ public record Build(String flavor, Type type, String hash, String date, boolean 
             );
         }
 
-        return new Build("default", type, hash, date, isSnapshot, version);
+        final String flavor = "default";
+        String minWireCompat = Version.CURRENT.minimumCompatibilityVersion().toString();
+        String minIndexCompat = Version.CURRENT.minimumIndexCompatibilityVersion().toString();
+        boolean isProductionRelease = isProductionRelease(version);
+        String displayString = defaultDisplayString(type, hash, date, version);
+
+        return new Build(flavor, type, hash, date, isSnapshot, version, minWireCompat, minIndexCompat, isProductionRelease, displayString);
     }
 
     public static Build current() {
@@ -176,8 +193,23 @@ public record Build(String flavor, Type type, String hash, String date, boolean 
         String date = in.readString();
         boolean snapshot = in.readBoolean();
         final String version = in.readString();
-
-        return new Build(flavor, type, hash, date, snapshot, version);
+        final String minWireVersion;
+        final String minIndexVersion;
+        final boolean isProduction;
+        final String displayString;
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
+            minWireVersion = in.readString();
+            minIndexVersion = in.readString();
+            isProduction = in.readBoolean();
+            displayString = in.readString();
+        } else {
+            var versionConstant = Version.fromString(version);
+            minWireVersion = versionConstant.minimumCompatibilityVersion().toString();
+            minIndexVersion = versionConstant.minimumIndexCompatibilityVersion().toString();
+            isProduction = version.matches("[0-9]+\\.[0-9]+\\.[0-9]+");
+            displayString = defaultDisplayString(type, hash, date, version);
+        }
+        return new Build(flavor, type, hash, date, snapshot, version, minWireVersion, minIndexVersion, isProduction, displayString);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
@@ -190,6 +222,12 @@ public record Build(String flavor, Type type, String hash, String date, boolean 
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
         out.writeString(build.qualifiedVersion());
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
+            out.writeString(build.minWireCompatVersion());
+            out.writeString(build.minIndexCompatVersion());
+            out.writeBoolean(build.isProductionRelease());
+            out.writeString(build.displayString());
+        }
     }
 
     /**
@@ -205,17 +243,16 @@ public record Build(String flavor, Type type, String hash, String date, boolean 
         return version;
     }
 
-    /**
-     * Provides information about the intent of the build
-     *
-     * @return true if the build is intended for production use
-     */
-    public boolean isProductionRelease() {
+    public static boolean isProductionRelease(String version) {
         return version.matches("[0-9]+\\.[0-9]+\\.[0-9]+");
+    }
+
+    public static String defaultDisplayString(Type type, String hash, String date, String version) {
+        return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
 
     @Override
     public String toString() {
-        return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
+        return displayString();
     }
 }

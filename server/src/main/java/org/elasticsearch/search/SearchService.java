@@ -1046,7 +1046,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ReaderContext reader,
         ShardSearchRequest request,
         TimeValue timeout,
-        int concurrentMinDocs
+        int minimumDocsPerSlice
     ) throws IOException {
         boolean success = false;
         DefaultSearchContext searchContext = null;
@@ -1062,7 +1062,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 shardTarget,
                 threadPool::relativeTimeInMillis,
                 timeout,
-                concurrentMinDocs,
+                minimumDocsPerSlice,
                 fetchPhase,
                 lowLevelCancellation
             );

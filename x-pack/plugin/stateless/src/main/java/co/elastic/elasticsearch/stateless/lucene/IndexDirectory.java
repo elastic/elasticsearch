@@ -30,6 +30,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
@@ -57,6 +58,13 @@ import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSeek;
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSlice;
 
 public class IndexDirectory extends FilterDirectory {
+
+    private static final String PRUNE_LUCENE_PROPERTY = "es.stateless.prune_lucene_files_on_upload";
+    private static final boolean PRUNE_LUCENE_FILES_ON_UPLOAD;
+
+    static {
+        PRUNE_LUCENE_FILES_ON_UPLOAD = Booleans.parseBoolean(System.getProperty(PRUNE_LUCENE_PROPERTY), true);
+    }
 
     private static final Logger logger = LogManager.getLogger(IndexDirectory.class);
 
@@ -156,7 +164,8 @@ public class IndexDirectory extends FilterDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        if (cacheDirectory.containsFile(name) == false) {
+        // Prefer the local file if PRUNE_LUCENE_FILES_ON_UPLOAD is set to False
+        if (PRUNE_LUCENE_FILES_ON_UPLOAD == false || cacheDirectory.containsFile(name) == false) {
             LocalFileRef localFile;
             synchronized (this) {
                 localFile = localFiles.get(name);
@@ -250,13 +259,17 @@ public class IndexDirectory extends FilterDirectory {
                         // skipping deletion, the file was not created locally
                     }
                 }));
+
+                // Mark all the files added as uploaded since they came from the object store
+                commit.commitFiles().keySet().forEach(file -> localFiles.get(file).markAsUploaded());
+            } else if (PRUNE_LUCENE_FILES_ON_UPLOAD) {
+                commit.commitFiles().keySet().forEach(file -> {
+                    var localFile = localFiles.get(file);
+                    if (localFile != null) {
+                        localFile.markAsUploaded();
+                    }
+                });
             }
-            commit.commitFiles().keySet().forEach(file -> {
-                var localFile = localFiles.get(file);
-                if (localFile != null) {
-                    localFile.markAsUploaded();
-                }
-            });
         }
     }
 

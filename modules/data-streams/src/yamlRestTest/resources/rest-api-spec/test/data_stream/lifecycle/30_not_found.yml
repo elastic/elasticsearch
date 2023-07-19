@@ -1,8 +1,8 @@
 setup:
   - skip:
       features: allowed_warnings
-      version: " - 8.8.99"
-      reason: "Data stream lifecycles only supported in 8.9+"
+      version: " - 8.9.99"
+      reason: "Data stream lifecycles only supported in 8.10+"
   - do:
       allowed_warnings:
         - "index template [my-lifecycle] has index patterns [my-data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"
@@ -15,6 +15,7 @@ setup:
               index.number_of_replicas: 0
             lifecycle:
               data_retention: "10d"
+              enabled: true
           data_stream: {}
 
   - do:
@@ -30,6 +31,7 @@ setup:
   - length: { data_streams: 1}
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.enabled: true}
 
 ---
 "Get data stream lifecycle when at least one data stream does not exist":
@@ -49,6 +51,7 @@ setup:
         name: "my-data-stream-1,does-not-exist"
         body:
           data_retention: '30d'
+          enabled: true
   - match: { error.reason: "no such index [does-not-exist]" }
 
   - do:
@@ -57,6 +60,7 @@ setup:
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.enabled: true }
 
 ---
 "Delete data stream lifecycle does not succeed when at lease one data stream does not exist":
@@ -73,3 +77,4 @@ setup:
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.enabled: true }

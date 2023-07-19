@@ -1,8 +1,8 @@
 ---
 "Explain backing index lifecycle":
   - skip:
-      version: " - 8.8.99"
-      reason: "Explain data stream lifecycle API was added in 8.9"
+      version: " - 8.9.99"
+      reason: "Explain data stream lifecycle API was updated in 8.10"
       features: allowed_warnings
   - do:
       allowed_warnings:
@@ -16,6 +16,7 @@
               index.number_of_replicas: 0
             lifecycle:
               data_retention: "30d"
+              enabled: true
           data_stream: { }
   - do:
       indices.create_data_stream:

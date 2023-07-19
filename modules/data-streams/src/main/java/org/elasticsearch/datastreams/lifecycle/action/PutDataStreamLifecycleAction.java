@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_RETENTION_FIELD;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.ENABLED_FIELD;
 
 /**
  * Sets the data stream lifecycle that was provided in the request to the requested data streams.
@@ -47,7 +48,7 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
 
         public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_lifecycle_request",
-            args -> new Request(null, ((TimeValue) args[0]))
+            args -> new Request(null, ((TimeValue) args[0]), (boolean) args[1])
         );
 
         static {
@@ -57,6 +58,7 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
                 DATA_RETENTION_FIELD,
                 ObjectParser.ValueType.STRING_OR_NULL
             );
+            PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
         }
 
         public static Request parseRequest(XContentParser parser) {
@@ -82,9 +84,9 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
             out.writeWriteable(lifecycle);
         }
 
-        public Request(String[] names, @Nullable TimeValue dataRetention) {
+        public Request(String[] names, @Nullable TimeValue dataRetention, boolean enabled) {
             this.names = names;
-            this.lifecycle = DataStreamLifecycle.newBuilder().dataRetention(dataRetention).build();
+            this.lifecycle = DataStreamLifecycle.newBuilder().dataRetention(dataRetention).enabled(enabled).build();
         }
 
         public String[] getNames() {

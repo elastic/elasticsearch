@@ -103,7 +103,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 } else {
                     assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
                 }
-                assertThat(explainIndexMap.get("lifecycle"), is(new HashMap<>())); // empty lifecycle
+                assertThat(explainIndexMap.get("lifecycle"), is(Map.of("enabled", true))); // empty lifecycle
                 assertThat(explainIndexMap.get("error"), is(explainIndex.getError()));
             }
         }

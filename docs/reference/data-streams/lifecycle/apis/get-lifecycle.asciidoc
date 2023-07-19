@@ -94,6 +94,7 @@ PUT /_index_template/my-template
   "data_stream": {},
   "template": {
     "lifecycle" : {
+      "enabled": true,
       "data_retention" : "7d"
     }
   }
@@ -129,12 +130,14 @@ The response will look like the following:
     {
       "name": "my-data-stream-1",
       "lifecycle": {
+        "enabled": true,
         "data_retention": "7d"
       }
     },
     {
       "name": "my-data-stream-2",
       "lifecycle": {
+        "enabled": true,
         "data_retention": "7d"
       }
     }

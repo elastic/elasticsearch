@@ -40,6 +40,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * Holds the data stream lifecycle metadata that are configuring how a data stream is managed. Currently, it supports the following
  * configurations:
+ * - enabled
  * - data retention
  * - downsampling
  */
@@ -57,6 +58,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
+    public static final ParseField ENABLED_FIELD = new ParseField("enabled");
     public static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
     public static final ParseField DOWNSAMPLING_FIELD = new ParseField("downsampling");
     private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
@@ -64,7 +66,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public static final ConstructingObjectParser<DataStreamLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
-        (args, unused) -> new DataStreamLifecycle((Retention) args[0], (Downsampling) args[1])
+        (args, unused) -> new DataStreamLifecycle((Retention) args[0], (Downsampling) args[1], (boolean) args[2])
     );
 
     static {
@@ -83,6 +85,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 return new Downsampling(AbstractObjectParser.parseArray(p, c, Downsampling.Round::fromXContent));
             }
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
     }
 
     public static boolean isFeatureEnabled() {
@@ -93,14 +96,23 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     private final Retention dataRetention;
     @Nullable
     private final Downsampling downsampling;
+    private final boolean enabled;
 
     public DataStreamLifecycle() {
-        this(null, null);
+        this(null, null, true);
     }
 
-    public DataStreamLifecycle(@Nullable Retention dataRetention, @Nullable Downsampling downsampling) {
+    public DataStreamLifecycle(@Nullable Retention dataRetention, @Nullable Downsampling downsampling, boolean enabled) {
+        this.enabled = enabled;
         this.dataRetention = dataRetention;
         this.downsampling = downsampling;
+    }
+
+    /**
+     * Returns true, if this data stream lifecycle configuration is enabled and false otherwise
+     */
+    public boolean isEnabled() {
+        return enabled;
     }
 
     /**
@@ -150,12 +162,14 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (o == null || getClass() != o.getClass()) return false;
 
         final DataStreamLifecycle that = (DataStreamLifecycle) o;
-        return Objects.equals(dataRetention, that.dataRetention) && Objects.equals(downsampling, that.downsampling);
+        return Objects.equals(dataRetention, that.dataRetention)
+            && Objects.equals(downsampling, that.downsampling)
+            && enabled == that.enabled;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dataRetention, downsampling);
+        return Objects.hash(dataRetention, downsampling, enabled);
     }
 
     @Override
@@ -165,6 +179,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_026)) {
             out.writeOptionalWriteable(downsampling);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_039)) {
+            out.writeBoolean(enabled);
         }
     }
 
@@ -178,6 +195,11 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             downsampling = in.readOptionalWriteable(Downsampling::read);
         } else {
             downsampling = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_039)) {
+            enabled = in.readBoolean();
+        } else {
+            enabled = true;
         }
     }
 
@@ -201,6 +223,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
         builder.startObject();
+        builder.field(ENABLED_FIELD.getPreferredName(), enabled);
         if (dataRetention != null) {
             if (dataRetention.value() == null) {
                 builder.nullField(DATA_RETENTION_FIELD.getPreferredName());
@@ -225,7 +248,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     public static Builder newBuilder(DataStreamLifecycle lifecycle) {
-        return new Builder().dataRetention(lifecycle.getDataRetention()).downsampling(lifecycle.getDownsampling());
+        return new Builder().dataRetention(lifecycle.getDataRetention())
+            .downsampling(lifecycle.getDownsampling())
+            .enabled(lifecycle.isEnabled());
     }
 
     public static Builder newBuilder() {
@@ -240,6 +265,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         private Retention dataRetention = null;
         @Nullable
         private Downsampling downsampling = null;
+        private boolean enabled = true;
+
+        public Builder enabled(boolean value) {
+            enabled = value;
+            return this;
+        }
 
         public Builder dataRetention(@Nullable Retention value) {
             dataRetention = value;
@@ -262,7 +293,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         public DataStreamLifecycle build() {
-            return new DataStreamLifecycle(dataRetention, downsampling);
+            return new DataStreamLifecycle(dataRetention, downsampling, enabled);
         }
     }
 

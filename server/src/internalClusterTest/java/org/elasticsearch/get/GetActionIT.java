@@ -25,6 +25,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
@@ -824,9 +825,9 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testGetRemoteIndex() {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> client().prepareGet("cluster:index", "id").get());
+        IndexNotFoundException iae = expectThrows(IndexNotFoundException.class, () -> client().prepareGet("cluster:index", "id").get());
         assertEquals(
-            "Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
+            "no such index [cluster:index]",
             iae.getMessage()
         );
     }

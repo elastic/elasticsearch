@@ -1546,7 +1546,7 @@ public class IndexNameExpressionResolver {
         public static List<String> filterRemoteIndexNames(List<String> expressions) {
             List<String> localExpressions = new ArrayList<>();
             for (String expr : expressions) {
-                if (expr.contains(":")) {
+                if (expr.contains(":")) {   // potential remote or datemath expression (or even both)
                     String probe = DateMathExpressionResolver.resolveExpression(expr);
                     // check that `expr` is not a remote index name nor remote math expression
                     if (probe.contains(":") == false && expr.equals(probe) == false) {

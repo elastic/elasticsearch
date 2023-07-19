@@ -106,7 +106,6 @@ public record Build(Type type, String hash, String date, boolean isSnapshot, Str
         return new Build(type, hash, date, isSnapshot, version);
     }
 
-
     public static Build current() {
         return CurrentHolder.CURRENT;
     }

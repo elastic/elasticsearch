@@ -420,6 +420,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     private CacheFileRegion initChunk(Entry<CacheFileRegion> entry) {
+        assert Thread.holdsLock(entry.chunk);
         RegionKey<KeyType> regionKey = entry.chunk.regionKey;
         if (keyMapping.get(regionKey) != entry) {
             throw new AlreadyClosedException("no free region found (contender)");

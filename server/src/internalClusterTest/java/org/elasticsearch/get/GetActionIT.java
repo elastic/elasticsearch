@@ -826,10 +826,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetRemoteIndex() {
         IndexNotFoundException iae = expectThrows(IndexNotFoundException.class, () -> client().prepareGet("cluster:index", "id").get());
-        assertEquals(
-            "no such index [cluster:index]",
-            iae.getMessage()
-        );
+        assertEquals("no such index [cluster:index]", iae.getMessage());
     }
 
     private void assertGetFieldsAlwaysWorks(String index, String docId, String[] fields) {

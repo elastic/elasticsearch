@@ -132,15 +132,18 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * For internally-managed indices, specifies a key name under <code>_meta</code> in the index mappings
      * that contains the index's mappings' version.
      */
+    // TODO[wrb]: need to keep this for bwc & finding the field to update, but we can standardize a key under _meta
     private final String versionMetaKey;
 
     /** For internally-managed indices, specifies the origin to use when creating or updating the index */
     private final String origin;
 
     /** The minimum cluster node version required for this descriptor */
+    // TODO[wrb]: we can remove this once the mapping version is used for it
     private final Version minimumNodeVersion;
 
     /** Mapping version from the descriptor */
+    // TODO[wrb]: Needs to be a new class, int-version/hash
     private final Version mappingVersion;
 
     /** Whether there are dynamic fields in this descriptor's mappings */
@@ -267,6 +270,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             if (settings.getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0) != indexFormat) {
                 throw new IllegalArgumentException("Descriptor index format does not match index format in managed settings");
             }
+            // TODO[wrb]: extract version int and non-metadata hash something different
             this.mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);
         } else {
             assert Objects.isNull(settings) : "Unmanaged index descriptors should not have settings";
@@ -295,6 +299,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             Set<Version> versions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
             versions.add(minimumNodeVersion);
             for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
+                // TODO[wrb]: use mapping version instead of minimum node version
                 if (versions.add(prior.minimumNodeVersion) == false) {
                     throw new IllegalArgumentException(prior + " has the same minimum node version as another descriptor");
                 }
@@ -506,6 +511,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return allowsTemplates;
     }
 
+    // TODO[wrb]: return something different
     public Version getMappingVersion() {
         if (isAutomaticallyManaged() == false) {
             throw new IllegalStateException(this + " is not managed so there are no mappings or version");
@@ -520,6 +526,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @param cause the action being attempted that triggered the check. Used in the error message.
      * @return the standardized error message
      */
+    // TODO[wrb]: update for new "mapping version" world
     public String getMinimumNodeVersionMessage(String cause) {
         Objects.requireNonNull(cause);
         final Version actualMinimumVersion = priorSystemIndexDescriptors.isEmpty()

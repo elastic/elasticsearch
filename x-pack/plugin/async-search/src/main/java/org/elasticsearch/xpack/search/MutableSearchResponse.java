@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -38,8 +36,6 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse {
-    private static final Logger logger = LogManager.getLogger(MutableSearchResponse.class);
-
     private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
@@ -116,8 +112,6 @@ class MutableSearchResponse {
      * search is complete.
      */
     synchronized void updateFinalResponse(SearchResponse response, boolean ccsMinimizeRoundtrips) {
-        /// MP TODO: is this method ever called in CCS MRT=true
-        logger.warn("XXX MSR updateFinalResponse for MRT={}", ccsMinimizeRoundtrips);
         failIfFrozen();
 
         assert shardsInResponseMatchExpected(response, ccsMinimizeRoundtrips)
@@ -141,7 +135,6 @@ class MutableSearchResponse {
      * received from previous updates
      */
     synchronized void updateWithFailure(ElasticsearchException exc) {
-        logger.warn("XXX MSR updateWithFailure f: {}", exc.getMessage());
         failIfFrozen();
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();

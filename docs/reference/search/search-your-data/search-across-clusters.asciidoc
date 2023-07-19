@@ -141,7 +141,7 @@ The API returns the following response:
     "skipped": 0,
     "details": {
       "cluster_one": {  <1>
-        "status": "success",
+        "status": "successful",
         "total_shards": 3,
         "successful_shards": 3,
         "skipped_shards": 0,
@@ -239,7 +239,7 @@ The API returns the following response:
     "skipped": 0,
     "details": {
       "(local)": {            <1>
-        "status": "success",
+        "status": "successful",
         "total_shards": 5,
         "successful_shards": 5,
         "skipped_shards": 0,
@@ -248,7 +248,7 @@ The API returns the following response:
         "search_duration": 21
       },
       "cluster_one": {
-        "status": "success",
+        "status": "successful",
         "total_shards": 4,
         "successful_shards": 4,
         "skipped_shards": 0,
@@ -257,7 +257,7 @@ The API returns the following response:
         "search_duration": 35
       },
       "cluster_two": {
-        "status": "success",
+        "status": "successful",
         "total_shards": 3,
         "successful_shards": 3,
         "skipped_shards": 0,

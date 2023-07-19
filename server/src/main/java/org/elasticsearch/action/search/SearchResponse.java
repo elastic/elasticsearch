@@ -614,7 +614,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             } else {
                 return (int) clusterInfo.values()
                     .stream()
-                    .filter(c -> c.getStatus() == Cluster.Status.SUCCESS || c.getStatus() == Cluster.Status.PARTIAL)
+                    .filter(c -> c.getStatus() == Cluster.Status.SUCCESSFUL || c.getStatus() == Cluster.Status.PARTIAL)
                     .count();
             }
         }
@@ -704,11 +704,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final String clusterAlias;
         private Status status;
         private final List<ShardSearchFailure> failures;
-        private Integer totalShards;  // TODO: use these to update the _shards fields (otherwise skipped clusters aren't counted)
+        private Integer totalShards;  /// MP TODO: use these to update the _shards fields (otherwise skipped clusters aren't counted)
         private Integer successfulShards;
         private Integer skippedShards;
         private Integer failedShards;
-        private List<String> indexes; // TODO: need this? do we need to track shards per index? Can we even do that?
         private Long searchLatencyMillis;
 
         /**
@@ -716,7 +715,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          */
         public enum Status {
             RUNNING,  // still running
-            SUCCESS,  // all shards completed search
+            SUCCESSFUL,  // all shards completed search
             PARTIAL,  // only some shards completed the search, partial results from cluster
             SKIPPED,  // entire cluster was skipped
             FAILED;   // search was failed due to errors on this cluster

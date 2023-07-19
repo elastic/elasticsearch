@@ -61,6 +61,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.util.CombinedBitSet;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -453,6 +454,48 @@ public class ContextIndexSearcherTests extends ESTestCase {
             assertEquals("bar", filterTerms.getMin().utf8ToString());
             assertEquals("bar", filterTerms.getMax().utf8ToString());
         }
+        w.close();
+        directoryReader.close();
+        dir.close();
+    }
+
+    public void testTimeExceedCallsReduce() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        int docs = randomIntBetween(1, 100);
+        for (int i = 0; i < docs; i++) {
+            Document doc = new Document();
+            StringField fooField = new StringField("foo", "bar", Field.Store.NO);
+            doc.add(fooField);
+            w.addDocument(doc);
+        }
+
+        DirectoryReader directoryReader = w.getReader();
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            directoryReader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true,
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(1, 5))
+        );
+        searcher.addQueryCancellation(() -> { throw searcher.getTimeExceededException(); });
+        boolean[] called = new boolean[1];
+        CollectorManager<Collector, Void> manager = new CollectorManager<>() {
+            @Override
+            public Collector newCollector() {
+                return BucketCollector.NO_OP_COLLECTOR;
+            }
+
+            @Override
+            public Void reduce(Collection<Collector> collectors) {
+                called[0] = true;
+                return null;
+            }
+        };
+        searcher.search(new MatchAllDocsQuery(), manager);
+        assertThat(searcher.timeExceeded(), equalTo(true));
+        assertThat(called[0], equalTo(true));
         w.close();
         directoryReader.close();
         dir.close();

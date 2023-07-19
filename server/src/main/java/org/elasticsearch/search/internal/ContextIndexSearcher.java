@@ -85,6 +85,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private final QueueSizeBasedExecutor queueSizeBasedExecutor;
     private final LeafSlice[] leafSlices;
 
+    private volatile boolean timeExceeded = false;
+
     /** constructor for non-concurrent search */
     public ContextIndexSearcher(
         IndexReader reader,
@@ -345,9 +347,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        collector.setWeight(weight);
-        for (LeafReaderContext ctx : leaves) { // search each subreader
-            searchLeaf(ctx, weight, collector);
+        try {
+            collector.setWeight(weight);
+            for (LeafReaderContext ctx : leaves) { // search each subreader
+                searchLeaf(ctx, weight, collector);
+            }
+        } catch (@SuppressWarnings("unused") TimeExceededException e) {
+            // ideally we should just throw an error here if we don't want partial results
+            timeExceeded = true;
+        }
+
+    }
+
+    /**  If the search has timed out following Elasticsearch custom implementation */
+    public boolean timeExceeded() {
+        return timeExceeded;
+    }
+
+    public RuntimeException getTimeExceededException() {
+        return new TimeExceededException();
+    }
+
+    private static class TimeExceededException extends RuntimeException {
+
+        @Override
+        public Throwable fillInStackTrace() {
+            // never re-thrown so we can save the expensive stacktrace
+            return this;
         }
     }
 

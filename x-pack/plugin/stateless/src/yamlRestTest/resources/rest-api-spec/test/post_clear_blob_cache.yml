@@ -1,0 +1,37 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 1
+          mappings:
+            properties:
+              text:
+                type: text
+              keyword:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "term term"
+          keyword: "other"
+
+  - do:
+      indices.refresh: {}
+
+---
+"Test post clear blob cache":
+  - do:
+      _internal.post_clear_blob_cache: {}
+
+  - is_true: "cluster_name"
+  - is_true: "nodes.0.timestamp"
+  - gte: { "nodes.0.evictions" : 1 }
+  - gte: { "_nodes.total" : 1 }
+  - gte: { "_nodes.successful" : 1 }
+  - match: { "_nodes.failed" : 0 }

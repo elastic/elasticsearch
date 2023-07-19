@@ -183,7 +183,6 @@ public record Build(String flavor, Type type, String hash, String date, boolean 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersion.V_8_3_0)
             || out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
-            // this was the flavor, which is always the default distribution now
             out.writeString(build.flavor());
         }
         out.writeString(build.type().displayName());

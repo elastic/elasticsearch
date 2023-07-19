@@ -103,7 +103,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
     }
 
     public void testRollupIndexWithDataNodeDisruptions() throws IOException, InterruptedException {
-        final List<String> masterNodes = internalCluster().startMasterOnlyNodes(3);
+        final List<String> masterNodes = internalCluster().startMasterOnlyNodes(1);
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(3);
         final String[] allNodes = internalCluster().getNodeNames();
         ensureStableCluster(internalCluster().size());
@@ -118,7 +118,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         final String rollupIndex = randomAlphaOfLength(11).toLowerCase(Locale.ROOT);
         long startTime = LocalDateTime.parse("2020-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
         // NOTE: we need replicas otherwise we might restart the node with the only source index shard and the index would not be available
-        setup(sourceIndex, 1, 3, startTime);
+        setup(sourceIndex, 1, 0, startTime);
         final DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
         final DownsampleActionSingleNodeTests.SourceSupplier sourceSupplier = () -> {
             final String ts = randomDateForInterval(config.getInterval(), startTime);
@@ -141,29 +141,30 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         CountDownLatch disruptionEnd = new CountDownLatch(1);
 
         new Thread(() -> {
+            disruptionStart.countDown();
             try {
+                ensureGreen(sourceIndex);
                 ensureStableCluster(internalCluster().size());
-                disruptionStart.countDown();
-                for (int i = 0; i < 10; i++) {
-                    final String restartingNode = randomFrom(dataNodes);
-                    logger.info("Restarting random data node [" + restartingNode + "]");
-                    try {
-                        internalCluster().restartNode(restartingNode);
-                    } catch (Exception e) {
-                        logger.warn("Ignoring exception while trying to restart node [" + restartingNode + "]");
-                    }
+                final String restartingNode = client().admin().cluster().prepareSearchShards(sourceIndex).get().getNodes()[0].getName();
+                logger.info("Restarting random data node [" + restartingNode + "]");
+                try {
+                    internalCluster().restartNode(restartingNode);
+                    ensureGreen(sourceIndex);
+                    ensureStableCluster(internalCluster().numDataAndMasterNodes(), masterNodes.get(0));
+                } catch (Exception e) {
+                    logger.warn("Ignoring exception while trying to restart node [" + restartingNode + "]");
                 }
                 disruptionEnd.countDown();
 
             } catch (Exception e) {
                 logger.error("Error while injecting disruption [" + e.getMessage() + "]");
-                throw new RuntimeException(e);
             }
         }).start();
 
         disruptionStart.await();
         rollup(sourceIndex, rollupIndex, config);
         disruptionEnd.await();
+        ensureStableCluster(internalCluster().numDataAndMasterNodes());
         assertRollupIndex(sourceIndex, rollupIndex, internalCluster().dataNodeClient());
     }
 

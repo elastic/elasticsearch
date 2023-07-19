@@ -57,7 +57,6 @@ import static org.hamcrest.Matchers.is;
 
 public class DownsampleActionIT extends ESRestTestCase {
 
-    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
     private String index;
     private String policy;
     private String alias;
@@ -155,7 +154,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         String phaseName = randomFrom("warm", "cold");
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DEFAULT_TIMEOUT));
+        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_TIMEOUT));
         updatePolicy(client(), index, policy);
 
         String rollupIndex = waitAndGetRollupIndexName(client(), index, fixedInterval);

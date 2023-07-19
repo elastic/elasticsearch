@@ -53,14 +53,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 // This needs to be moved to internalClusterTest sourceSet
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
 public class DownsampleTransportFailureIT extends ESIntegTestCase {
-
-    private static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     private static class TestClusterHelper {
         private final InternalTestCluster cluster;
@@ -293,7 +290,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
-            new DownsampleConfig(DateHistogramInterval.MINUTE, TIMEOUT)
+            new DownsampleConfig(DateHistogramInterval.MINUTE)
         );
 
         // WHEN nothing happens
@@ -319,7 +316,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
-            new DownsampleConfig(DateHistogramInterval.HOUR, TIMEOUT)
+            new DownsampleConfig(DateHistogramInterval.HOUR)
         );
 
         // WHEN (disruption)

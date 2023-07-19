@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -44,7 +45,9 @@ public class DownsampleAction implements LifecycleAction {
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
     public static final String GENERATE_DOWNSAMPLE_STEP_NAME = "generate-downsampled-index-name";
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(DownsampleConfig.FIXED_INTERVAL);
-    private static final ParseField TIMEOUT_FIELD = new ParseField(DownsampleConfig.TIMEOUT);
+    private static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
+
+    private static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
 
     private static final ConstructingObjectParser<DownsampleAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -78,7 +81,7 @@ public class DownsampleAction implements LifecycleAction {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL_FIELD.getPreferredName() + "] is required.");
         }
         this.fixedInterval = fixedInterval;
-        this.timeout = timeout == null ? DownsampleConfig.DEFAULT_TIMEOUT : timeout;
+        this.timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
     }
 
     public DownsampleAction(StreamInput in) throws IOException {
@@ -86,7 +89,7 @@ public class DownsampleAction implements LifecycleAction {
             new DateHistogramInterval(in),
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)
                 ? TimeValue.parseTimeValue(in.readString(), TIMEOUT_FIELD.getPreferredName())
-                : DownsampleConfig.DEFAULT_TIMEOUT
+                : DEFAULT_TIMEOUT
         );
     }
 
@@ -96,7 +99,7 @@ public class DownsampleAction implements LifecycleAction {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
             out.writeString(timeout.getStringRep());
         } else {
-            out.writeString(DownsampleConfig.DEFAULT_TIMEOUT.getStringRep());
+            out.writeString(DEFAULT_TIMEOUT.getStringRep());
         }
     }
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.downsample;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -28,10 +27,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class holds the configuration details of a DownsampleAction that downsamples time series
@@ -58,23 +55,19 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     private static final String NAME = "downsample/action/config";
     public static final String FIXED_INTERVAL = "fixed_interval";
     public static final String TIME_ZONE = "time_zone";
-    public static final String TIMEOUT = "timeout";
     public static final String DEFAULT_TIMEZONE = ZoneId.of("UTC").getId();
-    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
 
     private static final String timestampField = DataStreamTimestampFieldMapper.DEFAULT_PATH;
     private final DateHistogramInterval fixedInterval;
     private final String timeZone = DEFAULT_TIMEZONE;
     private final String intervalType = FIXED_INTERVAL;
-    private final TimeValue timeout;
 
     private static final ConstructingObjectParser<DownsampleConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, a -> {
             DateHistogramInterval fixedInterval = (DateHistogramInterval) a[0];
-            TimeValue timeout = (TimeValue) a[1];
             if (fixedInterval != null) {
-                return new DownsampleConfig(fixedInterval, timeout);
+                return new DownsampleConfig(fixedInterval);
             } else {
                 throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
             }
@@ -86,24 +79,17 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
             new ParseField(FIXED_INTERVAL),
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareField(
-            optionalConstructorArg(),
-            p -> TimeValue.parseTimeValue(p.textOrNull(), TIMEOUT),
-            new ParseField(TIMEOUT),
-            ObjectParser.ValueType.STRING
-        );
     }
 
     /**
      * Create a new {@link DownsampleConfig} using the given configuration parameters.
      * @param fixedInterval the fixed interval to use for computing the date histogram for the rolled up documents (required).
      */
-    public DownsampleConfig(final DateHistogramInterval fixedInterval, final TimeValue timeout) {
+    public DownsampleConfig(final DateHistogramInterval fixedInterval) {
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
         }
         this.fixedInterval = fixedInterval;
-        this.timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
 
         // validate interval
         createRounding(this.fixedInterval.toString(), this.timeZone);
@@ -111,11 +97,6 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
 
     public DownsampleConfig(final StreamInput in) throws IOException {
         fixedInterval = new DateHistogramInterval(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
-            timeout = TimeValue.parseTimeValue(in.readString(), TIMEOUT);
-        } else {
-            timeout = DEFAULT_TIMEOUT;
-        }
     }
 
     /**
@@ -152,11 +133,6 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
-            out.writeString(timeout.getStringRep());
-        } else {
-            out.writeString(DEFAULT_TIMEOUT.getStringRep());
-        }
     }
 
     /**
@@ -195,10 +171,6 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         return timeZone;
     }
 
-    public TimeValue getTimeout() {
-        return timeout;
-    }
-
     /**
      * Create the rounding for this date histogram
      */
@@ -221,7 +193,7 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     }
 
     public XContentBuilder toXContentFragment(final XContentBuilder builder) throws IOException {
-        return builder.field(FIXED_INTERVAL, fixedInterval.toString()).field(TIMEOUT, timeout);
+        return builder.field(FIXED_INTERVAL, fixedInterval.toString());
     }
 
     public static DownsampleConfig fromXContent(final XContentParser parser) throws IOException {
@@ -239,13 +211,12 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         final DownsampleConfig that = (DownsampleConfig) other;
         return Objects.equals(fixedInterval, that.fixedInterval)
             && Objects.equals(intervalType, that.intervalType)
-            && Objects.equals(timeout, that.timeout)
             && ZoneId.of(timeZone, ZoneId.SHORT_IDS).getRules().equals(ZoneId.of(that.timeZone, ZoneId.SHORT_IDS).getRules());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fixedInterval, intervalType, ZoneId.of(timeZone), timeout);
+        return Objects.hash(fixedInterval, intervalType, ZoneId.of(timeZone));
     }
 
     @Override

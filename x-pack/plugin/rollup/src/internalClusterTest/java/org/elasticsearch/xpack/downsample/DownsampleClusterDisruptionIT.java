@@ -21,7 +21,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -47,7 +46,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -56,8 +54,6 @@ import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomInterv
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 4)
 public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
-
-    private static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
 
     public static final String FIELD_TIMESTAMP = "@timestamp";
@@ -119,7 +115,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         long startTime = LocalDateTime.parse("2020-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
         // NOTE: we need replicas otherwise we might restart the node with the only source index shard and the index would not be available
         setup(sourceIndex, 1, 0, startTime);
-        final DownsampleConfig config = new DownsampleConfig(randomInterval(), TIMEOUT);
+        final DownsampleConfig config = new DownsampleConfig(randomInterval());
         final DownsampleActionSingleNodeTests.SourceSupplier sourceSupplier = () -> {
             final String ts = randomDateForInterval(config.getInterval(), startTime);
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);

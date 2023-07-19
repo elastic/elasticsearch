@@ -78,8 +78,6 @@ import static org.mockito.Mockito.mock;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
-    public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
-
     @Override
     protected Settings nodeSettings() {
         // Disable the health node selection so the task assignment does not interfere with the cluster state during the test
@@ -1516,7 +1514,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 List.of(
                     new DataStreamLifecycle.Downsampling.Round(
                         TimeValue.timeValueDays(30),
-                        new DownsampleConfig(new DateHistogramInterval("3h"), TIMEOUT)
+                        new DownsampleConfig(new DateHistogramInterval("3h"))
                     )
                 )
             )

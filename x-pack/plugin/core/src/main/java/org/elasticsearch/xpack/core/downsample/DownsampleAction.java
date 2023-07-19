@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -25,12 +26,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class DownsampleAction extends ActionType<AcknowledgedResponse> {
     public static final DownsampleAction INSTANCE = new DownsampleAction();
     public static final String NAME = "indices:admin/xpack/downsample";
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
 
     private DownsampleAction() {
         super(NAME, AcknowledgedResponse::readFrom);

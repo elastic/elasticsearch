@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -60,7 +59,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.hamcrest.Matchers.equalTo;
@@ -96,7 +94,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             rolloverResponse.getOldIndex(),
             downsampleTargetIndex,
-            new DownsampleConfig(DateHistogramInterval.HOUR, new TimeValue(1, TimeUnit.DAYS))
+            new DownsampleConfig(DateHistogramInterval.HOUR)
         );
         final AcknowledgedResponse downsampleResponse = indicesAdmin().execute(DownsampleAction.INSTANCE, downsampleRequest).actionGet();
 

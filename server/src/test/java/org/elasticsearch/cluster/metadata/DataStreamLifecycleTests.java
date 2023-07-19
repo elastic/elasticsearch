@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
@@ -39,8 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCase<DataStreamLifecycle> {
-
-    public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     @Override
     protected Writeable.Reader<DataStreamLifecycle> instanceReader() {
@@ -155,11 +152,11 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                     List.of(
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(10),
-                            new DownsampleConfig(new DateHistogramInterval("2h"), TIMEOUT)
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
                         ),
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(3),
-                            new DownsampleConfig(new DateHistogramInterval("2h"), TIMEOUT)
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
                         )
                     )
                 )
@@ -176,11 +173,11 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                     List.of(
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(10),
-                            new DownsampleConfig(new DateHistogramInterval("2h"), TIMEOUT)
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
                         ),
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(30),
-                            new DownsampleConfig(new DateHistogramInterval("2h"), TIMEOUT)
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
                         )
                     )
                 )
@@ -194,11 +191,11 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                     List.of(
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(10),
-                            new DownsampleConfig(new DateHistogramInterval("2h"), TIMEOUT)
+                            new DownsampleConfig(new DateHistogramInterval("2h"))
                         ),
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(30),
-                            new DownsampleConfig(new DateHistogramInterval("3h"), TIMEOUT)
+                            new DownsampleConfig(new DateHistogramInterval("3h"))
                         )
                     )
                 )
@@ -221,7 +218,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                         .map(
                             i -> new DataStreamLifecycle.Downsampling.Round(
                                 TimeValue.timeValueDays(i),
-                                new DownsampleConfig(new DateHistogramInterval(i + "h"), TIMEOUT)
+                                new DownsampleConfig(new DateHistogramInterval(i + "h"))
                             )
                         )
                         .toList()
@@ -255,7 +252,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
                 var previous = new DataStreamLifecycle.Downsampling.Round(
                     TimeValue.timeValueDays(randomIntBetween(1, 365)),
-                    new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"), TIMEOUT)
+                    new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
                 );
                 rounds.add(previous);
                 for (int i = 0; i < count; i++) {
@@ -271,8 +268,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
     private static DataStreamLifecycle.Downsampling.Round nextRound(DataStreamLifecycle.Downsampling.Round previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
         var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms"),
-            TIMEOUT
+            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
         );
         return new DataStreamLifecycle.Downsampling.Round(after, fixedInterval);
     }

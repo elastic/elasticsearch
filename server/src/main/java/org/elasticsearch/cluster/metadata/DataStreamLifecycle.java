@@ -301,7 +301,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             private static final ConstructingObjectParser<Round, Void> PARSER = new ConstructingObjectParser<>(
                 "downsampling_round",
                 false,
-                (args, unused) -> new Round((TimeValue) args[0], new DownsampleConfig((DateHistogramInterval) args[1], (TimeValue) args[2]))
+                (args, unused) -> new Round((TimeValue) args[0], new DownsampleConfig((DateHistogramInterval) args[1]))
             );
 
             static {

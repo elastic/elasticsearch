@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoTests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -238,7 +239,14 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         assertEquals(indexShards.keySet(), desiredBalanceResponse.getRoutingTable().keySet());
 
         assertEquals(desiredBalanceResponse, copyWriteable(desiredBalanceResponse, writableRegistry(), DesiredBalanceResponse::from));
-        AbstractChunkedSerializingTestCase.assertChunkCount(desiredBalanceResponse, r -> 2 + r.getRoutingTable().size());
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            desiredBalanceResponse,
+            response -> 3 + ClusterInfoTests.getChunkCount(response.getClusterInfo()) + response.getRoutingTable()
+                .values()
+                .stream()
+                .mapToInt(indexEntry -> 2 + indexEntry.values().stream().mapToInt(shardEntry -> 3 + shardEntry.current().size()).sum())
+                .sum()
+        );
 
         for (var e : desiredBalanceResponse.getRoutingTable().entrySet()) {
             String index = e.getKey();

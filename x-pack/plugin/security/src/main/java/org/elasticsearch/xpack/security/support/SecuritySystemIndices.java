@@ -125,7 +125,6 @@ public class SecuritySystemIndices {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
-            .put("index.refresh_interval", "1s")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT)
             .put("analysis.filter.email.type", "pattern_capture")
             .put("analysis.filter.email.preserve_original", true)
@@ -617,7 +616,6 @@ public class SecuritySystemIndices {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
-            .put("index.refresh_interval", "1s")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_TOKENS_INDEX_FORMAT)
             .build();
     }
@@ -814,7 +812,6 @@ public class SecuritySystemIndices {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
-            .put("index.refresh_interval", "1s")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_PROFILE_INDEX_FORMAT)
             .put("analysis.filter.email.type", "pattern_capture")
             .put("analysis.filter.email.preserve_original", true)

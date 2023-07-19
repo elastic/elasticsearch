@@ -673,6 +673,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 + " "
                 + featureFlagProperties
                 + systemProperties
+                + ' '
                 + jvmArgs
                 + debugArgs);
 

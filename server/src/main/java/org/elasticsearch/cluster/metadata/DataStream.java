@@ -152,7 +152,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
-        this.lifecycle = DataStreamLifecycle.isEnabled() ? lifecycle : null;
+        this.lifecycle = DataStreamLifecycle.isFeatureEnabled() ? lifecycle : null;
         assert assertConsistent(this.indices);
     }
 
@@ -809,7 +809,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
             args[8] != null ? IndexMode.fromString((String) args[8]) : null,
-            DataStreamLifecycle.isEnabled() ? (DataStreamLifecycle) args[9] : null
+            DataStreamLifecycle.isFeatureEnabled() ? (DataStreamLifecycle) args[9] : null
         )
     );
 
@@ -831,7 +831,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
-        if (DataStreamLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isFeatureEnabled()) {
             PARSER.declareObject(
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> DataStreamLifecycle.fromXContent(p),

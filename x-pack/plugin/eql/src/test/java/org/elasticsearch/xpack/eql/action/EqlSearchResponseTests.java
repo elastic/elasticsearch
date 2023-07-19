@@ -112,7 +112,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                     if (fetchFields.isEmpty() && randomBoolean()) {
                         fetchFields = null;
                     }
-                    hits.add(new Event(String.valueOf(i), randomAlphaOfLength(10), bytes, fetchFields, false));
+                    hits.add(new Event(String.valueOf(i), randomAlphaOfLength(10), bytes, fetchFields));
                 }
             }
         }

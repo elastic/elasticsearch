@@ -33,7 +33,7 @@ class SequencePayload extends AbstractPayload {
                 if (hit == null) {
                     events.add(Event.MISSING_EVENT);
                 } else {
-                    events.add(new Event(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields(), false));
+                    events.add(new Event(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields()));
                 }
 
             }

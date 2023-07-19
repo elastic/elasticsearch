@@ -204,13 +204,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     // Event
     public static class Event implements Writeable, ToXContentObject {
 
-        public static Event MISSING_EVENT = new Event(
-            "_missing",
-            "_missing",
-            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
-            null,
-            true
-        );
+        public static Event MISSING_EVENT = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null, true);
 
         private static final class Fields {
             static final String INDEX = GetResult._INDEX;
@@ -264,14 +258,18 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         private final BytesReference source;
         private final Map<String, DocumentField> fetchFields;
 
-        private final Boolean missing;
+        private final boolean missing;
+
+        public Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields) {
+            this(index, id, source, fetchFields, false);
+        }
 
         public Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields, Boolean missing) {
             this.index = index;
             this.id = id;
             this.source = source;
             this.fetchFields = fetchFields;
-            this.missing = missing;
+            this.missing = missing != null && missing;
         }
 
         private Event(StreamInput in) throws IOException {
@@ -330,7 +328,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 }
                 builder.endObject();
             }
-            if (Boolean.TRUE.equals(missing)) {
+            if (missing) {
                 // preserve original event structure (before introduction of missing events): avoid "missing: false" for normal events
                 builder.field(Fields.MISSING, missing);
             }
@@ -363,7 +361,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         }
 
         public boolean missing() {
-            return Boolean.TRUE.equals(missing);
+            return missing;
         }
 
         @Override

@@ -207,7 +207,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "search.minimum_docs_per_slice",
         50_000,
         1,
-        Property.Dynamic,
         Property.NodeScope
     );
 
@@ -260,7 +259,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile TimeValue defaultSearchTimeout;
 
-    private volatile int minimumDocsPerSlice;
+    private int minimumDocsPerSlice;
 
     private volatile boolean defaultAllowPartialSearchResults;
 
@@ -328,10 +327,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
 
         minimumDocsPerSlice = MINIMUM_DOCS_PER_SLICE.get(settings);
-        if (MINIMUM_DOCS_PER_SLICE == clusterService.getClusterSettings().get(MINIMUM_DOCS_PER_SLICE.getKey())) {
-            // Only add it if the setting has been register which should only happen on tests
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(MINIMUM_DOCS_PER_SLICE, this::setMinimumDocsPerSlice);
-        }
 
         defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);
         clusterService.getClusterSettings()

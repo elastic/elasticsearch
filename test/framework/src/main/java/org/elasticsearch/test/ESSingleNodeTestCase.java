@@ -45,6 +45,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptService;
+import org.elasticsearch.search.ConcurrentSearchTestPlugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -79,6 +80,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
+
+    private Boolean eagerConcurrentSearch;
 
     protected void startNode(long seed) throws Exception {
         assert NODE == null;
@@ -226,7 +229,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     private Node newNode() {
         final Path tempDir = createTempDir();
         final String nodeName = nodeSettings().get(Node.NODE_NAME_SETTING.getKey(), "node_s_0");
-
+        Settings concurrentSetting = eagerConcurrentSearch()
+            ? Settings.builder().put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1).build()
+            : Settings.EMPTY;
         Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", random().nextLong()))
             .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
@@ -251,6 +256,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
+            .put(concurrentSetting)
             .build();
 
         Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
@@ -259,6 +265,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
+        }
+        if (eagerConcurrentSearch()) {
+            plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
@@ -434,6 +443,17 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .actionGet();
 
         assertFalse("timed out waiting for shards to initialize", actionGet.isTimedOut());
+    }
+
+    /**
+     * Iff this returns true concurrent search is favour by making more probable to generate multiple concurrent slices.
+     * Otherwise runs with default set up. The default is randomized.
+     */
+    protected boolean eagerConcurrentSearch() {
+        if (eagerConcurrentSearch == null) {
+            eagerConcurrentSearch = randomBoolean();
+        }
+        return eagerConcurrentSearch;
     }
 
 }

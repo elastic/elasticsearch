@@ -347,6 +347,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
     private static ESIntegTestCase INSTANCE = null; // see @SuiteScope
     private static Long SUITE_SEED = null;
 
+    private Boolean eagerConcurrentSearch;
+
     @BeforeClass
     public static void beforeClass() throws Exception {
         SUITE_SEED = randomLong();
@@ -2046,7 +2048,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (addMockTransportService()) {
             initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         }
-        if (addConcurrentSearch()) {
+        if (eagerConcurrentSearch()) {
             initialNodeSettings.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
         }
         return new NodeConfigurationSource() {
@@ -2066,7 +2068,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
-                plugins.add(ConcurrentSearchTestPlugin.class);
+                if (eagerConcurrentSearch()) {
+                    plugins.add(ConcurrentSearchTestPlugin.class);
+                }
                 return plugins;
             }
         };
@@ -2081,11 +2085,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Iff this returns true concurrent search is favour. Otherwise runs with default set up.
-     * The default is randomized.
+     * Iff this returns true concurrent search is favour by making more probable to generate multiple concurrent slices.
+     * Otherwise runs with default set up. The default is randomized.
      */
-    protected boolean addConcurrentSearch() {
-        return randomBoolean();
+    protected boolean eagerConcurrentSearch() {
+        if (eagerConcurrentSearch == null) {
+            eagerConcurrentSearch = randomBoolean();
+        }
+        return eagerConcurrentSearch;
     }
 
     /** Returns {@code true} iff this test cluster should use a dummy http transport */

@@ -16,6 +16,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.CURRENT_VERSION;
+
 /**
  * This {@link LifecycleType} is used for encapsulating test policies
  * used in integration tests where the underlying {@link LifecycleAction}s are
@@ -40,7 +42,7 @@ public class LockableLifecycleType implements LifecycleType {
 
     @Override
     public int getLatestActionsOrderVersion() {
-        return 1;
+        return CURRENT_VERSION;
     }
 
     @Override

@@ -60,6 +60,7 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistr
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VERSION_ONE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
@@ -195,7 +196,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         String policyName = randomAlphaOfLength(5);
         LifecyclePolicy newPolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policyName);
         logger.info("--> policy: {}", newPolicy);
-        List<Step> policySteps = newPolicy.toSteps(client, null);
+        List<Step> policySteps = newPolicy.toSteps(client, CURRENT_VERSION, null);
         Map<String, String> headers = new HashMap<>();
         if (randomBoolean()) {
             headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -208,6 +209,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         IndexLifecycleMetadata lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase("new");
+        lifecycleState.setActionsOrderVersion(CURRENT_VERSION);
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
@@ -248,8 +250,12 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         assertThat(registry.getLifecyclePolicyMap().size(), equalTo(1));
         assertNotNull(registry.getLifecyclePolicyMap().get(newPolicy.getName()));
         assertThat(registry.getLifecyclePolicyMap().get(newPolicy.getName()).getHeaders(), equalTo(headers));
-        assertThat(registry.getFirstStepMap().size(), equalTo(1));
-        assertThat(registry.getStepMap().size(), equalTo(1));
+        assertThat(registry.getFirstStepMap().size(), equalTo(2));
+        for (VersionedPolicyKey versionedPolicyKey : registry.getFirstStepMap().keySet()) {
+            // we track all versions of first steps
+            assertThat(versionedPolicyKey.policyName(), is(newPolicy.getName()));
+        }
+        assertThat(registry.getStepMap().size(), equalTo(2));
         Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap()
             .get(new VersionedPolicyKey(CURRENT_VERSION, newPolicy.getName()));
         assertThat(registeredStepsForPolicy.size(), equalTo(policySteps.size()));
@@ -361,7 +367,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecyclePolicy updatedPolicy = new LifecyclePolicy(policyName, phases);
         logger.info("--> policy: {}", newPolicy);
         logger.info("--> updated policy: {}", updatedPolicy);
-        List<Step> policySteps = newPolicy.toSteps(client, null);
+        List<Step> policySteps = newPolicy.toSteps(client, CURRENT_VERSION, null);
         Map<String, String> headers = new HashMap<>();
         if (randomBoolean()) {
             headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));

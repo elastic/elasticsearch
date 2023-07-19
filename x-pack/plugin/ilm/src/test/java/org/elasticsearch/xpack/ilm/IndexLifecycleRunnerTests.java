@@ -815,7 +815,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         // First step is retrieved because there are no settings for the index
         IndexMetadata indexMetadataWithNoKey = IndexMetadata.builder(index.getName())
             .settings(indexSettings)
-            .putCustom(ILM_CUSTOM_METADATA_KEY, LifecycleExecutionState.builder().build().asMap())
+            .putCustom(ILM_CUSTOM_METADATA_KEY, LifecycleExecutionState.builder().setActionsOrderVersion(CURRENT_VERSION).build().asMap())
             .build();
         Step stepFromNoSettings = IndexLifecycleRunner.getCurrentStep(registry, policy.getName(), indexMetadataWithNoKey);
         assertEquals(firstStep, stepFromNoSettings);

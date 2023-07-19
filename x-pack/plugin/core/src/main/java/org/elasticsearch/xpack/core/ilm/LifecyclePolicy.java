@@ -206,14 +206,11 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
      *
      * @param client The Elasticsearch Client to use during execution of {@link AsyncActionStep}
      *               and {@link AsyncWaitStep} steps.
+     * @param actionsOrderVersion the version of the actions order to use
      * @param licenseState The license state to use in actions and steps
      * @return The list of {@link Step} objects in order of their execution.
      */
-    public List<Step> toSteps(Client client, XPackLicenseState licenseState) {
-        return toSteps(client, type.getLatestActionsOrderVersion(), licenseState);
-    }
-
-    public List<Step> toSteps(Client client, int orderVersion, XPackLicenseState licenseState) {
+    public List<Step> toSteps(Client client, int actionsOrderVersion, XPackLicenseState licenseState) {
         List<Step> steps = new ArrayList<>();
         List<Phase> orderedPhases = type.getOrderedPhases(phases);
         ListIterator<Phase> phaseIterator = orderedPhases.listIterator(orderedPhases.size());
@@ -237,7 +234,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
             }
 
             phase = previousPhase;
-            List<LifecycleAction> orderedActions = type.getOrderedActions(phase, orderVersion);
+            List<LifecycleAction> orderedActions = type.getOrderedActions(phase, actionsOrderVersion);
             ListIterator<LifecycleAction> actionIterator = orderedActions.listIterator(orderedActions.size());
             // add steps for each action, in reverse
             while (actionIterator.hasPrevious()) {

@@ -490,9 +490,11 @@ public final class TokenService {
             storedAccessToken,
             storedRefreshToken,
             listener.map(
-                doc -> UserToken.fromSourceMap(
-                    (Map<String, Object>) ((Map<String, Object>) doc.sourceAsMap().get("access_token")).get("user_token")
-                )
+                doc -> doc != null
+                    ? UserToken.fromSourceMap(
+                        (Map<String, Object>) ((Map<String, Object>) doc.source().get("access_token")).get("user_token")
+                    )
+                    : null
             )
         );
     }
@@ -733,7 +735,7 @@ public final class TokenService {
                     logger.debug("could not find token document for refresh token");
                     listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.NOT_FOUND));
                 } else {
-                    final Tuple<UserToken, RefreshTokenStatus> parsedTokens = parseTokenAndRefreshStatus(tokenDoc.sourceAsMap());
+                    final Tuple<UserToken, RefreshTokenStatus> parsedTokens = parseTokenAndRefreshStatus(tokenDoc.source());
                     final UserToken userToken = parsedTokens.v1();
                     final RefreshTokenStatus refresh = parsedTokens.v2();
                     if (refresh.isInvalidated()) {
@@ -1179,7 +1181,7 @@ public final class TokenService {
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDoc.id(), ex));
         final Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkRefreshResult;
         try {
-            checkRefreshResult = checkTokenDocumentForRefresh(refreshRequested, clientAuth, tokenDoc.sourceAsMap());
+            checkRefreshResult = checkTokenDocumentForRefresh(refreshRequested, clientAuth, tokenDoc.source());
         } catch (DateTimeException | IllegalStateException e) {
             onFailure.accept(new ElasticsearchSecurityException("invalid token document", e));
             return;
@@ -1195,7 +1197,7 @@ public final class TokenService {
                 "Token document [{}] was recently refreshed, when a new token document was generated. Reusing that result.",
                 tokenDoc.id()
             );
-            final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(tokenDoc.sourceAsMap(), null);
+            final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(tokenDoc.source(), null);
             Authentication authentication = parsedTokens.v1().getAuthentication();
             decryptAndReturnSupersedingTokens(refreshToken, refreshTokenStatus, refreshedTokenIndex, authentication, listener);
         } else {
@@ -1242,7 +1244,7 @@ public final class TokenService {
                             logger.debug(
                                 () -> format("updated the original token document to %s", updateResponse.getGetResult().sourceAsMap())
                             );
-                            final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(tokenDoc.sourceAsMap(), null);
+                            final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(tokenDoc.source(), null);
                             final UserToken toRefreshUserToken = parsedTokens.v1();
                             createOAuth2Tokens(
                                 newTokenBytes.v1(),
@@ -2788,14 +2790,14 @@ public final class TokenService {
         }
     }
 
-    record Doc(String id, Map<String, Object> sourceAsMap, long seqNo, long primaryTerm) {
+    record Doc(String id, Map<String, Object> source, long seqNo, long primaryTerm) {
 
         Doc(SearchHit searchHit) {
             this(searchHit.getId(), searchHit.getSourceAsMap(), searchHit.getSeqNo(), searchHit.getPrimaryTerm());
         }
 
         Doc(GetResponse getResponse) {
-            this(getResponse.getId(), getResponse.getSourceAsMap(), getResponse.getSeqNo(), getResponse.getPrimaryTerm());
+            this(getResponse.getId(), getResponse.getSource(), getResponse.getSeqNo(), getResponse.getPrimaryTerm());
         }
     }
 

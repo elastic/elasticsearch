@@ -141,6 +141,7 @@ import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.search.SearchModule.INDICES_CONCURRENT_COLLECTION_ENABLED;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
@@ -244,6 +245,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final DfsPhase dfsPhase = new DfsPhase();
 
     private final FetchPhase fetchPhase;
+    private boolean enableConcurrentCollection;
 
     private volatile long defaultKeepAlive;
 
@@ -329,6 +331,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         enableRewriteAggsToFilterByFilter = ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
+
+        enableConcurrentCollection = INDICES_CONCURRENT_COLLECTION_ENABLED.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(INDICES_CONCURRENT_COLLECTION_ENABLED, this::setEnableConcurrentCollection);
+    }
+
+    private void setEnableConcurrentCollection(boolean concurrentCollection) {
+        this.enableConcurrentCollection = concurrentCollection;
     }
 
     private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1042,7 +1052,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 timeout,
                 fetchPhase,
                 lowLevelCancellation,
-                concurrentSearch(resultsType, request.source())
+                this.enableConcurrentCollection && concurrentSearchEnabled(resultsType, request.source())
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -1062,7 +1072,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return searchContext;
     }
 
-    private static boolean concurrentSearch(ResultsType resultsType, SearchSourceBuilder source) {
+    private static boolean concurrentSearchEnabled(ResultsType resultsType, SearchSourceBuilder source) {
         // TODO this can be extended with more complex logic taking into account phase, builder properties etc...
         // e.g. source.profile() == true;
         return resultsType == ResultsType.DFS;

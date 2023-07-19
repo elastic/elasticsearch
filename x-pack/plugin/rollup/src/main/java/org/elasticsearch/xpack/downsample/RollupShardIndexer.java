@@ -234,7 +234,12 @@ class RollupShardIndexer {
                 ActionListener.noop()
             );
             logger.info("Downsampling task [" + task.getPersistentTaskId() + "] on shard " + indexShard.shardId() + " cancelled");
-            throw new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId()));
+            throw new RollupShardIndexerException(
+                new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId())),
+                format("Shard %s rollup cancelled", indexShard.shardId()),
+                false
+            );
+
         }
         if (abort) {
             logger.warn(

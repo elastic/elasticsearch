@@ -76,7 +76,6 @@ import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilde
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskCancelHelper;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -664,8 +663,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
         );
 
-        TaskCancelledException exception = expectThrows(TaskCancelledException.class, () -> indexer.execute());
-        assertThat(exception.getMessage(), equalTo("Shard [" + sourceIndex + "][" + shardNum + "] rollup cancelled"));
+        RollupShardIndexerException exception = expectThrows(RollupShardIndexerException.class, () -> indexer.execute());
+        assertThat(exception.getCause().getMessage(), equalTo("Shard [" + sourceIndex + "][" + shardNum + "] rollup cancelled"));
     }
 
     public void testRollupBulkFailed() throws IOException {

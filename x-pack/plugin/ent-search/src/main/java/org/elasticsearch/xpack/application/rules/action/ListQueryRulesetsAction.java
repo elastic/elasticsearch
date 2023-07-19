@@ -42,7 +42,7 @@ public class ListQueryRulesetsAction extends ActionType<ListQueryRulesetsAction.
     public static class Request extends ActionRequest implements ToXContentObject {
         private final PageParams pageParams;
 
-        public static final ParseField PAGE_PARAMS = new ParseField("pageParams");
+        private static final ParseField PAGE_PARAMS = new ParseField("pageParams");
 
         public Request(StreamInput in) throws IOException {
             super(in);

@@ -38,7 +38,7 @@ public class DeleteQueryRulesetAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends ActionRequest implements ToXContentObject {
         private final String rulesetId;
 
-        public static final ParseField RULES_ID = new ParseField("rules_id");
+        private static final ParseField RULES_ID = new ParseField("rules_id");
 
         public Request(StreamInput in) throws IOException {
             super(in);

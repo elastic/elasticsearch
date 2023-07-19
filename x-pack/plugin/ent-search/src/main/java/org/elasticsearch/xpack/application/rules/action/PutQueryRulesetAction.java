@@ -46,7 +46,7 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
     public static class Request extends ActionRequest implements ToXContentObject {
 
         private final QueryRuleset queryRuleset;
-        public static final ParseField QUERY_RULE_SET = new ParseField("queryRuleset");
+        private static final ParseField QUERY_RULE_SET = new ParseField("queryRuleset");
 
         public Request(StreamInput in) throws IOException {
             super(in);

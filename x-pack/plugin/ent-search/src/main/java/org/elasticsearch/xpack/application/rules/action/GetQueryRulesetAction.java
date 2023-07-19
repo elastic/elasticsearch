@@ -40,7 +40,7 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
 
     public static class Request extends ActionRequest implements ToXContentObject {
         private final String rulesetId;
-        public static final ParseField RULES_ID = new ParseField("rules_id");
+        private static final ParseField RULES_ID = new ParseField("rules_id");
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -114,7 +114,7 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final QueryRuleset queryRuleset;
-        public static final ParseField QUERY_RULE_SET = new ParseField("queryRuleset");
+        private static final ParseField QUERY_RULE_SET = new ParseField("queryRuleset");
 
         public Response(StreamInput in) throws IOException {
             super(in);

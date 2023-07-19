@@ -90,7 +90,7 @@ public record RollupShardTaskParams(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_500_038;
+        return TransportVersion.V_8_500_040;
     }
 
     @Override

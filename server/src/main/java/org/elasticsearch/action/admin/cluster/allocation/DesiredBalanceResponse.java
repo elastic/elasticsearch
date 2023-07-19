@@ -289,8 +289,18 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
 
     public record ShardAssignmentView(Set<String> nodeIds, int total, int unassigned, int ignored) implements Writeable, ToXContentObject {
 
+        public static final ShardAssignmentView EMPTY = new ShardAssignmentView(Set.of(), 0, 0, 0);
+
         public static ShardAssignmentView from(StreamInput in) throws IOException {
-            return new ShardAssignmentView(in.readSet(StreamInput::readString), in.readVInt(), in.readVInt(), in.readVInt());
+            final var nodeIds = in.readSet(StreamInput::readString);
+            final var total = in.readVInt();
+            final var unassigned = in.readVInt();
+            final var ignored = in.readVInt();
+            if (nodeIds.isEmpty() && total == 0 && unassigned == 0 && ignored == 0) {
+                return EMPTY;
+            } else {
+                return new ShardAssignmentView(nodeIds, total, unassigned, ignored);
+            }
         }
 
         @Override

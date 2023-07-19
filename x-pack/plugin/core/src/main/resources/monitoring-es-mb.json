@@ -916,6 +916,24 @@
                             }
                           }
                         },
+                        "force_merge": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
                         "write": {
                           "properties": {
                             "rejected": {

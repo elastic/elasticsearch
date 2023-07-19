@@ -77,6 +77,8 @@ https://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/
 algorithm, which counts based on the hashes of the values with some interesting
 properties:
 
+// tag::explanation[]
+
  * configurable precision, which decides on how to trade memory for accuracy,
  * excellent accuracy on low-cardinality sets,
  * fixed memory usage: no matter if there are tens or billions of unique values,
@@ -157,8 +159,10 @@ accuracy. Also note that even with a threshold as low as 100, the error
 remains very low (1-6% as seen in the above graph) even when counting millions of items.
 
 The HyperLogLog++ algorithm depends on the leading zeros of hashed
-values, the exact distributions of hashes in a dataset can affect the 
+values, the exact distributions of hashes in a dataset can affect the
 accuracy of the cardinality.
+
+// end::explanation[]
 
 ==== Pre-computed hashes
 
@@ -249,7 +253,7 @@ There are different mechanisms by which cardinality aggregations can be executed
 
 Additionally, there are two "heuristic based" modes.  These modes will cause
 Elasticsearch to use some data about the state of the index to choose an
-appropriate execution method.  The two heuristics are: 
+appropriate execution method.  The two heuristics are:
  - `save_time_heuristic` - this is the default in Elasticsearch 8.4 and later.
  - `save_memory_heuristic` - this was the default in Elasticsearch 8.3 and
    earlier

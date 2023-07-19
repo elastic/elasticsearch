@@ -77,7 +77,7 @@ public final class DocumentParser {
             // IOException from jackson, we don't have any useful location information here
             throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error parsing document", e);
         }
-        context.path().remove();// TODO-MP this is quite bad, find a better place!
+
         assert context.path.pathAsText("").isEmpty() : "found leftover path elements: " + context.path.pathAsText("");
 
         return new ParsedDocument(
@@ -262,10 +262,7 @@ public final class DocumentParser {
         }
 
         innerParseObject(context);
-        // // TODO-MP is this a good idea?
-        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
-            parser.nextToken();
-        }
+
         // restore the enable path flag
         if (context.parent().isNested()) {
             copyNestedFields(context, (NestedObjectMapper) context.parent());
@@ -305,6 +302,7 @@ public final class DocumentParser {
                     }
                     break;
                 case START_OBJECT:
+                    parser.nextToken();
                     parseObject(context, currentFieldName);
                     break;
                 case START_ARRAY:
@@ -433,11 +431,52 @@ public final class DocumentParser {
             }
             parseObjectOrField(context, objectMapper);
             context.path().setWithinLeafObject(false);
-            context.path().remove();
         } else {
-            context.parser().nextToken();
-            innerParseObject(context);
+            if (context.parent().subobjects()) {
+                parseObjectDynamic(context, currentFieldName); // TODO-MP maybe here we should not remove context.path().remove()
+            } else {
+                innerParseObject(context);
+            }
         }
+        context.path().remove();
+    }
+
+    private static void parseObjectDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
+        if (context.dynamic() == ObjectMapper.Dynamic.STRICT) {
+            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), context.parent().fullPath(), currentFieldName);
+        } else if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
+            failIfMatchesRoutingPath(context, currentFieldName);
+            // not dynamic, read everything up to end object
+            context.parser().skipChildren();
+        } else {
+            Mapper dynamicObjectMapper;
+            if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME) {
+                // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
+                // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
+                dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
+            } else {
+                dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
+                context.addDynamicMapper(dynamicObjectMapper);
+            }
+
+            if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
+                throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
+            }
+            if (dynamicObjectMapper instanceof ObjectMapper objectMapper) {
+                if (objectMapper.subobjects() == false) {
+                    context.path().setWithinLeafObject(true);
+                }
+            }
+            parseObjectOrField(context, dynamicObjectMapper);
+            context.path().setWithinLeafObject(false);
+        }
+    }
+
+    private static void throwOnCreateDynamicNestedViaCopyTo(Mapper dynamicObjectMapper, DocumentParserContext context) {
+        throw new DocumentParsingException(
+            context.parser().getTokenLocation(),
+            "It is forbidden to create dynamic nested objects ([" + dynamicObjectMapper.name() + "]) through `copy_to`"
+        );
     }
 
     private static void parseArray(DocumentParserContext context, String lastFieldName) throws IOException {

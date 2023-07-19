@@ -26,6 +26,9 @@ public final class NestedUtils {
     /**
      * Partition a set of input objects by the children of a specific nested scope
      *
+     * The returned map will contain an entry for all children, even if some of them
+     * are empty in the inputs.
+     *
      * All children, and all input paths, must begin with the scope.
      *
      * @param scope         the nested scope to base partitions on
@@ -45,6 +48,13 @@ public final class NestedUtils {
             return Map.of(scope, inputs);
         }
         Map<String, List<T>> output = new HashMap<>();
+        output.put(scope, new ArrayList<>());
+        for (String child : children) {
+            output.put(child, new ArrayList<>());
+        }
+        if (inputs.isEmpty()) {
+            return output;
+        }
         Iterator<String> childrenIterator = children.stream().sorted().iterator();
         String currentChild = childrenIterator.next();
         Iterator<T> inputIterator = inputs.stream().sorted(Comparator.comparing(pathFunction)).iterator();
@@ -52,7 +62,7 @@ public final class NestedUtils {
         String currentInputName = pathFunction.apply(currentInput);
         assert currentInputName.startsWith(scope);
         while (currentInputName.compareTo(currentChild) < 0) {
-            output.computeIfAbsent(scope, s -> new ArrayList<>()).add(currentInput);
+            output.get(scope).add(currentInput);
             if (inputIterator.hasNext() == false) {
                 return output;
             }
@@ -62,7 +72,7 @@ public final class NestedUtils {
         }
         while (currentChild != null) {
             if (currentInputName.startsWith(currentChild + ".")) {
-                output.computeIfAbsent(currentChild, s -> new ArrayList<>()).add(currentInput);
+                output.get(currentChild).add(currentInput);
                 if (inputIterator.hasNext() == false) {
                     return output;
                 }
@@ -75,7 +85,7 @@ public final class NestedUtils {
                 }
                 currentChild = childrenIterator.next();
                 if (currentChild == null || currentInputName.compareTo(currentChild) < 0) {
-                    output.computeIfAbsent(scope, s -> new ArrayList<>()).add(currentInput);
+                    output.get(scope).add(currentInput);
                     if (inputIterator.hasNext() == false) {
                         return output;
                     }
@@ -85,11 +95,12 @@ public final class NestedUtils {
                 }
             }
         }
-        output.computeIfAbsent(scope, s -> new ArrayList<>()).add(currentInput);
-        for (; inputIterator.hasNext(); currentInput = inputIterator.next()) {
+        output.get(scope).add(currentInput);
+        while (inputIterator.hasNext()) {
+            currentInput = inputIterator.next();
             currentInputName = pathFunction.apply(currentInput);
             assert currentInputName.startsWith(scope);
-            output.computeIfAbsent(scope, s -> new ArrayList<>()).add(currentInput);
+            output.get(scope).add(currentInput);
         }
         return output;
     }

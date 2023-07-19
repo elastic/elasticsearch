@@ -26,7 +26,9 @@ public class NestedUtilsTests extends ESTestCase {
                 "child1",
                 List.of("child1.grandchild", "child1.grandchild2"),
                 "child2",
-                List.of("child2.grandchild")
+                List.of("child2.grandchild"),
+                "stepchild",
+                List.of()
             ),
             partitioned
         );
@@ -51,9 +53,36 @@ public class NestedUtilsTests extends ESTestCase {
                 "a.child1",
                 List.of("a.child1.grandchild", "a.child1.grandchild2"),
                 "a.child2",
-                List.of("a.child2.grandchild")
+                List.of("a.child2.grandchild"),
+                "a.stepchild",
+                List.of()
             ),
             partitioned
+        );
+    }
+
+    public void testScopedPartitionWithMultifields() {
+        List<String> children = List.of("user.address");
+        List<String> inputs = List.of("user.address.city", "user.address.zip", "user.first", "user.last", "user.last.keyword");
+        Map<String, List<String>> partitioned = NestedUtils.partitionByChildren("user", children, inputs, s -> s);
+        assertEquals(
+            Map.of(
+                "user",
+                List.of("user.first", "user.last", "user.last.keyword"),
+                "user.address",
+                List.of("user.address.city", "user.address.zip")
+            ),
+            partitioned
+        );
+    }
+
+    public void testEmptyCases() {
+        // No children, everything gets mapped under the scope
+        assertEquals(Map.of("scope", List.of("foo")), NestedUtils.partitionByChildren("scope", List.of(), List.of("foo"), s -> s));
+        // No inputs, we get an empty map under the scope
+        assertEquals(
+            Map.of("scope", List.of(), "scope.child", List.of()),
+            NestedUtils.partitionByChildren("scope", List.of("scope.child"), List.<String>of(), s -> s)
         );
     }
 

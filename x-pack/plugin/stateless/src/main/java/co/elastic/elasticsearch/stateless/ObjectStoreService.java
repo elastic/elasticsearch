@@ -92,6 +92,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 return Settings.builder().put("location", basePath != null ? PathUtils.get(bucket, basePath).toString() : bucket).build();
             }
         },
+        MOCK("location") {
+            @Override
+            public Settings createRepositorySettings(String bucket, String client, String basePath) {
+                return FS.createRepositorySettings(bucket, client, basePath);
+            }
+        },
         S3("bucket"),
         GCS("bucket"),
         AZURE("container");
@@ -113,7 +119,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
 
         public boolean needsClient() {
-            return this != FS;
+            return this != FS && this != MOCK;
         }
 
         @Override

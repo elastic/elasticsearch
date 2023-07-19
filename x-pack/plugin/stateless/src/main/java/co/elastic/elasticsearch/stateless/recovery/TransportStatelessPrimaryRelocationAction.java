@@ -135,6 +135,7 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
         final var indexShard = indexService.getShard(request.shardId().id());
         assert indexShard.getEngineOrNull() instanceof IndexEngine;
         final var engine = (IndexEngine) indexShard.getEngineOrNull();
+        indexShard.recoveryStats().incCurrentAsSource();
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
         // operations are blocked. NB the flush has force=false so may do nothing.
@@ -142,7 +143,10 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
         logger.trace("[{}] flushing before acquiring all primary operation permits", request.shardId());
         ActionListener.run(preFlushStep, l -> engine.flush(false, false, l));
 
-        preFlushStep.addListener(listener.delegateFailureAndWrap((listener0, preFlushResult) -> {
+        preFlushStep.addListener(listener.delegateResponse((l, e) -> {
+            indexShard.recoveryStats().decCurrentAsSource();
+            l.onFailure(e);
+        }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             logger.trace("[{}] acquiring all primary operation permits", request.shardId());
             indexShard.relocated(request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
                 logger.trace("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
@@ -192,6 +196,7 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(handoffResultListener0.map(ignored -> {
                             logger.trace("[{}] primary context handoff succeeded", request.shardId());
+                            indexShard.recoveryStats().decCurrentAsSource();
                             return null;
                         }), in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC)
                     );

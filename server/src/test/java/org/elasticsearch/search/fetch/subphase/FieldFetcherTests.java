@@ -829,14 +829,15 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             }}}
             """);
 
-        String source =
-            """
-                { "user" : [ { "first" : "John", "last" : "Smith", "address" : [ { "city" : "Berlin", "zip" : "1111" }, { "city" : "Ottawa", "zip" : "1111" } ] } ] }
-                """;
+        String source = """
+            { "user" : [ { "first" : "John",
+                           "last" : "Smith",
+                           "address" : [ { "city" : "Berlin", "zip" : "1111" }, { "city" : "Ottawa", "zip" : "1111" } ] } ] }
+            """;
 
         var results = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
         DocumentField user = results.get("user");
-        Map<String, Object> fields = (Map<String, Object>) user.getValues().get(0);
+        Map<?, ?> fields = (Map<?, ?>) user.getValues().get(0);
         assertThat(fields.keySet(), hasSize(4));
     }
 

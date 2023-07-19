@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -69,10 +70,6 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, ""));
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, MATCH_CRITERIA, "rulesetId"));
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, Collections.emptyMap(), "rulesetId"));
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("invalid_key", "invalid_value"), "rulesetId")
-        );
     }
 
     public void testFromJson() throws IOException {
@@ -174,5 +171,13 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         }
 
         return super.simulateMethod(method, args);
+    }
+
+    @Override
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
+        // document contains arbitrary content, no error expected when an object is added to it
+        final Map<String, String> objects = new HashMap<>();
+        objects.put(RuleQueryBuilder.MATCH_CRITERIA_FIELD.getPreferredName(), null);
+        return objects;
     }
 }

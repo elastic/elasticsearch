@@ -162,7 +162,7 @@ public abstract class AbstractProfilingPersistenceManager<T extends AbstractProf
         final IndexRoutingTable routingTable = state.getRoutingTable().index(metadata.getIndex());
         ClusterHealthStatus indexHealth = new ClusterIndexHealth(metadata, routingTable).getStatus();
         if (indexHealth == ClusterHealthStatus.RED) {
-            logger.debug("Index [{}] health status is RED, any pending mapping upgrades will wait until this changes", metadata.getIndex());
+            logger.trace("Index [{}] health status is RED, any pending mapping upgrades will wait until this changes", metadata.getIndex());
             return new IndexState<>(index, metadata.getIndex(), Status.UNHEALTHY);
         }
         MappingMetadata mapping = metadata.mapping();

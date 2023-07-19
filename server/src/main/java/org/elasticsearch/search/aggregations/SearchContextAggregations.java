@@ -16,7 +16,6 @@ import org.apache.lucene.search.CollectorManager;
 public class SearchContextAggregations {
 
     private final AggregatorFactories factories;
-    private Aggregator[] aggregators;
     private CollectorManager<Collector, Void> aggCollectorManager;
 
     /**
@@ -28,19 +27,6 @@ public class SearchContextAggregations {
 
     public AggregatorFactories factories() {
         return factories;
-    }
-
-    public Aggregator[] aggregators() {
-        return aggregators;
-    }
-
-    /**
-     * Registers all the created aggregators (top level aggregators) for the search execution context.
-     *
-     * @param aggregators The top level aggregators of the search execution.
-     */
-    public void aggregators(Aggregator[] aggregators) {
-        this.aggregators = aggregators;
     }
 
     /**

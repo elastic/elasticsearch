@@ -243,8 +243,9 @@ is met.
           }
         },
         "version": 1,
-        "modified_date_in_millis": 1539609701576
-      }
+        "modified_date_in_millis": 1539609701576,
+      },
+      "actions_order_version": 2
     }
   }
 }

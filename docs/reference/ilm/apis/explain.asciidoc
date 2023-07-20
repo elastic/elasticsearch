@@ -122,7 +122,8 @@ that the index is managed and in the `new` phase:
       "action": "complete"
       "action_time_millis": 1538475653317,          <8>
       "step": "complete",
-      "step_time_millis": 1538475653317             <9>
+      "step_time_millis": 1538475653317,             <9>
+      "actions_order_version": 2                     <10>
     }
   }
 }
@@ -141,6 +142,9 @@ the index via the `max_age`)
 <7> When the index entered the current phase
 <8> When the index entered the current action
 <9> When the index entered the current step
+<10> The version of the actions order this phases is executing. Once an index enters a phase
+it will execute the actions in the order they were defined when entering the phase, regardless
+of any new order having been made available in the system after a potential upgrade.
 
 Once the policy is running on the index, the response includes a
 `phase_execution` object that shows the definition of the current phase.
@@ -182,7 +186,8 @@ phase completes.
         "version": 3, <2>
         "modified_date": "2018-10-15T13:21:41.576Z", <3>
         "modified_date_in_millis": 1539609701576 <4>
-      }
+      },
+      "actions_order_version": 2
     }
   }
 }
@@ -247,7 +252,8 @@ information for the step that's being performed on the index.
         "version": 2,
         "modified_date": "2018-10-15T13:20:02.489Z",
         "modified_date_in_millis": 1539609602489
-      }
+      },
+      "actions_order_version": 2
     }
   }
 }
@@ -308,7 +314,8 @@ the case.
         "version": 3,
         "modified_date": "2018-10-15T13:21:41.576Z",
         "modified_date_in_millis": 1539609701576
-      }
+      },
+      "actions_order_version": 2
     }
   }
 }

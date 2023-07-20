@@ -19,8 +19,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
@@ -76,7 +76,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -90,6 +89,11 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     @Override
     protected Collection<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
+    }
+
+    @Override
+    protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
+        return Map.of(REMOTE_CLUSTER, randomBoolean());
     }
 
     @Override
@@ -121,8 +125,11 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                     throw new IllegalStateException("not implemented");
                 }
             );
+            QuerySpec<ThrowingQueryBuilder> throwingSpec = new QuerySpec<>(ThrowingQueryBuilder.NAME, ThrowingQueryBuilder::new, p -> {
+                throw new IllegalStateException("not implemented");
+            });
 
-            return List.of(slowRunningSpec);
+            return List.of(slowRunningSpec, throwingSpec);
         }
     }
 
@@ -186,8 +193,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
             assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
             assertThat(localClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
-            assertThat(localClusterSearchInfo.getSearchLatencyMillis(),
-                lessThanOrEqualTo(finishedResponse.getSearchResponse().getTook().millis()));
 
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterSearchInfo);
@@ -198,8 +203,605 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
             assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
             assertThat(remoteClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
-            assertThat(remoteClusterSearchInfo.getSearchLatencyMillis(),
-                lessThanOrEqualTo(finishedResponse.getSearchResponse().getTook().millis()));
+        }
+
+        // check that the async_search/status response includes the same cluster details
+        {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+
+            SearchResponse.Clusters clusters = statusResponse.getClusters();
+            assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getSuccessful(), equalTo(2));
+            assertThat(clusters.getSkipped(), equalTo(0));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(localClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
+        }
+    }
+
+    public void testClusterDetailsAfterCCSWithFailuresOnAllShards() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
+
+        SearchListenerPlugin.blockQueryPhase();
+
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        request.setCcsMinimizeRoundtrips(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        request.setKeepOnCompletion(true);
+        // shardId -1 means to throw the Exception on all shards, so should result in complete search failure
+        ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), -1);
+        request.getSearchRequest().source(new SearchSourceBuilder().query(queryBuilder).size(10));
+
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertNotNull(response.getSearchResponse());
+        assertTrue(response.isRunning());
+
+        {
+            SearchResponse.Clusters clusters = response.getSearchResponse().getClusters();
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertTrue("search cluster results should be marked as partial", clusters.hasPartialResults());
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+        }
+
+        SearchListenerPlugin.waitSearchStarted();
+        SearchListenerPlugin.allowQueryPhase();
+
+        assertBusy(() -> {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertFalse(statusResponse.isRunning());
+            assertNotNull(statusResponse.getCompletionStatus());
+        });
+
+        {
+            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+
+            SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getSuccessful(), equalTo(0));
+            assertThat(clusters.getSkipped(), equalTo(2));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
+            assertNull(localClusterSearchInfo.getTotalShards());
+            assertNull(localClusterSearchInfo.getSuccessfulShards());
+            assertNull(localClusterSearchInfo.getSkippedShards());
+            assertNull(localClusterSearchInfo.getFailedShards());
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(1));
+            assertNull(localClusterSearchInfo.getSearchLatencyMillis());
+            ShardSearchFailure localShardSearchFailure = localClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", localShardSearchFailure.reason().contains("index corrupted"));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            SearchResponse.Cluster.Status expectedStatus = skipUnavailable
+                ? SearchResponse.Cluster.Status.SKIPPED
+                : SearchResponse.Cluster.Status.FAILED;
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
+            assertNull(remoteClusterSearchInfo.getTotalShards());
+            assertNull(remoteClusterSearchInfo.getSuccessfulShards());
+            assertNull(remoteClusterSearchInfo.getSkippedShards());
+            assertNull(remoteClusterSearchInfo.getFailedShards());
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
+            assertNull(remoteClusterSearchInfo.getSearchLatencyMillis());
+            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        }
+        // check that the async_search/status response includes the same cluster details
+        {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            SearchResponse.Clusters clusters = statusResponse.getClusters();
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getSuccessful(), equalTo(0));
+            assertThat(clusters.getSkipped(), equalTo(2));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
+            assertNull(localClusterSearchInfo.getTotalShards());
+            assertNull(localClusterSearchInfo.getSuccessfulShards());
+            assertNull(localClusterSearchInfo.getSkippedShards());
+            assertNull(localClusterSearchInfo.getFailedShards());
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(1));
+            assertNull(localClusterSearchInfo.getSearchLatencyMillis());
+            ShardSearchFailure localShardSearchFailure = localClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", localShardSearchFailure.reason().contains("index corrupted"));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            SearchResponse.Cluster.Status expectedStatus = skipUnavailable
+                ? SearchResponse.Cluster.Status.SKIPPED
+                : SearchResponse.Cluster.Status.FAILED;
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
+            assertNull(remoteClusterSearchInfo.getTotalShards());
+            assertNull(remoteClusterSearchInfo.getSuccessfulShards());
+            assertNull(remoteClusterSearchInfo.getSkippedShards());
+            assertNull(remoteClusterSearchInfo.getFailedShards());
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
+            assertNull(remoteClusterSearchInfo.getSearchLatencyMillis());
+            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        }
+    }
+
+    public void testClusterDetailsAfterCCSWithFailuresOnOneShardOnly() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
+
+        SearchListenerPlugin.blockQueryPhase();
+
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        request.setCcsMinimizeRoundtrips(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        request.setKeepOnCompletion(true);
+        // shardId 0 means to throw the Exception only on shard 0; all others should work
+        ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), 0);
+        request.getSearchRequest().source(new SearchSourceBuilder().query(queryBuilder).size(10));
+
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertNotNull(response.getSearchResponse());
+        assertTrue(response.isRunning());
+
+        {
+            SearchResponse.Clusters clusters = response.getSearchResponse().getClusters();
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertTrue("search cluster results should be marked as partial", clusters.hasPartialResults());
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+        }
+
+        SearchListenerPlugin.waitSearchStarted();
+        SearchListenerPlugin.allowQueryPhase();
+
+        assertBusy(() -> {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertFalse(statusResponse.isRunning());
+            assertNotNull(statusResponse.getCompletionStatus());
+        });
+
+        {
+            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+
+            SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getSuccessful(), equalTo(2));
+            assertThat(clusters.getSkipped(), equalTo(0));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
+            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards - 1));
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(1));
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(1));
+            assertThat(localClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
+            ShardSearchFailure localShardSearchFailure = localClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", localShardSearchFailure.reason().contains("index corrupted"));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards - 1));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(1));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
+            assertThat(remoteClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
+            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        }
+        // check that the async_search/status response includes the same cluster details
+        {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            SearchResponse.Clusters clusters = statusResponse.getClusters();
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getSuccessful(), equalTo(2));
+            assertThat(clusters.getSkipped(), equalTo(0));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
+            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards - 1));
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(1));
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(1));
+            assertThat(localClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
+            ShardSearchFailure localShardSearchFailure = localClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", localShardSearchFailure.reason().contains("index corrupted"));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards - 1));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(1));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
+            assertThat(remoteClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
+            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        }
+    }
+
+    public void testClusterDetailsAfterCCSWithFailuresOnOneClusterOnly() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
+
+        SearchListenerPlugin.blockQueryPhase();
+
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        request.setCcsMinimizeRoundtrips(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        request.setKeepOnCompletion(true);
+        // throw Exception of all shards of remoteIndex, but against localIndex
+        ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(
+            randomLong(),
+            new IllegalStateException("index corrupted"),
+            remoteIndex
+        );
+        request.getSearchRequest().source(new SearchSourceBuilder().query(queryBuilder).size(10));
+
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertNotNull(response.getSearchResponse());
+        assertTrue(response.isRunning());
+        {
+            SearchResponse.Clusters clusters = response.getSearchResponse().getClusters();
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertTrue("search cluster results should be marked as partial", clusters.hasPartialResults());
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+        }
+
+        SearchListenerPlugin.waitSearchStarted();
+        SearchListenerPlugin.allowQueryPhase();
+
+        assertBusy(() -> {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertFalse(statusResponse.isRunning());
+            assertNotNull(statusResponse.getCompletionStatus());
+        });
+
+        {
+            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+
+            SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getSuccessful(), equalTo(1));
+            assertThat(clusters.getSkipped(), equalTo(1));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(localClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            SearchResponse.Cluster.Status expectedStatus = skipUnavailable
+                ? SearchResponse.Cluster.Status.SKIPPED
+                : SearchResponse.Cluster.Status.FAILED;
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
+            assertNull(remoteClusterSearchInfo.getTotalShards());
+            assertNull(remoteClusterSearchInfo.getSuccessfulShards());
+            assertNull(remoteClusterSearchInfo.getSkippedShards());
+            assertNull(remoteClusterSearchInfo.getFailedShards());
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
+            assertNull(remoteClusterSearchInfo.getSearchLatencyMillis());
+            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        }
+        // check that the async_search/status response includes the same cluster details
+        {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            SearchResponse.Clusters clusters = statusResponse.getClusters();
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getSuccessful(), equalTo(1));
+            assertThat(clusters.getSkipped(), equalTo(1));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(localClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            SearchResponse.Cluster.Status expectedStatus = skipUnavailable
+                ? SearchResponse.Cluster.Status.SKIPPED
+                : SearchResponse.Cluster.Status.FAILED;
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
+            assertNull(remoteClusterSearchInfo.getTotalShards());
+            assertNull(remoteClusterSearchInfo.getSuccessfulShards());
+            assertNull(remoteClusterSearchInfo.getSkippedShards());
+            assertNull(remoteClusterSearchInfo.getFailedShards());
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
+            assertNull(remoteClusterSearchInfo.getSearchLatencyMillis());
+            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        }
+    }
+
+    // for remote-only queries, we can't use the SearchListenerPlugin since that listens for search
+    // stage on the local cluster, so we only test final state of the search response
+    public void testRemoteClusterOnlyCCSSuccessfulResult() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
+
+        // search only the remote cluster
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(REMOTE_CLUSTER + ":" + remoteIndex);
+        request.setCcsMinimizeRoundtrips(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        request.setKeepOnCompletion(true);
+        request.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1000));
+
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertNotNull(response.getSearchResponse());
+
+        assertBusy(() -> {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertFalse(statusResponse.isRunning());
+            assertNotNull(statusResponse.getCompletionStatus());
+        });
+
+        {
+            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+
+            SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
+            assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
+            assertThat(clusters.getTotal(), equalTo(1));
+            assertThat(clusters.getSuccessful(), equalTo(1));
+            assertThat(clusters.getSkipped(), equalTo(0));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNull(localClusterSearchInfo);
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
+        }
+
+        // check that the async_search/status response includes the same cluster details
+        {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+
+            SearchResponse.Clusters clusters = statusResponse.getClusters();
+            assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
+            assertThat(clusters.getTotal(), equalTo(1));
+            assertThat(clusters.getSuccessful(), equalTo(1));
+            assertThat(clusters.getSkipped(), equalTo(0));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNull(localClusterSearchInfo);
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
+        }
+    }
+
+    public void testRemoteClusterOnlyCCSWithFailuresOnOneShardOnly() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
+
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(REMOTE_CLUSTER + ":" + remoteIndex);
+        request.setCcsMinimizeRoundtrips(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        request.setKeepOnCompletion(true);
+        // shardId 0 means to throw the Exception only on shard 0; all others should work
+        ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), 0);
+        request.getSearchRequest().source(new SearchSourceBuilder().query(queryBuilder).size(10));
+
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertNotNull(response.getSearchResponse());
+        assertTrue(response.isRunning());
+
+        assertBusy(() -> {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertFalse(statusResponse.isRunning());
+            assertNotNull(statusResponse.getCompletionStatus());
+        });
+
+        {
+            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+
+            SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
+            assertThat(clusters.getTotal(), equalTo(1));
+            assertThat(clusters.getSuccessful(), equalTo(1));
+            assertThat(clusters.getSkipped(), equalTo(0));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNull(localClusterSearchInfo);
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards - 1));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(1));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
+            assertThat(remoteClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
+            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        }
+        // check that the async_search/status response includes the same cluster details
+        {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            SearchResponse.Clusters clusters = statusResponse.getClusters();
+            assertThat(clusters.getTotal(), equalTo(1));
+            assertThat(clusters.getSuccessful(), equalTo(1));
+            assertThat(clusters.getSkipped(), equalTo(0));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNull(localClusterSearchInfo);
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards - 1));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(1));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
+            assertThat(remoteClusterSearchInfo.getSearchLatencyMillis(), greaterThan(0L));
+            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        }
+    }
+
+    public void testRemoteClusterOnlyCCSWithFailuresOnAllShards() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
+
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(REMOTE_CLUSTER + ":" + remoteIndex);
+        request.setCcsMinimizeRoundtrips(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        request.setKeepOnCompletion(true);
+        // shardId -1 means to throw the Exception on all shards, so should result in complete search failure
+        ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), -1);
+        request.getSearchRequest().source(new SearchSourceBuilder().query(queryBuilder).size(10));
+
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertNotNull(response.getSearchResponse());
+        assertTrue(response.isRunning());
+
+        assertBusy(() -> {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertFalse(statusResponse.isRunning());
+            assertNotNull(statusResponse.getCompletionStatus());
+        });
+
+        {
+            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+
+            SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
+            assertThat(clusters.getTotal(), equalTo(1));
+            assertThat(clusters.getSuccessful(), equalTo(0));
+            assertThat(clusters.getSkipped(), equalTo(1));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNull(localClusterSearchInfo);
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            SearchResponse.Cluster.Status expectedStatus = skipUnavailable
+                ? SearchResponse.Cluster.Status.SKIPPED
+                : SearchResponse.Cluster.Status.FAILED;
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
+            assertNull(remoteClusterSearchInfo.getTotalShards());
+            assertNull(remoteClusterSearchInfo.getSuccessfulShards());
+            assertNull(remoteClusterSearchInfo.getSkippedShards());
+            assertNull(remoteClusterSearchInfo.getFailedShards());
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
+            if (skipUnavailable) {
+                assertThat(remoteClusterSearchInfo.getSearchLatencyMillis().longValue(), greaterThan(0L));
+            } else {
+                assertNull(remoteClusterSearchInfo.getSearchLatencyMillis());
+            }
+            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        }
+        // check that the async_search/status response includes the same cluster details
+        {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            SearchResponse.Clusters clusters = statusResponse.getClusters();
+            assertThat(clusters.getTotal(), equalTo(1));
+            assertThat(clusters.getSuccessful(), equalTo(0));
+            assertThat(clusters.getSkipped(), equalTo(1));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNull(localClusterSearchInfo);
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            SearchResponse.Cluster.Status expectedStatus = skipUnavailable
+                ? SearchResponse.Cluster.Status.SKIPPED
+                : SearchResponse.Cluster.Status.FAILED;
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
+            assertNull(remoteClusterSearchInfo.getTotalShards());
+            assertNull(remoteClusterSearchInfo.getSuccessfulShards());
+            assertNull(remoteClusterSearchInfo.getSkippedShards());
+            assertNull(remoteClusterSearchInfo.getFailedShards());
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
+            if (skipUnavailable) {
+                assertThat(remoteClusterSearchInfo.getSearchLatencyMillis().longValue(), greaterThan(0L));
+            } else {
+                assertNull(remoteClusterSearchInfo.getSearchLatencyMillis());
+            }
+            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
+            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
         }
     }
 
@@ -554,31 +1156,11 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         String remoteIndex = "prod";
         int numShardsRemote = randomIntBetween(3, 6);
-        // Settings remoteSettings = indexSettings(numShardsRemote, 0).build();
         final InternalTestCluster remoteCluster = cluster(REMOTE_CLUSTER);
-        remoteCluster.ensureAtLeastNumDataNodes(1);
+        remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
         final Settings.Builder remoteSettings = Settings.builder();
         remoteSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShardsRemote);
-        if (randomBoolean()) {
-            remoteCluster.ensureAtLeastNumDataNodes(3);
-            List<String> remoteDataNodes = remoteCluster.clusterService()
-                .state()
-                .nodes()
-                .stream()
-                .filter(DiscoveryNode::canContainData)
-                .map(DiscoveryNode::getName)
-                .toList();
-            assertThat(remoteDataNodes.size(), Matchers.greaterThanOrEqualTo(3));
-            List<String> seedNodes = randomSubsetOf(between(1, remoteDataNodes.size() - 1), remoteDataNodes);
-            disconnectFromRemoteClusters();
-            configureRemoteCluster(REMOTE_CLUSTER, seedNodes);
-            if (randomBoolean()) {
-                // Using proxy connections
-                remoteSettings.put("index.routing.allocation.exclude._name", String.join(",", seedNodes));
-            } else {
-                remoteSettings.put("index.routing.allocation.include._name", String.join(",", seedNodes));
-            }
-        }
+
         assertAcked(
             client(REMOTE_CLUSTER).admin()
                 .indices()
@@ -596,11 +1178,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         );
         indexDocs(client(REMOTE_CLUSTER), remoteIndex);
 
+        String skipUnavailableKey = Strings.format("cluster.remote.%s.skip_unavailable", REMOTE_CLUSTER);
+        Setting<?> skipUnavailableSetting = cluster(REMOTE_CLUSTER).clusterService().getClusterSettings().get(skipUnavailableKey);
+        boolean skipUnavailable = (boolean) cluster("").clusterService().getClusterSettings().get(skipUnavailableSetting);
+
         Map<String, Object> clusterInfo = new HashMap<>();
         clusterInfo.put("local.num_shards", numShardsLocal);
         clusterInfo.put("local.index", localIndex);
         clusterInfo.put("remote.num_shards", numShardsRemote);
         clusterInfo.put("remote.index", remoteIndex);
+        clusterInfo.put("remote.skip_unavailable", skipUnavailable);
         return clusterInfo;
     }
 

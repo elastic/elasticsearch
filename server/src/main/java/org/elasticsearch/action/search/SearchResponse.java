@@ -823,7 +823,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.searchLatencyMillis = searchLatencyMillis;
         }
 
-        public int getTotalShards() {
+        public Integer getTotalShards() {
             return totalShards;
         }
 
@@ -831,7 +831,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.totalShards = totalShards;
         }
 
-        public int getSuccessfulShards() {
+        public Integer getSuccessfulShards() {
             return successfulShards;
         }
 
@@ -839,7 +839,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.successfulShards = successfulShards;
         }
 
-        public int getSkippedShards() {
+        public Integer getSkippedShards() {
             return skippedShards;
         }
 
@@ -847,7 +847,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.skippedShards = skippedShards;
         }
 
-        public int getFailedShards() {
+        public Integer getFailedShards() {
             return failedShards;
         }
 

@@ -22,7 +22,12 @@ Post an event to an Analytics Collection.
 (Required, string) Analytics collection name you want to ingest event in.
 
 `<event_type>`::
-(Required, string) Analytics event type. Can be one of `page_view`, `search`, `search_click`
+(Required, string) Analytics event type. Can be one of `page_view`, `search`, `search_click`.
+
+[[post-analytics-collection-event-request-body]]
+==== {api-request-body-title}
+Full request body parameters can be found in {enterprise-search-ref}/analytics-events-reference.html[Enterprise Analytics Events^].
+
 
 [[post-analytics-collection-event-prereqs]]
 ==== {api-prereq-title}

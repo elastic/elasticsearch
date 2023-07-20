@@ -97,7 +97,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -106,6 +105,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import javax.crypto.SecretKey;
 
@@ -143,13 +143,12 @@ public class TokenServiceTests extends ESTestCase {
         .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
         .build();
 
-    private static final SecureRandom secureRandom = new SecureRandom();
-
     private Client client;
     private SecurityIndexManager securityMainIndex;
     private SecurityIndexManager securityTokensIndex;
     private ClusterService clusterService;
-    private DiscoveryNode oldNode;
+    private DiscoveryNode pre72OldNode;
+    private DiscoveryNode pre8500040OldNode;
     private Settings tokenServiceEnabledSettings = Settings.builder()
         .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
         .build();
@@ -224,11 +223,15 @@ public class TokenServiceTests extends ESTestCase {
         licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
 
-        // version 7.2 was an "inflection" point in the Token Service development (access_tokens as UUIDS, multiple concurrent refreshes,
-        // tokens docs on a separate index), let's test the TokenService works in a mixed cluster with nodes with versions prior to these
-        // developments
         if (randomBoolean()) {
-            oldNode = addAnother7071DataNode(this.clusterService);
+            // version 7.2 was an "inflection" point in the Token Service development (access_tokens as UUIDS, multiple concurrent
+            // refreshes,
+            // tokens docs on a separate index)
+            pre72OldNode = addAnother7071DataNode(this.clusterService);
+        }
+        if (randomBoolean()) {
+            // before refresh tokens used GET, i.e. TokenService#VERSION_GET_TOKEN_DOC_FOR_REFRESH
+            pre8500040OldNode = addAnotherPre8500DataNode(this.clusterService);
         }
     }
 
@@ -242,7 +245,19 @@ public class TokenServiceTests extends ESTestCase {
             version = Version.V_7_1_0;
             transportVersion = TransportVersion.V_7_1_0;
         }
+        return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
+    }
 
+    private static DiscoveryNode addAnotherPre8500DataNode(ClusterService clusterService) {
+        Version version;
+        TransportVersion transportVersion;
+        if (randomBoolean()) {
+            version = Version.V_8_8_1;
+            transportVersion = TransportVersion.V_8_8_1;
+        } else {
+            version = Version.V_8_9_0;
+            transportVersion = TransportVersion.V_8_500_015;
+        }
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
 
@@ -281,8 +296,8 @@ public class TokenServiceTests extends ESTestCase {
     public void testAttachAndGetToken() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // This test only makes sense in mixed clusters with pre v7.2.0 nodes where the Token Service Key is used (to encrypt tokens)
-        if (null == oldNode) {
-            oldNode = addAnother7071DataNode(this.clusterService);
+        if (null == pre72OldNode) {
+            pre72OldNode = addAnother7071DataNode(this.clusterService);
         }
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe", "admin"))
@@ -344,8 +359,8 @@ public class TokenServiceTests extends ESTestCase {
     public void testPassphraseWorks() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
-        if (null == oldNode) {
-            oldNode = addAnother7071DataNode(this.clusterService);
+        if (null == pre72OldNode) {
+            pre72OldNode = addAnother7071DataNode(this.clusterService);
         }
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe", "admin"))
@@ -389,8 +404,8 @@ public class TokenServiceTests extends ESTestCase {
     public void testGetTokenWhenKeyCacheHasExpired() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
-        if (null == oldNode) {
-            oldNode = addAnother7071DataNode(this.clusterService);
+        if (null == pre72OldNode) {
+            pre72OldNode = addAnother7071DataNode(this.clusterService);
         }
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe", "admin"))
@@ -433,8 +448,7 @@ public class TokenServiceTests extends ESTestCase {
             .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());
-        tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), authentication, authentication,
-                Collections.emptyMap(), tokenFuture);
+        tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), authentication, authentication, Map.of(), tokenFuture);
         final String accessToken = tokenFuture.get().getAccessToken();
         assertNotNull(accessToken);
         // mock token as invalidated
@@ -463,8 +477,7 @@ public class TokenServiceTests extends ESTestCase {
             .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(true);
-        tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), authentication, authentication,
-                Collections.emptyMap(), tokenFuture);
+        tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), authentication, authentication, Map.of(), tokenFuture);
         final String accessToken = tokenFuture.get().getAccessToken();
         final String clientRefreshToken = tokenFuture.get().getRefreshToken();
         assertNotNull(accessToken);
@@ -481,6 +494,11 @@ public class TokenServiceTests extends ESTestCase {
             assertThat(result.getInvalidatedTokens(), hasSize(1));
             assertThat(result.getPreviouslyInvalidatedTokens(), empty());
             assertThat(result.getErrors(), empty());
+            PlainActionFuture<TokenService.CreateTokenResult> refreshTokenFuture = new PlainActionFuture<>();
+            tokenService.refreshToken(clientRefreshToken, refreshTokenFuture);
+            ExecutionException e = expectThrows(ExecutionException.class, () -> refreshTokenFuture.get());
+            assertThat(e.getCause(), instanceOf(ElasticsearchSecurityException.class));
+            assertThat(e.getCause().toString(), containsString("invalid_grant"));
         }
     }
 
@@ -806,7 +824,7 @@ public class TokenServiceTests extends ESTestCase {
         }).when(client).get(any(GetRequest.class), anyActionListener());
 
         final SecurityIndexManager tokensIndex;
-        if (oldNode != null) {
+        if (pre72OldNode != null) {
             tokensIndex = securityMainIndex;
             when(securityTokensIndex.isAvailable()).thenReturn(false);
             when(securityTokensIndex.indexExists()).thenReturn(false);
@@ -866,7 +884,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testSupersedingTokenEncryption() throws Exception {
-        assumeTrue("Superseding tokens are only created in post 7.2 clusters", oldNode == null);
+        assumeTrue("Superseding tokens are only created in post 7.2 clusters", pre72OldNode == null);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, Clock.systemUTC());
         Authentication authentication = AuthenticationTests.randomAuthentication(null, null);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();

@@ -31,7 +31,7 @@ public class RestDeleteSecretsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.DELETE, "/_fleet/_fleet_secrets/{id}"));
+        return List.of(new Route(RestRequest.Method.DELETE, "/_fleet/secrets/{id}"));
     }
 
     @Override

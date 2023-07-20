@@ -181,6 +181,7 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         assertThat(responseBody, containsString("coordinator_idx"));
     }
 
+    // TODO: this fails right now with "this request accesses system indices" - is it still relevant?
     public void testCreationOfFleetSecrets() throws Exception {
         Request request = new Request("PUT", ".fleet-secrets");
         Response response = client().performRequest(request);

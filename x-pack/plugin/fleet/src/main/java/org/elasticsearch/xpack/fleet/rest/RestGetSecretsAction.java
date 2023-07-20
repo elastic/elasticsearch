@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.fleet.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.fleet.action.GetSecretAction;
 import org.elasticsearch.xpack.fleet.action.GetSecretRequest;
+import org.elasticsearch.xpack.fleet.action.GetSecretResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,7 +28,7 @@ public class RestGetSecretsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_fleet/_fleet_secrets/{id}"));
+        return List.of(new Route(RestRequest.Method.GET, "/_fleet/secrets/{id}"));
     }
 
     @Override

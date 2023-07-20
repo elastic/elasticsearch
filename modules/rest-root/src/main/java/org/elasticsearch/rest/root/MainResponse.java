@@ -167,7 +167,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             final String version = (String) value.get("number");
             final String minWireCompatVersion = (String) value.get("minimum_wire_compatibility_version");
             final String minIndexCompatVersion = (String) value.get("minimum_index_compatibility_version");
-            final boolean isProduction = Build.isProductionRelease(version);
             final String displayString = Build.defaultDisplayString(buildType, buildHash, buildDate, version);
 
             response.build = new Build(
@@ -179,7 +178,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
                 version,
                 minWireCompatVersion,
                 minIndexCompatVersion,
-                isProduction,
                 displayString
             );
             response.luceneVersion = ((String) value.get("lucene_version"));

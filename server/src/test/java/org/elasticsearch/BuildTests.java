@@ -18,9 +18,11 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.test.BuildUtils.mutateBuild;
+import static org.elasticsearch.test.BuildUtils.newBuild;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -40,9 +42,10 @@ public class BuildTests extends ESTestCase {
 
     public void testIsProduction() {
         String version = Math.abs(randomInt()) + "." + Math.abs(randomInt()) + "." + Math.abs(randomInt());
-        assertTrue(Build.isProductionRelease(version));
-        assertFalse(Build.isProductionRelease("7.0.0-SNAPSHOT"));
-        assertFalse(Build.isProductionRelease("Unknown"));
+        Build build = Build.current();
+        assertTrue(newBuild(build, Map.of("version", version, "isSnapshot", false)).isProductionRelease());
+        assertFalse(newBuild(build, Map.of("version", "7.0.0-SNAPSHOT", "isSnapshot", true)).isProductionRelease());
+        assertFalse(newBuild(build, Map.of("version", "7.0.0-alpha1", "isSnapshot", false)).isProductionRelease());
     }
 
     private static class WriteableBuild implements Writeable {
@@ -86,7 +89,6 @@ public class BuildTests extends ESTestCase {
                 randomAlphaOfLength(6),
                 randomAlphaOfLength(6),
                 randomAlphaOfLength(6),
-                randomBoolean(),
                 randomAlphaOfLength(6)
             )
         );

@@ -85,7 +85,6 @@ public class FeatureFlagTests extends ESTestCase {
             VersionUtils.randomVersion(random()).toString(),
             VersionUtils.randomVersion(random()).toString(),
             VersionUtils.randomVersion(random()).toString(),
-            randomBoolean(),
             randomAlphaOfLength(10)
         );
     }

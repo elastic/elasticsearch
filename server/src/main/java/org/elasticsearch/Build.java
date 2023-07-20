@@ -32,7 +32,6 @@ public record Build(
     String version,
     String minWireCompatVersion,
     String minIndexCompatVersion,
-    boolean isProductionRelease,
     String displayString
 ) {
 
@@ -117,10 +116,9 @@ public record Build(
         final String flavor = "default";
         String minWireCompat = Version.CURRENT.minimumCompatibilityVersion().toString();
         String minIndexCompat = Version.CURRENT.minimumIndexCompatibilityVersion().toString();
-        boolean isProductionRelease = isProductionRelease(version);
         String displayString = defaultDisplayString(type, hash, date, version);
 
-        return new Build(flavor, type, hash, date, isSnapshot, version, minWireCompat, minIndexCompat, isProductionRelease, displayString);
+        return new Build(flavor, type, hash, date, isSnapshot, version, minWireCompat, minIndexCompat, displayString);
     }
 
     public static Build current() {
@@ -200,16 +198,14 @@ public record Build(
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
             minWireVersion = in.readString();
             minIndexVersion = in.readString();
-            isProduction = in.readBoolean();
             displayString = in.readString();
         } else {
             var versionConstant = Version.fromString(version);
             minWireVersion = versionConstant.minimumCompatibilityVersion().toString();
             minIndexVersion = versionConstant.minimumIndexCompatibilityVersion().toString();
-            isProduction = version.matches("[0-9]+\\.[0-9]+\\.[0-9]+");
             displayString = defaultDisplayString(type, hash, date, version);
         }
-        return new Build(flavor, type, hash, date, snapshot, version, minWireVersion, minIndexVersion, isProduction, displayString);
+        return new Build(flavor, type, hash, date, snapshot, version, minWireVersion, minIndexVersion, displayString);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
@@ -225,7 +221,6 @@ public record Build(
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
             out.writeString(build.minWireCompatVersion());
             out.writeString(build.minIndexCompatVersion());
-            out.writeBoolean(build.isProductionRelease());
             out.writeString(build.displayString());
         }
     }
@@ -243,16 +238,16 @@ public record Build(
         return version;
     }
 
-    public static boolean isProductionRelease(String version) {
-        return version.matches("[0-9]+\\.[0-9]+\\.[0-9]+");
+    public boolean isProductionRelease() {
+        return isSnapshot() == false && version.matches(".*(-alpha\\d+)|(-beta\\d+)|(-rc\\d+)") == false;
     }
 
     public static String defaultDisplayString(Type type, String hash, String date, String version) {
         return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
 
-    @Override
+    /*@Override
     public String toString() {
         return displayString();
-    }
+    }*/
 }

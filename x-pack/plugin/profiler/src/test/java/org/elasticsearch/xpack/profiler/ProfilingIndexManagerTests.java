@@ -16,6 +16,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -35,7 +39,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -65,6 +71,8 @@ public class ProfilingIndexManagerTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
+    private List<ProfilingIndexManager.ProfilingIndex> managedIndices;
+    private int indexTemplateVersion;
 
     @Before
     public void createRegistryAndClient() {
@@ -72,10 +80,22 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        managedIndices = ProfilingIndexManager.PROFILING_INDICES;
+        indexTemplateVersion = ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
         indexManager = new ProfilingIndexManager(threadPool, client, clusterService) {
             @Override
             protected boolean isAllResourcesCreated(ClusterChangedEvent event) {
                 return templatesCreated.get();
+            }
+
+            @Override
+            protected Iterable<ProfilingIndex> getManagedIndices() {
+                return managedIndices;
+            }
+
+            @Override
+            protected int getIndexTemplateVersion() {
+                return indexTemplateVersion;
             }
         };
         indexManager.setTemplatesEnabled(true);
@@ -227,6 +247,77 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         indicesDeleted.set(0);
     }
 
+    public void testNoMigrationsIfIndexTemplateVersionMatches() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        templatesCreated.set(true);
+
+        ProfilingIndexManager.ProfilingIndex idx = ProfilingIndexManager.ProfilingIndex.regular(
+            "profiling-test",
+            1,
+            ProfilingIndexManager.OnVersionBump.KEEP_OLD,
+            new Migration.Builder().migrateToIndexTemplateVersion(2).addProperty("test", "keyword")
+        );
+
+        managedIndices = List.of(idx);
+        ClusterChangedEvent event = createClusterChangedEvent(managedIndices, nodes);
+
+        client.setVerifier((a, r, l) -> {
+            fail("all indices should be up-to-date; nothing should happen");
+            return null;
+        });
+        indexManager.clusterChanged(event);
+    }
+
+    public void testMigratesIfIndexTemplateVersionIsBehind() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        templatesCreated.set(true);
+
+        ProfilingIndexManager.ProfilingIndex idx = ProfilingIndexManager.ProfilingIndex.regular(
+            "profiling-test",
+            1,
+            ProfilingIndexManager.OnVersionBump.KEEP_OLD,
+            new Migration.Builder().migrateToIndexTemplateVersion(2)
+                .addProperty("test", "keyword")
+                .dynamicSettings(
+                    Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30)).build()
+                )
+        );
+        ProfilingIndexManager.ProfilingIndex idx2 = ProfilingIndexManager.ProfilingIndex.regular(
+            "profiling-no-change",
+            1,
+            ProfilingIndexManager.OnVersionBump.KEEP_OLD
+            // no migration specified, should not be changed
+        );
+
+        managedIndices = List.of(idx, idx2);
+        // index is out of date and should be migrated
+        indexTemplateVersion = 2;
+        ClusterChangedEvent event = createClusterChangedEvent(managedIndices, nodes);
+
+        AtomicInteger mappingUpdates = new AtomicInteger(0);
+        AtomicInteger settingsUpdates = new AtomicInteger(0);
+        client.setVerifier(
+            (action, request, listener) -> verifyIndexMigrated(
+                ".profiling-test-v001",
+                mappingUpdates,
+                settingsUpdates,
+                action,
+                request,
+                listener
+            )
+        );
+
+        indexManager.clusterChanged(event);
+        // one mapping update is the one we specified, the other one is because we need to update _meta
+        assertBusy(() -> assertThat(mappingUpdates.get(), equalTo(2)));
+        assertBusy(() -> assertThat(settingsUpdates.get(), equalTo(1)));
+
+        mappingUpdates.set(0);
+        settingsUpdates.set(0);
+    }
+
     public void testIndexMatchWithoutVersion() {
         ProfilingIndexManager.ProfilingIndex idx = ProfilingIndexManager.ProfilingIndex.kv("profiling-test", 1);
         assertTrue(idx.isMatchWithoutVersion(".profiling-test-v002"));
@@ -270,6 +361,33 @@ public class ProfilingIndexManagerTests extends ESTestCase {
             indicesDeleted.incrementAndGet();
             assertThat(action, instanceOf(DeleteIndexAction.class));
             assertThat(request, instanceOf(DeleteIndexRequest.class));
+            assertNotNull(listener);
+            return AcknowledgedResponse.TRUE;
+        } else {
+            fail("client called with unexpected request:" + request.toString());
+            return null;
+        }
+    }
+
+    private ActionResponse verifyIndexMigrated(
+        String indexName,
+        AtomicInteger mappingUpdates,
+        AtomicInteger settingsUpdates,
+        ActionType<?> action,
+        ActionRequest request,
+        ActionListener<?> listener
+    ) {
+        if (action instanceof PutMappingAction) {
+            mappingUpdates.incrementAndGet();
+            assertThat(action, instanceOf(PutMappingAction.class));
+            assertThat(request, instanceOf(PutMappingRequest.class));
+            assertThat(((PutMappingRequest) request).indices(), equalTo(new String[] { indexName }));
+            assertNotNull(listener);
+            return AcknowledgedResponse.TRUE;
+        } else if (action instanceof UpdateSettingsAction) {
+            settingsUpdates.incrementAndGet();
+            assertThat(action, instanceOf(UpdateSettingsAction.class));
+            assertThat(request, instanceOf(UpdateSettingsRequest.class));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
         } else {

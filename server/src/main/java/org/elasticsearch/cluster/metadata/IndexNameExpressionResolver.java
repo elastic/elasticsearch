@@ -1381,7 +1381,7 @@ public class IndexNameExpressionResolver {
             return result;
         }
 
-        public static String resolveExpression(String expression) {
+        static String resolveExpression(String expression) {
             return resolveExpression(expression, System::currentTimeMillis);
         }
 

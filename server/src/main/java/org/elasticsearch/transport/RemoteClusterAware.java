@@ -67,8 +67,10 @@ public abstract class RemoteClusterAware {
     protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
         for (String index : requestIndices) {
-            index = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(index);
-            int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
+            // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
+            // since datemath expression after evaluation does not contain ':' symbol
+            String probe = IndexNameExpressionResolver.resolveDateMathExpression(index);
+            int i = probe.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
             if (i >= 0) {
                 if (isRemoteClusterClientEnabled == false) {
                     assert remoteClusterNames.isEmpty() : remoteClusterNames;

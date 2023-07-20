@@ -157,8 +157,10 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
         PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {
+            final String buildFlavor = (String) value.get("build_flavor");
             final String buildType = (String) value.get("build_type");
             response.build = new Build(
+                buildFlavor,
                 /*
                  * Be lenient when reading on the wire, the enumeration values from other versions might be different than what
                  * we know.

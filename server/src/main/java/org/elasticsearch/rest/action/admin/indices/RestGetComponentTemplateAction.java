@@ -49,7 +49,7 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
         final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(request.param("name"));
-        if (DataStreamLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isFeatureEnabled()) {
             getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         }
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));

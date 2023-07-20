@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.application.rules.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
-public class GetQueryRulesetActionRequestSerializingTests extends AbstractWireSerializingTestCase<GetQueryRulesetAction.Request> {
+import java.io.IOException;
+
+public class GetQueryRulesetActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<GetQueryRulesetAction.Request> {
 
     @Override
     protected Writeable.Reader<GetQueryRulesetAction.Request> instanceReader() {
@@ -25,5 +29,15 @@ public class GetQueryRulesetActionRequestSerializingTests extends AbstractWireSe
     @Override
     protected GetQueryRulesetAction.Request mutateInstance(GetQueryRulesetAction.Request instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    @Override
+    protected GetQueryRulesetAction.Request doParseInstance(XContentParser parser) throws IOException {
+        return GetQueryRulesetAction.Request.parse(parser, null);
+    }
+
+    @Override
+    protected GetQueryRulesetAction.Request mutateInstanceForVersion(GetQueryRulesetAction.Request instance, TransportVersion version) {
+        return new GetQueryRulesetAction.Request(instance.rulesetId());
     }
 }

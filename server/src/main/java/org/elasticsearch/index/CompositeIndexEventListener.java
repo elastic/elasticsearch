@@ -280,6 +280,42 @@ final class CompositeIndexEventListener implements IndexEventListener {
         outerListener.onResponse(null);
     }
 
+    private void iterateAfterIndexShardRecovery(
+        final IndexShard indexShard,
+        final Iterator<IndexEventListener> iterator,
+        final ActionListener<Void> outerListener
+    ) {
+        while (iterator.hasNext()) {
+            final var nextListener = iterator.next();
+            final var future = new ListenableFuture<Void>();
+            try {
+                nextListener.afterIndexShardRecovery(indexShard, future);
+                if (future.isDone()) {
+                    // common case, not actually async, so just check for an exception and continue on the same thread
+                    future.result();
+                    continue;
+                }
+            } catch (Exception e) {
+                outerListener.onFailure(e);
+                return;
+            }
+
+            // future was not completed straight away, but might be done by now, so continue on a fresh thread to avoid stack overflow
+            future.addListener(
+                outerListener.delegateFailure(
+                    (delegate, v) -> indexShard.getThreadPool()
+                        .executor(ThreadPool.Names.GENERIC)
+                        .execute(
+                            ActionRunnable.wrap(delegate, l -> iterateAfterIndexShardRecovery(indexShard, iterator, l))
+                        )
+                )
+            );
+            return;
+        }
+
+        outerListener.onResponse(null);
+    }
+
     @Override
     public void beforeIndexShardRecovery(
         final IndexShard indexShard,
@@ -288,6 +324,14 @@ final class CompositeIndexEventListener implements IndexEventListener {
     ) {
         iterateBeforeIndexShardRecovery(indexShard, indexSettings, listeners.iterator(), outerListener.delegateResponse((l, e) -> {
             logger.warn(() -> format("failed to invoke the listener before the shard recovery starts for %s", indexShard.shardId()), e);
+            l.onFailure(e);
+        }));
+    }
+
+    @Override
+    public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> outerListener) {
+        iterateAfterIndexShardRecovery(indexShard, listeners.iterator(), outerListener.delegateResponse((l, e) -> {
+            logger.warn(() -> format("failed to invoke the listener after the shard recovery for %s", indexShard.shardId()), e);
             l.onFailure(e);
         }));
     }

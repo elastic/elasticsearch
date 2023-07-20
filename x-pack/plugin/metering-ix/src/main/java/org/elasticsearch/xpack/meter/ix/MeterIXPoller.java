@@ -11,23 +11,15 @@ package org.elasticsearch.xpack.meter.ix;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -139,7 +131,14 @@ public class MeterIXPoller implements LifecycleComponent {
                 int shardId = shard.shardId().id();
                 for (final SegmentCommitInfo commitInfo : engine.getLastCommittedSegmentInfos()) {
                     try {
-                        var record = new IXRecord(index, shardId, term, commitInfo.getDocValuesGen(), StringHelper.idToString(commitInfo.getId()), commitInfo.sizeInBytes());
+                        var record = new IXRecord(
+                            index,
+                            shardId,
+                            term,
+                            commitInfo.getDocValuesGen(),
+                            StringHelper.idToString(commitInfo.getId()),
+                            commitInfo.sizeInBytes()
+                        );
                         records.add(record);
                         logger.info(record);
                     } catch (IOException err) {

@@ -10,12 +10,18 @@ package org.elasticsearch.xpack.meter.ix;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -25,6 +31,9 @@ import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class MeterIXPoller implements LifecycleComponent {
@@ -112,47 +121,35 @@ public class MeterIXPoller implements LifecycleComponent {
     }
 
     public void logIndexStats() {
-        logger.warn("[STU] logIndexStats");
-        logFromShard();
-        logFromStats();
-        logger.warn("[STU] done logIndexStats");
+        logger.warn("[IX] logIndexStats");
+        collectRecords();
+        logger.warn("[IX] done logIndexStats");
     }
 
-    public void logFromShard() {
-        logger.info("[STU] logFromShard");
+    public List<IXRecord> collectRecords() {
+        List<IXRecord> records = new ArrayList<>();
         for (final IndexService indexService : indicesService) {
-            for (final IndexShard shard : indexService) {
-                //SegmentsStats segmentsStats = engine.segmentsStats(true, false);
-                for (final Segment segment: shard.segments()) {
-                    logger.info("{}:{} -> {}", shard.shardId(), segment.getName(), segment.getSize().getBytes());
-                }
-            }
-        }
-        logger.info("[STU] done logFromShard");
-    }
-
-    public void logFromEngine() {
-        logger.info("[STU] logFromEngine");
-        for (final IndexService indexService : indicesService) {
+            String index = indexService.index().getName();
             for (final IndexShard shard : indexService) {
                 Engine engine = shard.getEngineOrNull();
                 if (engine == null) {
                     continue;
                 }
-                engine.getLastCommittedSegmentInfos();
-                //SegmentsStats segmentsStats = engine.segmentsStats(true, false);
-                for (final Segment segment: shard.segments()) {
-                    logger.info("{}:{} -> {}", shard.shardId(), segment.getName(), segment.getSize().getBytes());
+                long term = shard.getOperationPrimaryTerm();
+                int shardId = shard.shardId().id();
+                for (final SegmentCommitInfo commitInfo : engine.getLastCommittedSegmentInfos()) {
+                    try {
+                        var record = new IXRecord(index, shardId, term, commitInfo.getDocValuesGen(), StringHelper.idToString(commitInfo.getId()), commitInfo.sizeInBytes());
+                        records.add(record);
+                        logger.info(record);
+                    } catch (IOException err) {
+                        logger.warn("error: [{}], index: [{}], shard: [{}], id: [{}]", err, index, shardId, commitInfo.getId());
+                    }
                 }
             }
         }
-        logger.info("[STU] done logFromEngine");
+        return records;
     }
 
-    public void logFromStats() {
-        NodeIndicesStats stats = indicesService.stats(new CommonStatsFlags(CommonStatsFlags.Flag.Segments).includeSegmentFileSizes(true));
-        SegmentsStats segmentsStats = stats.getSegments();
-        var files = segmentsStats.getFiles();
-        logger.info("files {}", files);
-    }
+    private record IXRecord(String index, int shardId, long term, long generation, String commitId, long size) {}
 }

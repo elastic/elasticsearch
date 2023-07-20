@@ -139,7 +139,7 @@ public class MeterIXPoller implements LifecycleComponent {
                             commitInfo.sizeInBytes()
                         );
                         records.add(record);
-                        logger.info(record);
+                        logger.info("{}", record);
                     } catch (IOException err) {
                         logger.warn("error: [{}], index: [{}], shard: [{}], id: [{}]", err, index, shardId, commitInfo.getId());
                     }

@@ -195,6 +195,7 @@ public final class TokenService {
     static final String TOKEN_DOC_TYPE = "token";
     static final int RAW_TOKEN_BYTES_LENGTH = 16;
     static final int RAW_TOKEN_DOC_ID_BYTES_LENGTH = 8;
+    static final int RAW_TOKEN_BYTES_TOTAL_LENGTH = RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_LENGTH = 22;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
@@ -360,21 +361,21 @@ public final class TokenService {
             try {
                 final String userTokenId;
                 if (tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
-                    assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH;
+                    assert accessTokenBytes.length == RAW_TOKEN_BYTES_TOTAL_LENGTH;
                     MessageDigest userTokenIdDigest = sha256();
                     userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
                     userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
                     accessTokenToStore = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes));
                     if (refreshTokenBytes != null) {
-                        assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH;
+                        assert refreshTokenBytes.length == RAW_TOKEN_BYTES_TOTAL_LENGTH;
                         assert Arrays.equals(
                             refreshTokenBytes,
                             RAW_TOKEN_BYTES_LENGTH,
-                            RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH,
+                            RAW_TOKEN_BYTES_TOTAL_LENGTH,
                             accessTokenBytes,
                             RAW_TOKEN_BYTES_LENGTH,
-                            RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH
-                        );
+                            RAW_TOKEN_BYTES_TOTAL_LENGTH
+                        ) : "the last bytes of paired access and refresh tokens should be the same";
                         refreshTokenToStore = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(refreshTokenBytes));
                         refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes);
                     } else {
@@ -605,11 +606,11 @@ public final class TokenService {
             in.setTransportVersion(version);
             if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                 byte[] accessTokenBytes = in.readByteArray();
-                if (accessTokenBytes.length != RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH) {
+                if (accessTokenBytes.length != RAW_TOKEN_BYTES_TOTAL_LENGTH) {
                     logger.debug(
                         "invalid token, received size [{}] bytes is different from expect size [{}]",
                         accessTokenBytes.length,
-                        RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH
+                        RAW_TOKEN_BYTES_TOTAL_LENGTH
                     );
                     listener.onResponse(null);
                     return;
@@ -1045,7 +1046,7 @@ public final class TokenService {
                 in.setTransportVersion(version);
                 if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                     final byte[] refreshTokenBytes = in.readByteArray();
-                    if (refreshTokenBytes.length != RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH) {
+                    if (refreshTokenBytes.length != RAW_TOKEN_BYTES_TOTAL_LENGTH) {
                         listener.onResponse(null);
                     } else {
                         MessageDigest userTokenIdDigest = sha256();
@@ -2061,7 +2062,7 @@ public final class TokenService {
     public String prependVersionAndEncodeAccessToken(TransportVersion version, byte[] accessTokenBytes) throws IOException,
         GeneralSecurityException {
         if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
+            try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + RAW_TOKEN_BYTES_TOTAL_LENGTH)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
                 out.writeByteArray(accessTokenBytes);
@@ -2107,14 +2108,14 @@ public final class TokenService {
 
     public static String prependVersionAndEncodeRefreshToken(TransportVersion version, byte[] refreshTokenBytes) throws IOException {
         if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
+            try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + RAW_TOKEN_BYTES_TOTAL_LENGTH)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
                 out.writeByteArray(refreshTokenBytes);
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
         } else {
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
+            try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + TOKEN_LENGTH)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
                 out.writeString(Base64.getUrlEncoder().withoutPadding().encodeToString(refreshTokenBytes));
@@ -2204,9 +2205,9 @@ public final class TokenService {
 
     Tuple<byte[], byte[]> getRandomTokenBytes(TransportVersion version, boolean includeRefreshToken) {
         if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
-            byte[] accessTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH);
+            byte[] accessTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_TOTAL_LENGTH);
             if (includeRefreshToken) {
-                byte[] refreshTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_LENGTH + RAW_TOKEN_DOC_ID_BYTES_LENGTH);
+                byte[] refreshTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_TOTAL_LENGTH);
                 // an access and refresh token pair are "related" by having a common fixed-length suffix
                 System.arraycopy(
                     accessTokenBytes,

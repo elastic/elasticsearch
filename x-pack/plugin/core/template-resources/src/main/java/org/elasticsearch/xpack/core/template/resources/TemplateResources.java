@@ -12,7 +12,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * TemplatesResources is a bridge to xpack template resource files. This class should only be used within x-pack core.
+ * TemplateResources is a bridge to xpack template resource files. This class should only be used within x-pack core.
  */
 public class TemplateResources {
 

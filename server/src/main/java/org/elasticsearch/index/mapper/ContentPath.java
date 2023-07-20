@@ -18,6 +18,10 @@ public final class ContentPath {
 
     private String[] path = new String[10];
 
+    private int dottedFieldNameIndex = 0;
+
+    private String[] dottedFieldName = new String[10];
+
     private boolean withinLeafObject = false;
 
     public ContentPath() {
@@ -27,18 +31,35 @@ public final class ContentPath {
     public void add(String name) {
         path[index++] = name;
         if (index == path.length) { // expand if needed
-            expand();
+            expandPath();
         }
     }
 
-    private void expand() {
+    public void addDottedFieldName(String name) {
+        dottedFieldName[dottedFieldNameIndex++] = name;
+        if (dottedFieldNameIndex == dottedFieldName.length) {
+            expandDottedFieldName();
+        }
+    }
+
+    private void expandPath() {
         String[] newPath = new String[path.length + 10];
         System.arraycopy(path, 0, newPath, 0, path.length);
         path = newPath;
     }
 
+    private void expandDottedFieldName() {
+        String[] newDottedFieldName = new String[dottedFieldName.length + 10];
+        System.arraycopy(dottedFieldName, 0, newDottedFieldName, 0, dottedFieldName.length);
+        dottedFieldName = newDottedFieldName;
+    }
+
     public void remove() {
         path[index--] = null;
+    }
+
+    public void removeDottedFieldName() {
+        dottedFieldName[dottedFieldNameIndex--] = null;
     }
 
     public void setWithinLeafObject(boolean withinLeafObject) {
@@ -56,6 +77,19 @@ public final class ContentPath {
         }
         sb.append(name);
         return sb.toString();
+    }
+
+    public String dottedFieldName(String name) {
+        sb.setLength(0);
+        for (int i = 0; i < dottedFieldNameIndex; i++) {
+            sb.append(dottedFieldName[i]).append(DELIMITER);
+        }
+        sb.append(name);
+        return sb.toString();
+    }
+
+    public boolean hasDottedFieldName() {
+        return dottedFieldNameIndex > 0;
     }
 
     public int length() {

@@ -309,11 +309,11 @@ public final class DocumentParser {
                     parseArray(context, currentFieldName);
                     break;
                 case VALUE_NULL:
-                    parseNullValue(context, currentFieldName);
+                    parseNullValue(context, context.path().dottedFieldName(currentFieldName));
                     break;
                 default:
                     if (token.isValue()) {
-                        parseValue(context, currentFieldName);
+                        parseValue(context, context.path().dottedFieldName(currentFieldName));
                     }
                     break;
             }
@@ -422,23 +422,19 @@ public final class DocumentParser {
     private static void parseObject(final DocumentParserContext context, String currentFieldName) throws IOException {
         assert currentFieldName != null;
         Mapper objectMapper = context.getMapper(currentFieldName);
-        context.path().add(currentFieldName);
         if (objectMapper != null) {
-            if (objectMapper instanceof ObjectMapper objMapper) {
-                if (objMapper.subobjects() == false) {
-                    context.path().setWithinLeafObject(true);
-                }
-            }
+            context.path().add(currentFieldName);
             parseObjectOrField(context, objectMapper);
-            context.path().setWithinLeafObject(false);
+            context.path().remove();
         } else {
             if (context.parent().subobjects()) {
                 parseObjectDynamic(context, currentFieldName); // TODO-MP maybe here we should not remove context.path().remove()
             } else {
+                context.path().addDottedFieldName(currentFieldName);
                 innerParseObject(context);
+                context.path().removeDottedFieldName();
             }
         }
-        context.path().remove();
     }
 
     private static void parseObjectDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
@@ -467,7 +463,9 @@ public final class DocumentParser {
                     context.path().setWithinLeafObject(true);
                 }
             }
+            context.path().add(currentFieldName);
             parseObjectOrField(context, dynamicObjectMapper);
+            context.path().remove();
             context.path().setWithinLeafObject(false);
         }
     }
@@ -551,10 +549,6 @@ public final class DocumentParser {
     private static void parseValue(final DocumentParserContext context, String currentFieldName) throws IOException {
         if (currentFieldName == null) {
             throwOnNoFieldName(context);
-        }
-        if (context.parent().subobjects() == false) {
-            // we rewrite the field name to be flattened containing the whole path
-            currentFieldName = context.path().pathAsText(currentFieldName);
         }
         Mapper mapper = getLeafMapper(context, currentFieldName);
         if (mapper != null) {

@@ -476,12 +476,9 @@ public abstract class DocumentParserContext {
      * Creates a context to build dynamic mappers
      */
     public final MapperBuilderContext createDynamicMapperBuilderContext() {
-        String path = ""; // default path for flattened object
-        if (parent().subobjects()) {
-            path = path().pathAsText(""); // obj with hierarchy, therefore retrieve path
-            if (path.endsWith(".")) {
-                path = path.substring(0, path.length() - 1);
-            }
+        String path = path().pathAsText(""); // obj with hierarchy, therefore retrieve path
+        if (path.endsWith(".")) {
+            path = path.substring(0, path.length() - 1);
         }
         return new MapperBuilderContext(path, mappingLookup().isSourceSynthetic());
     }

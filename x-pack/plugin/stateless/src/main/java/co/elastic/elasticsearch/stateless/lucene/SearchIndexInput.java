@@ -67,7 +67,7 @@ public class SearchIndexInput extends BufferedIndexInput {
         this.length = length;
         this.offset = offset;
         this.context = context;
-        this.cacheFile = cacheFile;
+        this.cacheFile = cacheFile.copy();
     }
 
     @Override

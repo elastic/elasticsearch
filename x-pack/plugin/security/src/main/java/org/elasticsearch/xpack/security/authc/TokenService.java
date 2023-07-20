@@ -481,14 +481,13 @@ public final class TokenService {
         String tokenId,
         TransportVersion tokenVersion,
         @Nullable String storedAccessToken,
-        @Nullable String storedRefreshToken,
         ActionListener<UserToken> listener
     ) {
         getTokenDocById(
             tokenId,
             tokenVersion,
             storedAccessToken,
-            storedRefreshToken,
+            null,
             listener.map(
                 doc -> doc != null
                     ? UserToken.fromSourceMap(
@@ -619,7 +618,7 @@ public final class TokenService {
                 userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
                 final String userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
                 final String storedAccessToken = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes));
-                getUserTokenById(userTokenId, version, storedAccessToken, null, listener);
+                getUserTokenById(userTokenId, version, storedAccessToken, listener);
             } else if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 // The token was created in a > VERSION_ACCESS_TOKENS_UUIDS cluster
                 if (in.available() < MINIMUM_BYTES) {
@@ -629,7 +628,7 @@ public final class TokenService {
                 }
                 final String accessToken = in.readString();
                 final String userTokenId = hashTokenString(accessToken);
-                getUserTokenById(userTokenId, version, null, null, listener);
+                getUserTokenById(userTokenId, version, null, listener);
             } else {
                 // The token was created in a < VERSION_ACCESS_TOKENS_UUIDS cluster so we need to decrypt it to get the tokenId
                 if (in.available() < LEGACY_MINIMUM_BYTES) {
@@ -650,7 +649,7 @@ public final class TokenService {
                             try {
                                 final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
                                 final String tokenId = decryptTokenId(encryptedTokenId, cipher, version);
-                                getUserTokenById(tokenId, version, null, null, listener);
+                                getUserTokenById(tokenId, version, null, listener);
                             } catch (IOException | GeneralSecurityException e) {
                                 // could happen with a token that is not ours
                                 logger.warn("invalid token", e);

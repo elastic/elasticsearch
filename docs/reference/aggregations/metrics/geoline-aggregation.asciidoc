@@ -305,6 +305,8 @@ Note that when we use `time_series` in the example below, we will get the same r
 [[search-aggregations-metrics-geo-line-grouping-time-series]]
 ==== Grouping with time-series
 
+preview::[]
+
 Using the same data as before, we can also perform the grouping with a
 <<search-aggregations-bucket-time-series-aggregation,`time_series` aggregation>>.
 This will group by TSID, which is defined as the combinations of all fields with `time_series_dimension: true`,

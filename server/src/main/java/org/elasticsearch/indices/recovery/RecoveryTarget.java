@@ -16,7 +16,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -305,17 +304,17 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public void markAsDone() {
         if (finished.compareAndSet(false, true)) {
             assert multiFileWriter.tempFileNames.isEmpty() : "not all temporary files are renamed";
-            try {
-                // this might still throw an exception ie. if the shard is CLOSED due to some other event.
-                // it's safer to decrement the reference in a try finally here.
-                PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-                indexShard.postRecovery("peer recovery done", future);
-                future.actionGet();
-            } finally {
-                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-                decRef();
-            }
-            listener.onRecoveryDone(state(), indexShard.getTimestampRange());
+            indexShard.postRecovery("peer recovery done", ActionListener.runBefore(new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    listener.onRecoveryDone(state(), indexShard.getTimestampRange());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug("{} recovery failed after being marked as done", this);
+                }
+            }, this::decRef));
         }
     }
 

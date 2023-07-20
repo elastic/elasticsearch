@@ -42,12 +42,12 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
     private final RegularFileProperty inputFile;
     private final Property<String> token;
     private final Property<String> url;
-    private final Property<String> projectId;
+    private final Property<String> snykOrganisation;
 
     @Inject
     public UploadSnykDependenciesGraph(ObjectFactory objectFactory) {
         url = objectFactory.property(String.class).convention(DEFAULT_SERVER + GRADLE_GRAPH_ENDPOINT);
-        projectId = objectFactory.property(String.class);
+        snykOrganisation = objectFactory.property(String.class);
         token = objectFactory.property(String.class);
         inputFile = objectFactory.fileProperty();
     }
@@ -76,7 +76,7 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
 
     private String calculateEffectiveEndpoint() {
         String url = this.url.get();
-        return url.endsWith(GRADLE_GRAPH_ENDPOINT) ? url : projectId.map(id -> url + "?org=" + id).getOrElse(url);
+        return snykOrganisation.map(id -> url + "?org=" + id).getOrElse(url);
     }
 
     @Input
@@ -91,8 +91,8 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
 
     @Input
     @Optional
-    public Property<String> getProjectId() {
-        return projectId;
+    public Property<String> getSnykOrganisation() {
+        return snykOrganisation;
     }
 
     @InputFile

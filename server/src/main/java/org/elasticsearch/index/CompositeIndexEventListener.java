@@ -305,9 +305,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 outerListener.delegateFailure(
                     (delegate, v) -> indexShard.getThreadPool()
                         .executor(ThreadPool.Names.GENERIC)
-                        .execute(
-                            ActionRunnable.wrap(delegate, l -> iterateAfterIndexShardRecovery(indexShard, iterator, l))
-                        )
+                        .execute(ActionRunnable.wrap(delegate, l -> iterateAfterIndexShardRecovery(indexShard, iterator, l)))
                 )
             );
             return;

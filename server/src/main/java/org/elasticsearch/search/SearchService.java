@@ -1033,11 +1033,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     @SuppressWarnings("unchecked")
-    private DefaultSearchContext createSearchContext(
-        ReaderContext reader,
-        ShardSearchRequest request,
-        TimeValue timeout
-    ) throws IOException {
+    private DefaultSearchContext createSearchContext(ReaderContext reader, ShardSearchRequest request, TimeValue timeout)
+        throws IOException {
         boolean success = false;
         DefaultSearchContext searchContext = null;
         try {

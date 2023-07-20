@@ -180,13 +180,13 @@ public class QueryRulesIndexService {
             }
             final Map<String, Object> source = getResponse.getSource();
             @SuppressWarnings("unchecked")
-            final List<QueryRule> rules = ((List<Map<String, Object>>) source.get("rules")).stream()
+            final List<QueryRule> rules = ((List<Map<String, Object>>) source.get(QueryRuleset.RULES_FIELD.getPreferredName())).stream()
                 .map(
                     rule -> new QueryRule(
-                        (String) rule.get("rule_id"),
-                        QueryRuleType.queryRuleType((String) rule.get("type")),
-                        parseCriteria((List<Map<String, Object>>) rule.get("criteria")),
-                        (Map<String, Object>) rule.get("actions")
+                        (String) rule.get(QueryRule.ID_FIELD.getPreferredName()),
+                        QueryRuleType.queryRuleType((String) rule.get(QueryRule.TYPE_FIELD.getPreferredName())),
+                        parseCriteria((List<Map<String, Object>>) rule.get(QueryRule.CRITERIA_FIELD.getPreferredName())),
+                        (Map<String, Object>) rule.get(QueryRule.ACTIONS_FIELD.getPreferredName())
                     )
                 )
                 .collect(Collectors.toList());
@@ -201,9 +201,9 @@ public class QueryRulesIndexService {
         for (Map<String, Object> entry : rawCriteria) {
             criteria.add(
                 new QueryRuleCriteria(
-                    QueryRuleCriteria.CriteriaType.criteriaType((String) entry.get("type")),
-                    (String) entry.get("metadata"),
-                    (List<Object>) entry.get("values")
+                    QueryRuleCriteria.CriteriaType.criteriaType((String) entry.get(QueryRuleCriteria.TYPE_FIELD.getPreferredName())),
+                    (String) entry.get(QueryRuleCriteria.METADATA_FIELD.getPreferredName()),
+                    (List<Object>) entry.get(QueryRuleCriteria.VALUES_FIELD.getPreferredName())
                 )
             );
         }

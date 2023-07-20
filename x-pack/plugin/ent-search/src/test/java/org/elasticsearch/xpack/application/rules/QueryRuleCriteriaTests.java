@@ -89,6 +89,89 @@ public class QueryRuleCriteriaTests extends ESTestCase {
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
+    public void testExactMatch() {
+        QueryRuleCriteria.CriteriaType type = QueryRuleCriteria.CriteriaType.EXACT;
+        QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("elastic"));
+        assertTrue(queryRuleCriteria.isMatch("elastic", type));
+        assertFalse(queryRuleCriteria.isMatch("elasticc", type));
+    }
+
+    public void testFuzzyExactMatch() {
+        QueryRuleCriteria.CriteriaType type = QueryRuleCriteria.CriteriaType.EXACT_FUZZY;
+        QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("elastic"));
+        assertTrue(queryRuleCriteria.isMatch("elastic", type));
+        assertTrue(queryRuleCriteria.isMatch("elasticc", type));
+        assertFalse(queryRuleCriteria.isMatch("elastic elastic elastic elastic", type));
+    }
+
+    public void testPrefixMatch() {
+        QueryRuleCriteria.CriteriaType type = QueryRuleCriteria.CriteriaType.PREFIX;
+        QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("elastic", "kibana"));
+        assertTrue(queryRuleCriteria.isMatch("elastic", type));
+        assertTrue(queryRuleCriteria.isMatch("kibana", type));
+        assertTrue(queryRuleCriteria.isMatch("elastic is a great search engine", type));
+        assertTrue(queryRuleCriteria.isMatch("kibana is a great visualization tool", type));
+        assertFalse(queryRuleCriteria.isMatch("you know, for search - elastic, kibana", type));
+    }
+
+    public void testSuffixMatch() {
+        QueryRuleCriteria.CriteriaType type = QueryRuleCriteria.CriteriaType.SUFFIX;
+        QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("search", "lucene"));
+        assertTrue(queryRuleCriteria.isMatch("search", type));
+        assertTrue(queryRuleCriteria.isMatch("lucene", type));
+        assertTrue(queryRuleCriteria.isMatch("you know, for search", type));
+        assertTrue(queryRuleCriteria.isMatch("elasticsearch is built on top of lucene", type));
+        assertFalse(queryRuleCriteria.isMatch("search is a good use case for elastic", type));
+        assertFalse(queryRuleCriteria.isMatch("lucene and elastic are open source", type));
+    }
+
+    public void testContainsMatch() {
+        QueryRuleCriteria.CriteriaType type = QueryRuleCriteria.CriteriaType.CONTAINS;
+        QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("elastic"));
+        assertTrue(queryRuleCriteria.isMatch("elastic", type));
+        assertTrue(queryRuleCriteria.isMatch("I use elastic for search", type));
+        assertFalse(queryRuleCriteria.isMatch("you know, for search", type));
+    }
+
+    public void testLtMatch() {
+        QueryRuleCriteria.CriteriaType type = QueryRuleCriteria.CriteriaType.LT;
+        QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "age", List.of("10"));
+        assertTrue(queryRuleCriteria.isMatch(5, type));
+        assertFalse(queryRuleCriteria.isMatch(10, type));
+        assertFalse(queryRuleCriteria.isMatch(20, type));
+    }
+
+    public void testLteMatch() {
+        QueryRuleCriteria.CriteriaType type = QueryRuleCriteria.CriteriaType.LTE;
+        QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "age", List.of("10"));
+        assertTrue(queryRuleCriteria.isMatch(5, type));
+        assertTrue(queryRuleCriteria.isMatch(10, type));
+        assertFalse(queryRuleCriteria.isMatch(20, type));
+    }
+
+    public void testGtMatch() {
+        QueryRuleCriteria.CriteriaType type = QueryRuleCriteria.CriteriaType.GT;
+        QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "age", List.of("10"));
+        assertTrue(queryRuleCriteria.isMatch(20, type));
+        assertFalse(queryRuleCriteria.isMatch(10, type));
+        assertFalse(queryRuleCriteria.isMatch(5, type));
+    }
+
+    public void testGteMatch() {
+        QueryRuleCriteria.CriteriaType type = QueryRuleCriteria.CriteriaType.GTE;
+        QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "age", List.of("10"));
+        assertTrue(queryRuleCriteria.isMatch(20, type));
+        assertTrue(queryRuleCriteria.isMatch(10, type));
+        assertFalse(queryRuleCriteria.isMatch(5, type));
+    }
+
+    public void testGlobalMatch() {
+        QueryRuleCriteria.CriteriaType type = QueryRuleCriteria.CriteriaType.GLOBAL;
+        QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, null, null);
+        assertTrue(queryRuleCriteria.isMatch("elastic", type));
+        assertTrue(queryRuleCriteria.isMatch(42, type));
+    }
+
     private void assertXContent(QueryRuleCriteria queryRule, boolean humanReadable) throws IOException {
         BytesReference originalBytes = toShuffledXContent(queryRule, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         QueryRuleCriteria parsed;

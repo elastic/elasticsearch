@@ -128,7 +128,6 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     static {
         PARSER.declareString(constructorArg(), TYPE_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), METADATA_FIELD);
-        // PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.map(), VALUES_FIELD);
         PARSER.declareStringArray(optionalConstructorArg(), VALUES_FIELD);
     }
 
@@ -160,9 +159,6 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        logger.info(
-            "toXContent. criteriaType: " + criteriaType + ", criteriaMetadata: " + criteriaMetadata + ", criteriaValues: " + criteriaValues
-        );
         builder.startObject();
         {
             builder.field(TYPE_FIELD.getPreferredName(), criteriaType);
@@ -210,21 +206,17 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     }
 
     public boolean isMatch(Object matchValue, CriteriaType matchType) {
-        logger.info("Running isMatch for matchValue: " + matchValue + " and matchType " + matchType);
-
         if (criteriaType == GLOBAL) {
             return true;
         }
 
-        LevenshteinDistance ld = new LevenshteinDistance();
+        final LevenshteinDistance ld = new LevenshteinDistance();
         final String matchString = matchValue.toString();
         boolean matchFound = false;
 
         for (Object criteriaValue : criteriaValues) {
             final String criteriaValueString = criteriaValue != null ? criteriaValue.toString() : null;
-            logger.info("Comparing criteriaValue: " + criteriaValueString);
             if (criteriaValueString != null && matchValue instanceof String) {
-                logger.info("We have a String!");
                 matchFound |= switch (matchType) {
                     case EXACT -> matchString.equals(criteriaValueString);
                     case EXACT_FUZZY -> ld.getDistance(matchString, criteriaValueString) > 0.75f; // TODO make configurable
@@ -233,10 +225,8 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
                     case CONTAINS -> matchString.contains(criteriaValueString);
                     default -> false;
                 };
-                logger.info("Status of matchFound: " + matchFound);
             } else if (criteriaValueString != null && matchValue instanceof Number) {
                 try {
-                    logger.info("We have a number!");
                     Number matchNumber = (Number) matchValue;
                     matchFound |= switch (matchType) {
                         case EXACT -> matchNumber.doubleValue() == Double.parseDouble(criteriaValueString);
@@ -246,7 +236,6 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
                         case GTE -> matchNumber.doubleValue() >= Double.parseDouble(criteriaValueString);
                         default -> false;
                     };
-                    logger.info("Status of matchFound: " + matchFound);
                 } catch (NumberFormatException e) {
                     logger.warn("Query rule criteria [" + criteriaValues + "] type mismatch against [" + matchString + "]", e);
                     return false;
@@ -254,7 +243,6 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
             }
         }
 
-        logger.info("Final of matchFound: " + matchFound);
         return matchFound;
     }
 }

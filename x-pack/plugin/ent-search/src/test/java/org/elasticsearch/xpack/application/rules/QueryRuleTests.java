@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -158,6 +160,41 @@ public class QueryRuleTests extends ESTestCase {
                 }
             }""");
         expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+    }
+
+    public void testApplyRuleWithOneCriteria() {
+        QueryRule rule = new QueryRule(
+            randomAlphaOfLength(10),
+            QueryRule.QueryRuleType.PINNED,
+            List.of(new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.EXACT, "query", List.of("elastic"))),
+            Map.of("ids", List.of("id1", "id2"))
+        );
+        AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
+        rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
+        assertEquals(List.of("id1", "id2"), appliedQueryRules.pinnedIds());
+
+        appliedQueryRules = new AppliedQueryRules();
+        rule.applyRule(appliedQueryRules, Map.of("query", "elastic1"));
+        assertEquals(Collections.emptyList(), appliedQueryRules.pinnedIds());
+    }
+
+    public void testApplyRuleWithMultipleCriteria() {
+        QueryRule rule = new QueryRule(
+            randomAlphaOfLength(10),
+            QueryRule.QueryRuleType.PINNED,
+            List.of(
+                new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.PREFIX, "query", List.of("elastic")),
+                new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.SUFFIX, "query", List.of("search"))
+            ),
+            Map.of("ids", List.of("id1", "id2"))
+        );
+        AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
+        rule.applyRule(appliedQueryRules, Map.of("query", "elastic - you know, for search"));
+        assertEquals(List.of("id1", "id2"), appliedQueryRules.pinnedIds());
+
+        appliedQueryRules = new AppliedQueryRules();
+        rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
+        assertEquals(Collections.emptyList(), appliedQueryRules.pinnedIds());
     }
 
     private void assertXContent(QueryRule queryRule, boolean humanReadable) throws IOException {

@@ -786,7 +786,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             try (SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos)) {
                 fileChannel.read(buf, physicalStartOffset() + getRegionRelativePosition(offset));
             }
-            if (evicted.get() || hasReferences() == false) {
+            if (isEvicted() || hasReferences() == false) {
                 buf.position(startingPos);
                 return false;
             }
@@ -899,6 +899,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         private final KeyType cacheKey;
         private final long length;
 
+        private CacheFileRegion lastAccessedRegion;
+
+        private long lastAccessTime;
+
         private CacheFile(KeyType cacheKey, long length) {
             this.cacheKey = cacheKey;
             this.length = length;
@@ -919,11 +923,26 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             if (startRegion != endRegion) {
                 return false;
             }
-            final CacheFileRegion fileRegion = get(cacheKey, length, startRegion);
-            if (fileRegion.tracker.checkAvailable(getRegionRelativePosition(end)) == false) {
+            long now = threadPool.relativeTimeInMillis();
+            final CacheFileRegion fileRegion;
+            var r = lastAccessedRegion;
+            if (r != null && r.regionKey.region == startRegion && now - lastAccessTime <= minTimeDelta) {
+                fileRegion = r;
+            } else {
+                fileRegion = get(cacheKey, length, startRegion);
+            }
+            if (fileRegion.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
                 return false;
             }
-            return fileRegion.tryRead(buf, offset);
+            boolean res = fileRegion.tryRead(buf, offset);
+            if (res) {
+                lastAccessedRegion = r;
+                lastAccessTime = now;
+            } else {
+                lastAccessedRegion = null;
+                lastAccessTime = 0L;
+            }
+            return res;
         }
 
         public int populateAndRead(

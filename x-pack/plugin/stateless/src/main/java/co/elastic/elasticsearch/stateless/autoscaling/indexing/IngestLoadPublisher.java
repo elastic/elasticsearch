@@ -19,20 +19,25 @@ package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicLong;
 
 public class IngestLoadPublisher {
-    private final NodeClient client;
+
+    private final Client client;
+    private final ThreadPool threadPool;
     private final AtomicLong seqNoSupplier = new AtomicLong();
 
-    public IngestLoadPublisher(Client client) {
-        this.client = (NodeClient) client;
+    public IngestLoadPublisher(Client client, ThreadPool threadPool) {
+        this.client = client;
+        this.threadPool = threadPool;
     }
 
     public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
-        var request = new PublishNodeIngestLoadRequest(nodeId, seqNoSupplier.incrementAndGet(), ingestionLoad);
-        client.execute(PublishNodeIngestLoadAction.INSTANCE, request, listener.map(unused -> null));
+        threadPool.generic().execute(() -> {
+            var request = new PublishNodeIngestLoadRequest(nodeId, seqNoSupplier.incrementAndGet(), ingestionLoad);
+            client.execute(PublishNodeIngestLoadAction.INSTANCE, request, listener.map(unused -> null));
+        });
     }
 }

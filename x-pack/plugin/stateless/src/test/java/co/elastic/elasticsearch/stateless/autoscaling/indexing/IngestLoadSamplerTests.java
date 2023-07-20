@@ -49,7 +49,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var nodeIngestLoad = randomIngestionLoad(numProcessors);
 
         var publishedMetrics = new ArrayList<>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(Tuple.tuple(deterministicTaskQueue.getCurrentTimeMillis(), ingestionLoad));
@@ -95,7 +95,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var currentIndexLoadSupplier = indexLoadOverTime.iterator();
 
         var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
@@ -159,7 +159,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
             return latestPublishedMetric;
         };
 
-        var ingestLoadPublisher = new IngestLoadPublisher(null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
@@ -204,7 +204,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var readingIter = ingestLoadsOverTime.iterator();
 
         var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
@@ -277,7 +277,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 : Math.max(previousReading - loadChangeBelowSensitivity, 0);
         };
 
-        var ingestLoadPublisher = new IngestLoadPublisher(null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
@@ -313,7 +313,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var indexLoad = randomIngestionLoad(randomIntBetween(2, 32));
 
         var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);
@@ -352,7 +352,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var indexLoad = randomIngestionLoad(randomIntBetween(2, 32));
 
         var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null) {
+        var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
             @Override
             public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(ingestionLoad);

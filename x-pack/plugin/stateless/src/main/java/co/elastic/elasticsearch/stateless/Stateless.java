@@ -299,7 +299,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         // memory
         var memoryMetricsService = new MemoryMetricsService();
         // ingest
-        var ingestLoadPublisher = new IngestLoadPublisher(client);
+        var ingestLoadPublisher = new IngestLoadPublisher(client, threadPool);
         var writeLoadSampler = AverageWriteLoadSampler.create(threadPool, settings, clusterService.getClusterSettings());
         var ingestLoadProbe = new IngestLoadProbe(clusterService.getClusterSettings(), writeLoadSampler::getExecutorStats);
         var ingestLoadSampler = IngestLoadSampler.create(
@@ -315,7 +315,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         clusterService.addListener(ingestMetricService);
         // search
         var shardSizeStatsReader = new ShardSizeStatsReader(clusterService, threadPool, indicesService);
-        var shardSizesPublisher = new ShardSizesPublisher(client, clusterService, threadPool);
+        var shardSizesPublisher = new ShardSizesPublisher(client, threadPool);
         var shardSizesCollector = setAndGet(
             this.shardSizesCollector,
             ShardSizesCollector.create(

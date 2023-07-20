@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.search;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -44,6 +45,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -52,6 +54,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
@@ -91,7 +94,9 @@ public class ShardSizesCollectorTests extends ESTestCase {
         statsReader = mock(ShardSizeStatsReader.class);
         publisher = mock(ShardSizesPublisher.class);
 
-        service = new ShardSizesCollector(clusterSettings, threadPool, statsReader, publisher, () -> "search_node_1", true);
+        service = new ShardSizesCollector(clusterSettings, threadPool, statsReader, publisher, true);
+        service.setNodeId("search_node_1");
+        service.setMinTransportVersion(TransportVersion.V_8_500_027);
     }
 
     @After
@@ -110,7 +115,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         service.detectShardSize(shardId);
         service.doStart();
 
-        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq(Map.of(shardId, size)), any()));
+        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any()));
     }
 
     public void testGroupPublications() throws Exception {
@@ -125,7 +130,9 @@ public class ShardSizesCollectorTests extends ESTestCase {
         service.detectShardSize(shardId2);
         service.doStart();
 
-        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq(Map.of(shardId1, size, shardId2, size)), any()));
+        assertBusy(
+            () -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any())
+        );
     }
 
     public void testPublishPeriodicallyEvenIfNoChanges() throws Exception {
@@ -138,9 +145,9 @@ public class ShardSizesCollectorTests extends ESTestCase {
         service.doStart();
 
         assertBusy(() -> {
-            verify(publisher).publishSearchShardDiskUsage(eq(Map.of(shardId, size)), any());
+            verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any());
             // second empty publication after interval passed
-            verify(publisher, atLeastOnce()).publishSearchShardDiskUsage(eq(Map.of()), any());
+            verify(publisher, atLeastOnce()).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of()), any());
         });
     }
 
@@ -152,18 +159,20 @@ public class ShardSizesCollectorTests extends ESTestCase {
 
         // all initial publications of single shard should fail
         doAnswer(invocation -> {
-            invocation.getArgument(1, ActionListener.class).onFailure(new RuntimeException("simulated"));
+            invocation.getArgument(2, ActionListener.class).onFailure(new RuntimeException("simulated"));
             return null;
-        }).when(publisher).publishSearchShardDiskUsage(eq(Map.of(shardId1, size)), any());
+        }).when(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size)), any());
 
         service.doStart();
         when(statsReader.getShardSize(shardId1)).thenReturn(size);
         service.detectShardSize(shardId1);
-        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq(Map.of(shardId1, size)), any()));
+        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size)), any()));
 
         when(statsReader.getShardSize(shardId2)).thenReturn(size);
         service.detectShardSize(shardId2);
-        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq(Map.of(shardId1, size, shardId2, size)), any()));
+        assertBusy(
+            () -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any())
+        );
     }
 
     public void testPublishImmediatelyIfBigChangeIsDetected() {
@@ -176,11 +185,11 @@ public class ShardSizesCollectorTests extends ESTestCase {
         // scheduling is disabled to test immediate sending
         when(statsReader.getShardSize(shardId1)).thenReturn(smallSize);
         service.detectShardSize(shardId1);
-        verify(publisher, never()).publishSearchShardDiskUsage(any(), any());
+        verify(publisher, never()).publishSearchShardDiskUsage(eq("search_node_1"), any(), any());
 
         when(statsReader.getShardSize(shardId2)).thenReturn(bigSize);
         service.detectShardSize(shardId2);
-        verify(publisher).publishSearchShardDiskUsage(eq(Map.of(shardId1, smallSize, shardId2, bigSize)), any());
+        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, smallSize, shardId2, bigSize)), any());
     }
 
     public void testPublishAllDataIfMasterChanged() throws Exception {
@@ -193,10 +202,12 @@ public class ShardSizesCollectorTests extends ESTestCase {
         when(statsReader.getAllShardSizes()).thenReturn(Map.of(shardId1, size, shardId2, size));
 
         var state1 = ClusterState.EMPTY_STATE;
-        var state2 = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(createNodes(2)).build();
+        var state2 = createClusterStateWithNodes(2).build();
         service.clusterChanged(new ClusterChangedEvent("test", state2, state1));
 
-        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq(Map.of(shardId1, size, shardId2, size)), any()));
+        assertBusy(
+            () -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any())
+        );
     }
 
     public void testDeletedIndicesAreRemovedFromState() throws Exception {
@@ -204,10 +215,9 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var indexMetadata1 = createIndex(1, 2);
         var indexMetadata2 = createIndex(1, 2);
 
-        var state1 = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .nodes(createNodes(1))
-            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).build())
-            .build();
+        var state1 = createClusterStateWithNodes(1).metadata(
+            Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).build()
+        ).build();
         var state2 = ClusterState.builder(state1).metadata(Metadata.builder().put(indexMetadata1, false).build()).build();
 
         var size = new ShardSize(1024, 1024);
@@ -222,16 +232,16 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var listenerWasCalled = new CountDownLatch(1);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            var listener = (ActionListener<Void>) invocation.getArgument(1, ActionListener.class);
+            var listener = (ActionListener<Void>) invocation.getArgument(2, ActionListener.class);
             listener.onResponse(null);
             listenerWasCalled.countDown();
             return null;
-        }).when(publisher).publishSearchShardDiskUsage(any(), any());
+        }).when(publisher).publishSearchShardDiskUsage(eq("search_node_1"), any(), any());
 
         service.clusterChanged(new ClusterChangedEvent("test", state1, ClusterState.EMPTY_STATE));
 
-        listenerWasCalled.await(10, TimeUnit.SECONDS);
-        verify(publisher).publishSearchShardDiskUsage(any(), any());
+        assertThat(listenerWasCalled.await(10, TimeUnit.SECONDS), equalTo(true));
+        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), any(), any());
         assertThat(
             service.getPastPublications(),
             allOf(
@@ -262,10 +272,9 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var indexMetadata1 = createIndex(1, 1);
         var indexMetadata2 = createIndex(1, 1);
 
-        var state0 = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .nodes(createNodes(1))
-            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).build())
-            .build();
+        var state0 = createClusterStateWithNodes(1).metadata(
+            Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).build()
+        ).build();
         var state1 = ClusterState.builder(state0)
             .routingTable(
                 RoutingTable.builder()
@@ -290,15 +299,15 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var listenerWasCalled = new CountDownLatch(1);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            var listener = (ActionListener<Void>) invocation.getArgument(1, ActionListener.class);
+            var listener = (ActionListener<Void>) invocation.getArgument(2, ActionListener.class);
             listener.onResponse(null);
             listenerWasCalled.countDown();
             return null;
-        }).when(publisher).publishSearchShardDiskUsage(any(), any());
+        }).when(publisher).publishSearchShardDiskUsage(eq("search_node_1"), any(), any());
 
         service.clusterChanged(new ClusterChangedEvent("test", state0, ClusterState.EMPTY_STATE));
 
-        listenerWasCalled.await(10, TimeUnit.SECONDS);
+        assertThat(listenerWasCalled.await(10, TimeUnit.SECONDS), equalTo(true));
         assertThat(
             service.getPastPublications(),
             allOf(aMapWithSize(2), hasKey(new ShardId(indexMetadata1.getIndex(), 0)), hasKey(new ShardId(indexMetadata2.getIndex(), 0)))
@@ -316,15 +325,19 @@ public class ShardSizesCollectorTests extends ESTestCase {
         );
     }
 
-    private static DiscoveryNodes createNodes(int searchNodes) {
+    private static ClusterState.Builder createClusterStateWithNodes(int searchNodes) {
         var builder = DiscoveryNodes.builder();
+        var transportVersions = new HashMap<String, TransportVersion>();
         builder.add(DiscoveryNodeUtils.builder("master").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build());
+        transportVersions.put("master", TransportVersion.V_8_500_027);
         builder.add(DiscoveryNodeUtils.builder("index_node_1").roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build());
+        transportVersions.put("index_node_1", TransportVersion.V_8_500_027);
         for (int i = 1; i <= searchNodes; i++) {
             builder.add(DiscoveryNodeUtils.builder("search_node_" + i).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build());
+            transportVersions.put("search_node_" + i, TransportVersion.V_8_500_027);
         }
         builder.masterNodeId("master").localNodeId("search_node_1");
-        return builder.build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE).nodes(builder).transportVersions(transportVersions);
     }
 
     private static IndexMetadata createIndex(int shards, int replicas) {

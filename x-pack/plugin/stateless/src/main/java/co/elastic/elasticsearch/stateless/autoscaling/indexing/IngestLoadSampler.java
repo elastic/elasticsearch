@@ -179,12 +179,15 @@ public class IngestLoadSampler implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (isIndexNode == false) {
+            return;
+        }
         assert nodeId == null || nodeId.equals(event.state().nodes().getLocalNodeId());
         if (nodeId == null) {
             setNodeId(event.state().nodes().getLocalNodeId());
         }
         setMinTransportVersion(event.state().getMinTransportVersion());
-        if (isIndexNode && event.nodesDelta().masterNodeChanged()) {
+        if (event.nodesDelta().masterNodeChanged()) {
             clearInFlightPublicationTicket();
             publishCurrentLoad(nodeId);
         }
@@ -196,7 +199,7 @@ public class IngestLoadSampler implements ClusterStateListener {
     }
 
     // Visible for testing
-    public void setNodeId(String nodeId) {
+    void setNodeId(String nodeId) {
         this.nodeId = nodeId;
     }
 

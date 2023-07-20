@@ -16,24 +16,22 @@ If no matching query rules are defined, the "organic" matches for the query are 
 --------------------------------------------------
 PUT _query_rules/my-ruleset
 {
-    "rules": [
+  "rules": [
+    {
+      "rule_id": "my-rule1",
+      "type": "pinned",
+      "criteria": [
         {
-            "rule_id": "my-rule1",
-            "type": "pinned",
-            "criteria": [
-                {
-                    "type": "exact",
-                    "metadata": "query_string",
-                    "value": "pugs"
-                }
-            ],
-            "actions": {
-                "ids": [
-                    "id1"
-                ]
-            }
+          "type": "exact",
+          "metadata": "query_string",
+          "values": ["pugs"]
         }
-    ]
+      ],
+      "actions": {
+        "ids": [ "id1" ]
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TESTSETUP

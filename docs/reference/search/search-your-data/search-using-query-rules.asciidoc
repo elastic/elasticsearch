@@ -30,8 +30,8 @@ You can add query rules using the <<put-query-ruleset>> call. This adds a rulese
 
 The following command will create a query ruleset called `my-ruleset` with two pinned document rules:
 
-* The first rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field,`_id`>>s `id1` and `id2` when the `query_string` matches the value `pugs`.
-* The second rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field, `_id`>> of `id3` specifically from the `my-index-000001` index and `id4` from the `my-index-000002` index when the `query_string` matches the value `beagles`.
+* The first rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field,`_id`>>s `id1` and `id2` when the `user.query` matches the value `pugs`.
+* The second rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field, `_id`>> of `id3` specifically from the `my-index-000001` index and `id4` from the `my-index-000002` index when the `user.query` matches the value `beagles`.
 
 [source,console]
 ----
@@ -44,8 +44,8 @@ PUT /_query_rules/my-ruleset
       "criteria": [
         {
           "type": "exact",
-          "metadata": "query_string",
-          "value": "pugs"
+          "metadata": "user.query",
+          "values": [ "pugs" ]
         }
       ],
       "actions": {
@@ -61,8 +61,8 @@ PUT /_query_rules/my-ruleset
       "criteria": [
         {
           "type": "exact",
-          "metadata": "query_string",
-          "value": "beagles"
+          "metadata": "user.query",
+          "values": [ "beagles" ]
         }
       ],
       "actions": {
@@ -88,7 +88,7 @@ The API response returns a results of `created` or `updated` depending on whethe
 [source,console-result]
 ----
 {
-    "result": "created"
+  "result": "created"
 }
 ----
 // TEST[skip:TBD]
@@ -108,22 +108,22 @@ An example query for the `my-ruleset` defined above is:
 ----
 GET /my-index-000001/_search
 {
-    "query": {
-        "rule_query": {
-            "organic": {
-                "query_string": {
-                  "query": "pugs"
-                }
-            },
-            "match_criteria": {
-                "query_string": "pugs"
-            },
-            "ruleset_id": "my-ruleset"
+  "query": {
+    "rule_query": {
+      "organic": {
+        "query_string": {
+          "query": "pugs"
         }
+      },
+      "match_criteria": {
+        "query_string": "pugs"
+      },
+      "ruleset_id": "my-ruleset"
     }
+  }
 }
 ----
 // TEST[skip:TBD]
 
 This rule query will match against `rule1` in the defined query ruleset, and will convert the organic query into a pinned query with `id1` and `id2` pinned as the top hits.
-Any other matches from the `query_string` query specified in the organic query will be returned below the pinned results.
+Any other matches from the `user.query` query specified in the organic query will be returned below the pinned results.

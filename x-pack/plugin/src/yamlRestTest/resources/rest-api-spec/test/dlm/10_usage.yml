@@ -29,7 +29,6 @@
                 '@timestamp':
                   type: date
             lifecycle:
-              enabled: true
               data_retention: 10d
           data_stream: {}
 
@@ -51,7 +50,6 @@
                 '@timestamp':
                   type: date
             lifecycle:
-              enabled: true
               data_retention: 5d
           data_stream: {}
 

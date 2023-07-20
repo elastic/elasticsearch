@@ -213,7 +213,6 @@
           index_patterns: other
           template:
             lifecycle:
-              enabled: true
               data_retention:   "7d"
           data_stream: {}
 

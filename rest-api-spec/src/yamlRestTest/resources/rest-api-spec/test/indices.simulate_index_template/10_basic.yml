@@ -238,7 +238,6 @@
           index_patterns: te*
           template:
             lifecycle:
-              enabled: true
               data_retention: "7d"
           data_stream: {}
 

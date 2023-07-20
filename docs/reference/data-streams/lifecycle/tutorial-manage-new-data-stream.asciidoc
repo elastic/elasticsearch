@@ -36,7 +36,6 @@ PUT _index_template/my-index-template
   "priority": 500,
   "template": {
     "lifecycle": {
-      "enabled": true,
       "data_retention": "7d"
     }
   },

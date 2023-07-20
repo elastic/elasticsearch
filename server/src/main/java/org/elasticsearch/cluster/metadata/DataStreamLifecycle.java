@@ -66,7 +66,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public static final ConstructingObjectParser<DataStreamLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
-        (args, unused) -> new DataStreamLifecycle((Retention) args[0], (Downsampling) args[1], (boolean) args[2])
+        (args, unused) -> new DataStreamLifecycle((Retention) args[0], (Downsampling) args[1], (Boolean) args[2])
     );
 
     static {
@@ -85,7 +85,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 return new Downsampling(AbstractObjectParser.parseArray(p, c, Downsampling.Round::fromXContent));
             }
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
     }
 
     public static boolean isFeatureEnabled() {
@@ -99,11 +99,11 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     private final boolean enabled;
 
     public DataStreamLifecycle() {
-        this(null, null, true);
+        this(null, null, null);
     }
 
-    public DataStreamLifecycle(@Nullable Retention dataRetention, @Nullable Downsampling downsampling, boolean enabled) {
-        this.enabled = enabled;
+    public DataStreamLifecycle(@Nullable Retention dataRetention, @Nullable Downsampling downsampling, @Nullable Boolean enabled) {
+        this.enabled = enabled == null || enabled;
         this.dataRetention = dataRetention;
         this.downsampling = downsampling;
     }

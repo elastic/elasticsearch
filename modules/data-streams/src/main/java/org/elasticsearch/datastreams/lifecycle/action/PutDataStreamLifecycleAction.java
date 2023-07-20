@@ -48,7 +48,7 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
 
         public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_lifecycle_request",
-            args -> new Request(null, ((TimeValue) args[0]), (boolean) args[1])
+            args -> new Request(null, ((TimeValue) args[0]), (Boolean) args[1])
         );
 
         static {
@@ -58,7 +58,7 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
                 DATA_RETENTION_FIELD,
                 ObjectParser.ValueType.STRING_OR_NULL
             );
-            PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
         }
 
         public static Request parseRequest(XContentParser parser) {
@@ -84,9 +84,13 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
             out.writeWriteable(lifecycle);
         }
 
-        public Request(String[] names, @Nullable TimeValue dataRetention, boolean enabled) {
+        public Request(String[] names, @Nullable TimeValue dataRetention) {
+            this(names, dataRetention, null);
+        }
+
+        public Request(String[] names, @Nullable TimeValue dataRetention, @Nullable Boolean enabled) {
             this.names = names;
-            this.lifecycle = DataStreamLifecycle.newBuilder().dataRetention(dataRetention).enabled(enabled).build();
+            this.lifecycle = DataStreamLifecycle.newBuilder().dataRetention(dataRetention).enabled(enabled == null || enabled).build();
         }
 
         public String[] getNames() {

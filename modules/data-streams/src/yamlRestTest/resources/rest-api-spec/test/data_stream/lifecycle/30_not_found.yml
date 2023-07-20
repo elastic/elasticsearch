@@ -15,7 +15,6 @@ setup:
               index.number_of_replicas: 0
             lifecycle:
               data_retention: "10d"
-              enabled: true
           data_stream: {}
 
   - do:
@@ -51,7 +50,6 @@ setup:
         name: "my-data-stream-1,does-not-exist"
         body:
           data_retention: '30d'
-          enabled: true
   - match: { error.reason: "no such index [does-not-exist]" }
 
   - do:

@@ -126,7 +126,6 @@ setup:
                 field:
                   type: keyword
             lifecycle:
-              enabled: true
               data_retention: "30d"
           data_stream: {}
   - do:
@@ -156,7 +155,6 @@ setup:
           index_patterns: data-stream-with-lifecycle-*
           template:
             lifecycle:
-              enabled: true
               data_retention: "30d"
           data_stream: {}
   - do:
@@ -189,5 +187,4 @@ setup:
                 field:
                   type: keyword
             lifecycle:
-              enabled: true
               data_retention: "30d"

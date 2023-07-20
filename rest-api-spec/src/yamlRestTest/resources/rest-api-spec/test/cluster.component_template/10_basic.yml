@@ -126,7 +126,6 @@
         body:
           template:
             lifecycle:
-              enabled: true
               data_retention: "10d"
           version: 1
           _meta:
@@ -140,8 +139,8 @@
 
   - match: {component_templates.0.name: test-lifecycle}
   - match: {component_templates.0.component_template.version: 1}
-  - match: {component_templates.0.component_template.template.lifecycle: {enabled: true}}
-  - match: {component_templates.0.component_template.template.lifecycle: {data_retention: "10d"}}
+  - match: {component_templates.0.component_template.template.lifecycle.enabled: true}
+  - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
 
 ---
 "Get data stream lifecycle with default rollover":
@@ -155,7 +154,6 @@
         body:
           template:
             lifecycle:
-              enabled: true
               data_retention: "10d"
           version: 1
           _meta:

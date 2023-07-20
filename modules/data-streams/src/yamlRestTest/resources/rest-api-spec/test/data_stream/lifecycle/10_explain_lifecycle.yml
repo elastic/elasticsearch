@@ -16,7 +16,6 @@
               index.number_of_replicas: 0
             lifecycle:
               data_retention: "30d"
-              enabled: true
           data_stream: { }
   - do:
       indices.create_data_stream:

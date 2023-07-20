@@ -15,7 +15,6 @@ setup:
               index.number_of_replicas: 0
             lifecycle:
               data_retention: "10d"
-              enabled: true
           data_stream: {}
 
   - do:
@@ -92,7 +91,6 @@ setup:
         name: "simple-data-stream1"
         body:
           data_retention: '30d'
-          enabled: true
   - is_true: acknowledged
 
   - do:

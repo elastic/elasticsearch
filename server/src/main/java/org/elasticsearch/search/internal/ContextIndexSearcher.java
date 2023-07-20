@@ -275,13 +275,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
         final C firstCollector = collectorManager.newCollector();
-        // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
-        query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
         final Weight weight;
         try {
+            // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
+            query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
             weight = createWeight(query, firstCollector.scoreMode(), 1);
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
-            timeExceeded = false;
+            timeExceeded = true;
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         }
         return search(weight, collectorManager, firstCollector);
@@ -324,8 +324,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             for (Future<C> future : listTasks) {
                 try {
                     collectedCollectors.add(future.get());
-                    // TODO: when there is an exception and we don't want partial results, it would be great
-                    // to cancel the queries / threads
+                    // TODO: when there is an exception, it would be great to cancel the queries / threads
                 } catch (InterruptedException e) {
                     if (exception == null) {
                         exception = new ThreadInterruptedException(e);

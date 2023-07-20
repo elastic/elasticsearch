@@ -50,6 +50,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
@@ -462,14 +463,15 @@ public class ContextIndexSearcherTests extends ESTestCase {
     public void testTimeExceedCallsReduce() throws IOException {
         Directory dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
-        int docs = randomIntBetween(1, 100);
+        int docs = randomIntBetween(1, 1000);
         for (int i = 0; i < docs; i++) {
             Document doc = new Document();
-            StringField fooField = new StringField("foo", "bar", Field.Store.NO);
+            StringField fooField = new StringField("foo", randomBoolean() ? "bar" : "foo", Field.Store.NO);
             doc.add(fooField);
             w.addDocument(doc);
         }
 
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
         DirectoryReader directoryReader = w.getReader();
         ContextIndexSearcher searcher = new ContextIndexSearcher(
             directoryReader,
@@ -477,9 +479,20 @@ public class ContextIndexSearcherTests extends ESTestCase {
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
-            (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(1, 5))
-        );
-        searcher.addQueryCancellation(searcher::throwTimeExceededException);
+            executor
+        ) {
+            @Override
+            protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+                return slices(leaves, 1, 1);
+            }
+        };
+        boolean[] thrown = new boolean[1];
+        searcher.addQueryCancellation(() -> {
+            if (randomIntBetween(0, 10) == 0) {
+                thrown[0] = true;
+                searcher.throwTimeExceededException();
+            }
+        });
         boolean[] called = new boolean[1];
         CollectorManager<Collector, Void> manager = new CollectorManager<>() {
             @Override
@@ -493,9 +506,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 return null;
             }
         };
-        searcher.search(new MatchAllDocsQuery(), manager);
-        assertThat(searcher.timeExceeded(), equalTo(true));
+        searcher.search(new TermQuery(new Term("foo", new BytesRef("bar"))), manager);
+        assertThat(searcher.timeExceeded(), equalTo(thrown[0]));
         assertThat(called[0], equalTo(true));
+        executor.shutdown();
         w.close();
         directoryReader.close();
         dir.close();

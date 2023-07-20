@@ -100,7 +100,11 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.licenseState = licenseState;
         this.jobManagerHolder = jobManagerHolder;
-        this.machineLearningExtension = machineLearningExtensionHolder.getMachineLearningExtension();
+        if (machineLearningExtensionHolder.isEmpty()) {
+            this.machineLearningExtension = new DefaultMachineLearningExtension();
+        } else {
+            this.machineLearningExtension = machineLearningExtensionHolder.getMachineLearningExtension();
+        }
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(environment.settings());
     }
 

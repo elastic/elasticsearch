@@ -18,10 +18,21 @@ import java.util.Objects;
  */
 public class MachineLearningExtensionHolder {
 
-    private MachineLearningExtension machineLearningExtension;
+    private final MachineLearningExtension machineLearningExtension;
+
+    /**
+     * Used by Guice, and in cases where ML is disabled.
+     */
+    public MachineLearningExtensionHolder() {
+        this.machineLearningExtension = null;
+    }
 
     public MachineLearningExtensionHolder(MachineLearningExtension machineLearningExtension) {
         this.machineLearningExtension = Objects.requireNonNull(machineLearningExtension);
+    }
+
+    public boolean isEmpty() {
+        return machineLearningExtension == null;
     }
 
     public MachineLearningExtension getMachineLearningExtension() {

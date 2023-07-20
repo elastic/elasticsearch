@@ -391,7 +391,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return effectiveRegionSize;
     }
 
-    public CacheFileRegion get(KeyType cacheKey, long fileLength, int region) {
+    public Entry<CacheFileRegion> get(KeyType cacheKey, long fileLength, int region) {
         final RegionKey<KeyType> regionKey = new RegionKey<>(cacheKey, region);
         final long now = threadPool.relativeTimeInMillis();
         // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path if we did not
@@ -416,10 +416,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             maybePromote(now, entry);
         }
 
-        return entry.chunk;
+        return entry;
     }
 
-    private CacheFileRegion initChunk(Entry<CacheFileRegion> entry) {
+    private Entry<CacheFileRegion> initChunk(Entry<CacheFileRegion> entry) {
         assert Thread.holdsLock(entry.chunk);
         RegionKey<KeyType> regionKey = entry.chunk.regionKey;
         if (keyMapping.get(regionKey) != entry) {
@@ -448,7 +448,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
 
-        return entry.chunk;
+        return entry;
     }
 
     private void maybePromote(long now, Entry<CacheFileRegion> entry) {
@@ -899,9 +899,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         private final KeyType cacheKey;
         private final long length;
 
-        private CacheFileRegion lastAccessedRegion;
-
-        private long lastAccessTime;
+        private Entry<CacheFileRegion> lastAccessedRegion;
 
         private CacheFile(KeyType cacheKey, long length) {
             this.cacheKey = cacheKey;
@@ -924,23 +922,26 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 return false;
             }
             long now = threadPool.relativeTimeInMillis();
-            final CacheFileRegion fileRegion;
+            final Entry<CacheFileRegion> fileRegion;
             var r = lastAccessedRegion;
-            if (r != null && r.regionKey.region == startRegion && now - lastAccessTime <= minTimeDelta) {
+            if (r != null && lastAccessedRegion.chunk.regionKey.region == startRegion) {
                 fileRegion = r;
+                // existing item, check if we need to promote item
+                if (now - fileRegion.lastAccessed >= minTimeDelta) {
+                    maybePromote(now, fileRegion);
+                }
             } else {
                 fileRegion = get(cacheKey, length, startRegion);
             }
-            if (fileRegion.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
+            final var region = fileRegion.chunk;
+            if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
                 return false;
             }
-            boolean res = fileRegion.tryRead(buf, offset);
+            boolean res = region.tryRead(buf, offset);
             if (res) {
                 lastAccessedRegion = r;
-                lastAccessTime = now;
             } else {
                 lastAccessedRegion = null;
-                lastAccessTime = 0L;
             }
             return res;
         }
@@ -971,7 +972,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             int region
         ) throws InterruptedException, ExecutionException {
             final PlainActionFuture<Integer> readFuture = PlainActionFuture.newFuture();
-            final CacheFileRegion fileRegion = get(cacheKey, length, region);
+            final CacheFileRegion fileRegion = get(cacheKey, length, region).chunk;
             final long regionStart = getRegionStart(region);
             fileRegion.populateAndRead(
                 mapSubRangeToRegion(rangeToWrite, region),
@@ -1000,7 +1001,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         // nothing to read, skip
                         continue;
                     }
-                    final CacheFileRegion fileRegion = get(cacheKey, length, region);
+                    final CacheFileRegion fileRegion = get(cacheKey, length, region).chunk;
                     final long regionStart = getRegionStart(region);
                     fileRegion.populateAndRead(
                         mapSubRangeToRegion(rangeToWrite, region),

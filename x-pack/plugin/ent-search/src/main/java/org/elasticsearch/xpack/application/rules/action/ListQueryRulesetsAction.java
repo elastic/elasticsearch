@@ -42,7 +42,7 @@ public class ListQueryRulesetsAction extends ActionType<ListQueryRulesetsAction.
     public static class Request extends ActionRequest implements ToXContentObject {
         private final PageParams pageParams;
 
-        private static final ParseField PAGE_PARAMS = new ParseField("pageParams");
+        private static final ParseField PAGE_PARAMS_FIELD = new ParseField("pageParams");
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -88,7 +88,7 @@ public class ListQueryRulesetsAction extends ActionType<ListQueryRulesetsAction.
         );
 
         static {
-            PARSER.declareObject(constructorArg(), (p, c) -> PageParams.fromXContent(p), PAGE_PARAMS);
+            PARSER.declareObject(constructorArg(), (p, c) -> PageParams.fromXContent(p), PAGE_PARAMS_FIELD);
         }
 
         public static Request parse(XContentParser parser) {
@@ -98,7 +98,7 @@ public class ListQueryRulesetsAction extends ActionType<ListQueryRulesetsAction.
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(PAGE_PARAMS.getPreferredName(), pageParams);
+            builder.field(PAGE_PARAMS_FIELD.getPreferredName(), pageParams);
             builder.endObject();
             return builder;
         }

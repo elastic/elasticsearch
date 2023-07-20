@@ -40,7 +40,7 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
 
     public static class Request extends ActionRequest implements ToXContentObject {
         private final String rulesetId;
-        private static final ParseField RULES_ID = new ParseField("rules_id");
+        private static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -88,7 +88,7 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(RULES_ID.getPreferredName(), rulesetId);
+            builder.field(RULESET_ID_FIELD.getPreferredName(), rulesetId);
             builder.endObject();
             return builder;
         }
@@ -102,7 +102,7 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
 
         );
         static {
-            PARSER.declareString(constructorArg(), RULES_ID);
+            PARSER.declareString(constructorArg(), RULESET_ID_FIELD);
         }
 
         public static Request parse(XContentParser parser, String name) {
@@ -114,7 +114,7 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final QueryRuleset queryRuleset;
-        private static final ParseField QUERY_RULE_SET = new ParseField("queryRuleset");
+        private static final ParseField QUERY_RULESET_FIELD = new ParseField("queryRuleset");
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -161,7 +161,7 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
             p -> new Response((QueryRuleset) p[0])
         );
         static {
-            PARSER.declareObject(constructorArg(), (p, c) -> QueryRuleset.fromXContent(c, p), QUERY_RULE_SET);
+            PARSER.declareObject(constructorArg(), (p, c) -> QueryRuleset.fromXContent(c, p), QUERY_RULESET_FIELD);
         }
 
         public static Response fromXContent(String resourceName, XContentParser parser) throws IOException {

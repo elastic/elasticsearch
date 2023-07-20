@@ -38,7 +38,7 @@ public class DeleteQueryRulesetAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends ActionRequest implements ToXContentObject {
         private final String rulesetId;
 
-        private static final ParseField RULES_ID = new ParseField("rules_id");
+        private static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -86,20 +86,20 @@ public class DeleteQueryRulesetAction extends ActionType<AcknowledgedResponse> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(RULES_ID.getPreferredName(), rulesetId);
+            builder.field(RULESET_ID_FIELD.getPreferredName(), rulesetId);
             builder.endObject();
             return builder;
         }
 
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
-            "delete_query_ruleset",
+            "delete_query_ruleset_request",
             false,
             (p) -> {
                 return new Request((String) p[0]);
             }
         );
         static {
-            PARSER.declareString(constructorArg(), RULES_ID);
+            PARSER.declareString(constructorArg(), RULESET_ID_FIELD);
         }
 
         public static Request parse(XContentParser parser) {

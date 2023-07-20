@@ -46,7 +46,7 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
     public static class Request extends ActionRequest implements ToXContentObject {
 
         private final QueryRuleset queryRuleset;
-        private static final ParseField QUERY_RULE_SET = new ParseField("queryRuleset");
+        private static final ParseField QUERY_RULESET_FIELD = new ParseField("queryRuleset");
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -111,7 +111,7 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
         );
 
         static {
-            PARSER.declareObject(constructorArg(), (p, c) -> QueryRuleset.fromXContent(c, p), QUERY_RULE_SET);
+            PARSER.declareObject(constructorArg(), (p, c) -> QueryRuleset.fromXContent(c, p), QUERY_RULESET_FIELD);
         }
 
         public static PutQueryRulesetAction.Request fromXContent(String id, XContentParser parser) throws IOException {

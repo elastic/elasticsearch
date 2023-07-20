@@ -140,7 +140,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
                 new QueryRule(
                     "my_rule1",
                     QueryRule.QueryRuleType.PINNED,
-                    List.of(new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.EXACT, "query_string", "elastic")),
+                    List.of(new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.EXACT, "query_string", List.of("elastic"))),
                     Map.of("ids", List.of("id1", "id2"))
                 )
             );

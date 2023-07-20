@@ -47,12 +47,36 @@ public class QueryRuleCriteriaTests extends ESTestCase {
         }
     }
 
+    public final void testGlobalSerialization() throws IOException {
+        for (int runs = 0; runs < 10; runs++) {
+            QueryRuleCriteria testInstance = SearchApplicationTestUtils.randomGlobalQueryRuleCriteria();
+            assertTransportSerialization(testInstance);
+            assertXContent(testInstance, randomBoolean());
+        }
+    }
+
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
               "type": "exact",
-              "metadata": "query_string",
-              "value": "foo"
+              "metadata": "my-key",
+              "values": ["foo","bar"]
+            }""");
+
+        QueryRuleCriteria queryRuleCriteria = QueryRuleCriteria.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(queryRuleCriteria, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        QueryRuleCriteria parsed;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+            parsed = QueryRuleCriteria.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
+    public void testGlobalToXContent() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "type": "global"
             }""");
 
         QueryRuleCriteria queryRuleCriteria = QueryRuleCriteria.fromXContentBytes(new BytesArray(content), XContentType.JSON);

@@ -53,7 +53,7 @@ public class QueryRuleTests extends ESTestCase {
               "rule_id": "my_query_rule",
               "type": "pinned",
               "criteria": [
-                { "type": "exact", "metadata": "query_string", "value": "foo" }
+                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
               ],
               "actions": {
                 "ids": ["id1", "id2"]
@@ -75,7 +75,7 @@ public class QueryRuleTests extends ESTestCase {
             {
               "type": "pinned",
               "criteria": [
-                { "type": "exact", "metadata": "query_string", "value": "foo" }
+                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
               ],
               "actions": {
                   "ids": ["id1", "id2"]
@@ -101,7 +101,7 @@ public class QueryRuleTests extends ESTestCase {
               "rule_id": "my_query_rule",
               "type": "pinned",
               "criteria": [
-                { "type": "exact", "metadata": "query_string", "value": "foo" }
+                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
               ],
               "actions": {
                 "ids": ["id1", "id2"]
@@ -116,7 +116,7 @@ public class QueryRuleTests extends ESTestCase {
               "rule_id": "my_query_rule",
               "type": "pinned",
               "criteria": [
-                { "type": "exact", "metadata": "query_string", "value": "foo" }
+                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
               ],
               "actions": {
                 "docs": [
@@ -151,7 +151,7 @@ public class QueryRuleTests extends ESTestCase {
               "rule_id": "my_query_rule",
               "type": "pinned",
               "criteria": [
-                { "type": "exact", "metadata": "query_string", "value": "foo" }
+                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
               ],
               "actions": {
                   "foo": "bar"

@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -37,9 +38,9 @@ import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.Criter
 public class QueryRuleCriteria implements Writeable, ToXContentObject {
     private final CriteriaType criteriaType;
     private final String criteriaMetadata;
-    private final Object criteriaValue;
+    private final List<Object> criteriaValues;
 
-    private final Logger logger = LogManager.getLogger(QueryRuleCriteria.class);
+    private static final Logger logger = LogManager.getLogger(QueryRuleCriteria.class);
 
     public enum CriteriaType {
         GLOBAL,
@@ -73,10 +74,10 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
      * @param criteriaType The {@link CriteriaType}, indicating how the criteria is matched
      * @param criteriaMetadata The metadata for this identifier, indicating the criteria key of what is matched against.
      *                         Required unless the CriteriaType is GLOBAL.
-     * @param criteriaValue The value to match against when evaluating {@link QueryRuleCriteria} against a {@link QueryRule}
+     * @param criteriaValues The values to match against when evaluating {@link QueryRuleCriteria} against a {@link QueryRule}
      *                      Required unless the CriteriaType is GLOBAL.
      */
-    public QueryRuleCriteria(CriteriaType criteriaType, @Nullable String criteriaMetadata, @Nullable Object criteriaValue) {
+    public QueryRuleCriteria(CriteriaType criteriaType, @Nullable String criteriaMetadata, @Nullable List<Object> criteriaValues) {
 
         Objects.requireNonNull(criteriaType);
 
@@ -84,11 +85,13 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
             if (Strings.isNullOrEmpty(criteriaMetadata)) {
                 throw new IllegalArgumentException("criteriaMetadata cannot be blank");
             }
-            Objects.requireNonNull(criteriaValue);
+            if (criteriaValues == null || criteriaValues.isEmpty()) {
+                throw new IllegalArgumentException("criteriaValues cannot be null or empty");
+            }
         }
 
         this.criteriaMetadata = criteriaMetadata;
-        this.criteriaValue = criteriaValue;
+        this.criteriaValues = criteriaValues;
         this.criteriaType = criteriaType;
 
     }
@@ -96,7 +99,14 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     public QueryRuleCriteria(StreamInput in) throws IOException {
         this.criteriaType = in.readEnum(CriteriaType.class);
         this.criteriaMetadata = in.readOptionalString();
-        this.criteriaValue = in.readGenericValue();
+        this.criteriaValues = in.readOptionalList(StreamInput::readGenericValue);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeEnum(criteriaType);
+        out.writeOptionalString(criteriaMetadata);
+        out.writeOptionalCollection(criteriaValues, StreamOutput::writeGenericValue);
     }
 
     private static final ConstructingObjectParser<QueryRuleCriteria, String> PARSER = new ConstructingObjectParser<>(
@@ -105,19 +115,21 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         (params, resourceName) -> {
             final CriteriaType type = CriteriaType.criteriaType((String) params[0]);
             final String metadata = params.length >= 3 ? (String) params[1] : null;
-            final Object value = params.length >= 3 ? params[2] : null;
-            return new QueryRuleCriteria(type, metadata, value);
+            @SuppressWarnings("unchecked")
+            final List<Object> values = params.length >= 3 ? (List<Object>) params[2] : null;
+            return new QueryRuleCriteria(type, metadata, values);
         }
     );
 
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField METADATA_FIELD = new ParseField("metadata");
-    public static final ParseField VALUE_FIELD = new ParseField("value");
+    public static final ParseField VALUES_FIELD = new ParseField("values");
 
     static {
         PARSER.declareString(constructorArg(), TYPE_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), METADATA_FIELD);
-        PARSER.declareStringOrNull(optionalConstructorArg(), VALUE_FIELD);
+        // PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.map(), VALUES_FIELD);
+        PARSER.declareStringArray(optionalConstructorArg(), VALUES_FIELD);
     }
 
     /**
@@ -148,25 +160,21 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        logger.info(
+            "toXContent. criteriaType: " + criteriaType + ", criteriaMetadata: " + criteriaMetadata + ", criteriaValues: " + criteriaValues
+        );
         builder.startObject();
         {
             builder.field(TYPE_FIELD.getPreferredName(), criteriaType);
             if (criteriaMetadata != null) {
                 builder.field(METADATA_FIELD.getPreferredName(), criteriaMetadata);
             }
-            if (criteriaValue != null) {
-                builder.field(VALUE_FIELD.getPreferredName(), criteriaValue);
+            if (criteriaValues != null) {
+                builder.array(VALUES_FIELD.getPreferredName(), criteriaValues.toArray());
             }
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(criteriaType);
-        out.writeOptionalString(criteriaMetadata);
-        out.writeGenericValue(criteriaValue);
     }
 
     public CriteriaType criteriaType() {
@@ -177,8 +185,8 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         return criteriaMetadata;
     }
 
-    public Object criteriaValue() {
-        return criteriaValue;
+    public List<Object> criteriaValues() {
+        return criteriaValues;
     }
 
     @Override
@@ -188,12 +196,12 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         QueryRuleCriteria that = (QueryRuleCriteria) o;
         return criteriaType == that.criteriaType
             && Objects.equals(criteriaMetadata, that.criteriaMetadata)
-            && Objects.equals(criteriaValue, that.criteriaValue);
+            && Objects.equals(criteriaValues, that.criteriaValues);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(criteriaType, criteriaMetadata, criteriaValue);
+        return Objects.hash(criteriaType, criteriaMetadata, criteriaValues);
     }
 
     @Override
@@ -202,40 +210,51 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     }
 
     public boolean isMatch(Object matchValue, CriteriaType matchType) {
+        logger.info("Running isMatch for matchValue: " + matchValue + " and matchType " + matchType);
 
         if (criteriaType == GLOBAL) {
             return true;
         }
 
         LevenshteinDistance ld = new LevenshteinDistance();
-        String matchString = matchValue.toString();
-        String criteriaValueString = criteriaValue != null ? criteriaValue.toString() : null;
-        if (criteriaValueString != null && matchValue instanceof String) {
-            return switch (matchType) {
-                case EXACT -> matchString.equals(criteriaValueString);
-                case EXACT_FUZZY -> ld.getDistance(matchString, criteriaValueString) > 0.75f; // TODO make configurable
-                case PREFIX -> matchString.startsWith(criteriaValueString);
-                case SUFFIX -> matchString.endsWith(criteriaValueString);
-                case CONTAINS -> matchString.contains(criteriaValueString);
-                default -> false;
-            };
-        } else if (criteriaValueString != null && matchValue instanceof Number) {
-            try {
-                Number matchNumber = (Number) matchValue;
-                return switch (matchType) {
-                    case EXACT -> matchNumber.doubleValue() == Double.parseDouble(criteriaValueString);
-                    case LT -> matchNumber.doubleValue() < Double.parseDouble(criteriaValueString);
-                    case LTE -> matchNumber.doubleValue() <= Double.parseDouble(criteriaValueString);
-                    case GT -> matchNumber.doubleValue() > Double.parseDouble(criteriaValueString);
-                    case GTE -> matchNumber.doubleValue() >= Double.parseDouble(criteriaValueString);
+        final String matchString = matchValue.toString();
+        boolean matchFound = false;
+
+        for (Object criteriaValue : criteriaValues) {
+            final String criteriaValueString = criteriaValue != null ? criteriaValue.toString() : null;
+            logger.info("Comparing criteriaValue: " + criteriaValueString);
+            if (criteriaValueString != null && matchValue instanceof String) {
+                logger.info("We have a String!");
+                matchFound |= switch (matchType) {
+                    case EXACT -> matchString.equals(criteriaValueString);
+                    case EXACT_FUZZY -> ld.getDistance(matchString, criteriaValueString) > 0.75f; // TODO make configurable
+                    case PREFIX -> matchString.startsWith(criteriaValueString);
+                    case SUFFIX -> matchString.endsWith(criteriaValueString);
+                    case CONTAINS -> matchString.contains(criteriaValueString);
                     default -> false;
                 };
-            } catch (NumberFormatException e) {
-                logger.warn("Query rule criteria [" + criteriaValue + "] type mismatch against [" + matchString + "]", e);
-                return false;
+                logger.info("Status of matchFound: " + matchFound);
+            } else if (criteriaValueString != null && matchValue instanceof Number) {
+                try {
+                    logger.info("We have a number!");
+                    Number matchNumber = (Number) matchValue;
+                    matchFound |= switch (matchType) {
+                        case EXACT -> matchNumber.doubleValue() == Double.parseDouble(criteriaValueString);
+                        case LT -> matchNumber.doubleValue() < Double.parseDouble(criteriaValueString);
+                        case LTE -> matchNumber.doubleValue() <= Double.parseDouble(criteriaValueString);
+                        case GT -> matchNumber.doubleValue() > Double.parseDouble(criteriaValueString);
+                        case GTE -> matchNumber.doubleValue() >= Double.parseDouble(criteriaValueString);
+                        default -> false;
+                    };
+                    logger.info("Status of matchFound: " + matchFound);
+                } catch (NumberFormatException e) {
+                    logger.warn("Query rule criteria [" + criteriaValues + "] type mismatch against [" + matchString + "]", e);
+                    return false;
+                }
             }
         }
 
-        return false;
+        logger.info("Final of matchFound: " + matchFound);
+        return matchFound;
     }
 }

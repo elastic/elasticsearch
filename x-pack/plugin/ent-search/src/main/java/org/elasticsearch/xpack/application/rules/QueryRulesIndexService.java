@@ -137,7 +137,7 @@ public class QueryRulesIndexService {
                             builder.field("type", "keyword");
                             builder.endObject();
 
-                            builder.startObject(QueryRuleCriteria.VALUE_FIELD.getPreferredName());
+                            builder.startObject(QueryRuleCriteria.VALUES_FIELD.getPreferredName());
                             builder.field("type", "object");
                             builder.field("enabled", false);
                             builder.endObject();
@@ -195,6 +195,7 @@ public class QueryRulesIndexService {
         }));
     }
 
+    @SuppressWarnings("unchecked")
     private List<QueryRuleCriteria> parseCriteria(List<Map<String, Object>> rawCriteria) {
         List<QueryRuleCriteria> criteria = new ArrayList<>(rawCriteria.size());
         for (Map<String, Object> entry : rawCriteria) {
@@ -202,7 +203,7 @@ public class QueryRulesIndexService {
                 new QueryRuleCriteria(
                     QueryRuleCriteria.CriteriaType.criteriaType((String) entry.get("type")),
                     (String) entry.get("metadata"),
-                    entry.get("value")
+                    (List<Object>) entry.get("values")
                 )
             );
         }

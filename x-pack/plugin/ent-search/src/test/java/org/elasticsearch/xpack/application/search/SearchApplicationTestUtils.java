@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.application.rules.QueryRuleset;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +29,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
 
@@ -79,11 +81,15 @@ public final class SearchApplicationTestUtils {
     }
 
     public static QueryRuleCriteria randomQueryRuleCriteria() {
-        return new QueryRuleCriteria(
-            randomFrom(QueryRuleCriteria.CriteriaType.values()),
-            randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10)
+        // We intentionally don't allow global criteria in this method, since we want to test parsing metadata and values
+        QueryRuleCriteria.CriteriaType type = randomFrom(
+            Arrays.stream(QueryRuleCriteria.CriteriaType.values()).filter(t -> t != QueryRuleCriteria.CriteriaType.GLOBAL).toList()
         );
+        return new QueryRuleCriteria(type, randomAlphaOfLengthBetween(1, 10), randomList(1, 5, () -> randomAlphaOfLengthBetween(1, 10)));
+    }
+
+    public static QueryRuleCriteria randomGlobalQueryRuleCriteria() {
+        return new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.GLOBAL, null, null);
     }
 
     public static QueryRule randomQueryRule() {

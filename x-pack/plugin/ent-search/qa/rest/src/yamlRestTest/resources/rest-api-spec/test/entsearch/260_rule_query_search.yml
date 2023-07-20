@@ -40,7 +40,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: search
+                  values: [search]
               actions:
                 ids:
                   - 'doc1'
@@ -49,7 +49,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: ui
+                  values: [ui]
               actions:
                 docs:
                   - '_index': 'test-index1'

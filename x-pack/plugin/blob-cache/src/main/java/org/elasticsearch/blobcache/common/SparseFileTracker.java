@@ -260,6 +260,7 @@ public class SparseFileTracker {
     }
 
     public boolean checkAvailable(long upTo) {
+        assert upTo <= length : "tried to check availability up to [" + upTo + "] but length is only [" + length + "]";
         return complete >= upTo;
     }
 

@@ -512,77 +512,66 @@ public final class TokenService {
         if (frozenTokensIndex.isAvailable() == false) {
             logger.warn("failed to get access token [{}] because index [{}] is not available", tokenId, tokensIndex.aliasName());
             listener.onFailure(frozenTokensIndex.getUnavailableReason());
-        } else {
-            final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), getTokenDocumentId(tokenId)).request();
-            final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("get token from id", tokenId, ex));
-            tokensIndex.checkIndexVersionThenExecute(
-                ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenId, ex)),
-                () -> executeAsyncWithOrigin(
-                    client.threadPool().getThreadContext(),
-                    SECURITY_ORIGIN,
-                    getRequest,
-                    ActionListener.<GetResponse>wrap(response -> {
-                        if (response.isExists()) {
-                            Map<String, Object> accessTokenSource = (Map<String, Object>) response.getSource().get("access_token");
-                            if (accessTokenSource == null) {
-                                onFailure.accept(new IllegalStateException("token document is missing the access_token field"));
-                            } else if (accessTokenSource.containsKey("user_token") == false) {
-                                onFailure.accept(new IllegalStateException("token document is missing the user_token field"));
-                            } else if (tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)
-                                && accessTokenSource.containsKey("token") == false) {
-                                    onFailure.accept(new IllegalStateException("token document is missing the user_token.token field"));
-                                } else if (tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)
-                                    && response.getSource().get("refresh_token") != null
-                                    && ((Map<String, Object>) response.getSource().get("refresh_token")).containsKey("token") == false) {
-                                        onFailure.accept(
-                                            new IllegalStateException("token document is missing the refresh_token.token field")
-                                        );
-                                    } else if (storedAccessToken != null
-                                        && storedAccessToken.equals(accessTokenSource.get("token")) == false) {
-                                            logger.error(
-                                                "The stored access token [{}] for token doc id [{}] could not be verified",
-                                                storedAccessToken,
-                                                tokenId
-                                            );
-                                            listener.onResponse(null);
-                                        } else if (storedRefreshToken != null
-                                            && (response.getSource().get("refresh_token") == null
-                                                || storedRefreshToken.equals(
-                                                    ((Map<String, Object>) response.getSource().get("refresh_token")).get("token")
-                                                ) == false)) {
-                                                    logger.error(
-                                                        "The stored refresh token [{}] for token doc id [{}] could not be verified",
-                                                        storedRefreshToken,
-                                                        tokenId
-                                                    );
-                                                    listener.onResponse(null);
-                                                } else {
-                                                    listener.onResponse(new Doc(response));
-                                                }
-                        } else {
-                            // The chances of a random token string decoding to something that we can read is minimal, so
-                            // we assume that this was a token we have created but is now expired/revoked and deleted
-                            logger.trace("The token [{}] probably expired and has already been deleted", tokenId);
-                            listener.onResponse(null);
-                        }
-                    }, e -> {
-                        // if the index or the shard is not there / available we assume that
-                        // the token is not valid
-                        if (isShardNotAvailableException(e)) {
-                            logger.warn(
-                                "failed to get token doc [{}] because index [{}] is not available",
-                                tokenId,
-                                tokensIndex.aliasName()
-                            );
-                        } else {
-                            logger.error(() -> "failed to get token doc [" + tokenId + "]", e);
-                        }
-                        listener.onFailure(e);
-                    }),
-                    client::get
-                )
-            );
+            return;
         }
+        final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), getTokenDocumentId(tokenId)).request();
+        final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("get token from id", tokenId, ex));
+        tokensIndex.checkIndexVersionThenExecute(
+            ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenId, ex)),
+            () -> executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                SECURITY_ORIGIN,
+                getRequest,
+                ActionListener.<GetResponse>wrap(response -> {
+                    if (response.isExists() == false) {
+                        // The chances of a random token string decoding to something that we can read is minimal, so
+                        // we assume that this was a token we have created but is now expired/revoked and deleted
+                        logger.trace("The token [{}] probably expired and has already been deleted", tokenId);
+                        listener.onResponse(null);
+                        return;
+                    }
+                    Map<String, Object> accessSource = (Map<String, Object>) response.getSource().get("access_token");
+                    Map<String, Object> refreshSource = (Map<String, Object>) response.getSource().get("refresh_token");
+                    boolean versionGetForRefresh = tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
+                    if (accessSource == null) {
+                        onFailure.accept(new IllegalStateException("token document is missing the access_token field"));
+                    } else if (accessSource.containsKey("user_token") == false) {
+                        onFailure.accept(new IllegalStateException("token document is missing the user_token field"));
+                    } else if (versionGetForRefresh && accessSource.containsKey("token") == false) {
+                        onFailure.accept(new IllegalStateException("token document is missing the user_token.token field"));
+                    } else if (versionGetForRefresh && refreshSource != null && refreshSource.containsKey("token") == false) {
+                        onFailure.accept(new IllegalStateException("token document is missing the refresh_token.token field"));
+                    } else if (storedAccessToken != null && storedAccessToken.equals(accessSource.get("token")) == false) {
+                        logger.error(
+                            "The stored access token [{}] for token doc id [{}] could not be verified",
+                            storedAccessToken,
+                            tokenId
+                        );
+                        listener.onResponse(null);
+                    } else if (storedRefreshToken != null
+                        && (refreshSource == null || storedRefreshToken.equals(refreshSource.get("token")) == false)) {
+                            logger.error(
+                                "The stored refresh token [{}] for token doc id [{}] could not be verified",
+                                storedRefreshToken,
+                                tokenId
+                            );
+                            listener.onResponse(null);
+                        } else {
+                            listener.onResponse(new Doc(response));
+                        }
+                }, e -> {
+                    // if the index or the shard is not there / available we assume that
+                    // the token is not valid
+                    if (isShardNotAvailableException(e)) {
+                        logger.warn("failed to get token doc [{}] because index [{}] is not available", tokenId, tokensIndex.aliasName());
+                    } else {
+                        logger.error(() -> "failed to get token doc [" + tokenId + "]", e);
+                    }
+                    listener.onFailure(e);
+                }),
+                client::get
+            )
+        );
     }
 
     private void decodeAndValidateToken(SecureString tokenString, ActionListener<UserToken> listener) {

@@ -192,7 +192,7 @@ public class ActionsOrderVersioningTests extends ESIntegTestCase {
                                 // NOTE that in this version the downsample action executed _before_ the migrate action (so moving outside
                                 // the downsample action should migrate the index to the warm tier using the migrate action)
                                 .setActionsOrderVersion(VERSION_ONE)
-                                .setPhaseDefinition("""
+                                .setPhaseDefinition(String.format(Locale.ROOT, """
                                     {
                                       "policy" : "%s",
                                       "phase_definition" : {
@@ -205,7 +205,7 @@ public class ActionsOrderVersioningTests extends ESIntegTestCase {
                                       },
                                       "version" : 1,
                                       "modified_date_in_millis" : 1578521007076
-                                    }""".formatted(policy))
+                                    }""", policy))
                                 .build();
 
                             IndexMetadata.Builder managedIndexBuilder = IndexMetadata.builder(originalManagedIndex)
@@ -291,10 +291,11 @@ public class ActionsOrderVersioningTests extends ESIntegTestCase {
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
             .build();
-        CreateIndexResponse res = indicesAdmin().prepareCreate(indexName).setAliases("""
+
+        CreateIndexResponse res = indicesAdmin().prepareCreate(indexName).setAliases(String.format(Locale.ROOT, """
             {
                     "%s" : { "is_write_index": %b }
-            }""".formatted(alias, isWriteIndex)).setSettings(settings).get();
+            }""", alias, isWriteIndex)).setSettings(settings).get();
         assertTrue(res.isAcknowledged());
     }
 }

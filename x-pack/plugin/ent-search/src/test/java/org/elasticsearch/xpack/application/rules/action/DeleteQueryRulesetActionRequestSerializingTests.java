@@ -7,14 +7,10 @@
 
 package org.elasticsearch.xpack.application.rules.action;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
-public class DeleteQueryRulesetActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<DeleteQueryRulesetAction.Request> {
+public class DeleteQueryRulesetActionRequestSerializingTests extends AbstractWireSerializingTestCase<DeleteQueryRulesetAction.Request> {
 
     @Override
     protected Writeable.Reader<DeleteQueryRulesetAction.Request> instanceReader() {
@@ -29,18 +25,5 @@ public class DeleteQueryRulesetActionRequestBWCSerializingTests extends Abstract
     @Override
     protected DeleteQueryRulesetAction.Request mutateInstance(DeleteQueryRulesetAction.Request instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
-    }
-
-    @Override
-    protected DeleteQueryRulesetAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return DeleteQueryRulesetAction.Request.parse(parser);
-    }
-
-    @Override
-    protected DeleteQueryRulesetAction.Request mutateInstanceForVersion(
-        DeleteQueryRulesetAction.Request instance,
-        TransportVersion version
-    ) {
-        return new DeleteQueryRulesetAction.Request(instance.rulesetId());
     }
 }

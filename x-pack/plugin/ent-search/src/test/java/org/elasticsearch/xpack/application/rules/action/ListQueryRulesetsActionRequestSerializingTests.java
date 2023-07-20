@@ -7,16 +7,12 @@
 
 package org.elasticsearch.xpack.application.rules.action;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
-import java.io.IOException;
-
-public class ListQueryRulesetsActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<ListQueryRulesetsAction.Request> {
+public class ListQueryRulesetsActionRequestSerializingTests extends AbstractWireSerializingTestCase<ListQueryRulesetsAction.Request> {
 
     @Override
     protected Writeable.Reader<ListQueryRulesetsAction.Request> instanceReader() {
@@ -33,15 +29,5 @@ public class ListQueryRulesetsActionRequestBWCSerializingTests extends AbstractB
     @Override
     protected ListQueryRulesetsAction.Request mutateInstance(ListQueryRulesetsAction.Request instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
-    }
-
-    @Override
-    protected ListQueryRulesetsAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return ListQueryRulesetsAction.Request.parse(parser);
-    }
-
-    @Override
-    protected ListQueryRulesetsAction.Request mutateInstanceForVersion(ListQueryRulesetsAction.Request instance, TransportVersion version) {
-        return new ListQueryRulesetsAction.Request(instance.pageParams());
     }
 }

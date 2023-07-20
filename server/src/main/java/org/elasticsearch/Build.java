@@ -116,7 +116,7 @@ public record Build(
 
         final String flavor = "default";
         String minWireCompat = Version.CURRENT.minimumCompatibilityVersion().toString();
-        String minIndexCompat = IndexVersion.MINIMUM_COMPATIBLE.toString();
+        String minIndexCompat = Version.CURRENT.minimumIndexCompatibilityVersion().toString();
         String displayString = defaultDisplayString(type, hash, date, version);
 
         return new Build(flavor, type, hash, date, isSnapshot, version, minWireCompat, minIndexCompat, displayString);

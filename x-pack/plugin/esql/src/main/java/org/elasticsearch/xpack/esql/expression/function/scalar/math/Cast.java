@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongToDouble;
 
 public class Cast {
@@ -55,9 +53,6 @@ public class Cast {
             if (current == DataTypes.INTEGER) {
                 return () -> new CastIntToLongEvaluator(in.get());
             }
-            if (current == DataTypes.UNSIGNED_LONG) {
-                return () -> new CastUnsignedLongToLongEvaluator(in.get());
-            }
             throw cantCast(current, required);
         }
         throw cantCast(current, required);
@@ -85,11 +80,6 @@ public class Cast {
     @Evaluator(extraName = "UnsignedLongToDouble")
     static double castUnsignedLongToDouble(long v) {
         return unsignedLongToDouble(v);
-    }
-
-    @Evaluator(extraName = "UnsignedLongToLong")
-    static long castUnsignedLongToLong(long v) {
-        return asLongUnsigned(unsignedLongAsBigInteger(v));
     }
 
     @Evaluator(extraName = "IntToUnsignedLong")

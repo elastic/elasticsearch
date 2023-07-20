@@ -116,6 +116,8 @@ height:double | s:double
 
 powSalarySquared
 from employees | eval s = pow(salary - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
+warning:Line 1:27: evaluation of [pow(salary - 75000, 2)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: integer overflow
 
 salary:integer | s:integer
 74999          | 10001
@@ -230,6 +232,34 @@ base:double | exponent:double | s:double
 2.0         | 2.0             | 4.0
 ;
 
+powIntDouble
+// tag::powID-sqrt[]
+ROW base = 4, exponent = 0.5
+| EVAL s = POW(base, exponent)
+// end::powID-sqrt[]
+;
+
+// tag::powID-sqrt-result[]
+base:integer | exponent:double | s:double
+4            | 0.5             | 2.0
+// end::powID-sqrt-result[]
+;
+
+powSqrtNeg
+// tag::powNeg-sqrt[]
+ROW base = -4, exponent = 0.5
+| EVAL s = POW(base, exponent)
+// end::powNeg-sqrt[]
+;
+warning:Line 2:12: evaluation of [POW(base, exponent)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: invalid result: pow(-4.0, 0.5)
+
+// tag::powNeg-sqrt-result[]
+base:integer | exponent:double | s:double
+-4           | 0.5             | null
+// end::powNeg-sqrt-result[]
+;
+
 powDoubleInt
 // tag::powDI[]
 ROW base = 2.0, exponent = 2
@@ -300,13 +330,15 @@ x:double
 
 powIntULOverrun
 row x = pow(2, 9223372036854775808);
+warning:Line 1:9: evaluation of [pow(2, 9223372036854775808)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: long overflow
 
 x:long
-1
+null
 ;
 
 powULInt
-row x = pow(9223372036854775808, -10);
+row x = pow(to_unsigned_long(9223372036854775807), 1);
 
 x:long
 9223372036854775807
@@ -314,13 +346,17 @@ x:long
 
 powULIntOverrun
 // tag::powULOverrun[]
-ROW x = POW(9223372036854775808, 1)
+ROW x = POW(9223372036854775808, 2)
 // end::powULOverrun[]
 ;
+// tag::powULOverrun-warning[]
+warning:Line 1:9: evaluation of [POW(9223372036854775808, 2)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: long overflow
+// end::powULOverrun-warning[]
 
 // tag::powULOverrun-result[]
 x:long
-0
+null
 // end::powULOverrun-result[]
 ;
 
@@ -337,17 +373,19 @@ x:double
 ;
 
 powULLong
-row x = to_long(-10) | eval x = pow(9223372036854775808, x);
+row x = to_long(10) | eval x = pow(to_unsigned_long(10), x);
 
 x:long
-9223372036854775807
+10000000000
 ;
 
 powULLongOverrun
-row x = to_long(1) | eval x = pow(9223372036854775808, x);
+row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
+warning:Line 1:33: evaluation of [pow(to_unsigned_long(10), x)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: long overflow
 
 x:long
-0
+null
 ;
 
 powULDouble

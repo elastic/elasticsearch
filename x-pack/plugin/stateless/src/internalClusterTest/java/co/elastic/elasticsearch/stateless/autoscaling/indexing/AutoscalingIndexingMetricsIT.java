@@ -257,6 +257,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         assertThat(loadsBeforeIndexing.get(0).load(), equalTo(0.0));
 
         // As initial value of the EWMA is 0 and Alpha is 0, the EWMA should not change as we index documents.
+        logger.info("--> Indexing documents with {}=0.0", AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey());
         int bulks = randomIntBetween(3, 5);
         for (int i = 0; i < bulks; i++) {
             indexDocs(indexName, randomIntBetween(10, 100));
@@ -267,14 +268,16 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             assertThat(loadsAfterIndexing.size(), equalTo(1));
             assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(loadsAfterIndexing.get(0).load(), equalTo(0.0));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         // Updating Alpha means the EWMA would reflect task execution time of new tasks.
+        logger.info("--> Updating {} to 1.0", AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey());
         admin().cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Map.of(AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 1.0))
             .get();
 
+        logger.info("--> Indexing documents with {}=1.0", AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey());
         for (int i = 0; i < bulks; i++) {
             indexDocs(indexName, randomIntBetween(10, 100));
             longAwait(barrier);
@@ -284,17 +287,17 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             assertThat(loadsAfterIndexing.size(), equalTo(1));
             assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(loadsAfterIndexing.get(0).load(), greaterThan(0.0));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     private void longAwait(CyclicBarrier barrier) {
         try {
             barrier.await(30, TimeUnit.SECONDS);
         } catch (BrokenBarrierException | TimeoutException e) {
-            throw new RuntimeException(e);
+            throw new AssertionError(e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+            throw new AssertionError(e);
         }
     }
 }

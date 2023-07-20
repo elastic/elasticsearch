@@ -9,6 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -66,6 +67,7 @@ public abstract class RemoteClusterAware {
     protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
         for (String index : requestIndices) {
+            index = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(index);
             int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
             if (i >= 0) {
                 if (isRemoteClusterClientEnabled == false) {

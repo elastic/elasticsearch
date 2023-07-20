@@ -179,4 +179,45 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
         assertThat(e2, hasToString(containsString(String.format(Locale.ROOT, "no such index [%s]", "desc-index-001"))));
     }
 
+    public void testReindexFromRemoteGivenSimpleDateMathIndexName() throws InterruptedException {
+        assertAcked(client(REMOTE_CLUSTER).admin().indices().prepareCreate("datemath-2001-01-02"));
+        final int docsNumber = indexDocs(client(REMOTE_CLUSTER), "datemath-2001-01-02");
+
+        final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "<datemath-{2001-01-01||+1d{yyyy-MM-dd}}>";
+        new ReindexRequestBuilder(client(LOCAL_CLUSTER), ReindexAction.INSTANCE).source(sourceIndexInRemote)
+            .destination("desc-index-001")
+            .ignoreUnavailable(randomBoolean()) // does not matter since source index exists
+            .get();
+
+        assertTrue("Number of documents in source and desc indexes does not match", waitUntil(() -> {
+            SearchResponse resp = client(LOCAL_CLUSTER).prepareSearch("desc-index-001")
+                .setQuery(new MatchAllQueryBuilder())
+                .setSize(1000)
+                .get();
+            final TotalHits totalHits = resp.getHits().getTotalHits();
+            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+        }));
+    }
+
+    public void testReindexFromRemoteGivenComplexDateMathIndexName() throws InterruptedException {
+        assertAcked(client(REMOTE_CLUSTER).admin().indices().prepareCreate("datemath-2001-01-01-14"));
+        final int docsNumber = indexDocs(client(REMOTE_CLUSTER), "datemath-2001-01-01-14");
+
+        // Remote name contains `:` symbol twice
+        final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>";
+        new ReindexRequestBuilder(client(LOCAL_CLUSTER), ReindexAction.INSTANCE).source(sourceIndexInRemote)
+            .destination("desc-index-001")
+            .ignoreUnavailable(randomBoolean()) // does not matter since source index exists
+            .get();
+
+        assertTrue("Number of documents in source and desc indexes does not match", waitUntil(() -> {
+            SearchResponse resp = client(LOCAL_CLUSTER).prepareSearch("desc-index-001")
+                .setQuery(new MatchAllQueryBuilder())
+                .setSize(1000)
+                .get();
+            final TotalHits totalHits = resp.getHits().getTotalHits();
+            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+        }));
+    }
+
 }

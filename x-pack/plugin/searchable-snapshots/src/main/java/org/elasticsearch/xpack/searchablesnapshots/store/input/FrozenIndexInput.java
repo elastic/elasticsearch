@@ -91,7 +91,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             headerBlobCacheByteRange,
             footerBlobCacheByteRange
         );
-        this.cacheFile = cacheFile;
+        this.cacheFile = cacheFile.copy();
     }
 
     @Override

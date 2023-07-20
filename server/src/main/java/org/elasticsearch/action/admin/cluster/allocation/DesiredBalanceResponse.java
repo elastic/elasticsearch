@@ -31,7 +31,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
 public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContentObject {
 
@@ -95,24 +97,24 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
                 (builder, p) -> builder.field("cluster_balance_stats", clusterBalanceStats),
                 (builder, p) -> builder.startObject("routing_table")
             ),
-            routingTableToXContentChunked(),
-            singleChunk(
-                (builder, p) -> builder.endObject(),
-                (builder, p) -> builder.startObject("cluster_info").value(clusterInfo).endObject(),
-                (builder, p) -> builder.endObject()
-            )
+            Iterators.flatMap(
+                routingTable.entrySet().iterator(),
+                indexEntry -> Iterators.concat(
+                    startObject(indexEntry.getKey()),
+                    Iterators.flatMap(
+                        indexEntry.getValue().entrySet().iterator(),
+                        shardEntry -> Iterators.concat(
+                            singleChunk((builder, p) -> builder.field(String.valueOf(shardEntry.getKey()))),
+                            shardEntry.getValue().toXContentChunked(params)
+                        )
+                    ),
+                    endObject()
+                )
+            ),
+            singleChunk((builder, p) -> builder.endObject().startObject("cluster_info")),
+            clusterInfo.toXContentChunked(params),
+            singleChunk((builder, p) -> builder.endObject().endObject())
         );
-    }
-
-    private Iterator<ToXContent> routingTableToXContentChunked() {
-        return routingTable.entrySet().stream().map(indexEntry -> (ToXContent) (builder, p) -> {
-            builder.startObject(indexEntry.getKey());
-            for (Map.Entry<Integer, DesiredShards> shardEntry : indexEntry.getValue().entrySet()) {
-                builder.field(String.valueOf(shardEntry.getKey()));
-                shardEntry.getValue().toXContent(builder, p);
-            }
-            return builder.endObject();
-        }).iterator();
     }
 
     public DesiredBalanceStats getStats() {
@@ -159,7 +161,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
             + "}";
     }
 
-    public record DesiredShards(List<ShardView> current, ShardAssignmentView desired) implements Writeable, ToXContentObject {
+    public record DesiredShards(List<ShardView> current, ShardAssignmentView desired) implements Writeable, ChunkedToXContentObject {
 
         public static DesiredShards from(StreamInput in) throws IOException {
             return new DesiredShards(in.readList(ShardView::from), ShardAssignmentView.from(in));
@@ -172,17 +174,18 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.startArray("current");
-            for (ShardView shardView : current) {
-                shardView.toXContent(builder, params);
-            }
-            builder.endArray();
-            desired.toXContent(builder.field("desired"), params);
-            return builder.endObject();
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Iterators.concat(
+                singleChunk((builder, p) -> builder.startObject(), (builder, p) -> builder.startArray("current")),
+                current().iterator(),
+                singleChunk(
+                    (builder, p) -> builder.endArray(),
+                    (builder, p) -> builder.field("desired"),
+                    desired,
+                    (builder, p) -> builder.endObject()
+                )
+            );
         }
-
     }
 
     public record ShardView(
@@ -289,8 +292,18 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
 
     public record ShardAssignmentView(Set<String> nodeIds, int total, int unassigned, int ignored) implements Writeable, ToXContentObject {
 
+        public static final ShardAssignmentView EMPTY = new ShardAssignmentView(Set.of(), 0, 0, 0);
+
         public static ShardAssignmentView from(StreamInput in) throws IOException {
-            return new ShardAssignmentView(in.readSet(StreamInput::readString), in.readVInt(), in.readVInt(), in.readVInt());
+            final var nodeIds = in.readSet(StreamInput::readString);
+            final var total = in.readVInt();
+            final var unassigned = in.readVInt();
+            final var ignored = in.readVInt();
+            if (nodeIds.isEmpty() && total == 0 && unassigned == 0 && ignored == 0) {
+                return EMPTY;
+            } else {
+                return new ShardAssignmentView(nodeIds, total, unassigned, ignored);
+            }
         }
 
         @Override

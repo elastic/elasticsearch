@@ -9,7 +9,6 @@
 package org.elasticsearch.rest.root;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
@@ -38,8 +36,7 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
         final String date = new Date(randomNonNegativeLong()).toString();
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         IndexVersion indexVersion = IndexVersionUtils.randomVersion();
-        TransportVersion transportVersion = TransportVersionUtils.randomVersion();
-        Build build = new Build(Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(), version.toString());
+        Build build = new Build("default", Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(), version.toString());
         return new MainResponse(nodeName, version, indexVersion.luceneVersion().toString(), clusterName, clusterUuid, build);
     }
 
@@ -56,7 +53,14 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
     public void testToXContent() throws IOException {
         String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final Build current = Build.current();
-        Build build = new Build(current.type(), current.hash(), current.date(), current.isSnapshot(), current.qualifiedVersion());
+        Build build = new Build(
+            "default",
+            current.type(),
+            current.hash(),
+            current.date(),
+            current.isSnapshot(),
+            current.qualifiedVersion()
+        );
         Version version = Version.CURRENT;
         IndexVersion indexVersion = IndexVersion.current();
         MainResponse response = new MainResponse(
@@ -119,7 +123,14 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
             case 1 -> nodeName = nodeName + randomAlphaOfLength(5);
             case 2 ->
                 // toggle the snapshot flag of the original Build parameter
-                build = new Build(Build.Type.UNKNOWN, build.hash(), build.date(), build.isSnapshot() == false, build.qualifiedVersion());
+                build = new Build(
+                    "default",
+                    Build.Type.UNKNOWN,
+                    build.hash(),
+                    build.date(),
+                    build.isSnapshot() == false,
+                    build.qualifiedVersion()
+                );
             case 3 -> version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
             case 4 -> clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
             case 5 -> luceneVersion = randomValueOtherThan(

@@ -31,8 +31,8 @@ public interface Migration {
      * Applies this migration. Depending on the type of migration one or the other consumer will be called.
      *
      * @param index The name of the specific index to which the migration should be applied.
-     * @param mappingConsumer A consumer that applies mapping changes. Must not be null.
-     * @param settingsConsumer A consumer that applies settings changes. Must not be null.
+     * @param mappingConsumer A consumer that applies mapping changes.
+     * @param settingsConsumer A consumer that applies settings changes.
      */
     void apply(String index, Consumer<PutMappingRequest> mappingConsumer, Consumer<UpdateSettingsRequest> settingsConsumer);
 
@@ -63,8 +63,8 @@ public interface Migration {
          * without any further mapping parameters. For more complex cases use {@link #putMapping(Map)} instead and provide the body of
          * the PUT mapping API call.
          *
-         * @param property The name of the new property. Must not be null.
-         * @param type The mapping type. Must not be null.
+         * @param property The name of the new property.
+         * @param type The mapping type.
          * @return <code>this</code> to allow for method chaining.
          */
         public Builder addProperty(String property, String type) {

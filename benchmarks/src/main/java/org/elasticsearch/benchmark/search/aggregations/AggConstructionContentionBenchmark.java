@@ -270,6 +270,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public ClusterSettings getClusterSettings() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
             throw new UnsupportedOperationException();
         }

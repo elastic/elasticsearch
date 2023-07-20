@@ -301,14 +301,14 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        writeToAndReadFrom(aggregations, TransportVersion.CURRENT, 0);
+        writeToAndReadFrom(aggregations, TransportVersion.current(), 0);
     }
 
     public void testSerializedSize() throws Exception {
         InternalAggregations aggregations = createTestInstance();
         assertThat(
             DelayableWriteable.getSerializedSize(aggregations),
-            equalTo((long) serialize(aggregations, TransportVersion.CURRENT).length)
+            equalTo((long) serialize(aggregations, TransportVersion.current()).length)
         );
     }
 

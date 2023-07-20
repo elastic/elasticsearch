@@ -48,7 +48,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
-import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1542,7 +1542,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 new SystemIndices.Feature(
                     "feature-with-system-index",
                     "testing",
-                    List.of(new SystemIndexDescriptor(standaloneSystemIndexPattern, "feature with index"))
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(standaloneSystemIndexPattern, "feature with index"))
                 ),
                 new SystemIndices.Feature(
                     "feature-with-system-data-stream",

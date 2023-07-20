@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -47,7 +48,9 @@ public class PostWriteRefresh {
             case WAIT_UNTIL -> waitUntil(indexShard, location, new ActionListener<>() {
                 @Override
                 public void onResponse(Boolean forced) {
-                    if (indexShard.routingEntry().isSearchable() == false && location != null) {
+                    // Fast refresh indices do not depend on the unpromotables being refreshed
+                    boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexShard.indexSettings().getSettings());
+                    if (location != null && (indexShard.routingEntry().isSearchable() == false && fastRefresh == false)) {
                         refreshUnpromotables(indexShard, location, listener, forced, postWriteRefreshTimeout);
                     } else {
                         listener.onResponse(forced);
@@ -59,21 +62,15 @@ public class PostWriteRefresh {
                     listener.onFailure(e);
                 }
             });
-            case IMMEDIATE -> immediate(indexShard, new ActionListener<>() {
-                @Override
-                public void onResponse(Engine.RefreshResult refreshResult) {
-                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
-                        sendUnpromotableRequests(indexShard, refreshResult.generation(), true, listener, postWriteRefreshTimeout);
-                    } else {
-                        listener.onResponse(true);
-                    }
+            case IMMEDIATE -> immediate(indexShard, listener.delegateFailureAndWrap((l, r) -> {
+                // Fast refresh indices do not depend on the unpromotables being refreshed
+                boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexShard.indexSettings().getSettings());
+                if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0 && fastRefresh == false) {
+                    sendUnpromotableRequests(indexShard, r.generation(), true, l, postWriteRefreshTimeout);
+                } else {
+                    l.onResponse(true);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            }));
             default -> throw new IllegalArgumentException("unknown refresh policy: " + policy);
         }
     }
@@ -154,8 +151,8 @@ public class PostWriteRefresh {
             unpromotableReplicaRequest,
             TransportRequestOptions.timeout(postWriteRefreshTimeout),
             new ActionListenerResponseHandler<>(
-                listener.delegateFailure((l, r) -> l.onResponse(wasForced)),
-                (in) -> ActionResponse.Empty.INSTANCE,
+                listener.safeMap(r -> wasForced),
+                in -> ActionResponse.Empty.INSTANCE,
                 ThreadPool.Names.REFRESH
             )
         );

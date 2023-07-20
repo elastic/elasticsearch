@@ -36,7 +36,7 @@ public class NullInferenceConfig implements InferenceConfig {
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
-        return TransportVersion.CURRENT;
+        return TransportVersion.current();
     }
 
     @Override

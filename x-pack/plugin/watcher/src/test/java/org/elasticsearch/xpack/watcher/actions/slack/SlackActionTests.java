@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.actions.slack;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,7 +72,7 @@ public class SlackActionTests extends ESTestCase {
         Map<String, Object> data = new HashMap<>();
         Payload payload = new Payload.Simple(data);
 
-        Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
+        Map<String, Object> metadata = Map.of("_key", "_val");
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 

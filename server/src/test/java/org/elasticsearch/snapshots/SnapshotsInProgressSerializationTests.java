@@ -8,7 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.Diff;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -29,7 +29,7 @@ import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,7 +91,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             shards,
             null,
             SnapshotInfoTestUtils.randomUserMetadata(),
-            VersionUtils.randomVersion(random())
+            IndexVersionUtils.randomVersion(random())
         );
     }
 
@@ -412,7 +412,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 ),
                 null,
                 null,
-                Version.CURRENT
+                IndexVersion.current()
             )
         );
 

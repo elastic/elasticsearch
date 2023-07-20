@@ -44,7 +44,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     public void testScheduling() {
         final DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("test");
         final DiscoveryNodes noMaster = DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build();
-        final DiscoveryNodes localMaster = DiscoveryNodes.builder(noMaster).masterNodeId(discoveryNode.getId()).build();
+        final DiscoveryNodes localMaster = noMaster.withMasterNodeId(discoveryNode.getId());
 
         final Settings.Builder settingsBuilder = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName());
         if (randomBoolean()) {

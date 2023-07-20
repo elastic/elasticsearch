@@ -51,6 +51,7 @@ import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -330,7 +331,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final IndexNameExpressionResolver resolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         final List<Object> components = new ArrayList<>();
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
@@ -342,7 +344,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             final SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
                 nodeEnvironment,
                 settings,
-                threadPool
+                threadPool,
+                SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
             );
             this.frozenCacheService.set(sharedBlobCacheService);
             components.add(cacheService);

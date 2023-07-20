@@ -222,13 +222,10 @@ Defaults to `5`.
 [%collapsible%open]
 ====
 `geotile` (Default)::
-<<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid`>>
-aggregation.
+<<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid`>> aggregation.
 
 `geohex`::
 <<search-aggregations-bucket-geohexgrid-aggregation,`geohex_grid`>> aggregation.
-If you specify this value, the `<field>` must be a <<geo-point,`geo_point`>>
-field.
 ====
 // end::grid-agg[]
 

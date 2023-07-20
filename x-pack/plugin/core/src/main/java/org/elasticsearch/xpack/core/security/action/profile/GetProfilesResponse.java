@@ -32,7 +32,7 @@ public class GetProfilesResponse extends ActionResponse implements ToXContentObj
     public GetProfilesResponse(StreamInput in) throws IOException {
         super(in);
         this.profiles = in.readImmutableList(Profile::new);
-        this.errors = in.readMap(StreamInput::readString, StreamInput::readException);
+        this.errors = in.readMap(StreamInput::readException);
     }
 
     public List<Profile> getProfiles() {

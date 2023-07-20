@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.ccs;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -43,6 +44,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -61,11 +63,13 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -238,6 +242,25 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             .filter(t -> t.parentTaskId().isSet() == false)
             .findFirst()
             .get();
+
+        AtomicReference<List<TaskInfo>> remoteClusterSearchTasks = new AtomicReference<>();
+        assertBusy(() -> {
+            List<TaskInfo> remoteSearchTasks = client("cluster_a").admin()
+                .cluster()
+                .prepareListTasks()
+                .get()
+                .getTasks()
+                .stream()
+                .filter(t -> t.action().startsWith("indices:data/read/search"))
+                .collect(Collectors.toList());
+            assertThat(remoteSearchTasks.size(), greaterThan(0));
+            remoteClusterSearchTasks.set(remoteSearchTasks);
+        });
+
+        for (TaskInfo taskInfo : remoteClusterSearchTasks.get()) {
+            assertFalse("taskInfo is cancelled: " + taskInfo, taskInfo.cancelled());
+        }
+
         final CancelTasksRequest cancelRequest = new CancelTasksRequest().setTargetTaskId(rootTask.taskId());
         cancelRequest.setWaitForCompletion(randomBoolean());
         final ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().cancelTasks(cancelRequest);
@@ -252,6 +275,19 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 }
             }
         });
+
+        List<TaskInfo> remoteSearchTasksAfterCancellation = client("cluster_a").admin()
+            .cluster()
+            .prepareListTasks()
+            .get()
+            .getTasks()
+            .stream()
+            .filter(t -> t.action().startsWith("indices:data/read/search"))
+            .collect(Collectors.toList());
+        for (TaskInfo taskInfo : remoteSearchTasksAfterCancellation) {
+            assertTrue(taskInfo.description(), taskInfo.cancelled());
+        }
+
         SearchListenerPlugin.allowQueryPhase();
         assertBusy(() -> assertTrue(queryFuture.isDone()));
         assertBusy(() -> assertTrue(cancelFuture.isDone()));
@@ -261,6 +297,12 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
             }
         });
+
+        RuntimeException e = expectThrows(RuntimeException.class, () -> queryFuture.result());
+        assertNotNull(e);
+        assertNotNull(e.getCause());
+        Throwable t = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+        assertNotNull(t);
     }
 
     /**

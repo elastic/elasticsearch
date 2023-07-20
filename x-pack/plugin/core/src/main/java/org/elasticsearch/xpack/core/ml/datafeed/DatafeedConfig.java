@@ -295,7 +295,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         }
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
-        this.headers = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+        this.headers = in.readImmutableMap(StreamInput::readString);
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         maxEmptySearches = in.readOptionalVInt();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -808,7 +808,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             }
             this.scrollSize = in.readOptionalVInt();
             this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
-            this.headers = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+            this.headers = in.readImmutableMap(StreamInput::readString);
             delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
             maxEmptySearches = in.readOptionalVInt();
             if (in.readBoolean()) {

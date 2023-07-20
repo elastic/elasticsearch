@@ -70,6 +70,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -343,7 +344,7 @@ public class PersistedClusterStateService {
     public static NodeMetadata nodeMetadata(Path... dataPaths) throws IOException {
         String nodeId = null;
         Version version = null;
-        Version oldestIndexVersion = Version.V_EMPTY;
+        IndexVersion oldestIndexVersion = IndexVersion.ZERO;
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
@@ -361,9 +362,9 @@ public class PersistedClusterStateService {
                         nodeId = thisNodeId;
                         version = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
                         if (userData.containsKey(OLDEST_INDEX_VERSION_KEY)) {
-                            oldestIndexVersion = Version.fromId(Integer.parseInt(userData.get(OLDEST_INDEX_VERSION_KEY)));
+                            oldestIndexVersion = IndexVersion.fromId(Integer.parseInt(userData.get(OLDEST_INDEX_VERSION_KEY)));
                         } else {
-                            oldestIndexVersion = Version.V_EMPTY;
+                            oldestIndexVersion = IndexVersion.ZERO;
                         }
                     }
                 } catch (IndexNotFoundException e) {
@@ -835,7 +836,7 @@ public class PersistedClusterStateService {
             String nodeId,
             long currentTerm,
             long lastAcceptedVersion,
-            Version oldestIndexVersion,
+            IndexVersion oldestIndexVersion,
             String clusterUUID,
             boolean clusterUUIDCommitted
         ) throws IOException {
@@ -846,7 +847,7 @@ public class PersistedClusterStateService {
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
             commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.id));
-            commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id));
+            commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id()));
             commitData.put(NODE_ID_KEY, nodeId);
             commitData.put(CLUSTER_UUID_KEY, clusterUUID);
             commitData.put(CLUSTER_UUID_COMMITTED_KEY, Boolean.toString(clusterUUIDCommitted));
@@ -1211,7 +1212,7 @@ public class PersistedClusterStateService {
         public void writeIncrementalTermUpdateAndCommit(
             long currentTerm,
             long lastAcceptedVersion,
-            Version oldestIndexVersion,
+            IndexVersion oldestIndexVersion,
             String clusterUUID,
             boolean clusterUUIDCommitted
         ) throws IOException {
@@ -1223,7 +1224,7 @@ public class PersistedClusterStateService {
         void commit(
             long currentTerm,
             long lastAcceptedVersion,
-            Version oldestIndexVersion,
+            IndexVersion oldestIndexVersion,
             String clusterUUID,
             boolean clusterUUIDCommitted
         ) throws IOException {
@@ -1251,7 +1252,7 @@ public class PersistedClusterStateService {
         private void prepareCommit(
             long currentTerm,
             long lastAcceptedVersion,
-            Version oldestIndexVersion,
+            IndexVersion oldestIndexVersion,
             String clusterUUID,
             boolean clusterUUIDCommitted
         ) throws IOException {

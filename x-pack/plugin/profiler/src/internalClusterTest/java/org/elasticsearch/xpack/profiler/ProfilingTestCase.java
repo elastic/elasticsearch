@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
+import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -41,6 +42,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             ProfilingPlugin.class,
             IndexLifecycle.class,
             UnsignedLongMapperPlugin.class,
+            VersionFieldPlugin.class,
             getTestTransportPlugin()
         );
     }
@@ -86,7 +88,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
 
     protected void waitForIndices() throws Exception {
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState().get().getState();
             assertTrue(
                 "Timed out waiting for the indices to be created",
                 state.metadata()
@@ -102,7 +104,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     protected void updateProfilingTemplatesEnabled(boolean newValue) {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         request.persistentSettings(Settings.builder().put(ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.getKey(), newValue).build());
-        ClusterUpdateSettingsResponse response = client().admin().cluster().updateSettings(request).actionGet();
+        ClusterUpdateSettingsResponse response = clusterAdmin().updateSettings(request).actionGet();
         assertTrue("Update of profiling templates enabled setting is not acknowledged", response.isAcknowledged());
     }
 

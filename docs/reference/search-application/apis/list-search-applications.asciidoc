@@ -2,7 +2,7 @@
 [[list-search-applications]]
 === List Search Applications
 
-preview::[]
+beta::[]
 
 ++++
 <titleabbrev>List Search Applications</titleabbrev>

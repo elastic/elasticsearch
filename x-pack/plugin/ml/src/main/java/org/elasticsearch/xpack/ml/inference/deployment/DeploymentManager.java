@@ -446,7 +446,14 @@ public class DeploymentManager {
             isStopped = true;
             resultProcessor.stop();
             stateStreamer.cancel();
-            priorityProcessWorker.shutdown();
+
+            if (priorityProcessWorker.isShutdown()) {
+                // most likely there was a crash or exception that caused the
+                // thread to stop. Notify any waiting requests in the work queue
+                priorityProcessWorker.notifyQueueRunnables();
+            } else {
+                priorityProcessWorker.shutdown();
+            }
             killProcessIfPresent();
             if (nlpTaskProcessor.get() != null) {
                 nlpTaskProcessor.get().close();

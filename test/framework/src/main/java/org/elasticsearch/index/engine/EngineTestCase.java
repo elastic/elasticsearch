@@ -50,6 +50,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -64,6 +65,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -123,6 +125,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -621,7 +625,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
-        internalEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+        recoverFromTranslog(internalEngine, translogHandler, Long.MAX_VALUE);
         return internalEngine;
     }
 
@@ -1617,5 +1621,32 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     protected long relativeTimeInNanos() {
         return System.nanoTime();
+    }
+
+    /**
+     * Call {@link Engine#recoverFromTranslog} and block until it succeeds.
+     */
+    public static void recoverFromTranslog(Engine engine, Engine.TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo)
+        throws IOException {
+        // This is an adapter between the older synchronous (blocking) code and the newer (async) API. Callers expect exceptions to be
+        // thrown directly, so we must undo the layers of wrapping added by future#get and friends.
+        try {
+            PlainActionFuture.<Void, RuntimeException>get(
+                future -> engine.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, future),
+                30,
+                TimeUnit.SECONDS
+            );
+        } catch (UncategorizedExecutionException e) {
+            if (e.getCause() instanceof ExecutionException executionException
+                && executionException.getCause() instanceof IOException ioException) {
+                throw ioException;
+            } else {
+                throw new AssertionError("unexpected", e);
+            }
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AssertionError("unexpected", e);
+        }
     }
 }

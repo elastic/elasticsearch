@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 
 import java.io.IOException;
 import java.util.List;
@@ -64,7 +64,7 @@ public class NestedLookupTests extends MapperServiceTestCase {
     }
 
     private static NestedObjectMapper buildMapper(String name) {
-        return new NestedObjectMapper.Builder(name, Version.CURRENT).build(MapperBuilderContext.root(false));
+        return new NestedObjectMapper.Builder(name, IndexVersion.current()).build(MapperBuilderContext.root(false));
     }
 
     public void testAllParentFilters() {

@@ -15,6 +15,11 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
+/**
+ * An allocation decider that ensures that all the shards allocated to the node scheduled for removal are relocated to the replacement node.
+ * It also ensures that auto-expands replicas are expanded to only the replacement source or target (not both at the same time)
+ * and only of the shards that were already present on the source node.
+ */
 public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "node_replacement";
@@ -38,8 +43,8 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 Decision.YES,
                 NAME,
                 "node [%s] is replacing node [%s], and may receive shards from it",
-                shardRouting.currentNodeId(),
-                node.nodeId()
+                node.nodeId(),
+                shardRouting.currentNodeId()
             );
         } else if (isReplacementSource(allocation, shardRouting.currentNodeId())) {
             if (allocation.isReconciling()) {
@@ -110,25 +115,62 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             return YES__NO_REPLACEMENTS;
         } else if (isReplacementTargetName(allocation, node.getName())) {
             final SingleNodeShutdownMetadata shutdown = allocation.replacementTargetShutdowns().get(node.getName());
-            return allocation.decision(
-                Decision.NO,
-                NAME,
-                "node [%s] is a node replacement target for node [%s], "
-                    + "shards cannot auto expand to be on it until the replacement is complete",
-                node.getId(),
-                shutdown == null ? null : shutdown.getNodeId()
-            );
+            final String sourceNodeId = shutdown != null ? shutdown.getNodeId() : null;
+            final boolean hasShardsAllocatedOnSourceOrTarget = hasShardOnNode(indexMetadata, node.getId(), allocation)
+                || (sourceNodeId != null && hasShardOnNode(indexMetadata, sourceNodeId, allocation));
+
+            if (hasShardsAllocatedOnSourceOrTarget) {
+                return allocation.decision(
+                    Decision.YES,
+                    NAME,
+                    "node [%s] is a node replacement target for node [%s], "
+                        + "shard can auto expand to it as it was already present on the source node",
+                    node.getId(),
+                    sourceNodeId
+                );
+            } else {
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "node [%s] is a node replacement target for node [%s], "
+                        + "shards cannot auto expand to be on it until the replacement is complete",
+                    node.getId(),
+                    sourceNodeId
+                );
+            }
         } else if (isReplacementSource(allocation, node.getId())) {
-            return allocation.decision(
-                Decision.NO,
-                NAME,
-                "node [%s] is being replaced by [%s], shards cannot auto expand to be on it",
-                node.getId(),
-                getReplacementName(allocation, node.getId())
-            );
+            final SingleNodeShutdownMetadata shutdown = allocation.getClusterState().metadata().nodeShutdowns().get(node.getId());
+            final String replacementNodeName = shutdown != null ? shutdown.getTargetNodeName() : null;
+            final boolean hasShardOnSource = hasShardOnNode(indexMetadata, node.getId(), allocation)
+                && shutdown != null
+                && allocation.getClusterState().getNodes().hasByName(replacementNodeName) == false;
+
+            if (hasShardOnSource) {
+                return allocation.decision(
+                    Decision.YES,
+                    NAME,
+                    "node [%s] is being replaced by [%s], shards can auto expand to be on it "
+                        + "while replacement node has not joined the cluster",
+                    node.getId(),
+                    replacementNodeName
+                );
+            } else {
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "node [%s] is being replaced by [%s], shards cannot auto expand to be on it",
+                    node.getId(),
+                    replacementNodeName
+                );
+            }
         } else {
             return YES__NO_APPLICABLE_REPLACEMENTS;
         }
+    }
+
+    private static boolean hasShardOnNode(IndexMetadata indexMetadata, String nodeId, RoutingAllocation allocation) {
+        RoutingNode node = allocation.routingNodes().node(nodeId);
+        return node != null && node.numberOfOwningShardsForIndex(indexMetadata.getIndex()) >= 1;
     }
 
     @Override

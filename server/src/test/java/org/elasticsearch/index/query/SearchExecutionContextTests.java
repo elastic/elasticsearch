@@ -28,6 +28,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
@@ -95,7 +96,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -176,26 +176,10 @@ public class SearchExecutionContextTests extends ESTestCase {
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
 
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
-        SearchExecutionContext context = new SearchExecutionContext(
-            0,
-            0,
+        SearchExecutionContext context = SearchExecutionContextHelper.createSimple(
             indexSettings,
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
             XContentParserConfiguration.EMPTY,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
+            new NamedWriteableRegistry(Collections.emptyList())
         );
 
         assertTrue(context.indexSortedOnField("sort_field"));
@@ -445,6 +429,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             0,
             0,
             indexSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
             mapperService,
@@ -477,7 +462,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
                 mapperRegistry.getRuntimeFieldParsers()::get,
                 indexSettings.getIndexVersionCreated(),
-                () -> TransportVersion.CURRENT,
+                () -> TransportVersion.current(),
                 searchExecutionContextSupplier,
                 ScriptCompiler.NONE,
                 indexAnalyzers,

@@ -620,6 +620,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeName, Version version) {
-        return DiscoveryNodeUtils.create(nodeName, ESTestCase.buildNewFakeTransportAddress(), version);
+        return DiscoveryNodeUtils.builder(nodeName).version(version).build();
     }
 }

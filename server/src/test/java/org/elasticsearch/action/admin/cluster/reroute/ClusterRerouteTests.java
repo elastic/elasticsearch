@@ -9,6 +9,7 @@ package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -83,9 +84,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         ClusterState clusterState = createInitialClusterState(allocationService);
 
         var responseRef = new AtomicReference<ClusterRerouteResponse>();
-        var responseActionListener = ActionListener.<ClusterRerouteResponse>wrap(responseRef::set, exception -> {
-            throw new AssertionError("Should not fail in test", exception);
-        });
+        var responseActionListener = ActionTestUtils.assertNoFailureListener(responseRef::set);
 
         var request = new ClusterRerouteRequest().dryRun(true);
         var task = new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(

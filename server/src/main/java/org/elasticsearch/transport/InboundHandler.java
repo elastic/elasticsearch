@@ -133,7 +133,7 @@ public class InboundHandler {
                 }
                 // ignore if its null, the service logs it
                 if (responseHandler != null) {
-                    if (message.getContentLength() > 0 || header.getVersion().equals(TransportVersion.CURRENT) == false) {
+                    if (message.getContentLength() > 0 || header.getVersion().equals(TransportVersion.current()) == false) {
                         final StreamInput streamInput = namedWriteableStream(message.openOrGetStreamInput());
                         assertRemoteVersion(streamInput, header.getVersion());
                         if (header.isError()) {

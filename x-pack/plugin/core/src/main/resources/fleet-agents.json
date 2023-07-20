@@ -220,6 +220,9 @@
         "shared_id": {
           "type": "keyword"
         },
+        "enrollment_id": {
+          "type": "keyword"
+        },
         "type": {
           "type": "keyword"
         },

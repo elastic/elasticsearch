@@ -721,7 +721,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
 
         // if the polygon is tiny, the computed area can result in zero. In that case
         // we assume orientation is correct
-        boolean orientation = signedArea == 0 ? handedness != false : signedArea < 0;
+        boolean orientation = signedArea == 0 ? handedness : signedArea < 0;
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -186,13 +187,12 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                 return;
             }
 
-            Version minCompatibilityVersion = config.getModelDefinition().getTrainedModel().getMinimalCompatibilityVersion();
-            if (state.nodes().getMinNodeVersion().before(minCompatibilityVersion)) {
+            TransportVersion minCompatibilityVersion = config.getModelDefinition().getTrainedModel().getMinimalCompatibilityVersion();
+            if (state.getMinTransportVersion().before(minCompatibilityVersion)) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
-                        "Definition for [{}] requires that all nodes are at least version [{}]",
-                        config.getModelId(),
-                        minCompatibilityVersion.toString()
+                        "Cannot create model [{}] while cluster upgrade is in progress.",
+                        config.getModelId()
                     )
                 );
                 return;

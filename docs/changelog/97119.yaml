@@ -1,0 +1,6 @@
+pr: 97119
+summary: Capture max processors in static init
+area: Infra/Core
+type: bug
+issues:
+ - 97088

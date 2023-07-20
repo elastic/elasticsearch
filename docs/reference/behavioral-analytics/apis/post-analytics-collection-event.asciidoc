@@ -2,6 +2,8 @@
 [[post-analytics-collection-event]]
 === Post Event to an Analytics Collection
 
+beta::[]
+
 ++++
 <titleabbrev>Post Analytics Collection Event</titleabbrev>
 ++++

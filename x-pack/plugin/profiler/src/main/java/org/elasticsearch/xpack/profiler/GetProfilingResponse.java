@@ -37,7 +37,6 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
     public GetProfilingResponse(StreamInput in) throws IOException {
         this.stackTraces = in.readBoolean()
             ? in.readMap(
-                StreamInput::readString,
                 i -> new StackTrace(
                     i.readList(StreamInput::readInt),
                     i.readList(StreamInput::readString),
@@ -48,7 +47,6 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
             : null;
         this.stackFrames = in.readBoolean()
             ? in.readMap(
-                StreamInput::readString,
                 i -> new StackFrame(
                     i.readList(StreamInput::readString),
                     i.readList(StreamInput::readString),
@@ -57,8 +55,8 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
                 )
             )
             : null;
-        this.executables = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readString) : null;
-        this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readInt) : null;
+        this.executables = in.readBoolean() ? in.readMap(StreamInput::readString) : null;
+        this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readInt) : null;
         this.totalFrames = in.readInt();
         this.samplingRate = in.readDouble();
     }

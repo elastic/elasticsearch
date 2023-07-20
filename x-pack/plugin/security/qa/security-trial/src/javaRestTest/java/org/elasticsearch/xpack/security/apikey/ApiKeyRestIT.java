@@ -41,6 +41,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_DESCRIPTOR;
+import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
@@ -196,6 +197,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         for (Map<String, Object> apiKeyMap : apiKeyMaps) {
             final String name = (String) apiKeyMap.get("name");
+            assertThat(apiKeyMap, not(hasKey("access")));
             @SuppressWarnings("unchecked")
             final var roleDescriptors = (Map<String, Object>) apiKeyMap.get("role_descriptors");
 
@@ -773,6 +775,27 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 )
             )
         );
+        assertThat(fetchResponse.evaluate("api_keys.0.access"), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+                "search": [
+                  {
+                    "names": [
+                      "metrics"
+                    ],
+                    "query": "{\\"term\\":{\\"score\\":42}}",
+                    "allow_restricted_indices": false
+                  }
+                ],
+                "replication": [
+                  {
+                    "names": [
+                      "logs"
+                    ],
+                    "allow_restricted_indices": true
+                  }
+                ]
+
+            }""", false)));
         assertThat(fetchResponse.evaluate("api_keys.0.limited_by"), nullValue());
 
         final Request deleteRequest = new Request("DELETE", "/_security/api_key");
@@ -957,6 +980,22 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse1.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptor1)))
         );
+        assertThat(fetchResponse1.evaluate("api_keys.0.access"), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+              "search": [
+                {
+                  "names": [ "data" ],
+                  "query": "{\\"term\\":{\\"score\\":42}}",
+                  "allow_restricted_indices": false
+                }
+              ],
+              "replication": [
+                {
+                  "names": [ "logs" ],
+                  "allow_restricted_indices": false
+                }
+              ]
+            }""", false)));
         assertThat(fetchResponse1.evaluate("api_keys.0.metadata"), equalTo(Map.of("tag", "shared", "points", 0)));
 
         // Update metadata only
@@ -973,6 +1012,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse2.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptor1)))
         );
+        assertThat(fetchResponse2.evaluate("api_keys.0.access"), equalTo(fetchResponse1.evaluate("api_keys.0.access")));
         assertThat(fetchResponse2.evaluate("api_keys.0.metadata"), equalTo(Map.of("env", "prod", "magic", 42)));
 
         // Update access only
@@ -1005,6 +1045,15 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse3.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptors2)))
         );
+        assertThat(fetchResponse3.evaluate("api_keys.0.access"), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+              "search": [
+                {
+                  "names": [ "blogs" ],
+                  "allow_restricted_indices": false
+                }
+              ]
+            }""", false)));
         assertThat(fetchResponse3.evaluate("api_keys.0.metadata"), equalTo(Map.of("env", "prod", "magic", 42)));
 
         // Noop update
@@ -1040,6 +1089,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse4.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptors2)))
         );
+        assertThat(fetchResponse4.evaluate("api_keys.0.access"), equalTo(fetchResponse3.evaluate("api_keys.0.access")));
         assertThat(fetchResponse4.evaluate("api_keys.0.metadata"), equalTo(Map.of("env", "prod", "magic", 42)));
     }
 
@@ -1138,6 +1188,30 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(e8.getMessage(), containsString("action [cluster:admin/xpack/security/cross_cluster/api_key/update] is unauthorized"));
     }
 
+    public void testCrossClusterApiKeyAccessInResponseCanBeUsedAsInputForUpdate() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "my-key",
+              "access": %s
+            }""", randomCrossClusterApiKeyAccessField()));
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+        final ObjectPath fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity(Strings.format("""
+            {
+              "access": %s
+            }""", XContentTestUtils.convertToXContent(fetchResponse.evaluate("api_keys.0.access"), XContentType.JSON).utf8ToString()));
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse4 = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse4.evaluate("updated"), is(false));
+    }
+
     public void testWorkflowsRestrictionSupportForApiKeys() throws IOException {
         final Request createApiKeyRequest = new Request("POST", "_security/api_key");
         createApiKeyRequest.setJsonEntity("""
@@ -1146,7 +1220,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 "role_descriptors":{
                     "r1": {
                         "restriction": {
-                            "workflows": ["search_application"]
+                            "workflows": ["search_application_query"]
                         }
                     }
                 }
@@ -1154,7 +1228,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         Response response = performRequestWithManageOwnApiKeyUser(createApiKeyRequest);
         String apiKeyId = assertOKAndCreateObjectPath(response).evaluate("id");
         assertThat(apiKeyId, notNullValue());
-        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application_query");
 
         final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
         grantApiKeyRequest.setJsonEntity(Strings.format("""
@@ -1167,7 +1241,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                   "role_descriptors":{
                      "r1":{
                         "restriction": {
-                            "workflows": ["search_application"]
+                            "workflows": ["search_application_query"]
                         }
                      }
                   }
@@ -1175,38 +1249,37 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", MANAGE_OWN_API_KEY_USER));
         response = adminClient().performRequest(grantApiKeyRequest);
         String grantedApiKeyId = assertOKAndCreateObjectPath(response).evaluate("id");
-        fetchAndAssertApiKeyContainsWorkflows(grantedApiKeyId, "r1", "search_application");
+        fetchAndAssertApiKeyContainsWorkflows(grantedApiKeyId, "r1", "search_application_query");
 
-        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        Request createApiKeyWithoutWorkflowRequest = new Request("POST", "_security/api_key");
+        createApiKeyWithoutWorkflowRequest.setJsonEntity("""
+            {
+                "name": "key2",
+                "role_descriptors":{
+                    "r1": {
+                        "restriction": {
+                        }
+                    }
+                }
+            }""");
+        response = performRequestWithManageOwnApiKeyUser(createApiKeyWithoutWorkflowRequest);
+        String apiKeyIdWithoutWorkflow = assertOKAndCreateObjectPath(response).evaluate("id");
+        assertThat(apiKeyIdWithoutWorkflow, notNullValue());
+
+        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyIdWithoutWorkflow);
         updateApiKeyRequest.setJsonEntity("""
             {
               "role_descriptors": {
                 "r1": {
                   "restriction": {
-                   "workflows": ["search_application", "search_analytics"]
+                   "workflows": ["search_application_query"]
                   }
                 }
               }
             }""");
         response = performRequestWithManageOwnApiKeyUser(updateApiKeyRequest);
         assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), equalTo(true));
-        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application", "search_analytics");
-
-        final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
-        bulkUpdateApiKeyRequest.setJsonEntity(Strings.format("""
-            {
-              "ids": ["%s"],
-              "role_descriptors": {
-                "r1": {
-                  "restriction": {
-                     "workflows": ["search_application"]
-                  }
-                }
-              }
-            }""", apiKeyId));
-        response = performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest);
-        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), contains(apiKeyId));
-        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyIdWithoutWorkflow, "r1", "search_application_query");
 
         final Request removeRestrictionRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
         removeRestrictionRequest.setJsonEntity("""
@@ -1219,6 +1292,22 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         response = performRequestWithManageOwnApiKeyUser(removeRestrictionRequest);
         assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), equalTo(true));
         fetchAndAssertApiKeyDoesNotContainWorkflows(apiKeyId, "r1");
+
+        final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        bulkUpdateApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+              "ids": ["%s"],
+              "role_descriptors": {
+                "r1": {
+                  "restriction": {
+                     "workflows": ["search_application_query"]
+                  }
+                }
+              }
+            }""", apiKeyId));
+        response = performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest);
+        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), contains(apiKeyId));
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application_query");
     }
 
     public void testWorkflowsRestrictionValidation() throws IOException {
@@ -1227,14 +1316,14 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final String r1 = """
                 "r1": {
                     "restriction": {
-                        "workflows": ["search_application"]
+                        "workflows": ["search_application_query"]
                     }
                 }
             """;
         final String r2 = secondRoleWithWorkflowsRestriction ? """
             "r2": {
                 "restriction": {
-                    "workflows": ["search_analytics"]
+                    "workflows": ["search_application_query"]
                 }
             }
             """ : """
@@ -1283,7 +1372,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 "role_descriptors":{
                     "r1": {
                         "restriction": {
-                            "workflows": ["search_application"]
+                            "workflows": ["search_application_query"]
                         }
                     }
                 }
@@ -1509,6 +1598,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         assertThat(fetchResponse.evaluate("api_keys.0.id"), equalTo(apiKeyId));
         assertThat(fetchResponse.evaluate("api_keys.0.type"), equalTo("cross_cluster"));
+        assertThat(fetchResponse.evaluate("api_keys.0.access"), notNullValue());
         return fetchResponse;
     }
 

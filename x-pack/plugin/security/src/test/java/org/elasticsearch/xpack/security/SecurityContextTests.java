@@ -89,13 +89,13 @@ public class SecurityContextTests extends ESTestCase {
         final InternalUser internalUser = AuthenticationTestHelper.randomInternalUser();
         assertNull(securityContext.getAuthentication());
         assertNull(securityContext.getUser());
-        securityContext.setInternalUser(internalUser, TransportVersion.CURRENT);
+        securityContext.setInternalUser(internalUser, TransportVersion.current());
         assertEquals(internalUser, securityContext.getUser());
         assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> securityContext.setInternalUser(randomFrom(internalUser, InternalUsers.SYSTEM_USER), TransportVersion.CURRENT)
+            () -> securityContext.setInternalUser(randomFrom(internalUser, InternalUsers.SYSTEM_USER), TransportVersion.current())
         );
         assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }
@@ -116,7 +116,7 @@ public class SecurityContextTests extends ESTestCase {
 
         final InternalUser executionUser = AuthenticationTestHelper.randomInternalUserWithLocalRoleDescriptor();
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
-        securityContext.executeAsInternalUser(executionUser, TransportVersion.CURRENT, (originalCtx) -> {
+        securityContext.executeAsInternalUser(executionUser, TransportVersion.current(), (originalCtx) -> {
             assertEquals(executionUser, securityContext.getUser());
             assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
@@ -211,7 +211,7 @@ public class SecurityContextTests extends ESTestCase {
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
-        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.CURRENT));
+        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.current()));
     }
 
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
@@ -251,7 +251,7 @@ public class SecurityContextTests extends ESTestCase {
                         equalTo(original.getAuthenticatingSubject().getMetadata().get(key))
                     );
                 });
-        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.CURRENT));
+        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.current()));
     }
 
     public void testExecuteAfterRemovingParentAuthorization() {

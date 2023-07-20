@@ -1,0 +1,5 @@
+pr: 96281
+summary: Fix autoexpand during node replace
+area: Allocation
+type: bug
+issues: []

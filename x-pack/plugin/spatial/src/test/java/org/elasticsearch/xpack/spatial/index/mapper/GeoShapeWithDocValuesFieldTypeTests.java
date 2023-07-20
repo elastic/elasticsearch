@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
@@ -20,6 +19,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -40,7 +40,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         );
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
-            Version.CURRENT,
+            IndexVersion.current(),
             false,
             false,
             geoFormatterFactory
@@ -101,7 +101,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
-            Version.CURRENT,
+            IndexVersion.current(),
             false,
             false,
             geoFormatterFactory
@@ -145,7 +145,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         );
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
-            Version.CURRENT,
+            IndexVersion.current(),
             false,
             false,
             geoFormatterFactory
@@ -257,7 +257,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         );
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
-            Version.CURRENT,
+            IndexVersion.current(),
             false,
             false,
             geoFormatterFactory
@@ -273,7 +273,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         );
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
-            Version.CURRENT,
+            IndexVersion.current(),
             false,
             false,
             geoFormatterFactory
@@ -293,7 +293,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         );
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
-            Version.CURRENT,
+            IndexVersion.current(),
             false,
             false,
             geoFormatterFactory

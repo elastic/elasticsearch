@@ -45,7 +45,7 @@ public class KvIndexResolverTests extends ESTestCase {
 
     public void testResolveSingleIndex() {
         String indexPattern = "profiling-stacktraces";
-        Index[] concreteIndices = new Index[] { idx(".profiling-stacktraces-v1-000001") };
+        Index[] concreteIndices = new Index[] { idx(".profiling-stacktraces-v001-000001") };
         when(mockIndexResolver.concreteIndices(any(), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern))).thenReturn(concreteIndices);
 
         List<Index> resolvedIndices = resolver.resolve(ClusterState.EMPTY_STATE, indexPattern, Instant.MIN, Instant.MAX);
@@ -55,9 +55,9 @@ public class KvIndexResolverTests extends ESTestCase {
 
     public void testResolveRangeOfIndices() {
         String indexPattern = "profiling-stacktraces";
-        Index stGen1 = idx(".profiling-stacktraces-v1-000001");
-        Index stGen2 = idx(".profiling-stacktraces-v1-000002");
-        Index stGen3 = idx(".profiling-stacktraces-v1-000003");
+        Index stGen1 = idx(".profiling-stacktraces-v001-000001");
+        Index stGen2 = idx(".profiling-stacktraces-v001-000002");
+        Index stGen3 = idx(".profiling-stacktraces-v001-000003");
         Index[] concreteIndices = new Index[] { stGen1, stGen2, stGen3 };
         when(mockIndexResolver.concreteIndices(any(), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern))).thenReturn(concreteIndices);
 
@@ -93,9 +93,9 @@ public class KvIndexResolverTests extends ESTestCase {
 
     public void testResolveRangeOfIndicesAtBoundary() {
         String indexPattern = "profiling-stacktraces";
-        Index stGen1 = idx(".profiling-stacktraces-v1-000001");
-        Index stGen2 = idx(".profiling-stacktraces-v1-000002");
-        Index stGen3 = idx(".profiling-stacktraces-v1-000003");
+        Index stGen1 = idx(".profiling-stacktraces-v001-000001");
+        Index stGen2 = idx(".profiling-stacktraces-v001-000002");
+        Index stGen3 = idx(".profiling-stacktraces-v001-000003");
         Index[] concreteIndices = new Index[] { stGen1, stGen2, stGen3 };
         when(mockIndexResolver.concreteIndices(any(), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern))).thenReturn(concreteIndices);
 
@@ -145,8 +145,8 @@ public class KvIndexResolverTests extends ESTestCase {
 
     public void testResolveAllIndices() {
         String indexPattern = "profiling-stacktraces";
-        Index stV1 = idx(".profiling-stacktraces-v1-000001");
-        Index stV2 = idx(".profiling-stacktraces-v2-000001");
+        Index stV1 = idx(".profiling-stacktraces-v001-000001");
+        Index stV2 = idx(".profiling-stacktraces-v002-000001");
         Index[] concreteIndices = new Index[] { stV1, stV2 };
         when(mockIndexResolver.concreteIndices(any(), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern))).thenReturn(concreteIndices);
 

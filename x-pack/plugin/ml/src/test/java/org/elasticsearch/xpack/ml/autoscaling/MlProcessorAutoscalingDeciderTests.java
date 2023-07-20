@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
@@ -30,6 +29,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.junit.Before;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
@@ -537,16 +537,18 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, double allocatedProcessors) {
-        return DiscoveryNodeUtils.create(
-            name,
-            name,
-            buildNewFakeTransportAddress(),
-            MapBuilder.<String, String>newMapBuilder()
-                .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10))
-                .put(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, String.valueOf(allocatedProcessors))
-                .map(),
-            isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)
-        );
+        return DiscoveryNodeUtils.builder(name)
+            .name(name)
+            .attributes(
+                Map.of(
+                    MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                    String.valueOf(10),
+                    MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+                    String.valueOf(allocatedProcessors)
+                )
+            )
+            .roles(isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+            .build();
     }
 
     private MlProcessorAutoscalingDecider newDecider() {

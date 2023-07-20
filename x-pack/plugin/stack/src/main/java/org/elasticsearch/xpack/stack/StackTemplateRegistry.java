@@ -59,6 +59,9 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     // General mappings conventions for any data that ends up in a data stream
     public static final String DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "data-streams-mappings";
 
+    // ECS dynamic mappings
+    public static final String ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME = "ecs@dynamic_templates";
+
     //////////////////////////////////////////////////////////
     // Built in ILM policies for users to use
     //////////////////////////////////////////////////////////
@@ -157,6 +160,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/logs-mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/ecs-dynamic-mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE
             ),

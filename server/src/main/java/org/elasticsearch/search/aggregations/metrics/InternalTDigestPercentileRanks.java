@@ -13,6 +13,7 @@ import org.elasticsearch.search.DocValueFormat;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPercentiles implements PercentileRanks {
     public static final String NAME = "tdigest_percentile_ranks";
@@ -44,15 +45,20 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         String name,
         double[] keys,
         double compression,
+        TDigestExecutionHint executionHint,
         boolean keyed,
         DocValueFormat format,
         Map<String, Object> metadata
     ) {
-        return new InternalTDigestPercentileRanks(name, keys, new TDigestState(compression), keyed, format, metadata);
+        TDigestState state = TDigestState.create(compression, executionHint);
+        return new InternalTDigestPercentileRanks(name, keys, state, keyed, format, metadata);
     }
 
     @Override
     public Iterator<Percentile> iterator() {
+        if (state == null) {
+            return EMPTY_ITERATOR;
+        }
         return new Iter(keys, state);
     }
 
@@ -100,7 +106,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
 
         public Iter(double[] values, TDigestState state) {
             this.values = values;
-            this.state = state;
+            this.state = Objects.requireNonNull(state);
             i = 0;
         }
 

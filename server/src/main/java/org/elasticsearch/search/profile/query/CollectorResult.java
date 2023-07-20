@@ -37,10 +37,8 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
 
     public static final String REASON_SEARCH_COUNT = "search_count";
     public static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
-    public static final String REASON_SEARCH_TERMINATE_AFTER_COUNT = "search_terminate_after_count";
-    public static final String REASON_SEARCH_POST_FILTER = "search_post_filter";
-    public static final String REASON_SEARCH_MIN_SCORE = "search_min_score";
     public static final String REASON_SEARCH_MULTI = "search_multi";
+    public static final String REASON_SEARCH_QUERY_PHASE = "search_query_phase";
     public static final String REASON_AGGREGATION = "aggregation";
     public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
 
@@ -66,10 +64,14 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
         out.writeString(getName());
         out.writeString(getReason());
         out.writeLong(getTime());
-        out.writeList(getCollectorResults());
+        out.writeList(getChildrenResults());
     }
 
-    public List<CollectorResult> getCollectorResults() {
+    /**
+     * Exposes a list of children collector results. Same as {@link ProfilerCollectorResult#getProfiledChildren()} with each
+     * item in the list being cast to a {@link CollectorResult}
+     */
+    public List<CollectorResult> getChildrenResults() {
         return super.getProfiledChildren().stream().map(profilerCollectorResult -> (CollectorResult) profilerCollectorResult).toList();
     }
 
@@ -82,12 +84,12 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
         return getName().equals(other.getName())
             && getReason().equals(other.getReason())
             && getTime() == other.getTime()
-            && getCollectorResults().equals(other.getCollectorResults());
+            && getChildrenResults().equals(other.getChildrenResults());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getName(), getReason(), getTime(), getCollectorResults());
+        return Objects.hash(getName(), getReason(), getTime(), getChildrenResults());
     }
 
     @Override
@@ -107,7 +109,7 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
 
         if (getProfiledChildren().isEmpty() == false) {
             builder = builder.startArray(CHILDREN.getPreferredName());
-            for (CollectorResult child : getCollectorResults()) {
+            for (CollectorResult child : getChildrenResults()) {
                 builder = child.toXContent(builder, params);
             }
             builder = builder.endArray();

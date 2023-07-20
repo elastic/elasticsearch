@@ -499,12 +499,12 @@ public class ResolveIndexTests extends ESTestCase {
                     "test-system-feature",
                     "test system index",
                     List.of(
-                        new SystemIndexDescriptor(
-                            ".test-system*",
-                            "test-system-description",
-                            SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED,
-                            List.of("test-system")
-                        ),
+                        SystemIndexDescriptor.builder()
+                            .setIndexPattern(".test-system*")
+                            .setDescription("test-system-description")
+                            .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
+                            .setAllowedElasticProductOrigins(List.of("test-system"))
+                            .build(),
                         SystemIndexDescriptor.builder()
                             .setIndexPattern(".test-net-new-system*")
                             .setDescription("test-net-new-system-description")

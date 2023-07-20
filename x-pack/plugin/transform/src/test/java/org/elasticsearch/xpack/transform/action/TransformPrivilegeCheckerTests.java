@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -120,7 +121,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             client,
             config,
             false,
-            ActionListener.wrap(aVoid -> {
+            ActionTestUtils.assertNoFailureListener(aVoid -> {
                 HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
                 assertThat(request.username(), is(equalTo(USER_NAME)));
                 assertThat(request.applicationPrivileges(), is(emptyArray()));
@@ -130,7 +131,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
                 assertThat(sourceIndicesPrivileges.getIndices(), is(arrayContaining(SOURCE_INDEX_NAME)));
                 assertThat(sourceIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "view_index_metadata")));
                 assertThat(sourceIndicesPrivileges.allowRestrictedIndices(), is(true));
-            }, e -> fail(e.getMessage()))
+            })
         );
     }
 
@@ -146,10 +147,8 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             client,
             config,
             false,
-            ActionListener.wrap(aVoid -> {
-                // _has_privileges API is not called for the remote index
-                assertThat(client.lastHasPrivilegesRequest, is(nullValue()));
-            }, e -> fail(e.getMessage()))
+            // _has_privileges API is not called for the remote index
+            ActionTestUtils.assertNoFailureListener(aVoid -> assertThat(client.lastHasPrivilegesRequest, is(nullValue())))
         );
     }
 
@@ -163,7 +162,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             client,
             TRANSFORM_CONFIG,
             true,
-            ActionListener.wrap(aVoid -> {
+            ActionTestUtils.assertNoFailureListener(aVoid -> {
                 HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
                 assertThat(request.username(), is(equalTo(USER_NAME)));
                 assertThat(request.applicationPrivileges(), is(emptyArray()));
@@ -177,7 +176,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
                 assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
                 assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index", "create_index")));
                 assertThat(destIndicesPrivileges.allowRestrictedIndices(), is(true));
-            }, e -> fail(e.getMessage()))
+            })
         );
     }
 
@@ -197,7 +196,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             client,
             TRANSFORM_CONFIG,
             true,
-            ActionListener.wrap(aVoid -> {
+            ActionTestUtils.assertNoFailureListener(aVoid -> {
                 HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
                 assertThat(request.username(), is(equalTo(USER_NAME)));
                 assertThat(request.applicationPrivileges(), is(emptyArray()));
@@ -211,7 +210,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
                 assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
                 assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index")));
                 assertThat(destIndicesPrivileges.allowRestrictedIndices(), is(true));
-            }, e -> fail(e.getMessage()))
+            })
         );
     }
 
@@ -233,7 +232,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             client,
             config,
             true,
-            ActionListener.wrap(aVoid -> {
+            ActionTestUtils.assertNoFailureListener(aVoid -> {
                 HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
                 assertThat(request.username(), is(equalTo(USER_NAME)));
                 assertThat(request.applicationPrivileges(), is(emptyArray()));
@@ -243,7 +242,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
                 assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
                 assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index")));
                 assertThat(destIndicesPrivileges.allowRestrictedIndices(), is(true));
-            }, e -> fail(e.getMessage()))
+            })
         );
     }
 
@@ -266,7 +265,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             client,
             config,
             true,
-            ActionListener.wrap(aVoid -> {
+            ActionTestUtils.assertNoFailureListener(aVoid -> {
                 HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
                 assertThat(request.username(), is(equalTo(USER_NAME)));
                 assertThat(request.applicationPrivileges(), is(emptyArray()));
@@ -280,7 +279,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
                 assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
                 assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index", "delete")));
                 assertThat(destIndicesPrivileges.allowRestrictedIndices(), is(true));
-            }, e -> fail(e.getMessage()))
+            })
         );
     }
 
@@ -303,7 +302,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             client,
             config,
             true,
-            ActionListener.wrap(aVoid -> {
+            ActionTestUtils.assertNoFailureListener(aVoid -> {
                 HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
                 assertThat(request.username(), is(equalTo(USER_NAME)));
                 assertThat(request.applicationPrivileges(), is(emptyArray()));
@@ -324,7 +323,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
                 assertThat(destAliasesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
                 assertThat(destAliasesPrivileges.getPrivileges(), is(arrayContaining("read", "index", "manage")));
                 assertThat(destAliasesPrivileges.allowRestrictedIndices(), is(true));
-            }, e -> fail(e.getMessage()))
+            })
         );
     }
 

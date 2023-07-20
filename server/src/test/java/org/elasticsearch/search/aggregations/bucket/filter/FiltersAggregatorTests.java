@@ -30,12 +30,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -500,7 +500,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertThat(filters1.getBucketByKey("q1").getDocCount(), equalTo(1L));
         },
             new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("author", "foo"))), ft)
-                .withQuery(Queries.newNonNestedFilter(Version.CURRENT))
+                .withQuery(Queries.newNonNestedFilter(IndexVersion.current()))
         );
         testCase(buildIndex, result -> {
             InternalFilters filters = (InternalFilters) result;
@@ -508,7 +508,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
         },
             new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder())), ft).withQuery(
-                Queries.newNonNestedFilter(Version.CURRENT)
+                Queries.newNonNestedFilter(IndexVersion.current())
             )
         );
     }
@@ -923,8 +923,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                             .entry(
                                 "filters",
                                 matchesList().item(
-                                    matchesMap().entry("query", "MatchNoDocsQuery(\"User requested \"match_none\" query.\")")
-                                        .entry("segments_counted_in_constant_time", greaterThan(0))
+                                    matchesMap().entry(
+                                        "query",
+                                        "MatchNoDocsQuery(\"The \"range\" query was rewritten to a \"match_none\" query.\")"
+                                    ).entry("segments_counted_in_constant_time", greaterThan(0))
                                 )
                             )
                     )
@@ -960,8 +962,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                             .entry(
                                 "filters",
                                 matchesList().item(
-                                    matchesMap().entry("query", "MatchNoDocsQuery(\"User requested \"match_none\" query.\")")
-                                        .entry("segments_counted_in_constant_time", greaterThan(0))
+                                    matchesMap().entry(
+                                        "query",
+                                        "MatchNoDocsQuery(\"The \"range\" query was rewritten to a \"match_none\" query.\")"
+                                    ).entry("segments_counted_in_constant_time", greaterThan(0))
                                 )
                             )
                     )

@@ -8,20 +8,24 @@
 package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestPutAnalyticsCollectionAction extends BaseRestHandler {
+public class RestPutAnalyticsCollectionAction extends EnterpriseSearchBaseRestHandler {
+    public RestPutAnalyticsCollectionAction(XPackLicenseState licenseState) {
+        super(licenseState);
+    }
 
     @Override
     public String getName() {
@@ -34,7 +38,7 @@ public class RestPutAnalyticsCollectionAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) {
         PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(restRequest.param("collection_name"));
         String location = routes().get(0).getPath().replace("{collection_name}", request.getName());
         return channel -> client.execute(

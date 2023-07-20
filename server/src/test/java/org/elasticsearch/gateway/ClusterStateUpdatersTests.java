@@ -19,24 +19,15 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.Metadata.CLUSTER_READ_ONLY_BLOCK;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.addStateNotRecoveredBlock;
@@ -46,65 +37,12 @@ import static org.elasticsearch.gateway.ClusterStateUpdaters.recoverClusterBlock
 import static org.elasticsearch.gateway.ClusterStateUpdaters.removeStateNotRecoveredBlock;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.setLocalNode;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.updateRoutingTable;
-import static org.elasticsearch.gateway.ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class ClusterStateUpdatersTests extends ESTestCase {
-
-    public void testUpgradePersistentSettings() {
-        runUpgradeSettings(Metadata.Builder::persistentSettings, Metadata::persistentSettings);
-    }
-
-    public void testUpgradeTransientSettings() {
-        runUpgradeSettings(Metadata.Builder::transientSettings, Metadata::transientSettings);
-    }
-
-    private void runUpgradeSettings(
-        final BiConsumer<Metadata.Builder, Settings> applySettingsToBuilder,
-        final Function<Metadata, Settings> metadataSettings
-    ) {
-        final Setting<String> oldSetting = Setting.simpleString("foo.old", Setting.Property.Dynamic, Setting.Property.NodeScope);
-        final Setting<String> newSetting = Setting.simpleString("foo.new", Setting.Property.Dynamic, Setting.Property.NodeScope);
-        final Set<Setting<?>> settingsSet = Stream.concat(
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-            Stream.of(oldSetting, newSetting)
-        ).collect(Collectors.toSet());
-        final ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            settingsSet,
-            Collections.singleton(new SettingUpgrader<String>() {
-
-                @Override
-                public Setting<String> getSetting() {
-                    return oldSetting;
-                }
-
-                @Override
-                public String getKey(final String key) {
-                    return "foo.new";
-                }
-
-                @Override
-                public String getValue(final String value) {
-                    return "new." + value;
-                }
-
-            })
-        );
-        final ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, null, (TaskManager) null);
-        final Metadata.Builder builder = Metadata.builder();
-        final Settings settings = Settings.builder().put("foo.old", randomAlphaOfLength(8)).build();
-        applySettingsToBuilder.accept(builder, settings);
-        final ClusterState initialState = ClusterState.builder(clusterService.getClusterName()).metadata(builder.build()).build();
-        final ClusterState state = upgradeAndArchiveUnknownOrInvalidSettings(initialState, clusterService.getClusterSettings());
-
-        assertFalse(oldSetting.exists(metadataSettings.apply(state.metadata())));
-        assertTrue(newSetting.exists(metadataSettings.apply(state.metadata())));
-        assertThat(newSetting.get(metadataSettings.apply(state.metadata())), equalTo("new." + oldSetting.get(settings)));
-    }
 
     private IndexMetadata createIndexMetadata(final String name, final Settings settings) {
         return IndexMetadata.builder(name)
@@ -277,7 +215,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
         final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)).build();
 
-        final ClusterState updatedState = setLocalNode(initialState, localNode, TransportVersion.CURRENT);
+        final ClusterState updatedState = setLocalNode(initialState, localNode, TransportVersion.current());
 
         assertMetadataEquals(initialState, updatedState);
         assertThat(updatedState.nodes().getLocalNode(), equalTo(localNode));
@@ -321,7 +259,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             .build();
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)).build();
         final ClusterState updatedState = Function.<ClusterState>identity()
-            .andThen(state -> setLocalNode(state, localNode, TransportVersion.CURRENT))
+            .andThen(state -> setLocalNode(state, localNode, TransportVersion.current()))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(initialState);
 

@@ -14,7 +14,6 @@ import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.Version;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,6 +36,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -139,7 +139,12 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * @return a new {@link SharedBlobCacheService} instance configured with default settings
      */
     protected SharedBlobCacheService<CacheKey> defaultFrozenCacheService() {
-        return new SharedBlobCacheService<>(nodeEnvironment, Settings.EMPTY, threadPool);
+        return new SharedBlobCacheService<>(
+            nodeEnvironment,
+            Settings.EMPTY,
+            threadPool,
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+        );
     }
 
     protected SharedBlobCacheService<CacheKey> randomFrozenCacheService() {
@@ -156,7 +161,12 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         if (randomBoolean()) {
             cacheSettings.put(SharedBlobCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
-        return new SharedBlobCacheService<>(singlePathNodeEnvironment, cacheSettings.build(), threadPool);
+        return new SharedBlobCacheService<>(
+            singlePathNodeEnvironment,
+            cacheSettings.build(),
+            threadPool,
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+        );
     }
 
     /**
@@ -178,7 +188,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                 .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
                 .build(),
-            threadPool
+            threadPool,
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
         );
     }
 
@@ -230,7 +241,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
-                Version.CURRENT,
+                IndexVersion.current(),
                 new IndexId("some_index", UUIDs.randomBase64UUID(random()))
             )
         );

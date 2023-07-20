@@ -13,8 +13,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
 
-import java.util.List;
-
 public class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
 
     private final AggregateDoubleMetricFieldType aggMetricFieldType;
@@ -56,7 +54,7 @@ public class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
                 // To compute value_count summary, we must sum all field values
                 case value_count -> new MetricFieldProducer.Sum(AggregateDoubleMetricFieldMapper.Metric.value_count.name());
             };
-            return new MetricFieldProducer.GaugeMetricFieldProducer(aggMetricFieldType.name(), List.of(metricOperation));
+            return new MetricFieldProducer.GaugeMetricFieldProducer(aggMetricFieldType.name(), metricOperation);
         } else {
             // If field is not a metric, we downsample it as a label
             return new LabelFieldProducer.AggregateMetricFieldProducer.AggregateMetricFieldProducer(aggMetricFieldType.name(), metric);

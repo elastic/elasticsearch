@@ -11,6 +11,7 @@ package org.elasticsearch.test.cluster;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.Closeable;
+import java.io.InputStream;
 
 /**
  * A handle to an {@link ElasticsearchCluster}.
@@ -28,6 +29,12 @@ public interface ClusterHandle extends Closeable {
      * @param forcibly whether to forcibly terminate the cluster
      */
     void stop(boolean forcibly);
+
+    /**
+     * Stops the node at a given index.
+     * @param index of the node to stop
+     */
+    void stopNode(int index);
 
     /**
      * Restarts the cluster. Effectively the same as calling {@link #stop(boolean)} followed by {@link #start()}
@@ -59,6 +66,16 @@ public interface ClusterHandle extends Closeable {
      * @return cluster node HTTP transport addresses
      */
     String getHttpAddress(int index);
+
+    /**
+     * Get the name of the node for the given index.
+     */
+    String getName(int index);
+
+    /**
+     * Get the pid of the node for the given index.
+     */
+    long getPid(int index);
 
     /**
      * Returns a comma-separated list of TCP transport endpoints for cluster. If this method is called on an unstarted cluster, the cluster
@@ -111,4 +128,9 @@ public interface ClusterHandle extends Closeable {
      * Cleans up any resources created by this cluster.
      */
     void close();
+
+    /**
+     * Returns an {@link InputStream} for the given node log.
+     */
+    InputStream getNodeLog(int index, LogType logType);
 }

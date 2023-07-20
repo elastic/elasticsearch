@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
@@ -38,6 +37,8 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Before;
 
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -698,9 +700,12 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of("read"),
                 false,
                 new ResourcePrivilegesMap(
-                    mapBuilder().put("ind-1-1-*", ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", false).build())
-                        .put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
-                        .map()
+                    Map.of(
+                        "ind-1-1-*",
+                        ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", false).build(),
+                        "ind-1",
+                        ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build()
+                    )
                 )
             );
         }
@@ -716,9 +721,12 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of("read"),
                 true,
                 new ResourcePrivilegesMap(
-                    mapBuilder().put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
-                        .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", true).build())
-                        .map()
+                    Map.of(
+                        "ind-1",
+                        ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build(),
+                        ".security",
+                        ResourcePrivileges.builder(".security").addPrivilege("read", true).build()
+                    )
                 )
             );
 
@@ -737,10 +745,14 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of("read"),
                 false,
                 new ResourcePrivilegesMap(
-                    mapBuilder().put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
-                        .put("ind-2", ResourcePrivileges.builder("ind-2").addPrivilege("read", true).build())
-                        .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", false).build())
-                        .map()
+                    Map.of(
+                        "ind-1",
+                        ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build(),
+                        "ind-2",
+                        ResourcePrivileges.builder("ind-2").addPrivilege("read", true).build(),
+                        ".security",
+                        ResourcePrivileges.builder(".security").addPrivilege("read", false).build()
+                    )
                 )
             );
 
@@ -758,12 +770,51 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of("read"),
                 false,
                 new ResourcePrivilegesMap(
-                    mapBuilder().put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
-                        .put("ind-2", ResourcePrivileges.builder("ind-2").addPrivilege("read", false).build())
-                        .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", false).build())
-                        .map()
+                    Map.of(
+                        "ind-1",
+                        ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build(),
+                        "ind-2",
+                        ResourcePrivileges.builder("ind-2").addPrivilege("read", false).build(),
+                        ".security",
+                        ResourcePrivileges.builder(".security").addPrivilege("read", false).build()
+                    )
                 )
             );
+        }
+    }
+
+    public void testForWorkflowRestriction() {
+        // Test when role is restricted to the same workflow as originating workflow
+        {
+            Workflow workflow = WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW;
+            Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "role-a")
+                .add(IndexPrivilege.READ, "index-a")
+                .workflows(Set.of(workflow.name()))
+                .build();
+            Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
+            Role role = baseRole.limitedBy(limitedBy);
+            assertThat(role.hasWorkflowsRestriction(), equalTo(true));
+            assertThat(role.forWorkflow(workflow.name()), sameInstance(role));
+        }
+        // Test restriction when role is not restricted regardless of originating workflow
+        {
+            String originatingWorkflow = randomBoolean() ? null : WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name();
+            Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "role-a").add(IndexPrivilege.READ, "index-a").build();
+            Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
+            Role role = baseRole.limitedBy(limitedBy);
+            assertThat(role.forWorkflow(originatingWorkflow), sameInstance(role));
+            assertThat(role.hasWorkflowsRestriction(), equalTo(false));
+        }
+        // Test when role is restricted but originating workflow is not allowed
+        {
+            Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "role-a")
+                .add(IndexPrivilege.READ, "index-a")
+                .workflows(Set.of(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name()))
+                .build();
+            Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
+            Role role = baseRole.limitedBy(limitedBy);
+            assertThat(role.forWorkflow(randomFrom(randomAlphaOfLength(9), null, "")), sameInstance(Role.EMPTY_RESTRICTED_BY_WORKFLOW));
+            assertThat(role.hasWorkflowsRestriction(), equalTo(true));
         }
     }
 
@@ -864,6 +915,15 @@ public class LimitedRoleTests extends ESTestCase {
                 .addApplicationPrivilege(app2Read, Collections.singleton("foo/bar/*"))
                 .addApplicationPrivilege(app2Write, Collections.singleton("moo/bar/*"))
                 .build();
+
+            if (randomBoolean()) {
+                final Role nestedLimitedRole = Role.builder(EMPTY_RESTRICTED_INDICES, "nested-limited-role")
+                    .addApplicationPrivilege(app1Read, Set.of("*"))
+                    .addApplicationPrivilege(app2Read, Set.of("*"))
+                    .addApplicationPrivilege(app2Write, Set.of("*"))
+                    .build();
+                limitedByRole = randomBoolean() ? limitedByRole.limitedBy(nestedLimitedRole) : nestedLimitedRole.limitedBy(limitedByRole);
+            }
 
             verifyResourcesPrivileges(
                 limitedByRole,
@@ -1118,9 +1178,4 @@ public class LimitedRoleTests extends ESTestCase {
         );
         return ApplicationPrivilegeTests.createPrivilege(app, name, actions);
     }
-
-    private static MapBuilder<String, ResourcePrivileges> mapBuilder() {
-        return MapBuilder.newMapBuilder();
-    }
-
 }

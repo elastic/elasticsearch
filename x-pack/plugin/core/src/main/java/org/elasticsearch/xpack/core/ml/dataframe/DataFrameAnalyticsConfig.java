@@ -186,7 +186,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.analysis = in.readNamedWriteable(DataFrameAnalysis.class);
         this.analyzedFields = in.readOptionalWriteable(FetchSourceContext::readFrom);
         this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::readFrom);
-        this.headers = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+        this.headers = in.readImmutableMap(StreamInput::readString);
         this.createTime = in.readOptionalInstant();
         this.version = in.readBoolean() ? Version.readVersion(in) : null;
         this.allowLazyStart = in.readBoolean();

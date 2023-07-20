@@ -13,6 +13,7 @@ import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -81,6 +82,7 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             randomFrom(License.OperationMode.values()),
+            TrainedModelType.TREE_ENSEMBLE,
             modelStatsService,
             mock(CircuitBreaker.class)
         );
@@ -119,6 +121,7 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
+            TrainedModelType.TREE_ENSEMBLE,
             modelStatsService,
             mock(CircuitBreaker.class)
         );
@@ -171,6 +174,7 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
+            TrainedModelType.TREE_ENSEMBLE,
             modelStatsService,
             mock(CircuitBreaker.class)
         );
@@ -233,6 +237,7 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("bar", "bar.keyword"),
             RegressionConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
+            TrainedModelType.TREE_ENSEMBLE,
             modelStatsService,
             mock(CircuitBreaker.class)
         );
@@ -265,6 +270,7 @@ public class LocalModelTests extends ESTestCase {
             null,
             RegressionConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
+            TrainedModelType.TREE_ENSEMBLE,
             modelStatsService,
             mock(CircuitBreaker.class)
         );
@@ -300,6 +306,7 @@ public class LocalModelTests extends ESTestCase {
             null,
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
+            TrainedModelType.TREE_ENSEMBLE,
             modelStatsService,
             mock(CircuitBreaker.class)
         );
@@ -359,6 +366,7 @@ public class LocalModelTests extends ESTestCase {
                 null,
                 ClassificationConfig.EMPTY_PARAMS,
                 License.OperationMode.PLATINUM,
+                TrainedModelType.TREE_ENSEMBLE,
                 modelStatsService,
                 breaker
             );
@@ -385,6 +393,7 @@ public class LocalModelTests extends ESTestCase {
                 null,
                 ClassificationConfig.EMPTY_PARAMS,
                 License.OperationMode.PLATINUM,
+                TrainedModelType.TREE_ENSEMBLE,
                 modelStatsService,
                 breaker
             );

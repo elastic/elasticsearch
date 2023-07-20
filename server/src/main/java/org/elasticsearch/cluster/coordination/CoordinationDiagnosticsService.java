@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -1093,10 +1093,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         ActionRequest transportActionRequest,
         BiFunction<R, Exception, T> responseTransformationFunction
     ) {
-        StepListener<Releasable> connectionListener = new StepListener<>();
-        StepListener<R> fetchRemoteResultListener = new StepListener<>();
+        ListenableFuture<Releasable> connectionListener = new ListenableFuture<>();
+        ListenableFuture<R> fetchRemoteResultListener = new ListenableFuture<>();
         long startTimeMillis = transportService.getThreadPool().relativeTimeInMillis();
-        connectionListener.whenComplete(releasable -> {
+        connectionListener.addListener(ActionListener.wrap(releasable -> {
             if (masterEligibleNode == null) {
                 Releasables.close(releasable);
                 responseConsumer.accept(null);
@@ -1119,9 +1119,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }, e -> {
             logger.warn("Exception connecting to master " + masterEligibleNode, e);
             responseConsumer.accept(responseTransformationFunction.apply(null, e));
-        });
+        }));
 
-        fetchRemoteResultListener.whenComplete(response -> {
+        fetchRemoteResultListener.addListener(ActionListener.wrap(response -> {
             long endTimeMillis = transportService.getThreadPool().relativeTimeInMillis();
             logger.trace(
                 "Received remote response from {} in {}",
@@ -1132,7 +1132,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }, e -> {
             logger.warn("Exception in remote request to master" + masterEligibleNode, e);
             responseConsumer.accept(responseTransformationFunction.apply(null, e));
-        });
+        }));
 
         return transportService.getThreadPool().schedule(new Runnable() {
             @Override
@@ -1291,7 +1291,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
         private static Map<String, String> readClusterFormationStates(StreamInput in) throws IOException {
             if (in.readBoolean()) {
-                return in.readMap(StreamInput::readString, StreamInput::readString);
+                return in.readMap(StreamInput::readString);
             } else {
                 return Map.of();
             }

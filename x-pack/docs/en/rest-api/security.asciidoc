@@ -79,10 +79,10 @@ ifeval::["{release-state}"!="released"]
 Use the following APIs to create and update API keys for access via the REST interface
 without requiring basic authentication:
 
-* <<security-api-create-api-key,Create API key>>
-* <<security-api-grant-api-key,Grant API key>>
-* <<security-api-update-api-key,Update API key>>
-* <<security-api-bulk-update-api-keys,Bulk update API keys>>
+* <<security-api-create-api-key,Create REST API key>>
+* <<security-api-grant-api-key,Grant REST API key>>
+* <<security-api-update-api-key,Update REST API key>>
+* <<security-api-bulk-update-api-keys,Bulk update REST API keys>>
 
 Use the following APIs to create and update cross-cluster API keys for
 API key based remote cluster access:

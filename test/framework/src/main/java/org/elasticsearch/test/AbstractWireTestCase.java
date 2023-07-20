@@ -177,7 +177,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * Serialize the given instance and asserts that both are equal.
      */
     protected final void assertSerialization(T testInstance) throws IOException {
-        assertSerialization(testInstance, TransportVersion.CURRENT);
+        assertSerialization(testInstance, TransportVersion.current());
     }
 
     /**
@@ -201,7 +201,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     }
 
     protected final T copyInstance(T instance) throws IOException {
-        return copyInstance(instance, TransportVersion.CURRENT);
+        return copyInstance(instance, TransportVersion.current());
     }
 
     /**

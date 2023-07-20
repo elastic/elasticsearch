@@ -60,9 +60,7 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
         int numshards = randomBoolean() ? 1 : randomIntBetween(1, 5);
         createIndex(indexName, Settings.builder().put("index.merge.enabled", false).put("number_of_shards", numshards).build());
 
-        client().admin()
-            .indices()
-            .preparePutMapping(indexName)
+        indicesAdmin().preparePutMapping(indexName)
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -125,9 +123,7 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(50, TimeUnit.MILLISECONDS)).build()
         );
 
-        client().admin()
-            .indices()
-            .preparePutMapping(indexName)
+        indicesAdmin().preparePutMapping(indexName)
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -188,9 +184,7 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
         createIndex(indexName);
         int numDocs = 500;
 
-        client().admin()
-            .indices()
-            .preparePutMapping(indexName)
+        indicesAdmin().preparePutMapping(indexName)
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()

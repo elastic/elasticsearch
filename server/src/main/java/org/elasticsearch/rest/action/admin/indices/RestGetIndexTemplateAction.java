@@ -18,8 +18,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.Scope;
-import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -35,7 +33,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * The REST handler for get template and head template APIs.
  */
-@ServerlessScope(Scope.PUBLIC)
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     private static final Set<String> COMPATIBLE_RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, INCLUDE_TYPE_NAME_PARAMETER);

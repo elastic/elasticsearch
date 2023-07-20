@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
@@ -281,7 +282,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             transportAddress,
             singletonMap("attr", "value"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT,
+            null,
             "_external_id"
         );
 
@@ -364,7 +365,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getVmVendor()).thenReturn("_jvm_vm_vendor");
         when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
 
-        final Build mockBuild = new Build(Build.Type.DOCKER, "", "", false, "");
+        final Build mockBuild = new Build("default", Build.Type.DOCKER, "", "", false, "");
         when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
 
         final NodeStats mockNodeStats = mock(NodeStats.class);
@@ -456,6 +457,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             mockNodeVersion,
             Version.CURRENT,
             Version.CURRENT,
+            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersion.current(),
             apmIndicesExist };
         final String expectedJson = Strings.format("""
             {
@@ -756,7 +759,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "roles": [
                       "master"
                     ],
-                    "version": "%s"
+                    "version": "%s",
+                    "min_index_version":%s,
+                    "max_index_version":%s
                   }
                 },
                 "transport_versions": []

@@ -1,7 +1,6 @@
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
@@ -30,7 +29,6 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.9.0") &&
       nodes."${baseName}-1".setting 'node.roles', '["data_content", "data_hot"]'
     }
     nodes."${baseName}-2".setting 'node.roles', '["master"]'
-    requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.8.0")
   }
 
   tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {

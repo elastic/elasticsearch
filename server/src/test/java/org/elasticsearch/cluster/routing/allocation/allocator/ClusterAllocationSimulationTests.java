@@ -198,13 +198,11 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
             final var nodeId = Strings.format("node-%s-%03d", tierRole.roleNameAbbreviation(), nodeIndex);
             discoveryNodesBuilder.add(
-                DiscoveryNodeUtils.create(
-                    nodeId,
-                    nodeId,
-                    buildNewFakeTransportAddress(),
-                    Map.of("fake_tier", tierRole.roleName()),
-                    Set.of(tierRole)
-                )
+                DiscoveryNodeUtils.builder(nodeId)
+                    .name(nodeId)
+                    .attributes(Map.of("fake_tier", tierRole.roleName()))
+                    .roles(Set.of(tierRole))
+                    .build()
             );
         }
 

@@ -212,7 +212,7 @@ class MutableSearchResponse {
         } else {
             /*
              * Build the response, reducing aggs if we haven't already and
-             * storing the result of the reduction so we won't have to reduce
+             * storing the result of the reduction, so we won't have to reduce
              * the same aggregation results a second time if nothing has changed.
              * This does cost memory because we have a reference to the finally
              * reduced aggs sitting around which can't be GCed until we get an update.
@@ -241,6 +241,11 @@ class MutableSearchResponse {
      * @return response representing the status of async search
      */
     synchronized AsyncStatusResponse toStatusResponse(String asyncExecutionId, long startTime, long expirationTime) {
+        SearchResponse.Clusters clustersInStatus = null;
+        if (clusters != null && clusters.getTotal() > 0) {
+            // include clusters in the status if present and not Clusters.EMPTY (the case for local searches only)
+            clustersInStatus = clusters;
+        }
         if (finalResponse != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
@@ -248,11 +253,13 @@ class MutableSearchResponse {
                 false,
                 startTime,
                 expirationTime,
+                startTime + finalResponse.getTook().millis(),
                 finalResponse.getTotalShards(),
                 finalResponse.getSuccessfulShards(),
                 finalResponse.getSkippedShards(),
                 finalResponse.getShardFailures() != null ? finalResponse.getShardFailures().length : 0,
-                finalResponse.status()
+                finalResponse.status(),
+                clustersInStatus
             );
         }
         if (failure != null) {
@@ -262,11 +269,13 @@ class MutableSearchResponse {
                 true,
                 startTime,
                 expirationTime,
+                null,
                 totalShards,
                 successfulShards,
                 skippedShards,
                 queryFailures == null ? 0 : queryFailures.nonNullLength(),
-                ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure))
+                ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure)),
+                clustersInStatus
             );
         }
         return new AsyncStatusResponse(
@@ -275,11 +284,13 @@ class MutableSearchResponse {
             true,
             startTime,
             expirationTime,
+            null,
             totalShards,
             successfulShards,
             skippedShards,
             queryFailures == null ? 0 : queryFailures.nonNullLength(),
-            null  // for a still running search, completion status is null
+            null,  // for a still running search, completion status is null
+            clustersInStatus
         );
     }
 

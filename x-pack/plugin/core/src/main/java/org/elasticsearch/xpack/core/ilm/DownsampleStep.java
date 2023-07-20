@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -18,7 +19,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 
 import java.util.Objects;
 
@@ -132,11 +132,7 @@ public class DownsampleStep extends AsyncActionStep {
             TimeValue.MAX_VALUE
         );
         // Currently, DownsampleAction always acknowledges action was complete when no exceptions are thrown.
-        getClient().execute(
-            DownsampleAction.INSTANCE,
-            request,
-            ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
-        );
+        getClient().execute(DownsampleAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
     }
 
     @Override

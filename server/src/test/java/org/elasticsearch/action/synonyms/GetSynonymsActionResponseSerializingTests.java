@@ -9,7 +9,7 @@
 package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.synonyms.SynonymsManagementAPIService;
+import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -25,9 +25,7 @@ public class GetSynonymsActionResponseSerializingTests extends AbstractWireSeria
 
     @Override
     protected GetSynonymsAction.Response createTestInstance() {
-        return new GetSynonymsAction.Response(
-            new SynonymsManagementAPIService.SynonymsSetResult(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet())
-        );
+        return new GetSynonymsAction.Response(new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet()));
     }
 
     @Override

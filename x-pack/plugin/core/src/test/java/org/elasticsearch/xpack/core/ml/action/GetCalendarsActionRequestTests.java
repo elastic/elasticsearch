@@ -40,8 +40,4 @@ public class GetCalendarsActionRequestTests extends AbstractXContentSerializingT
         return GetCalendarsAction.Request.parseRequest(null, parser);
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

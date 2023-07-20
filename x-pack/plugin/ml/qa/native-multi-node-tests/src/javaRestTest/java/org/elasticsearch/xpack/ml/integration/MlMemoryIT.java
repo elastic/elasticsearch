@@ -186,6 +186,7 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new PutTrainedModelVocabularyAction.Request(
                 modelId,
                 List.of("these", "are", "my", "words", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN),
+                List.of(),
                 List.of()
             )
         ).actionGet();

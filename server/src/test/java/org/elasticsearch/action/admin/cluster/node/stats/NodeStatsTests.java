@@ -64,6 +64,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
@@ -86,7 +87,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.AbstractChunkedSerializingTestCase.assertChunkCount;
 import static org.elasticsearch.threadpool.ThreadPoolStatsTests.randomStats;
@@ -306,34 +306,8 @@ public class NodeStatsTests extends ESTestCase {
                 if (scriptStats == null) {
                     assertNull(deserializedScriptStats);
                 } else {
-                    List<ScriptContextStats> deserialized = deserializedScriptStats.getContextStats();
-                    long evictions = 0;
-                    long limited = 0;
-                    long compilations = 0;
-                    List<ScriptContextStats> stats = scriptStats.getContextStats();
-                    for (ScriptContextStats generatedStats : stats) {
-                        List<ScriptContextStats> maybeDeserStats = deserialized.stream()
-                            .filter(s -> s.getContext().equals(generatedStats.getContext()))
-                            .toList();
-
-                        assertEquals(1, maybeDeserStats.size());
-                        ScriptContextStats deserStats = maybeDeserStats.get(0);
-
-                        evictions += generatedStats.getCacheEvictions();
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-
-                        limited += generatedStats.getCompilationLimitTriggered();
-                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-
-                        compilations += generatedStats.getCompilations();
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-                    }
-                    assertEquals(evictions, scriptStats.getCacheEvictions());
-                    assertEquals(limited, scriptStats.getCompilationLimitTriggered());
-                    assertEquals(compilations, scriptStats.getCompilations());
+                    assertEquals(scriptStats, deserializedScriptStats);
+                    assertNotSame(scriptStats, deserializedScriptStats);
                 }
                 DiscoveryStats discoveryStats = nodeStats.getDiscoveryStats();
                 DiscoveryStats deserializedDiscoveryStats = deserializedNodeStats.getDiscoveryStats();
@@ -476,34 +450,20 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
                     });
                 }
-                ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
-                ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
+                var scriptCacheStats = nodeStats.getScriptCacheStats();
+                var deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
                 if (scriptCacheStats == null) {
                     assertNull(deserializedScriptCacheStats);
                 } else if (deserializedScriptCacheStats.getContextStats() != null) {
-                    Map<String, ScriptStats> deserialized = deserializedScriptCacheStats.getContextStats();
-                    long evictions = 0;
-                    long limited = 0;
-                    long compilations = 0;
-                    Map<String, ScriptStats> stats = scriptCacheStats.getContextStats();
-                    for (String context : stats.keySet()) {
-                        ScriptStats deserStats = deserialized.get(context);
-                        ScriptStats generatedStats = stats.get(context);
-
-                        evictions += generatedStats.getCacheEvictions();
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-
-                        limited += generatedStats.getCompilationLimitTriggered();
-                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-
-                        compilations += generatedStats.getCompilations();
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-                    }
-                    ScriptStats sum = deserializedScriptCacheStats.sum();
-                    assertEquals(evictions, sum.getCacheEvictions());
-                    assertEquals(limited, sum.getCompilationLimitTriggered());
-                    assertEquals(compilations, sum.getCompilations());
+                    assertEquals(scriptCacheStats, deserializedScriptCacheStats);
+                    assertNotSame(scriptCacheStats, deserializedScriptCacheStats);
                 }
+
+                RepositoriesStats repoThrottlingStats = deserializedNodeStats.getRepositoriesStats();
+                assertTrue(repoThrottlingStats.getRepositoryThrottlingStats().containsKey("test-repository"));
+                assertEquals(100, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalReadThrottledNanos());
+                assertEquals(200, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalWriteThrottledNanos());
+
             }
         }
     }
@@ -527,12 +487,32 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
-        return 5 // one per each chunkeable object
-            + expectedChunks(nodeStats.getHttp()) //
+        // expectedChunks = number of static chunks (8 at the moment, see NodeStats#toXContentChunked) + number of variable chunks
+        return 8 + expectedChunks(nodeStats.getHttp()) //
             + expectedChunks(nodeStats.getIndices(), level) //
             + expectedChunks(nodeStats.getTransport()) //
             + expectedChunks(nodeStats.getIngestStats()) //
-            + expectedChunks(nodeStats.getThreadPool());
+            + expectedChunks(nodeStats.getThreadPool()) //
+            + expectedChunks(nodeStats.getScriptStats()) //
+            + expectedChunks(nodeStats.getScriptCacheStats());
+    }
+
+    private static int expectedChunks(ScriptCacheStats scriptCacheStats) {
+        if (scriptCacheStats == null) return 0;
+
+        var chunks = 4;
+        if (scriptCacheStats.general() != null) {
+            chunks += 3;
+        } else {
+            chunks += 2;
+            chunks += scriptCacheStats.context().size() * 6;
+        }
+
+        return chunks;
+    }
+
+    private static int expectedChunks(ScriptStats scriptStats) {
+        return scriptStats == null ? 0 : 8 + scriptStats.contextStats().size();
     }
 
     private static int expectedChunks(ThreadPoolStats threadPool) {
@@ -676,13 +656,10 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     public static NodeStats createNodeStats() {
-        DiscoveryNode node = DiscoveryNodeUtils.create(
-            "test_node",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            VersionUtils.randomVersion(random())
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
+            .roles(emptySet())
+            .version(VersionUtils.randomVersion(random()))
+            .build();
         NodeIndicesStats nodeIndicesStats = null;
         if (frequently()) {
             final Index indexTest = new Index("test", "_na_");
@@ -904,7 +881,7 @@ public class NodeStatsTests extends ESTestCase {
                 contexts.add(context);
                 stats.add(new ScriptContextStats(context, randomLongBetween(0, 1024), randomTimeSeries(), randomTimeSeries()));
             }
-            scriptStats = new ScriptStats(stats);
+            scriptStats = ScriptStats.read(stats);
         }
         ClusterApplierRecordingService.Stats timeTrackerStats;
         if (randomBoolean()) {
@@ -1052,6 +1029,10 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
         }
+        RepositoriesStats repositoriesStats = new RepositoriesStats(
+            Map.of("test-repository", new RepositoriesStats.ThrottlingStats(100, 200))
+        );
+
         return new NodeStats(
             node,
             randomNonNegativeLong(),
@@ -1069,7 +1050,8 @@ public class NodeStatsTests extends ESTestCase {
             ingestStats,
             adaptiveSelectionStats,
             scriptCacheStats,
-            indexingPressureStats
+            indexingPressureStats,
+            repositoriesStats
         );
     }
 

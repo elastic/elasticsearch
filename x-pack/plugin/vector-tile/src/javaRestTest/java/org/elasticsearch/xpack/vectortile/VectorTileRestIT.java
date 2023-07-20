@@ -897,7 +897,7 @@ public class VectorTileRestIT extends ESRestTestCase {
                   "percentiles": {
                      "field": "value1",
                      "percents": [95, 99, 99.9]
-                    }
+                  }
                 }
               }
             }""");

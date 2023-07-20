@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.monitoring.cleaner;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,15 +26,14 @@ import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class CleanerServiceTests extends ESTestCase {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private ClusterSettings clusterSettings;
     private ThreadPool threadPool;
 
@@ -57,7 +56,7 @@ public class CleanerServiceTests extends ESTestCase {
             TimeValue expected = TimeValue.timeValueHours(1);
             Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
-            new CleanerService(settings, clusterSettings, threadPool, licenseState);
+            new CleanerService(settings, clusterSettings, threadPool);
         } finally {
             assertWarnings(
                 "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future release."
@@ -69,7 +68,7 @@ public class CleanerServiceTests extends ESTestCase {
         TimeValue expected = TimeValue.timeValueHours(25);
         Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
-        assertEquals(expected, new CleanerService(settings, clusterSettings, threadPool, licenseState).getRetention());
+        assertEquals(expected, new CleanerService(settings, clusterSettings, threadPool).getRetention());
 
         assertWarnings(
             "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future release."
@@ -81,7 +80,7 @@ public class CleanerServiceTests extends ESTestCase {
         // only thing calling this method and it will use the settings object to validate the time value
         TimeValue expected = TimeValue.timeValueHours(2);
 
-        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool, licenseState);
+        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool);
         service.setGlobalRetention(expected);
         assertEquals(expected, service.getRetention());
     }
@@ -113,14 +112,7 @@ public class CleanerServiceTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(nbExecutions);
 
         logger.debug("--> creates a cleaner service that cleans every second");
-        XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
-        CleanerService service = new CleanerService(
-            Settings.EMPTY,
-            clusterSettings,
-            mockLicenseState,
-            threadPool,
-            new TestExecutionScheduler(1_000)
-        );
+        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool, new TestExecutionScheduler(1_000));
 
         logger.debug("--> registers cleaning listener");
         TestListener listener = new TestListener(latch);
@@ -138,6 +130,29 @@ public class CleanerServiceTests extends ESTestCase {
             service.stop();
         }
         assertThat(latch.getCount(), equalTo(0L));
+    }
+
+    public void testLifecycle() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+
+        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool, new TestExecutionScheduler(1_000));
+
+        final var cleanupCount = new AtomicInteger();
+        service.add(ignored -> cleanupCount.incrementAndGet());
+
+        service.start();
+        while (cleanupCount.get() < 10) {
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
+
+        service.stop();
+        if (randomBoolean()) {
+            service.close();
+        }
+        deterministicTaskQueue.runAllTasks(); // ensures the scheduling stops
+        assertEquals(10, cleanupCount.get());
     }
 
     class TestListener implements CleanerService.Listener {

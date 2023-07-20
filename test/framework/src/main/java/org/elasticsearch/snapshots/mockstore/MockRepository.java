@@ -60,7 +60,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 public class MockRepository extends FsRepository {
     private static final Logger logger = LogManager.getLogger(MockRepository.class);
@@ -105,9 +104,9 @@ public class MockRepository extends FsRepository {
         return failureCounter.get();
     }
 
-    private final double randomControlIOExceptionRate;
+    private volatile double randomControlIOExceptionRate;
 
-    private final double randomDataFileIOExceptionRate;
+    private volatile double randomDataFileIOExceptionRate;
 
     private final boolean useLuceneCorruptionException;
 
@@ -249,6 +248,16 @@ public class MockRepository extends FsRepository {
         blockAndFailOnReadSnapFile = false;
         blockAndFailOnReadIndexFile = false;
         this.notifyAll();
+    }
+
+    public void setRandomControlIOExceptionRate(double randomControlIOExceptionRate) {
+        logger.debug("Setting random control I/O exception rate to [{}]", randomControlIOExceptionRate);
+        this.randomControlIOExceptionRate = randomControlIOExceptionRate;
+    }
+
+    public void setRandomDataFileIOExceptionRate(double randomDataFileIOExceptionRate) {
+        logger.debug("Setting data file I/O exception rate to [{}]", randomDataFileIOExceptionRate);
+        this.randomDataFileIOExceptionRate = randomDataFileIOExceptionRate;
     }
 
     public void blockOnDataFiles() {
@@ -517,7 +526,7 @@ public class MockRepository extends FsRepository {
                 final Map<String, BlobMetadata> blobs = listBlobs();
                 long deleteBlobCount = blobs.size();
                 long deleteByteCount = 0L;
-                for (String blob : blobs.values().stream().map(BlobMetadata::name).collect(Collectors.toList())) {
+                for (String blob : blobs.values().stream().map(BlobMetadata::name).toList()) {
                     maybeIOExceptionOrBlock(blob);
                     deleteBlobsIgnoringIfNotExists(Iterators.single(blob));
                     deleteByteCount += blobs.get(blob).length();

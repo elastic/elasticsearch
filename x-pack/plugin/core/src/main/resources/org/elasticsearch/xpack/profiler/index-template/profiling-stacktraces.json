@@ -4,7 +4,8 @@
   ],
   "composed_of": [
     "profiling-stacktraces",
-    "profiling-ilm"
+    "profiling-ilm",
+    "profiling-hot-tier"
   ],
   "priority": 100,
   "_meta": {

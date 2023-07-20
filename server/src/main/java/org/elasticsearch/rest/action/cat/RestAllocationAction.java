@@ -92,6 +92,7 @@ public class RestAllocationAction extends AbstractCatAction {
         table.addCell("host", "alias:h;desc:host of node");
         table.addCell("ip", "desc:ip of node");
         table.addCell("node", "alias:n;desc:name of node");
+        table.addCell("node.role", "default:false;alias:r,role,nodeRole;desc:node roles");
         table.endHeaders();
         return table;
     }
@@ -135,6 +136,7 @@ public class RestAllocationAction extends AbstractCatAction {
             table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());
             table.addCell(node.getName());
+            table.addCell(node.getRoleAbbreviationString());
             table.endRow();
         }
 
@@ -150,6 +152,7 @@ public class RestAllocationAction extends AbstractCatAction {
             table.addCell(null);
             table.addCell(null);
             table.addCell(UNASSIGNED);
+            table.addCell(null);
             table.endRow();
         }
 

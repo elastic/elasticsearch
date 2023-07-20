@@ -135,7 +135,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                     return super.executor(name);
                 }
             };
-            final var tcpTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.CURRENT, threadPool);
+            final var tcpTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool);
             transportService = new TransportService(
                 Settings.EMPTY,
                 tcpTransport,

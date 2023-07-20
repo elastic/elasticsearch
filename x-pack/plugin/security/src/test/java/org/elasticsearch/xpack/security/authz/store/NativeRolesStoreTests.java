@@ -302,7 +302,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     public void testPutOfRoleWithFlsDlsUnlicensed() throws IOException {
         final Client client = mock(Client.class);
-        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.CURRENT);
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
 

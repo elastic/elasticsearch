@@ -52,8 +52,8 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         super(in);
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
-            indexHealthMap = in.readMap(StreamInput::readString, ClusterHealthStatus::readFrom);
-            indexStateMap = in.readMap(StreamInput::readString, IndexMetadata.State::readFrom);
+            indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
+            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
         } else {
             indexHealthMap = Map.of();
             indexStateMap = Map.of();

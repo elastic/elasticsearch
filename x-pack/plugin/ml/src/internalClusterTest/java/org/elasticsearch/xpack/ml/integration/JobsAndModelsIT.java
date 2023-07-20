@@ -126,6 +126,7 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
                     BertTokenizer.UNKNOWN_TOKEN,
                     BertTokenizer.PAD_TOKEN
                 ),
+                List.of(),
                 List.of()
             )
         ).actionGet();

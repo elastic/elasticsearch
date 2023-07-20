@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -103,8 +104,8 @@ public class SourceDestValidatorTests extends ESTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final TransportService transportService = MockTransportService.createNewService(
         Settings.EMPTY,
-        Version.CURRENT,
-        TransportVersion.CURRENT,
+        VersionInformation.CURRENT,
+        TransportVersion.current(),
         threadPool
     );
     private final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();

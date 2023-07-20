@@ -516,9 +516,17 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * We are not tracking number of remote clusters in this search.
          */
         public Clusters(int total, int successful, int skipped) {
-            assert total >= 0 && successful >= 0 && skipped >= 0
+            this(total, successful, skipped, true);
+        }
+
+        /**
+         * @param finalState if true, then do an assert that total = successful + skipped. This is true
+         *                   only when the cluster is in its final state, not an initial or intermediate state.
+         */
+        Clusters(int total, int successful, int skipped, boolean finalState) {
+            assert total >= 0 && successful >= 0 && skipped >= 0 && successful <= total
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
-            assert successful <= total && skipped == total - successful
+            assert finalState == false || skipped == total - successful
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             this.total = total;
             this.successful = successful;
@@ -527,8 +535,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.ccsMinimizeRoundtrips = false;
         }
 
-        private Clusters(StreamInput in) throws IOException {
-            this(in.readVInt(), in.readVInt(), in.readVInt());
+        public Clusters(StreamInput in) throws IOException {
+            // when coming across the wire, we don't have context to know if this Cluster is in a final state, so set finalState=false
+            this(in.readVInt(), in.readVInt(), in.readVInt(), false);
         }
 
         @Override

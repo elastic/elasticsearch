@@ -16,13 +16,12 @@ import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestGetProfilingAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_profiling/stacktraces"), new Route(POST, "/_profiling/stacktraces"));
+        return List.of(new Route(POST, "/_profiling/stacktraces"));
     }
 
     @Override

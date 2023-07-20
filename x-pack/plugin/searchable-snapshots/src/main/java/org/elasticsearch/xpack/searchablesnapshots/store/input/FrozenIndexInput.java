@@ -91,13 +91,17 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             headerBlobCacheByteRange,
             footerBlobCacheByteRange
         );
-        this.cacheFile = cacheFile;
+        this.cacheFile = cacheFile.copy();
     }
 
     @Override
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
         final long position = getAbsolutePosition();
         final int length = b.remaining();
+        if (cacheFile.tryRead(b, position)) {
+            stats.addCachedBytesRead(length);
+            return;
+        }
         // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
         // accessing the byte buffer anymore that was passed to readWithoutBlobCache
         // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
@@ -152,7 +156,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                     final long endTimeNanos = stats.currentTimeNanos();
                     stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
                 }
-            }, SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+            });
             assert bytesRead == length : bytesRead + " vs " + length;
             byteBufferReference.finish(bytesRead);
         } finally {

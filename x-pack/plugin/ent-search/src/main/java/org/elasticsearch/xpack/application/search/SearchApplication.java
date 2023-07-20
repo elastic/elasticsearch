@@ -125,8 +125,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
             long updatedAtMillis = (maybeUpdatedAtMillis != null ? maybeUpdatedAtMillis : System.currentTimeMillis());
             final SearchApplicationTemplate template = (SearchApplicationTemplate) params[4];
 
-            SearchApplication newApp = new SearchApplication(resourceName, indices, analyticsCollectionName, updatedAtMillis, template);
-            return newApp;
+            return new SearchApplication(resourceName, indices, analyticsCollectionName, updatedAtMillis, template);
         }
     );
 

@@ -196,7 +196,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertTrue("the pre-migration hook wasn't actually called", preUpgradeHookCalled.get());
         assertTrue("the post-migration hook wasn't actually called", postUpgradeHookCalled.get());
 
-        Metadata finalMetadata = client().admin().cluster().prepareState().get().getState().metadata();
+        Metadata finalMetadata = clusterAdmin().prepareState().get().getState().metadata();
         // Check that the results metadata is what we expect.
         FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
         assertThat(currentResults, notNullValue());
@@ -330,9 +330,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             createSystemIndexForDescriptor(descriptor);
         }
 
-        client().admin()
-            .indices()
-            .preparePutTemplate("bad_template")
+        indicesAdmin().preparePutTemplate("bad_template")
             .setPatterns(Collections.singletonList(templatePrefix + "*"))
             .addAlias(new Alias(templatePrefix + "-legacy-alias"))
             .get();

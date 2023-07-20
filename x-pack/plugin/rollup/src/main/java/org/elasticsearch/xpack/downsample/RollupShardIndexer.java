@@ -17,6 +17,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Rounding;
@@ -25,7 +27,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -45,8 +46,10 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupAfterBulkInfo;
+import org.elasticsearch.xpack.core.rollup.action.RollupBeforeBulkInfo;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.Closeable;
@@ -130,7 +133,9 @@ class RollupShardIndexer {
     }
 
     public DownsampleIndexerAction.ShardDownsampleResponse execute() throws IOException {
-        long startTime = System.currentTimeMillis();
+        long startTime = client.threadPool().relativeTimeInMillis();
+        task.setTotalShardDocCount(searcher.getDirectoryReader().numDocs());
+        task.setRollupShardIndexerStatus(RollupShardIndexerStatus.STARTED);
         BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(this::checkCancelled));
@@ -147,10 +152,11 @@ class RollupShardIndexer {
             task.getNumSent(),
             task.getNumIndexed(),
             task.getNumFailed(),
-            TimeValue.timeValueMillis(System.currentTimeMillis() - startTime)
+            TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime)
         );
 
         if (task.getNumIndexed() != task.getNumSent()) {
+            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED);
             throw new ElasticsearchException(
                 "Shard ["
                     + indexShard.shardId()
@@ -163,6 +169,7 @@ class RollupShardIndexer {
         }
 
         if (task.getNumFailed() > 0) {
+            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED);
             throw new ElasticsearchException(
                 "Shard ["
                     + indexShard.shardId()
@@ -173,6 +180,8 @@ class RollupShardIndexer {
                     + "]."
             );
         }
+
+        task.setRollupShardIndexerStatus(RollupShardIndexerStatus.COMPLETED);
 
         return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
@@ -186,20 +195,44 @@ class RollupShardIndexer {
                 task.getNumIndexed(),
                 task.getNumFailed()
             );
+            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.CANCELLED);
             throw new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId()));
         }
     }
 
     private BulkProcessor2 createBulkProcessor() {
         final BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
+
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
                 task.addNumSent(request.numberOfActions());
+                task.setBeforeBulkInfo(
+                    new RollupBeforeBulkInfo(
+                        client.threadPool().absoluteTimeInMillis(),
+                        executionId,
+                        request.estimatedSizeInBytes(),
+                        request.numberOfActions()
+                    )
+                );
             }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                long bulkIngestTookMillis = response.getIngestTookInMillis() >= 0 ? response.getIngestTookInMillis() : 0;
+                long bulkTookMillis = response.getTook().getMillis();
                 task.addNumIndexed(request.numberOfActions());
+                task.setAfterBulkInfo(
+                    new RollupAfterBulkInfo(
+                        client.threadPool().absoluteTimeInMillis(),
+                        executionId,
+                        bulkIngestTookMillis,
+                        bulkTookMillis,
+                        response.hasFailures(),
+                        response.status().getStatus()
+                    )
+                );
+                task.updateRollupBulkInfo(bulkIngestTookMillis, bulkTookMillis);
+
                 if (response.hasFailures()) {
                     List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
                     task.addNumFailed(failedItems.size());
@@ -250,9 +283,9 @@ class RollupShardIndexer {
 
         TimeSeriesBucketCollector(BulkProcessor2 bulkProcessor) {
             this.bulkProcessor = bulkProcessor;
-            List<AbstractDownsampleFieldProducer> rollupFieldProducers = fieldValueFetchers.stream()
+            AbstractDownsampleFieldProducer[] rollupFieldProducers = fieldValueFetchers.stream()
                 .map(FieldValueFetcher::rollupFieldProducer)
-                .toList();
+                .toArray(AbstractDownsampleFieldProducer[]::new);
             this.rollupBucketBuilder = new RollupBucketBuilder(rollupFieldProducers);
         }
 
@@ -263,9 +296,12 @@ class RollupShardIndexer {
             docCountProvider.setLeafReaderContext(ctx);
 
             // For each field, return a tuple with the rollup field producer and the field value leaf
-            final List<Tuple<AbstractDownsampleFieldProducer, FormattedDocValues>> fieldValueTuples = fieldValueFetchers.stream()
-                .map(fetcher -> Tuple.tuple(fetcher.rollupFieldProducer(), fetcher.getLeaf(ctx)))
-                .toList();
+            final AbstractDownsampleFieldProducer[] fieldProducers = new AbstractDownsampleFieldProducer[fieldValueFetchers.size()];
+            final FormattedDocValues[] formattedDocValues = new FormattedDocValues[fieldValueFetchers.size()];
+            for (int i = 0; i < fieldProducers.length; i++) {
+                fieldProducers[i] = fieldValueFetchers.get(i).rollupFieldProducer();
+                formattedDocValues[i] = fieldValueFetchers.get(i).getLeaf(ctx);
+            }
 
             return new LeafBucketCollector() {
                 @Override
@@ -283,6 +319,8 @@ class RollupShardIndexer {
                             searchExecutionContext.getIndexSettings().getTimestampBounds().startTime()
                         );
                     }
+                    task.setLastSourceTimestamp(timestamp);
+                    task.setLastTargetTimestamp(lastHistoTimestamp);
 
                     if (logger.isTraceEnabled()) {
                         logger.trace(
@@ -333,12 +371,13 @@ class RollupShardIndexer {
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
                     // Iterate over all field values and collect the doc_values for this docId
-                    for (Tuple<AbstractDownsampleFieldProducer, FormattedDocValues> tuple : fieldValueTuples) {
-                        AbstractDownsampleFieldProducer rollupFieldProducer = tuple.v1();
-                        FormattedDocValues docValues = tuple.v2();
+                    for (int i = 0; i < fieldProducers.length; i++) {
+                        AbstractDownsampleFieldProducer rollupFieldProducer = fieldProducers[i];
+                        FormattedDocValues docValues = formattedDocValues[i];
                         rollupFieldProducer.collect(docValues, docId);
                     }
                     docsProcessed++;
+                    task.setDocsProcessed(docsProcessed);
                 }
             };
         }
@@ -349,7 +388,9 @@ class RollupShardIndexer {
             if (logger.isTraceEnabled()) {
                 logger.trace("Indexing rollup doc: [{}]", Strings.toString(doc));
             }
-            bulkProcessor.addWithBackpressure(request.request(), () -> abort);
+            IndexRequest indexRequest = request.request();
+            task.setLastIndexingTimestamp(System.currentTimeMillis());
+            bulkProcessor.addWithBackpressure(indexRequest, () -> abort);
         }
 
         @Override
@@ -383,10 +424,29 @@ class RollupShardIndexer {
         private int tsidOrd = -1;
         private long timestamp;
         private int docCount;
-        private final List<AbstractDownsampleFieldProducer> rollupFieldProducers;
+        private final AbstractDownsampleFieldProducer[] rollupFieldProducers;
+        private final DownsampleFieldSerializer[] groupedProducers;
 
-        RollupBucketBuilder(List<AbstractDownsampleFieldProducer> rollupFieldProducers) {
+        RollupBucketBuilder(AbstractDownsampleFieldProducer[] rollupFieldProducers) {
             this.rollupFieldProducers = rollupFieldProducers;
+            /*
+             * The rollup field producers for aggregate_metric_double all share the same name (this is
+             * the name they will be serialized in the target index). We group all field producers by
+             * name. If grouping yields multiple rollup field producers, we delegate serialization to
+             * the AggregateMetricFieldSerializer class.
+             */
+            groupedProducers = Arrays.stream(rollupFieldProducers)
+                .collect(groupingBy(AbstractDownsampleFieldProducer::name))
+                .entrySet()
+                .stream()
+                .map(e -> {
+                    if (e.getValue().size() == 1) {
+                        return e.getValue().get(0);
+                    } else {
+                        return new AggregateMetricFieldSerializer(e.getKey(), e.getValue());
+                    }
+                })
+                .toArray(DownsampleFieldSerializer[]::new);
         }
 
         /**
@@ -404,7 +464,9 @@ class RollupShardIndexer {
         public void resetTimestamp(long timestamp) {
             this.timestamp = timestamp;
             this.docCount = 0;
-            this.rollupFieldProducers.forEach(AbstractDownsampleFieldProducer::reset);
+            for (AbstractDownsampleFieldProducer producer : rollupFieldProducers) {
+                producer.reset();
+            }
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "New bucket for _tsid: [{}], @timestamp: [{}]",
@@ -434,25 +496,6 @@ class RollupShardIndexer {
                 assert e.getValue() != null;
                 builder.field((String) e.getKey(), e.getValue());
             }
-
-            /*
-             * The rollup field producers for aggregate_metric_double all share the same name (this is
-             * the name they will be serialized in the target index). We group all field producers by
-             * name. If grouping yields multiple rollup field producers, we delegate serialization to
-             * the AggregateMetricFieldSerializer class.
-             */
-            List<DownsampleFieldSerializer> groupedProducers = rollupFieldProducers.stream()
-                .collect(groupingBy(AbstractDownsampleFieldProducer::name))
-                .entrySet()
-                .stream()
-                .map(e -> {
-                    if (e.getValue().size() == 1) {
-                        return e.getValue().get(0);
-                    } else {
-                        return new AggregateMetricFieldSerializer(e.getKey(), e.getValue());
-                    }
-                })
-                .toList();
 
             // Serialize fields
             for (DownsampleFieldSerializer fieldProducer : groupedProducers) {

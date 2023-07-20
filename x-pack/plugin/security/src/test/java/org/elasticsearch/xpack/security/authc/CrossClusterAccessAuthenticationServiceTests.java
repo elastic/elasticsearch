@@ -58,7 +58,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
     public void init() throws Exception {
         this.apiKeyService = mock(ApiKeyService.class);
         this.authenticationService = mock(AuthenticationService.class);
-        this.clusterService = mockClusterServiceWithMinTransportVersion(TransportVersion.CURRENT);
+        this.clusterService = mockClusterServiceWithMinTransportVersion(TransportVersion.current());
     }
 
     public void testAuthenticateThrowsOnUnsupportedMinVersions() throws IOException {

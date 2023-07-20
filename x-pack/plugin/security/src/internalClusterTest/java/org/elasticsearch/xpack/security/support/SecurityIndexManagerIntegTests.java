@@ -96,7 +96,7 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testTemplateSettingsDontAffectSecurityIndex() throws Exception {
+    public void testSecurityIndexSettingsCannotBeChanged() throws Exception {
         // make sure the security index is not auto-created
         GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(SECURITY_MAIN_ALIAS);

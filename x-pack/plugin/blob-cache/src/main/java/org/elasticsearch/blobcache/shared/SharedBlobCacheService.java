@@ -783,9 +783,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
             int startingPos = buf.position();
-            try (SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos)) {
-                fileChannel.read(buf, physicalStartOffset() + getRegionRelativePosition(offset));
-            }
+            sharedBytes.getFileChannel(sharedBytesPos).read(buf, physicalStartOffset() + getRegionRelativePosition(offset));
             if (evicted.get() || hasReferences() == false) {
                 buf.position(startingPos);
                 return false;
@@ -801,20 +799,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final ActionListener<Integer> listener
         ) {
             assert rangeToRead.length() > 0;
-            final Releasable[] resources = new Releasable[2];
+            Releasable resource = null;
             try {
                 ensureOpen();
                 incRef();
-                resources[1] = Releasables.releaseOnce(this::decRef);
+                resource = Releasables.releaseOnce(this::decRef);
 
                 ensureOpen();
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
-                resources[0] = Releasables.releaseOnce(fileChannel);
 
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                     rangeToWrite,
                     rangeToRead,
-                    ActionListener.runBefore(listener, () -> Releasables.close(resources)).delegateFailureAndWrap((l, success) -> {
+                    ActionListener.runBefore(listener, resource::close).delegateFailureAndWrap((l, success) -> {
                         final long physicalStartOffset = physicalStartOffset();
                         assert regionOwners.get(sharedBytesPos) == this;
                         final int read = reader.onRangeAvailable(
@@ -840,7 +837,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     fillGaps(writer, fileChannel, gaps);
                 }
             } catch (Exception e) {
-                releaseAndFail(listener, Releasables.wrap(resources), e);
+                releaseAndFail(listener, resource, e);
             }
         }
 

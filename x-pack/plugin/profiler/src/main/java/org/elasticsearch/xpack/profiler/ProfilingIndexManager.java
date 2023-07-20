@@ -24,6 +24,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -67,27 +68,23 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         ProfilingIndex.kv("profiling-symbols-global", ProfilingIndexTemplateRegistry.PROFILING_SYMBOLS_VERSION)
     );
 
-    private final ThreadPool threadPool;
-    private final Client client;
-
     public ProfilingIndexManager(ThreadPool threadPool, Client client, ClusterService clusterService) {
-        super(clusterService);
-        this.threadPool = threadPool;
-        this.client = client;
+        super(threadPool, client, clusterService);
     }
 
     @Override
-    protected void onStatus(
+    protected void onIndexState(
         ClusterState clusterState,
-        Status status,
-        ProfilingIndex index,
+        IndexState<ProfilingIndex> indexState,
         ActionListener<? super ActionResponse> listener
     ) {
+        Status status = indexState.getStatus();
         switch (status) {
-            case NEEDS_CREATION -> createIndex(clusterState, index, listener);
-            case NEEDS_VERSION_BUMP -> bumpVersion(clusterState, index, listener);
+            case NEEDS_CREATION -> createIndex(clusterState, indexState.getIndex(), listener);
+            case NEEDS_VERSION_BUMP -> bumpVersion(clusterState, indexState.getIndex(), listener);
+            case NEEDS_MAPPINGS_UPDATE -> applyMigrations(indexState, listener);
             default -> {
-                logger.debug("Skipping status change [{}] for index [{}].", status, index);
+                logger.trace("Skipping status change [{}] for index [{}].", status, indexState.getIndex());
                 // ensure that listener is notified we're done
                 listener.onResponse(null);
             }
@@ -278,41 +275,10 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         });
     }
 
-    private void onDeleteIndexFailure(String[] indices, Exception ex) {
-        logger.error(() -> format("error deleting indices [%s] for [%s]", indices, ClientHelper.PROFILING_ORIGIN), ex);
-    }
-
     private void deleteIndices(final String[] indices, final ActionListener<AcknowledgedResponse> listener) {
-        final Executor executor = threadPool.generic();
-        executor.execute(() -> {
-            DeleteIndexRequest request = new DeleteIndexRequest(indices);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                ClientHelper.PROFILING_ORIGIN,
-                request,
-                new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse response) {
-                        if (response.isAcknowledged() == false) {
-                            logger.error(
-                                "error deleting indices [{}] for [{}], request was not acknowledged",
-                                indices,
-                                ClientHelper.PROFILING_ORIGIN
-                            );
-                        }
-                        listener.onResponse(response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        onDeleteIndexFailure(indices, e);
-                        listener.onFailure(e);
-                    }
-                },
-                (req, l) -> client.admin().indices().delete(req, l)
-            );
-        });
+        DeleteIndexRequest request = new DeleteIndexRequest(indices);
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+        executeAsync("delete", request, listener, (req, l) -> client.admin().indices().delete(req, l));
     }
 
     enum OnVersionBump {
@@ -328,33 +294,55 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         private final int version;
         private final String generation;
         private final OnVersionBump onVersionBump;
+        private final List<Migration> migrations;
 
         public static ProfilingIndex regular(String name, int version, OnVersionBump onVersionBump) {
-            return new ProfilingIndex(name, version, null, onVersionBump);
+            return regular(name, version, onVersionBump, null);
+        }
+
+        public static ProfilingIndex regular(String name, int version, OnVersionBump onVersionBump, Migration.Builder builder) {
+            List<Migration> migrations = builder != null ? builder.build(version) : null;
+            return new ProfilingIndex(name, version, null, onVersionBump, migrations);
         }
 
         public static ProfilingIndex kv(String name, int version) {
-            // K/V indices will age automatically as per the ILM policy, and we won't force-upgrade them on version bumps
-            return new ProfilingIndex(name, version, "000001", OnVersionBump.KEEP_OLD);
+            return kv(name, version, null);
         }
 
-        private ProfilingIndex(String namePrefix, int version, String generation, OnVersionBump onVersionBump) {
+        public static ProfilingIndex kv(String name, int version, Migration.Builder builder) {
+            List<Migration> migrations = builder != null ? builder.build(version) : null;
+            // K/V indices will age automatically as per the ILM policy, and we won't force-upgrade them on version bumps
+            return new ProfilingIndex(name, version, "000001", OnVersionBump.KEEP_OLD, migrations);
+        }
+
+        private ProfilingIndex(String namePrefix, int version, String generation, OnVersionBump onVersionBump, List<Migration> migrations) {
             this.namePrefix = namePrefix;
             this.version = version;
             this.generation = generation;
             this.onVersionBump = onVersionBump;
+            this.migrations = migrations;
         }
 
         public ProfilingIndex withVersion(int version) {
-            return new ProfilingIndex(namePrefix, version, generation, onVersionBump);
+            return new ProfilingIndex(namePrefix, version, generation, onVersionBump, migrations);
         }
 
         public ProfilingIndex withGeneration(String generation) {
-            return new ProfilingIndex(namePrefix, version, generation, onVersionBump);
+            return new ProfilingIndex(namePrefix, version, generation, onVersionBump, migrations);
         }
 
         public boolean isMatchWithoutVersion(String indexName) {
-            return indexName.startsWith("." + namePrefix);
+            String expectedPrefix = "." + namePrefix + "-v";
+            return indexName.startsWith(expectedPrefix) && isVersionNumber(indexName, expectedPrefix.length());
+        }
+
+        private boolean isVersionNumber(String name, int startIndex) {
+            final int versionNumberLength = 3;
+            String versionNumberCandidate = name.substring(startIndex, Math.min(startIndex + versionNumberLength, name.length()));
+            return versionNumberCandidate.length() == versionNumberLength
+                // do an explicit range check here for latin digits as Character#isDigit() also considers other
+                // Unicode digit characters that we don't want to recognize here.
+                && versionNumberCandidate.chars().allMatch((c) -> '0' <= c && c <= '9');
         }
 
         public boolean isMatchWithoutGeneration(String indexName) {
@@ -380,6 +368,13 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
 
         public int getVersion() {
             return version;
+        }
+
+        @Override
+        public List<Migration> getMigrations(int currentIndexTemplateVersion) {
+            return migrations != null
+                ? migrations.stream().filter(m -> m.getTargetIndexTemplateVersion() > currentIndexTemplateVersion).toList()
+                : Collections.emptyList();
         }
 
         public OnVersionBump getOnVersionBump() {

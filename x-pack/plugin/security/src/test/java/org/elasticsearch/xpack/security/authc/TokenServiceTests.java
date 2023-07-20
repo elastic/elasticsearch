@@ -508,8 +508,7 @@ public class TokenServiceTests extends ESTestCase {
         Authentication authentication = AuthenticationTests.randomAuthentication(null, null);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(true);
-        tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), authentication, authentication,
-                Collections.emptyMap(), tokenFuture);
+        tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), authentication, authentication, Map.of(), tokenFuture);
         final String accessToken = tokenFuture.get().getAccessToken();
         final String clientRefreshToken = tokenFuture.get().getRefreshToken();
         assertNotNull(accessToken);
@@ -783,6 +782,31 @@ public class TokenServiceTests extends ESTestCase {
             tokenService.prependVersionAndEncodeAccessToken(
                 uuidTokenVersion,
                 tokenService.getRandomTokenBytes(uuidTokenVersion, randomBoolean()).v1()
+            )
+        );
+
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
+            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
+            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
+            assertNull(future.get());
+        }
+    }
+
+    public void testNonExistingLatestTokenVersion() throws Exception {
+        TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
+        // mock another random token so that we don't find a token in TokenService#getUserTokenFromId
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
+        mockGetTokenFromAccessTokenBytes(tokenService, tokenService.getRandomTokenBytes(randomBoolean()).v1(), authentication, false, null);
+        ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
+        storeTokenHeader(
+            requestContext,
+            tokenService.prependVersionAndEncodeAccessToken(
+                TransportVersion.current(),
+                tokenService.getRandomTokenBytes(TransportVersion.current(), randomBoolean()).v1()
             )
         );
 

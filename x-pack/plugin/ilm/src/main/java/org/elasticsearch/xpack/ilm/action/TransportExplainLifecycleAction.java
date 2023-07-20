@@ -163,7 +163,8 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                     lifecycleState.snapshotName(),
                     lifecycleState.shrinkIndexName(),
                     stepInfoBytes,
-                    phaseExecutionInfo
+                    phaseExecutionInfo,
+                    lifecycleState.actionsOrderVersion()
                 );
             } else {
                 indexResponse = null;

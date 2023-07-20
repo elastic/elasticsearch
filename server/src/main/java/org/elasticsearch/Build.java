@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.internal.BuildExtension;
 
 import java.io.IOException;

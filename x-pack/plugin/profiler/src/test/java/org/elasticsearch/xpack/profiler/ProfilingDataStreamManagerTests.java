@@ -11,8 +11,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -66,6 +71,8 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
+    private List<ProfilingDataStreamManager.ProfilingDataStream> managedDataStreams;
+    private int indexTemplateVersion;
 
     @Before
     public void createRegistryAndClient() {
@@ -73,10 +80,22 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        managedDataStreams = ProfilingDataStreamManager.PROFILING_DATASTREAMS;
+        indexTemplateVersion = ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
         datastreamManager = new ProfilingDataStreamManager(threadPool, client, clusterService) {
             @Override
             protected boolean isAllResourcesCreated(ClusterChangedEvent event) {
                 return templatesCreated.get();
+            }
+
+            @Override
+            protected int getIndexTemplateVersion() {
+                return indexTemplateVersion;
+            }
+
+            @Override
+            protected Iterable<ProfilingDataStream> getManagedIndices() {
+                return managedDataStreams;
             }
         };
         datastreamManager.setTemplatesEnabled(true);
@@ -220,6 +239,68 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         calledTimes.set(0);
     }
 
+    public void testNoMigrationsIfIndexTemplateVersionMatches() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        templatesCreated.set(true);
+
+        ProfilingDataStreamManager.ProfilingDataStream ds = ProfilingDataStreamManager.ProfilingDataStream.of(
+            "profiling-test",
+            1,
+            new Migration.Builder().migrateToIndexTemplateVersion(2).addProperty("test", "keyword")
+        );
+
+        managedDataStreams = List.of(ds);
+        ClusterChangedEvent event = createClusterChangedEvent(managedDataStreams, nodes);
+
+        client.setVerifier((a, r, l) -> {
+            fail("all data streams should be up-to-date; nothing should happen");
+            return null;
+        });
+        datastreamManager.clusterChanged(event);
+    }
+
+    public void testMigratesIfIndexTemplateVersionIsBehind() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        templatesCreated.set(true);
+
+        ProfilingDataStreamManager.ProfilingDataStream ds = ProfilingDataStreamManager.ProfilingDataStream.of(
+            "profiling-test",
+            1,
+            new Migration.Builder().migrateToIndexTemplateVersion(2).addProperty("test", "keyword")
+        );
+        ProfilingDataStreamManager.ProfilingDataStream ds2 = ProfilingDataStreamManager.ProfilingDataStream.of("profiling-no-change", 1
+        // no migration specified, should not be changed
+        );
+
+        managedDataStreams = List.of(ds, ds2);
+        // index is out of date and should be migrated
+        indexTemplateVersion = 2;
+        ClusterChangedEvent event = createClusterChangedEvent(managedDataStreams, nodes);
+
+        AtomicInteger mappingUpdates = new AtomicInteger(0);
+        AtomicInteger settingsUpdates = new AtomicInteger(0);
+        client.setVerifier(
+            (action, request, listener) -> verifyIndexMigrated(
+                ".ds-profiling-test",
+                mappingUpdates,
+                settingsUpdates,
+                action,
+                request,
+                listener
+            )
+        );
+
+        datastreamManager.clusterChanged(event);
+        // one mapping update is the one we specified, the other one is because we need to update _meta
+        assertBusy(() -> assertThat(mappingUpdates.get(), equalTo(2)));
+        assertBusy(() -> assertThat(settingsUpdates.get(), equalTo(0)));
+
+        mappingUpdates.set(0);
+        settingsUpdates.set(0);
+    }
+
     private ActionResponse verifyDataStreamInstalled(
         AtomicInteger calledTimes,
         ActionType<?> action,
@@ -248,6 +329,42 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
             calledTimes.incrementAndGet();
             assertThat(action, instanceOf(RolloverAction.class));
             assertThat(request, instanceOf(RolloverRequest.class));
+            assertNotNull(listener);
+            RolloverRequest rolloverRequest = (RolloverRequest) request;
+            return new RolloverResponse(
+                rolloverRequest.getRolloverTarget(),
+                rolloverRequest.getNewIndexName(),
+                Map.of(),
+                false,
+                true,
+                true,
+                true
+            );
+        } else {
+            fail("client called with unexpected request:" + request.toString());
+            return null;
+        }
+    }
+
+    private ActionResponse verifyIndexMigrated(
+        String indexName,
+        AtomicInteger mappingUpdates,
+        AtomicInteger settingsUpdates,
+        ActionType<?> action,
+        ActionRequest request,
+        ActionListener<?> listener
+    ) {
+        if (action instanceof PutMappingAction) {
+            mappingUpdates.incrementAndGet();
+            assertThat(action, instanceOf(PutMappingAction.class));
+            assertThat(request, instanceOf(PutMappingRequest.class));
+            assertThat(((PutMappingRequest) request).indices(), equalTo(new String[] { indexName }));
+            assertNotNull(listener);
+            return AcknowledgedResponse.TRUE;
+        } else if (action instanceof UpdateSettingsAction) {
+            settingsUpdates.incrementAndGet();
+            assertThat(action, instanceOf(UpdateSettingsAction.class));
+            assertThat(request, instanceOf(UpdateSettingsRequest.class));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
         } else {

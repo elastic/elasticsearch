@@ -49,13 +49,6 @@ public class EsField {
     }
 
     /**
-     * Create a new {@link EsField} replacing the type.
-     */
-    public EsField withType(DataType esDataType) {
-        return new EsField(name, esDataType, properties, aggregatable, isAlias);
-    }
-
-    /**
      * This field can be aggregated
      */
     public boolean isAggregatable() {

@@ -19,6 +19,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
@@ -126,6 +127,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
+import static org.elasticsearch.search.SearchModule.INDICES_CONCURRENT_COLLECTION_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -1908,6 +1910,25 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertThat(((TestRewriteCounterQueryBuilder) request.source().query()).asyncRewriteCount, equalTo(1));
         final ShardSearchContextId contextId = context.id();
         assertTrue(service.freeReaderContext(contextId));
+    }
+
+    public void testEnableConcurrentCollection() {
+        createIndex("index", Settings.EMPTY);
+        SearchService service = getInstanceFromNode(SearchService.class);
+        assertTrue(service.isConcurrentCollectionEnabled());
+
+        ClusterUpdateSettingsResponse response = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(INDICES_CONCURRENT_COLLECTION_ENABLED.getKey(), false).build())
+            .get();
+        assertTrue(response.isAcknowledged());
+        assertFalse(service.isConcurrentCollectionEnabled());
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull(INDICES_CONCURRENT_COLLECTION_ENABLED.getKey()).build())
+            .get();
     }
 
     private ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

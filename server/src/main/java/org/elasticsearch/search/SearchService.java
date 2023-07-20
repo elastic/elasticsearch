@@ -245,7 +245,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final DfsPhase dfsPhase = new DfsPhase();
 
     private final FetchPhase fetchPhase;
-    private boolean enableConcurrentCollection;
+    private volatile boolean enableConcurrentCollection;
 
     private volatile long defaultKeepAlive;
 
@@ -339,6 +339,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setEnableConcurrentCollection(boolean concurrentCollection) {
         this.enableConcurrentCollection = concurrentCollection;
+    }
+
+    boolean isConcurrentCollectionEnabled() {
+        return this.enableConcurrentCollection;
     }
 
     private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {

@@ -81,8 +81,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
 
-    private Boolean eagerConcurrentSearch;
-
     protected void startNode(long seed) throws Exception {
         assert NODE == null;
         NODE = RandomizedContext.current().runWithPrivateRandomness(seed, this::newNode);
@@ -229,7 +227,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     private Node newNode() {
         final Path tempDir = createTempDir();
         final String nodeName = nodeSettings().get(Node.NODE_NAME_SETTING.getKey(), "node_s_0");
-        Settings concurrentSetting = eagerConcurrentSearch()
+        boolean eagerConcurrentSearch = eagerConcurrentSearch();
+        Settings concurrentSetting = eagerConcurrentSearch
             ? Settings.builder().put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1).build()
             : Settings.EMPTY;
         Settings settings = Settings.builder()
@@ -266,7 +265,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
-        if (eagerConcurrentSearch()) {
+        if (eagerConcurrentSearch) {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
@@ -446,14 +445,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     /**
-     * Iff this returns true concurrent search is favour by making more probable to generate multiple concurrent slices.
-     * Otherwise runs with default set up. The default is randomized.
+     * Whether we'd like to increase the likelihood of leveraging inter-segment search concurrency, by creating multiple slices
+     * with a low amount of documents in them, which would not be allowed in production.
+     * Default is true, can be disabled if it causes problems in specific tests.
      */
     protected boolean eagerConcurrentSearch() {
-        if (eagerConcurrentSearch == null) {
-            eagerConcurrentSearch = randomBoolean();
-        }
-        return eagerConcurrentSearch;
+        return true;
     }
-
 }

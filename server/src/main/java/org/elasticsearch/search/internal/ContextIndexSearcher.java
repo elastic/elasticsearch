@@ -147,6 +147,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.leafSlices = executor == null ? null : slices(leafContexts);
     }
 
+    //package private for testing
+    int getMinimumDocsPerSlice() {
+        return minimumDocsPerSlice;
+    }
+
     public void setProfiler(QueryProfiler profiler) {
         this.profiler = profiler;
     }

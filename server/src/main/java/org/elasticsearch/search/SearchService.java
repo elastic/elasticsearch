@@ -259,7 +259,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile TimeValue defaultSearchTimeout;
 
-    private int minimumDocsPerSlice;
+    private final int minimumDocsPerSlice;
 
     private volatile boolean defaultAllowPartialSearchResults;
 
@@ -369,10 +369,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setDefaultSearchTimeout(TimeValue defaultSearchTimeout) {
         this.defaultSearchTimeout = defaultSearchTimeout;
-    }
-
-    private void setMinimumDocsPerSlice(int minimumDocsPerSlice) {
-        this.minimumDocsPerSlice = minimumDocsPerSlice;
     }
 
     private void setDefaultAllowPartialSearchResults(boolean defaultAllowPartialSearchResults) {
@@ -998,7 +994,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean includeAggregations
     ) throws IOException {
         checkCancelled(task);
-        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, minimumDocsPerSlice);
+        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout);
         resultsType.addResultsObject(context);
         try {
             if (request.scroll() != null) {
@@ -1030,7 +1026,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
-            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, minimumDocsPerSlice);
+            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
             return searchContext;
         }
@@ -1040,8 +1036,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private DefaultSearchContext createSearchContext(
         ReaderContext reader,
         ShardSearchRequest request,
-        TimeValue timeout,
-        int minimumDocsPerSlice
+        TimeValue timeout
     ) throws IOException {
         boolean success = false;
         DefaultSearchContext searchContext = null;

@@ -347,8 +347,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     private static ESIntegTestCase INSTANCE = null; // see @SuiteScope
     private static Long SUITE_SEED = null;
 
-    private Boolean eagerConcurrentSearch;
-
     @BeforeClass
     public static void beforeClass() throws Exception {
         SUITE_SEED = randomLong();
@@ -2048,7 +2046,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (addMockTransportService()) {
             initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         }
-        if (eagerConcurrentSearch()) {
+        boolean eagerConcurrentSearch = eagerConcurrentSearch();
+        if (eagerConcurrentSearch) {
             initialNodeSettings.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
         }
         return new NodeConfigurationSource() {
@@ -2067,11 +2066,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
-                List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
-                if (eagerConcurrentSearch()) {
+                if (eagerConcurrentSearch) {
+                    List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
                     plugins.add(ConcurrentSearchTestPlugin.class);
+                    return plugins;
                 }
-                return plugins;
+                return ESIntegTestCase.this.nodePlugins();
             }
         };
     }
@@ -2085,14 +2085,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Iff this returns true concurrent search is favour by making more probable to generate multiple concurrent slices.
-     * Otherwise runs with default set up. The default is randomized.
+     * Whether we'd like to increase the likelihood of leveraging inter-segment search concurrency, by creating multiple slices
+     * with a low amount of documents in them, which would not be allowed in production.
+     * Default is true, can be disabled if it causes problems in specific tests.
      */
     protected boolean eagerConcurrentSearch() {
-        if (eagerConcurrentSearch == null) {
-            eagerConcurrentSearch = randomBoolean();
-        }
-        return eagerConcurrentSearch;
+        return true;
     }
 
     /** Returns {@code true} iff this test cluster should use a dummy http transport */

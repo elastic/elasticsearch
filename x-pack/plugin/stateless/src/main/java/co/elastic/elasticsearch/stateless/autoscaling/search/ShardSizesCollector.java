@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -42,7 +43,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.Supplier;
 
 /**
  * This service is responsible for collecting shard size changes on the search nodes
@@ -67,12 +67,14 @@ public class ShardSizesCollector implements ClusterStateListener {
         Setting.Property.Dynamic
     );
 
+    // Minimum transport version required for master to be able to handle the metric publications
+    private static final TransportVersion REQUIRED_VERSION = TransportVersion.V_8_500_027;
+
     private static final Logger logger = LogManager.getLogger(IndexDirectory.class);
 
     private final ThreadPool threadPool;
     private final ShardSizeStatsReader shardSizeStatsReader;
     private final ShardSizesPublisher shardSizesPublisher;
-    private final Supplier<String> nodeIdSupplier;
     private final boolean isSearchNode;
 
     private volatile TimeValue publishInterval = TimeValue.timeValueSeconds(1);
@@ -82,6 +84,9 @@ public class ShardSizesCollector implements ClusterStateListener {
 
     private final PendingPublication pendingPublication = new PendingPublication();
     private final ConcurrentMap<ShardId, ShardSize> pastPublications = new ConcurrentHashMap<>();
+
+    private volatile TransportVersion minTransportVersion = TransportVersion.MINIMUM_COMPATIBLE;
+    private volatile String nodeId;
 
     private class PendingPublication {
         private Map<ShardId, ShardSize> shards = new HashMap<>();
@@ -119,14 +124,7 @@ public class ShardSizesCollector implements ClusterStateListener {
         ShardSizesPublisher shardSizesPublisher,
         boolean isSearchNode
     ) {
-        var collector = new ShardSizesCollector(
-            clusterSettings,
-            threadPool,
-            shardSizeStatsReader,
-            shardSizesPublisher,
-            () -> clusterService.state().nodes().getLocalNodeId(),
-            isSearchNode
-        );
+        var collector = new ShardSizesCollector(clusterSettings, threadPool, shardSizeStatsReader, shardSizesPublisher, isSearchNode);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
@@ -147,13 +145,11 @@ public class ShardSizesCollector implements ClusterStateListener {
         ThreadPool threadPool,
         ShardSizeStatsReader shardSizeStatsReader,
         ShardSizesPublisher shardSizesPublisher,
-        Supplier<String> nodeIdSupplier,
         boolean isSearchNode
     ) {
         this.threadPool = threadPool;
         this.shardSizeStatsReader = shardSizeStatsReader;
         this.shardSizesPublisher = shardSizesPublisher;
-        this.nodeIdSupplier = nodeIdSupplier;
         this.isSearchNode = isSearchNode;
         clusterSettings.initializeAndWatch(PUSH_INTERVAL_SETTING, value -> this.publishInterval = value);
         clusterSettings.initializeAndWatch(PUSH_DELTA_THRESHOLD_SETTING, value -> this.significantSizeChangeThreshold = value);
@@ -174,21 +170,37 @@ public class ShardSizesCollector implements ClusterStateListener {
         if (isSearchNode == false) {
             return;
         }
+        assert nodeId == null || nodeId.equals(event.state().nodes().getLocalNodeId());
+        if (nodeId == null) {
+            setNodeId(event.state().nodes().getLocalNodeId());
+        }
+        setMinTransportVersion(event.state().getMinTransportVersion());
+
         if (event.nodesDelta().masterNodeChanged()) {
-            threadPool.executor(ThreadPool.Names.GENERIC).submit(this::publishAllNow);
+            threadPool.generic().submit(this::publishAllNow);
         }
         if (event.metadataChanged()) {
             var metadata = event.state().metadata();
             pastPublications.keySet().removeIf(shardId -> metadata.hasIndex(shardId.getIndex()) == false);
         }
         if (event.routingTableChanged()) {
-            var routingNode = event.state().getRoutingNodes().node(nodeIdSupplier.get());
+            var routingNode = event.state().getRoutingNodes().node(nodeId);
             var localShards = new HashSet<ShardId>();
             for (ShardRouting shardRouting : routingNode) {
                 localShards.add(shardRouting.shardId());
             }
             pastPublications.keySet().retainAll(localShards);
         }
+    }
+
+    // Visible for testing
+    void setMinTransportVersion(TransportVersion minTransportVersion) {
+        this.minTransportVersion = minTransportVersion;
+    }
+
+    // Visible for testing
+    void setNodeId(String nodeId) {
+        this.nodeId = nodeId;
     }
 
     public void detectShardSize(ShardId shardId) {
@@ -200,11 +212,19 @@ public class ShardSizesCollector implements ClusterStateListener {
     }
 
     private void publishAllNow() {
+        if (nodeId == null) {
+            return;
+        }
+        if (minTransportVersion.before(REQUIRED_VERSION)) {
+            logger.warn("Cannot publish shard sizes until cluster is: [{}], found: [{}]", REQUIRED_VERSION, minTransportVersion);
+            return;
+        }
+
         pendingPublication.drain(); // all shards are going to be published from scratch
         pastPublications.clear();
 
         var allShardSizes = shardSizeStatsReader.getAllShardSizes();
-        shardSizesPublisher.publishSearchShardDiskUsage(allShardSizes, new ActionListener<>() {
+        shardSizesPublisher.publishSearchShardDiskUsage(nodeId, allShardSizes, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 pastPublications.putAll(allShardSizes);
@@ -238,8 +258,16 @@ public class ShardSizesCollector implements ClusterStateListener {
             if (publishTask != PublishTask.this) {
                 return;
             }
+            if (nodeId == null) {
+                return;
+            }
+            if (minTransportVersion.before(REQUIRED_VERSION)) {
+                logger.warn("Cannot publish shard sizes until cluster is: [{}], found: [{}]", REQUIRED_VERSION, minTransportVersion);
+                return;
+            }
+
             var shards = pendingPublication.drain();
-            shardSizesPublisher.publishSearchShardDiskUsage(shards, new ActionListener<>() {
+            shardSizesPublisher.publishSearchShardDiskUsage(nodeId, shards, new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     pastPublications.putAll(shards);

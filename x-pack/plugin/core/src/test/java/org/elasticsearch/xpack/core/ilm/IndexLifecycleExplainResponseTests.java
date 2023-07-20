@@ -266,10 +266,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                     shrinkIndexName = randomValueOtherThan(shrinkIndexName, () -> randomAlphaOfLengthBetween(5, 10));
                     break;
                 case 15:
-                    actionsOrderVersion = randomValueOtherThan(
-                        actionsOrderVersion,
-                        () ->  randomIntBetween(VERSION_ONE, CURRENT_VERSION)
-                    );
+                    actionsOrderVersion = randomValueOtherThan(actionsOrderVersion, () -> randomIntBetween(VERSION_ONE, CURRENT_VERSION));
                     break;
                 default:
                     throw new AssertionError("Illegal randomisation branch");

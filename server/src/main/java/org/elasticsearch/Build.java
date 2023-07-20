@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.internal.BuildExtension;
 
 import java.io.IOException;
@@ -115,7 +116,7 @@ public record Build(
 
         final String flavor = "default";
         String minWireCompat = Version.CURRENT.minimumCompatibilityVersion().toString();
-        String minIndexCompat = Version.CURRENT.minimumIndexCompatibilityVersion().toString();
+        String minIndexCompat = IndexVersion.MINIMUM_COMPATIBLE.toString();
         String displayString = defaultDisplayString(type, hash, date, version);
 
         return new Build(flavor, type, hash, date, isSnapshot, version, minWireCompat, minIndexCompat, displayString);
@@ -193,7 +194,6 @@ public record Build(
         final String version = in.readString();
         final String minWireVersion;
         final String minIndexVersion;
-        final boolean isProduction;
         final String displayString;
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
             minWireVersion = in.readString();
@@ -246,8 +246,8 @@ public record Build(
         return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
 
-    /*@Override
+    @Override
     public String toString() {
         return displayString();
-    }*/
+    }
 }

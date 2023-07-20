@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.internal.BuildExtension;
 
 import java.io.IOException;
 import java.net.URL;
@@ -22,63 +23,26 @@ import java.util.jar.Manifest;
 /**
  * Information about a build of Elasticsearch.
  */
-public record Build(Type type, String hash, String date, boolean isSnapshot, String version) {
+public record Build(String flavor, Type type, String hash, String date, boolean isSnapshot, String version) {
 
-    private static final Build CURRENT;
+    private static class CurrentHolder {
+        private static final Build CURRENT = findCurrent();
+
+        // finds the pluggable current build, or uses the local build as a fallback
+        private static Build findCurrent() {
+            var buildExtension = BuildExtension.load();
+            if (buildExtension == null) {
+                return findLocalBuild();
+            }
+            var build = buildExtension.getCurrentBuild();
+            return build;
+        }
+    }
 
     /**
-     * The current build of Elasticsearch. Filled with information scanned at
-     * startup from the jar.
+     * Finds build info scanned from the server jar.
      */
-    public static Build current() {
-        return CURRENT;
-    }
-
-    public enum Type {
-
-        DEB("deb"),
-        DOCKER("docker"),
-        RPM("rpm"),
-        TAR("tar"),
-        ZIP("zip"),
-        UNKNOWN("unknown");
-
-        final String displayName;
-
-        public String displayName() {
-            return displayName;
-        }
-
-        Type(final String displayName) {
-            this.displayName = displayName;
-        }
-
-        public static Type fromDisplayName(final String displayName, final boolean strict) {
-            switch (displayName) {
-                case "deb":
-                    return Type.DEB;
-                case "docker":
-                    return Type.DOCKER;
-                case "rpm":
-                    return Type.RPM;
-                case "tar":
-                    return Type.TAR;
-                case "zip":
-                    return Type.ZIP;
-                case "unknown":
-                    return Type.UNKNOWN;
-                default:
-                    if (strict) {
-                        throw new IllegalStateException("unexpected distribution type [" + displayName + "]; your distribution is broken");
-                    } else {
-                        return Type.UNKNOWN;
-                    }
-            }
-        }
-
-    }
-
-    static {
+    private static Build findLocalBuild() {
         final Type type;
         final String hash;
         final String date;
@@ -139,7 +103,54 @@ public record Build(Type type, String hash, String date, boolean isSnapshot, Str
             );
         }
 
-        CURRENT = new Build(type, hash, date, isSnapshot, version);
+        return new Build("default", type, hash, date, isSnapshot, version);
+    }
+
+    public static Build current() {
+        return CurrentHolder.CURRENT;
+    }
+
+    public enum Type {
+
+        DEB("deb"),
+        DOCKER("docker"),
+        RPM("rpm"),
+        TAR("tar"),
+        ZIP("zip"),
+        UNKNOWN("unknown");
+
+        final String displayName;
+
+        public String displayName() {
+            return displayName;
+        }
+
+        Type(final String displayName) {
+            this.displayName = displayName;
+        }
+
+        public static Type fromDisplayName(final String displayName, final boolean strict) {
+            switch (displayName) {
+                case "deb":
+                    return Type.DEB;
+                case "docker":
+                    return Type.DOCKER;
+                case "rpm":
+                    return Type.RPM;
+                case "tar":
+                    return Type.TAR;
+                case "zip":
+                    return Type.ZIP;
+                case "unknown":
+                    return Type.UNKNOWN;
+                default:
+                    if (strict) {
+                        throw new IllegalStateException("unexpected distribution type [" + displayName + "]; your distribution is broken");
+                    } else {
+                        return Type.UNKNOWN;
+                    }
+            }
+        }
     }
 
     /**
@@ -153,27 +164,26 @@ public record Build(Type type, String hash, String date, boolean isSnapshot, Str
     }
 
     public static Build readBuild(StreamInput in) throws IOException {
-        final Type type;
-        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-        if (in.getTransportVersion().before(TransportVersion.V_8_3_0)) {
-            // this was the flavor, which is always the default distribution now
-            in.readString();
+        final String flavor;
+        if (in.getTransportVersion().before(TransportVersion.V_8_3_0) || in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_039)) {
+            flavor = in.readString();
+        } else {
+            flavor = "default";
         }
         // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-        type = Type.fromDisplayName(in.readString(), false);
+        final Type type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
         String date = in.readString();
         boolean snapshot = in.readBoolean();
+        final String version = in.readString();
 
-        final String version;
-        version = in.readString();
-        return new Build(type, hash, date, snapshot, version);
+        return new Build(flavor, type, hash, date, snapshot, version);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersion.V_8_3_0)) {
-            // this was the flavor, which is always the default distribution now
-            out.writeString("default");
+        if (out.getTransportVersion().before(TransportVersion.V_8_3_0)
+            || out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_039)) {
+            out.writeString(build.flavor());
         }
         out.writeString(build.type().displayName());
         out.writeString(build.hash());

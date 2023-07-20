@@ -906,6 +906,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             this.length = length;
         }
 
+        public CacheFile copy() {
+            return new CacheFile(cacheKey, length);
+        }
+
         public long getLength() {
             return length;
         }
@@ -921,12 +925,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             if (startRegion != endRegion) {
                 return false;
             }
-            long now = threadPool.relativeTimeInMillis();
-            final Entry<CacheFileRegion> fileRegion;
-            var r = lastAccessedRegion;
-            if (r != null && lastAccessedRegion.chunk.regionKey.region == startRegion) {
-                fileRegion = r;
+            var fileRegion = lastAccessedRegion;
+            if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
                 // existing item, check if we need to promote item
+                long now = threadPool.relativeTimeInMillis();
                 if (now - fileRegion.lastAccessed >= minTimeDelta) {
                     maybePromote(now, fileRegion);
                 }
@@ -938,11 +940,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 return false;
             }
             boolean res = region.tryRead(buf, offset);
-            if (res) {
-                lastAccessedRegion = r;
-            } else {
-                lastAccessedRegion = null;
-            }
+            lastAccessedRegion = res ? fileRegion : null;
             return res;
         }
 

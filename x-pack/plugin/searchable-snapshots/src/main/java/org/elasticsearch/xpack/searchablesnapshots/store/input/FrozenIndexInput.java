@@ -29,7 +29,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
 
     private static final Logger logger = LogManager.getLogger(FrozenIndexInput.class);
 
-    private SharedBlobCacheService<CacheKey>.CacheFile cacheFile;
+    private final SharedBlobCacheService<CacheKey>.CacheFile cacheFile;
 
     public FrozenIndexInput(
         String name,
@@ -50,6 +50,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             0L,
             fileInfo.length(),
             new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
+            directory.getFrozenCacheFile(name, fileInfo.length()),
             rangeSize,
             recoveryRangeSize,
             directory.getBlobCacheByteRange(name, fileInfo.length()),
@@ -68,6 +69,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         long compoundFileOffset,
         long length,
         CacheFileReference cacheFileReference,
+        SharedBlobCacheService<CacheKey>.CacheFile cacheFile,
         int defaultRangeSize,
         int recoveryRangeSize,
         ByteRange headerBlobCacheByteRange,
@@ -89,7 +91,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             headerBlobCacheByteRange,
             footerBlobCacheByteRange
         );
-        this.cacheFile = directory.getFrozenCacheFile(name, fileInfo.length());
+        this.cacheFile = cacheFile.copy();
     }
 
     @Override
@@ -164,9 +166,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
 
     @Override
     public FrozenIndexInput clone() {
-        var clone = (FrozenIndexInput) super.clone();
-        clone.cacheFile = directory.getFrozenCacheFile(name, fileInfo.length());
-        return clone;
+        return (FrozenIndexInput) super.clone();
     }
 
     @Override
@@ -188,6 +188,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,
+            cacheFile,
             defaultRangeSize,
             recoveryRangeSize,
             sliceHeaderByteRange,

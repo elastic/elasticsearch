@@ -44,6 +44,8 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     public static final String NAME = "terms_set";
 
+    public static final TransportVersion MINIMUM_SHOULD_MATCH_ADDED_VERSION = TransportVersion.V_8_500_040;
+
     static final ParseField TERMS_FIELD = new ParseField("terms");
     static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match_field");
     static final ParseField MINIMUM_SHOULD_MATCH_SCRIPT = new ParseField("minimum_should_match_script");
@@ -76,7 +78,9 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         this.values = (List<?>) in.readGenericValue();
         this.minimumShouldMatchField = in.readOptionalString();
         this.minimumShouldMatchScript = in.readOptionalWriteable(Script::new);
-        this.minimumShouldMatch = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(MINIMUM_SHOULD_MATCH_ADDED_VERSION)) {
+            this.minimumShouldMatch = in.readOptionalString();
+        }
     }
 
     @Override
@@ -85,7 +89,9 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         out.writeGenericValue(values);
         out.writeOptionalString(minimumShouldMatchField);
         out.writeOptionalWriteable(minimumShouldMatchScript);
-        out.writeOptionalString(minimumShouldMatch);
+        if (out.getTransportVersion().onOrAfter(MINIMUM_SHOULD_MATCH_ADDED_VERSION)) {
+            out.writeOptionalString(minimumShouldMatch);
+        }
     }
 
     // package protected for testing purpose

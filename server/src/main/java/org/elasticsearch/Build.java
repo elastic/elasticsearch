@@ -199,7 +199,9 @@ public record Build(
             minIndexVersion = in.readString();
             displayString = in.readString();
         } else {
-            var versionConstant = Version.fromString(version);
+            // the version is qualified, so we may need to strip off -SNAPSHOT or -alpha, etc. Here we simply find the first dash
+            int dashNdx = version.indexOf('-');
+            var versionConstant = Version.fromString(dashNdx == -1 ? version : version.substring(0, dashNdx));
             minWireVersion = versionConstant.minimumCompatibilityVersion().toString();
             minIndexVersion = versionConstant.minimumIndexCompatibilityVersion().toString();
             displayString = defaultDisplayString(type, hash, date, version);

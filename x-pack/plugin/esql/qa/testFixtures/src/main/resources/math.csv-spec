@@ -115,11 +115,9 @@ height:double | s:double
 ;
 
 powSalarySquared
-from employees | eval s = pow(salary - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
-warning:Line 1:27: evaluation of [pow(salary - 75000, 2)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: integer overflow
+from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
-salary:integer | s:integer
+salary:integer | s:long
 74999          | 10001
 74970          | 10900
 74572          | 193184

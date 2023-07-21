@@ -450,11 +450,12 @@ public class IndexNameExpressionResolver {
         } else if (indexExpressions.length == 1) {
             if (indexExpressions[0].startsWith("-")) {
                 // this can arise when multi-target syntax is used with an exclusion not in the "inclusion" list, such as
-                // GET test1,test2,-test3
-                // the caller should have put GET test*,-test3
+                // "GET test1,test2,-test3"
+                // the caller should have put "GET test*,-test3"
                 infe = new IndexNotFoundException(
                     "if you intended to exclude this index, ensure that you use wildcards that include it before explicitly excluding it",
-                    indexExpressions[0]);
+                    indexExpressions[0]
+                );
             } else {
                 infe = new IndexNotFoundException(indexExpressions[0]);
             }

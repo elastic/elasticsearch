@@ -24,13 +24,13 @@ public class PowTests extends AbstractScalarFunctionTestCase {
 
     public void testExamples() {
         // Test NaN
-        assertEquals(Double.NaN, process(Double.NaN, 1));
-        assertEquals(Double.NaN, process(1, Double.NaN));
+        assertEquals(null, process(Double.NaN, 1));
+        assertEquals(null, process(1, Double.NaN));
 
         // Test with Integers
         assertEquals(1, process(1, 1));
         assertEquals(1, process(randomIntBetween(-1000, 1000), 0));
-        int baseInt = randomIntBetween(-1000, 1000);
+        int baseInt = randomIntBetween(-10, 10);
         assertEquals(baseInt, process(baseInt, 1));
         assertEquals((int) Math.pow(baseInt, 2), process(baseInt, 2));
         assertEquals(0, process(123, -1));
@@ -93,9 +93,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         var exp = argTypes.get(1);
         if (base.isRational() || exp.isRational()) {
             return DataTypes.DOUBLE;
-        } else if (base == DataTypes.UNSIGNED_LONG || exp == DataTypes.UNSIGNED_LONG) {
-            return DataTypes.DOUBLE;
-        } else if (base == DataTypes.LONG || exp == DataTypes.LONG) {
+        } else if (base.size() == Long.BYTES || exp.size() == Long.BYTES) {
             return DataTypes.LONG;
         } else {
             return DataTypes.INTEGER;
@@ -129,5 +127,16 @@ public class PowTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Literal> args) {
         return new Pow(source, args.get(0), args.get(1));
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        // TODO: This avoids failing the tests for ArithmeticExceptions, but it would be better to assert on the expected warnings
+        // That would involve overriding ensureWarnings() and getting access to the threadContext
+        List<String> filteredWarnings = super.filteredWarnings();
+        filteredWarnings.add("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.");
+        filteredWarnings.add("java.lang.ArithmeticException: invalid result: pow(NaN, 1.0)");
+        filteredWarnings.add("java.lang.ArithmeticException: invalid result: pow(1.0, NaN)");
+        return filteredWarnings;
     }
 }

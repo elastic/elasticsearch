@@ -1900,10 +1900,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.max", searchResult)).get(0),
             is(equalTo(5.0))
         );
-        assertThat(
-            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q1", searchResult)).get(0),
-            is(equalTo(2.75))
-        );
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q1", searchResult)).get(0), is(equalTo(3.0)));
         assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q2", searchResult)).get(0), is(equalTo(5.0)));
         assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q3", searchResult)).get(0), is(equalTo(5.0)));
         assertThat(

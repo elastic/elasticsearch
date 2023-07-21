@@ -51,27 +51,23 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         PROFILING_DATASTREAMS = Collections.unmodifiableList(dataStreams);
     }
 
-    private final ThreadPool threadPool;
-    private final Client client;
-
     public ProfilingDataStreamManager(ThreadPool threadPool, Client client, ClusterService clusterService) {
-        super(clusterService);
-        this.threadPool = threadPool;
-        this.client = client;
+        super(threadPool, client, clusterService);
     }
 
     @Override
-    protected void onStatus(
+    protected void onIndexState(
         ClusterState clusterState,
-        Status status,
-        ProfilingDataStream index,
+        IndexState<ProfilingDataStream> indexState,
         ActionListener<? super ActionResponse> listener
     ) {
+        Status status = indexState.getStatus();
         switch (status) {
-            case NEEDS_CREATION -> createDataStream(index, listener);
-            case NEEDS_VERSION_BUMP -> rolloverDataStream(index, listener);
+            case NEEDS_CREATION -> createDataStream(indexState.getIndex(), listener);
+            case NEEDS_VERSION_BUMP -> rolloverDataStream(indexState.getIndex(), listener);
+            case NEEDS_MAPPINGS_UPDATE -> applyMigrations(indexState, listener);
             default -> {
-                logger.debug("Skipping status change [{}] for data stream [{}].", status, index);
+                logger.trace("Skipping status change [{}] for data stream [{}].", status, indexState.getIndex());
                 // ensure that listener is notified we're done
                 listener.onResponse(null);
             }
@@ -192,18 +188,25 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
     static class ProfilingDataStream implements AbstractProfilingPersistenceManager.ProfilingIndexAbstraction {
         private final String name;
         private final int version;
+        private final List<Migration> migrations;
 
         public static ProfilingDataStream of(String name, int version) {
-            return new ProfilingDataStream(name, version);
+            return of(name, version, null);
         }
 
-        private ProfilingDataStream(String name, int version) {
+        public static ProfilingDataStream of(String name, int version, Migration.Builder builder) {
+            List<Migration> migrations = builder != null ? builder.build(version) : null;
+            return new ProfilingDataStream(name, version, migrations);
+        }
+
+        private ProfilingDataStream(String name, int version, List<Migration> migrations) {
             this.name = name;
             this.version = version;
+            this.migrations = migrations;
         }
 
         public ProfilingDataStream withVersion(int version) {
-            return new ProfilingDataStream(name, version);
+            return new ProfilingDataStream(name, version, migrations);
         }
 
         @Override
@@ -214,6 +217,13 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         @Override
         public int getVersion() {
             return version;
+        }
+
+        @Override
+        public List<Migration> getMigrations(int currentIndexTemplateVersion) {
+            return migrations != null
+                ? migrations.stream().filter(m -> m.getTargetIndexTemplateVersion() > currentIndexTemplateVersion).toList()
+                : Collections.emptyList();
         }
 
         @Override

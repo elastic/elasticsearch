@@ -48,7 +48,6 @@ import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -274,14 +273,26 @@ public class RemoteClusterServiceTests extends ESTestCase {
                                 new String[] { "-cluster_1:*", "cluster_2:foo*", "foo" }
                             )
                         );
-                        assertThat(e.getMessage(), containsString("Attempt to exclude cluster [cluster_1] failed"));
+                        assertThat(
+                            e.getMessage(),
+                            equalTo(
+                                "Attempt to exclude cluster [cluster_1] failed as it is not included in the list of clusters to "
+                                    + "be included: [(local), cluster_2]. Input: [-cluster_1:*,cluster_2:foo*,foo]"
+                            )
+                        );
                     }
                     {
                         IllegalArgumentException e = expectThrows(
                             IllegalArgumentException.class,
                             () -> service.groupClusterIndices(service.getRemoteClusterNames(), new String[] { "-cluster_1:*" })
                         );
-                        assertThat(e.getMessage(), containsString("Attempt to exclude cluster [cluster_1] failed"));
+                        assertThat(
+                            e.getMessage(),
+                            equalTo(
+                                "Attempt to exclude cluster [cluster_1] failed as it is not included in the list of clusters to "
+                                    + "be included: []. Input: [-cluster_1:*]"
+                            )
+                        );
                     }
                     IllegalArgumentException e = expectThrows(
                         IllegalArgumentException.class,

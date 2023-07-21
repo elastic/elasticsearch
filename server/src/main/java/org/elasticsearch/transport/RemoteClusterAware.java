@@ -118,7 +118,7 @@ public abstract class RemoteClusterAware {
                 excludeFailed.size() == 1 ? "" : "s",
                 excludeFailed,
                 excludeFailed.size() == 1 ? "it is" : "they are",
-                perClusterIndices.keySet(),
+                perClusterIndices.keySet().stream().map(s -> s.equals("") ? "(local)" : s).collect(Collectors.toList()),
                 String.join(",", requestIndices)
             );
             throw new IllegalArgumentException(warning);

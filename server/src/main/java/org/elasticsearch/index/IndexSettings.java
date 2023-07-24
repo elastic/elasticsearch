@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
@@ -285,11 +286,13 @@ public final class IndexSettings {
         public void validate(final TimeValue value, final Map<Setting<?>, Object> settings) {
             final String existingShardsAllocator = (String) settings.get(EXISTING_SHARDS_ALLOCATOR_SETTING);
             final Boolean fastRefresh = (Boolean) settings.get(INDEX_FAST_REFRESH_SETTING);
+            final IndexVersion indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
 
             if (existingShardsAllocator.equals("stateless")
                 && fastRefresh == false
                 && value.compareTo(TimeValue.ZERO) >= 0
-                && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0) {
+                && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
+                && indexVersion.onOrAfter(IndexVersion.V_8_10_0)) {
                 throw new IllegalArgumentException(
                     "index setting ["
                         + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
@@ -312,7 +315,8 @@ public final class IndexSettings {
     private static final List<Setting<?>> REFRESH_INTERVAL_VALIDATOR_SETTINGS_LIST = List.of(
         INDEX_REFRESH_INTERVAL_SETTING,
         EXISTING_SHARDS_ALLOCATOR_SETTING,
-        INDEX_FAST_REFRESH_SETTING
+        INDEX_FAST_REFRESH_SETTING,
+        SETTING_INDEX_VERSION_CREATED
     );
 
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
@@ -811,7 +815,7 @@ public final class IndexSettings {
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetadata.getSettings()).build();
         this.index = indexMetadata.getIndex();
-        version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+        version = SETTING_INDEX_VERSION_CREATED.get(settings);
         logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
@@ -1079,7 +1083,7 @@ public final class IndexSettings {
      */
     public synchronized boolean updateIndexMetadata(IndexMetadata indexMetadata) {
         final Settings newSettings = indexMetadata.getSettings();
-        IndexVersion newIndexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(newSettings);
+        IndexVersion newIndexVersion = SETTING_INDEX_VERSION_CREATED.get(newSettings);
         if (version.equals(newIndexVersion) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
         }

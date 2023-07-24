@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_REFRESH_INTERVAL;
@@ -375,6 +376,7 @@ public class IndexSettingsTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "2s")
+                .put(SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.V_8_10_0.id() + 1)
                 .build()
         );
         final IllegalArgumentException e = expectThrows(

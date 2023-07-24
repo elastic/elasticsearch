@@ -44,6 +44,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -123,6 +124,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private final Predicate<DiscoveryNode> nodePredicate;
     private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
     private final String proxyAddress;
+    private final Executor managementExecutor;
 
     SniffConnectionStrategy(
         String clusterAlias,
@@ -184,6 +186,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         this.nodePredicate = nodePredicate;
         this.configuredSeedNodes = configuredSeedNodes;
         this.seedNodes = seedNodes;
+        this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
@@ -470,8 +473,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
 
         @Override
-        public String executor() {
-            return ThreadPool.Names.MANAGEMENT;
+        public Executor executor(ThreadPool threadPool) {
+            return managementExecutor;
         }
     }
 

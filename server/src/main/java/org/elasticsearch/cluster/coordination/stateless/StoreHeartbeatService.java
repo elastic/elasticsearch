@@ -103,7 +103,7 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
                     || maxTimeSinceLastHeartbeat.millis() <= heartBeat.timeSinceLastHeartbeatInMillis(absoluteTimeInMillis())) {
                     runnable.run();
                 } else {
-                    logger.trace("runIfNoRecentLeader: found recent leader");
+                    logger.trace("runIfNoRecentLeader: found recent leader [{}]", heartBeat);
                 }
             }
 

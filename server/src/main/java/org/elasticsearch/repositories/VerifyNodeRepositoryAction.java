@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -90,7 +91,7 @@ public class VerifyNodeRepositoryAction {
                     node,
                     ACTION_NAME,
                     new VerifyNodeRepositoryRequest(repository, verificationToken),
-                    new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                    new EmptyTransportResponseHandler(EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                         @Override
                         public void handleResponse(TransportResponse.Empty response) {
                             if (counter.decrementAndGet() == 0) {

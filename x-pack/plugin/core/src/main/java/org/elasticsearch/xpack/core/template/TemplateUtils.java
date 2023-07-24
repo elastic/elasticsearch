@@ -14,16 +14,15 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -72,24 +71,13 @@ public class TemplateUtils {
      */
     public static String loadTemplate(String resource, String version, String versionProperty, Map<String, String> variables) {
         try {
-            String source = load(resource);
+            String source = TemplateResources.load(resource);
             source = replaceVariables(source, version, versionProperty, variables);
             validate(source);
             return source;
         } catch (Exception e) {
             throw new IllegalArgumentException("Unable to load template [" + resource + "]", e);
         }
-    }
-
-    /**
-     * Loads a resource from the classpath and returns it as a {@link String}
-     */
-    public static String load(String name) throws IOException {
-        InputStream is = TemplateUtils.class.getResourceAsStream(name);
-        if (is == null) {
-            throw new IOException("Template [" + name + "] not found in classpath.");
-        }
-        return Streams.readFully(is).utf8ToString();
     }
 
     /**

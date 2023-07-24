@@ -20,12 +20,12 @@ public class EmptyTransportResponseHandler implements TransportResponseHandler<T
     }
 
     @Override
-    public void handleResponse(TransportResponse.Empty response) {
+    public final void handleResponse(TransportResponse.Empty response) {
         listener.onResponse(null);
     }
 
     @Override
-    public void handleException(TransportException exp) {
+    public final void handleException(TransportException exp) {
         listener.onFailure(exp);
     }
 

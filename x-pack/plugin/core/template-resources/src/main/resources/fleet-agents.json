@@ -6,7 +6,8 @@
     "_doc" : {
       "dynamic": false,
       "_meta": {
-        "version": "${fleet.version}"
+        "version": "${fleet.version}",
+        "system-index-mapping-version": 0
       },
       "properties": {
         "access_api_key_id": {

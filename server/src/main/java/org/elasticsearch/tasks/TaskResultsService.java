@@ -124,6 +124,7 @@ public class TaskResultsService {
             {
                 builder.startObject("_meta");
                 builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Version.CURRENT.toString());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 0); // TODO[wrb]: constant
                 builder.endObject();
 
                 builder.field("dynamic", "strict");

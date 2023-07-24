@@ -27,7 +27,17 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SystemIndexDescriptorTests extends ESTestCase {
 
-    private static final String MAPPINGS = "{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }";
+    // private static final String MAPPINGS = "{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }";
+    private static final String MAPPINGS = """
+        {
+          "_doc": {
+            "_meta": {
+              "version": "7.4.0",
+              "system-index-mapping-version": 1
+            }
+          }
+        }
+        """;
 
     /**
      * Tests the various validation rules that are applied when creating a new system index descriptor.
@@ -243,7 +253,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
     }
 
     public void testGetDescriptorCompatibleWith() {
-        final String mappings = "{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }";
         final SystemIndexDescriptor prior = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
             .setDescription("system stuff")
@@ -251,7 +260,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setAliasName(".system")
             .setType(Type.INTERNAL_MANAGED)
             .setSettings(Settings.EMPTY)
-            .setMappings(mappings)
+            .setMappings(MAPPINGS)
             .setVersionMetaKey("version")
             .setOrigin("system")
             .setMinimumNodeVersion(Version.V_7_0_0)
@@ -263,7 +272,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setAliasName(".system")
             .setType(Type.INTERNAL_MANAGED)
             .setSettings(Settings.EMPTY)
-            .setMappings(mappings)
+            .setMappings(MAPPINGS)
             .setVersionMetaKey("version")
             .setOrigin("system")
             .setPriorSystemIndexDescriptors(List.of(prior))

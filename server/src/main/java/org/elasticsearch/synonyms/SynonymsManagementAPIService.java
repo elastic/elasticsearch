@@ -123,6 +123,7 @@ public class SynonymsManagementAPIService {
                     builder.startObject("_meta");
                     {
                         builder.field("version", Version.CURRENT.toString());
+                        builder.field(SystemIndexDescriptor.VERSION_META_KEY, 0); // TODO[wrb]: constant
                     }
                     builder.endObject();
                     builder.field("dynamic", "strict");

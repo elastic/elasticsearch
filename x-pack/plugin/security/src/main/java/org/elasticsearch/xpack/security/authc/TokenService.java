@@ -1047,6 +1047,12 @@ public final class TokenService {
                 if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                     final byte[] refreshTokenBytes = in.readByteArray();
                     if (refreshTokenBytes.length != RAW_TOKEN_BYTES_TOTAL_LENGTH) {
+                        logger.debug(
+                            "Refresh token with version [{}] has length [{}] but expect length is [{}].",
+                            version,
+                            refreshTokenBytes.length,
+                            RAW_TOKEN_BYTES_LENGTH
+                        );
                         listener.onResponse(null);
                     } else {
                         MessageDigest userTokenIdDigest = sha256();
@@ -1067,6 +1073,7 @@ public final class TokenService {
                         findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
                     }
                 } else {
+                    logger.debug("Unrecognized refresh token version [{}].", version);
                     listener.onResponse(null);
                 }
             } catch (IOException e) {

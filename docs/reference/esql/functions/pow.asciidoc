@@ -33,7 +33,7 @@ include::{esql-specs}/math.csv-spec[tag=powII-result]
 |===
 
 Note: The actual power function is performed using double precision values for all cases.
-This means that for very large non-floating point values can lead to very slightly different answers.
+This means that for very large non-floating point values the operation can lead to very slightly different answers.
 However, a more likely outcome of very large non-floating point values is numerical overflow.
 
 ==== Arithmetic errors

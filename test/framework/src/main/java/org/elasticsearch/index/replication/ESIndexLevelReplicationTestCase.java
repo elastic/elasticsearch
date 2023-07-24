@@ -101,6 +101,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase {
 
@@ -1053,6 +1054,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         IndexShard primary,
         ResyncReplicationRequest request
     ) {
+        final var threadpool = mock(ThreadPool.class);
+        final var transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadpool);
         final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
             new TransportWriteAction.WritePrimaryResult<>(
                 TransportResyncReplicationAction.performOnPrimary(request),
@@ -1061,7 +1065,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 primary,
                 logger,
                 // TODO: Fix
-                new PostWriteRefresh(mock(TransportService.class))
+                new PostWriteRefresh(transportService)
 
             );
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);

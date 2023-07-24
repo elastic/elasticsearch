@@ -148,7 +148,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         return new MachineLearningUsageTransportAction(
             mock(TransportService.class),
             clusterService,
-            null,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             TestEnvironment.newEnvironment(settings),

@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-public class GetProfilingResponse extends ActionResponse implements ChunkedToXContentObject {
+public class GetStackTracesResponse extends ActionResponse implements ChunkedToXContentObject {
     @Nullable
     private final Map<String, StackTrace> stackTraces;
     @Nullable
@@ -34,7 +34,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
     private final int totalFrames;
     private final double samplingRate;
 
-    public GetProfilingResponse(StreamInput in) throws IOException {
+    public GetStackTracesResponse(StreamInput in) throws IOException {
         this.stackTraces = in.readBoolean()
             ? in.readMap(
                 i -> new StackTrace(
@@ -61,7 +61,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         this.samplingRate = in.readDouble();
     }
 
-    public GetProfilingResponse(
+    public GetStackTracesResponse(
         Map<String, StackTrace> stackTraces,
         Map<String, StackFrame> stackFrames,
         Map<String, String> executables,
@@ -167,7 +167,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        GetProfilingResponse response = (GetProfilingResponse) o;
+        GetStackTracesResponse response = (GetStackTracesResponse) o;
         return totalFrames == response.totalFrames
             && samplingRate == response.samplingRate
             && Objects.equals(stackTraces, response.stackTraces)

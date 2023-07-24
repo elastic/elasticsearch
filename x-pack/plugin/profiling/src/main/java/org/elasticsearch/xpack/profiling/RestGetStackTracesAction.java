@@ -18,7 +18,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestGetProfilingAction extends BaseRestHandler {
+public class RestGetStackTracesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(new Route(POST, "/_profiling/stacktraces"));
@@ -26,13 +26,13 @@ public class RestGetProfilingAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        GetProfilingRequest getProfilingRequest = new GetProfilingRequest();
-        request.applyContentParser(getProfilingRequest::parseXContent);
+        GetStackTracesRequest getStackTracesRequest = new GetStackTracesRequest();
+        request.applyContentParser(getStackTracesRequest::parseXContent);
 
         return channel -> {
-            RestActionListener<GetProfilingResponse> listener = new RestChunkedToXContentListener<>(channel);
+            RestActionListener<GetStackTracesResponse> listener = new RestChunkedToXContentListener<>(channel);
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(GetProfilingAction.INSTANCE, getProfilingRequest, listener);
+            cancelClient.execute(GetStackTracesAction.INSTANCE, getStackTracesRequest, listener);
         };
     }
 

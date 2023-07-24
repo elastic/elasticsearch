@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.action.ActionType;
 
-public final class GetProfilingAction extends ActionType<GetProfilingResponse> {
-    public static final GetProfilingAction INSTANCE = new GetProfilingAction();
-    public static final String NAME = "indices:data/read/profiling";
+public final class GetStackTracesAction extends ActionType<GetStackTracesResponse> {
+    public static final GetStackTracesAction INSTANCE = new GetStackTracesAction();
+    public static final String NAME = "indices:data/read/profiling/stack_traces";
 
-    private GetProfilingAction() {
-        super(NAME, GetProfilingResponse::new);
+    private GetStackTracesAction() {
+        super(NAME, GetStackTracesResponse::new);
     }
 }

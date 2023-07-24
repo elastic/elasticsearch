@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -62,7 +61,7 @@ public class FilterXContentTests extends ESTestCase {
     public void testNestedPayloadFiltering() throws Exception {
         Map<String, Object> data = new HashMap<>();
         data.put("leaf1", Map.of("key1", "value1", "key2", true));
-        data.put("leaf2", MapBuilder.newMapBuilder().put("key1", "value1").put("key2", "value2").put("key3", 3).map());
+        data.put("leaf2", Map.of("key1", "value1", "key2", "value2", "key3", 3));
         Map<Object, Object> innerMap = Map.of("key1", "value1", "key2", "value2");
         data.put("leaf3", Map.of("key1", "value1", "key2", innerMap));
 

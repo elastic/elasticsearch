@@ -641,7 +641,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                     // we finish loading analyzers from resources here
                                     // during shard recovery in the generic thread pool,
                                     // as this may require longer running operations and blocking calls
-                                    indexShard.mapperService().reloadSearchAnalyzers(getAnalysis(), null);
+                                    indexShard.mapperService().reloadSearchAnalyzers(getAnalysis(), null, false);
                                 }
                                 reloaded = true;
                             }

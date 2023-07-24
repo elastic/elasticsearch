@@ -20,7 +20,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartBasicLicense extends BaseRestHandler {
 
-    RestPostStartBasicLicense() {}
+    public RestPostStartBasicLicense() {}
 
     @Override
     public List<Route> routes() {

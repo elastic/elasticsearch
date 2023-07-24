@@ -22,6 +22,7 @@ import org.elasticsearch.search.lookup.Source;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -37,6 +38,9 @@ public class FieldFetcher {
 
     private record ResolvedField(String field, String matchingPattern, MappedFieldType ft, String format) {}
 
+    /**
+     * Build a FieldFetcher for a given search context and collection of fields and formats
+     */
     public static FieldFetcher create(SearchExecutionContext context, Collection<FieldAndFormat> fieldAndFormats) {
 
         List<String> unmappedFetchPattern = new ArrayList<>();
@@ -59,6 +63,9 @@ public class FieldFetcher {
             }
         }
 
+        // The fields need to be sorted so that the nested partition functions will work correctly.
+        resolvedFields.sort(Comparator.comparing(f -> f.field));
+
         Map<String, FieldContext> fieldContexts = buildFieldContexts(context, "", resolvedFields, unmappedFetchPattern);
 
         UnmappedFieldFetcher unmappedFieldFetcher = buildUnmappedFieldFetcher(context, fieldContexts.keySet(), "", unmappedFetchPattern);
@@ -75,6 +82,10 @@ public class FieldFetcher {
         if (unmappedFetchPatterns.isEmpty()) {
             return UnmappedFieldFetcher.EMPTY;
         }
+        // We pass in all mapped field names, and all the names of nested mappers that appear
+        // immediately below the current scope. This means that the unmapped field fetcher won't
+        // retrieve any fields that live inside a nested child, instead leaving this to the
+        // NestedFieldFetchers defined for each child scope in buildFieldContexts()
         Set<String> mappedAndNestedFields = new HashSet<>(mappedFields);
         mappedAndNestedFields.addAll(context.nestedLookup().getImmediateChildMappers(nestedScope));
         return new UnmappedFieldFetcher(mappedAndNestedFields, unmappedFetchPatterns);
@@ -93,6 +104,10 @@ public class FieldFetcher {
         }
     }
 
+    // Builds field contexts for each resolved field. If there are child mappers below
+    // the nested scope, then the resolved fields are partitioned by where they fall in
+    // the nested hierarchy, and we build a nested FieldContext for each child by calling
+    // this method again for the subset of resolved fields that live within it.
     private static Map<String, FieldContext> buildFieldContexts(
         SearchExecutionContext context,
         String nestedScope,
@@ -102,16 +117,14 @@ public class FieldFetcher {
 
         final boolean includeUnmapped = unmappedFetchPatterns.isEmpty() == false;
 
-        List<String> nestedMappers = context.nestedLookup().getImmediateChildMappers(nestedScope);
         Map<String, List<ResolvedField>> fieldsByNestedMapper = NestedUtils.partitionByChildren(
             nestedScope,
-            nestedMappers,
+            context.nestedLookup().getImmediateChildMappers(nestedScope),
             fields,
             f -> f.field
         );
 
-        // Using a LinkedHashMap so fields are returned in the order requested.
-        // We won't formally guarantee this, but but it's good for readability of the response
+        // Keep the outputs sorted for easier testing
         Map<String, FieldContext> output = new LinkedHashMap<>();
         for (String scope : fieldsByNestedMapper.keySet()) {
             if (nestedScope.equals(scope)) {

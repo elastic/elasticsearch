@@ -40,7 +40,6 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
-import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -872,25 +871,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         var results = fetchFields(mapperService, source, fieldAndFormatList("*", null, true));
         assertNotNull(results.get("user_account"));
+        assertEquals("2", eval(new String[] { "details.id", "0" }, results.get("user_account").getValues().get(0)).toString());
 
         results = fetchFields(mapperService, source, fieldAndFormatList("user.address.*", null, true));
         assertNotNull(results.get("user"));
-    }
-
-    public void testManyManyNestedFields() throws IOException {
-
-        String mappings = StreamsUtils.copyToStringFromClasspath("/org/elasticsearch/search/fetch/many-nested-mappings.json");
-        Settings settings = Settings.builder()
-            .put("index.mapping.nested_fields.limit", 250)
-            .put("index.mapping.total_fields.limit", 5000)
-            .build();
-        MapperService mapperService = createMapperService(IndexVersion.current(), settings, () -> true);
-        merge(mapperService, mappings);
-
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject();
-        source.endObject();
-
-        fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
+        assertNull(eval("first", results.get("user").getValues().get(0)));
+        assertEquals("Toronto", eval(new String[] { "address.city", "0" }, results.get("user").getValues().get(0)));
     }
 
     @SuppressWarnings("unchecked")

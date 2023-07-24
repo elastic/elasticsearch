@@ -2217,7 +2217,13 @@ public final class TokenService {
                 byte[] refreshTokenBytes = new byte[RAW_TOKEN_BYTES_TOTAL_LENGTH];
                 System.arraycopy(getRandomBytes(RAW_TOKEN_BYTES_LENGTH), 0, refreshTokenBytes, 0, RAW_TOKEN_BYTES_LENGTH);
                 // access and refresh tokens are paired by having a common fixed-length suffix
-                System.arraycopy(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, refreshTokenBytes, 0, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
+                System.arraycopy(
+                    accessTokenBytes,
+                    RAW_TOKEN_BYTES_LENGTH,
+                    refreshTokenBytes,
+                    RAW_TOKEN_BYTES_LENGTH,
+                    RAW_TOKEN_DOC_ID_BYTES_LENGTH
+                );
                 return new Tuple<>(accessTokenBytes, refreshTokenBytes);
             } else {
                 return new Tuple<>(accessTokenBytes, null);

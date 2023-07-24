@@ -561,6 +561,7 @@ likely change before GA.
 +
 (Optional, object) Defines a method for combining and ranking result sets from
 either:
++
 * 1 query and 1 or more kNN searches
 * 2 or more kNN searches
 +

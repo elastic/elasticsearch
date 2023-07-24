@@ -202,6 +202,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    // This setting is only registered on tests to force concurrent search even when segments contains very few documents.
+    public static final Setting<Integer> MINIMUM_DOCS_PER_SLICE = Setting.intSetting(
+        "search.minimum_docs_per_slice",
+        50_000,
+        1,
+        Property.NodeScope
+    );
+
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT = Setting.intSetting(
         "search.max_open_scroll_context",
         500,
@@ -250,6 +258,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile long maxKeepAlive;
 
     private volatile TimeValue defaultSearchTimeout;
+
+    private final int minimumDocsPerSlice;
 
     private volatile boolean defaultAllowPartialSearchResults;
 
@@ -315,6 +325,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
+
+        minimumDocsPerSlice = MINIMUM_DOCS_PER_SLICE.get(settings);
 
         defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);
         clusterService.getClusterSettings()
@@ -1037,6 +1049,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 shardTarget,
                 threadPool::relativeTimeInMillis,
                 timeout,
+                minimumDocsPerSlice,
                 fetchPhase,
                 lowLevelCancellation
             );

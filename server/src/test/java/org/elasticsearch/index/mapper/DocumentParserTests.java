@@ -2001,7 +2001,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
-        DocumentParsingException err = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
+        ParsedDocument doc = mapper.parse(source("""
             {
               "metrics": {
                 "service": {
@@ -2011,18 +2011,19 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 }
               }
             }
-            """)));
-        assertEquals(
-            "[4:16] Tried to add subobject [time] to object [metrics.service] which does not support subobjects",
-            err.getMessage()
-        );
+            """));
+        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        assertNotNull(mappingsUpdate);
+        assertNotNull(mappingsUpdate.getRoot().getMapper("metrics")); // TODO-MP should this be: metrics.service.time.max instead?
+
+        assertNotNull(doc.rootDoc().getField("metrics.service.time.max"));
     }
 
     public void testSubobjectsFalseWithInnerDottedObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
-        DocumentParsingException err = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
+        ParsedDocument doc = mapper.parse(source("""
             {
               "metrics": {
                 "service": {
@@ -2032,11 +2033,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 }
               }
             }
-            """)));
-        assertEquals(
-            "[4:26] Tried to add subobject [test.with.dots] to object [metrics.service] which does not support subobjects",
-            err.getMessage()
-        );
+            """));
+        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+
+        assertNotNull(mappingsUpdate);
+        assertNotNull(mappingsUpdate.getRoot().getMapper("metrics")); // TODO-MP should this be: metrics.service.test.with.dots.max instead?
+        assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots.max"));
     }
 
     public void testSubobjectsFalseRootWithInnerObject() throws Exception {

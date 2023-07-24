@@ -153,9 +153,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
-                // if (mapper instanceof ObjectMapper == false || subobjects.value()) {
-                // return mappers;
-                // } // TODO-MP is this correct to be removed?
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
                     // The same mappings or document may hold the same field twice, either because duplicated JSON keys are allowed or

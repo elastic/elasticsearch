@@ -302,7 +302,6 @@ public final class DocumentParser {
                     }
                     break;
                 case START_OBJECT:
-                    parser.nextToken();
                     parseObject(context, currentFieldName);
                     break;
                 case START_ARRAY:
@@ -428,8 +427,9 @@ public final class DocumentParser {
             context.path().remove();
         } else {
             if (context.parent().subobjects()) {
-                parseObjectDynamic(context, currentFieldName); // TODO-MP maybe here we should not remove context.path().remove()
+                parseObjectDynamic(context, currentFieldName);
             } else {
+                context.parser().nextToken(); // Skipping Object-start
                 context.path().addDottedFieldName(currentFieldName);
                 innerParseObject(context);
                 context.path().removeDottedFieldName();

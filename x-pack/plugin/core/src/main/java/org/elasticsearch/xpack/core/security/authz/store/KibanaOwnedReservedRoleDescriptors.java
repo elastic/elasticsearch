@@ -147,11 +147,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".fleet-agents*")
-                    .privileges("all")
-                    .allowRestrictedIndices(true)
-                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".fleet-agents*").privileges("all").allowRestrictedIndices(true).build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-artifacts*")
                     .privileges("all")

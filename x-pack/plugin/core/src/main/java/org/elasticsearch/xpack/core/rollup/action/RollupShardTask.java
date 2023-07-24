@@ -29,8 +29,6 @@ public class RollupShardTask extends AllocatedPersistentTask {
     private final DownsampleConfig config;
     private final ShardId shardId;
     private final long rollupStartTime;
-
-    private final RollupShardPersistentTaskState state;
     private final AtomicLong numReceived = new AtomicLong(0);
     private final AtomicLong numSent = new AtomicLong(0);
     private final AtomicLong numIndexed = new AtomicLong(0);
@@ -58,8 +56,7 @@ public class RollupShardTask extends AllocatedPersistentTask {
         long indexEndTimeMillis,
         final DownsampleConfig config,
         final Map<String, String> headers,
-        final ShardId shardId,
-        final RollupShardPersistentTaskState state
+        final ShardId shardId
     ) {
         super(id, type, action, RollupField.NAME + "_" + rollupIndex + "[" + shardId.id() + "]", parentTask, headers);
         this.rollupIndex = rollupIndex;
@@ -69,7 +66,6 @@ public class RollupShardTask extends AllocatedPersistentTask {
         this.shardId = shardId;
         this.rollupStartTime = System.currentTimeMillis();
         this.rollupBulkStats = new RollupBulkStats();
-        this.state = state;
     }
 
     @Override

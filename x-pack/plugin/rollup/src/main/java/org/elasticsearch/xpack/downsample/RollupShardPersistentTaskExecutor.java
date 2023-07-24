@@ -145,8 +145,7 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
             params.indexEndTimeMillis(),
             params.downsampleConfig(),
             headers,
-            params.shardId(),
-            new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
+            params.shardId()
         );
     }
 

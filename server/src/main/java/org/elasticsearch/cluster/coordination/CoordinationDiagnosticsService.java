@@ -1112,7 +1112,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     new ActionListenerResponseHandler<>(
                         ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
                         transportActionType.getResponseReader(),
-                        ThreadPool.Names.CLUSTER_COORDINATION
+                        transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION)
                     )
                 );
             }

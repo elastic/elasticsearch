@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
@@ -53,7 +54,9 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new ExtendedStatsAggregator(name, config, context, parent, sigma, metadata);
+        final InternalExtendedStats empty = InternalExtendedStats.empty(name, sigma, config.format(), metadata);
+        final Predicate<String> hasMetric = InternalExtendedStats.Metrics::hasMetric;
+        return new NonCollectingMultiMetricAggregator(name, context, parent, empty, hasMetric, metadata);
     }
 
     @Override

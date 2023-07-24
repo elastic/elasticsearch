@@ -34,7 +34,7 @@ import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.junit.After;
 import org.junit.Before;
 
@@ -131,7 +132,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         settings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        settings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(MonitoringService.ENABLED.getKey(), false);
@@ -155,7 +156,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             // Deprecation warnings go to a data stream, if we ever cause a deprecation warning the data streams plugin is required
             DataStreamsPlugin.class,
             // To remove errors from parsing build in templates that contain scaled_float
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            Wildcard.class
         );
     }
 
@@ -167,7 +169,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     @Before
     public void ensureTemplatesArePresent() throws Exception {
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState().get().getState();
             assertTrue("Timed out waiting for the ML templates to be installed", MachineLearning.criticalTemplatesInstalled(state));
         }, 20, TimeUnit.SECONDS);
     }

@@ -22,8 +22,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -43,11 +41,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         // We grab a client directly to avoid using a randomizing client that might set a search preference.
         Client client = internalCluster().coordOnlyNodeClient();
 
-        client.admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 2))
-            .get();
+        client.admin().indices().prepareCreate("test").setSettings(indexSettings(1, 2)).get();
         ensureGreen();
 
         client.prepareIndex("test").setSource("field", "value").get();

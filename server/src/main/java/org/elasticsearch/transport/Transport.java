@@ -50,6 +50,10 @@ public interface Transport extends LifecycleComponent {
         return false;
     }
 
+    default TransportVersion getVersion() {
+        return TransportVersion.current();
+    }
+
     /**
      * The address the transport is bound on.
      */
@@ -288,6 +292,13 @@ public interface Transport extends LifecycleComponent {
         @SuppressWarnings("unchecked")
         public <T extends TransportRequest> RequestHandlerRegistry<T> getHandler(String action) {
             return (RequestHandlerRegistry<T>) requestHandlers.get(action);
+        }
+
+        public Map<String, TransportActionStats> getStats() {
+            return requestHandlers.values()
+                .stream()
+                .filter(reg -> reg.getStats().requestCount() > 0 || reg.getStats().responseCount() > 0)
+                .collect(Maps.toUnmodifiableSortedMap(RequestHandlerRegistry::getAction, RequestHandlerRegistry::getStats));
         }
     }
 }

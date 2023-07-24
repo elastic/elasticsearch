@@ -104,6 +104,8 @@ include::cluster/nodes-reload-secure-settings.asciidoc[]
 
 include::cluster/nodes-stats.asciidoc[]
 
+include::cluster/cluster-info.asciidoc[]
+
 include::cluster/pending.asciidoc[]
 
 include::cluster/remote-info.asciidoc[]
@@ -119,3 +121,5 @@ include::cluster/get-desired-nodes.asciidoc[]
 include::cluster/delete-desired-nodes.asciidoc[]
 
 include::cluster/get-desired-balance.asciidoc[]
+
+include::cluster/delete-desired-balance.asciidoc[]

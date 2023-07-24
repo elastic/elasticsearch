@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
@@ -29,19 +28,19 @@ public class AllocationReducerTests extends ESTestCase {
 
     public void testReduceTo_ValueEqualToCurrentAllocations() {
         Map<List<String>, Collection<DiscoveryNode>> nodesByZone = Map.of(List.of("z"), List.of(buildNode("n")));
-        TrainedModelAssignment assignment = createAssignment("m", 2, Map.of("n", 2));
+        TrainedModelAssignment assignment = createAssignment("d", "m", 2, Map.of("n", 2));
         expectThrows(IllegalArgumentException.class, () -> new AllocationReducer(assignment, nodesByZone).reduceTo(2));
     }
 
     public void testReduceTo_ValueLargerThanCurrentAllocations() {
         Map<List<String>, Collection<DiscoveryNode>> nodesByZone = Map.of(List.of("z"), List.of(buildNode("n")));
-        TrainedModelAssignment assignment = createAssignment("m", 2, Map.of("n", 2));
+        TrainedModelAssignment assignment = createAssignment("d", "m", 2, Map.of("n", 2));
         expectThrows(IllegalArgumentException.class, () -> new AllocationReducer(assignment, nodesByZone).reduceTo(3));
     }
 
     public void testReduceTo_GivenOneZone_OneAssignment_ReductionByOne() {
         Map<List<String>, Collection<DiscoveryNode>> nodesByZone = Map.of(List.of("z"), List.of(buildNode("n")));
-        TrainedModelAssignment assignment = createAssignment("m", 2, Map.of("n", 2));
+        TrainedModelAssignment assignment = createAssignment("d", "m", 2, Map.of("n", 2));
 
         TrainedModelAssignment updatedAssignment = new AllocationReducer(assignment, nodesByZone).reduceTo(1).build();
 
@@ -55,7 +54,7 @@ public class AllocationReducerTests extends ESTestCase {
 
     public void testReduceTo_GivenOneZone_OneAssignment_ReductionByMany() {
         Map<List<String>, Collection<DiscoveryNode>> nodesByZone = Map.of(List.of("z"), List.of(buildNode("n")));
-        TrainedModelAssignment assignment = createAssignment("m", 5, Map.of("n", 5));
+        TrainedModelAssignment assignment = createAssignment("d", "m", 5, Map.of("n", 5));
 
         TrainedModelAssignment updatedAssignment = new AllocationReducer(assignment, nodesByZone).reduceTo(2).build();
 
@@ -72,7 +71,7 @@ public class AllocationReducerTests extends ESTestCase {
             List.of("z"),
             List.of(buildNode("n_1"), buildNode("n_2"), buildNode("n_3"))
         );
-        TrainedModelAssignment assignment = createAssignment("m", 6, Map.of("n_1", 3, "n_2", 2, "n_3", 1));
+        TrainedModelAssignment assignment = createAssignment("d", "m", 6, Map.of("n_1", 3, "n_2", 2, "n_3", 1));
 
         TrainedModelAssignment updatedAssignment = new AllocationReducer(assignment, nodesByZone).reduceTo(3).build();
 
@@ -89,7 +88,7 @@ public class AllocationReducerTests extends ESTestCase {
             List.of("z"),
             List.of(buildNode("n_1"), buildNode("n_2"), buildNode("n_3"))
         );
-        TrainedModelAssignment assignment = createAssignment("m", 6, Map.of("n_1", 2, "n_2", 2, "n_3", 2));
+        TrainedModelAssignment assignment = createAssignment("d", "m", 6, Map.of("n_1", 2, "n_2", 2, "n_3", 2));
 
         TrainedModelAssignment updatedAssignment = new AllocationReducer(assignment, nodesByZone).reduceTo(5).build();
 
@@ -110,7 +109,7 @@ public class AllocationReducerTests extends ESTestCase {
             List.of("z_2"),
             List.of(buildNode("n_3"))
         );
-        TrainedModelAssignment assignment = createAssignment("m", 5, Map.of("n_1", 3, "n_2", 1, "n_3", 1));
+        TrainedModelAssignment assignment = createAssignment("d", "m", 5, Map.of("n_1", 3, "n_2", 1, "n_3", 1));
 
         TrainedModelAssignment updatedAssignment = new AllocationReducer(assignment, nodesByZone).reduceTo(4).build();
 
@@ -131,7 +130,7 @@ public class AllocationReducerTests extends ESTestCase {
             List.of("z_2"),
             List.of(buildNode("n_2"))
         );
-        TrainedModelAssignment assignment = createAssignment("m", 6, Map.of("n_1", 3, "n_2", 3));
+        TrainedModelAssignment assignment = createAssignment("d", "m", 6, Map.of("n_1", 3, "n_2", 3));
 
         TrainedModelAssignment updatedAssignment = new AllocationReducer(assignment, nodesByZone).reduceTo(4).build();
 
@@ -152,7 +151,7 @@ public class AllocationReducerTests extends ESTestCase {
             List.of("z_2"),
             List.of(buildNode("n_2"))
         );
-        TrainedModelAssignment assignment = createAssignment("m", 2, Map.of("n_1", 1, "n_2", 1));
+        TrainedModelAssignment assignment = createAssignment("d", "m", 2, Map.of("n_1", 1, "n_2", 1));
 
         TrainedModelAssignment updatedAssignment = new AllocationReducer(assignment, nodesByZone).reduceTo(1).build();
 
@@ -165,6 +164,7 @@ public class AllocationReducerTests extends ESTestCase {
     }
 
     private static TrainedModelAssignment createAssignment(
+        String deploymentId,
         String modelId,
         int numberOfAllocations,
         Map<String, Integer> allocationsByNode
@@ -172,6 +172,7 @@ public class AllocationReducerTests extends ESTestCase {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(
             new StartTrainedModelDeploymentAction.TaskParams(
                 modelId,
+                deploymentId,
                 randomNonNegativeLong(),
                 numberOfAllocations,
                 randomIntBetween(1, 16),
@@ -192,6 +193,6 @@ public class AllocationReducerTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String nodeId) {
-        return new DiscoveryNode(nodeId, nodeId, buildNewFakeTransportAddress(), Map.of(), DiscoveryNodeRole.roles(), Version.CURRENT);
+        return DiscoveryNodeUtils.create(nodeId, nodeId);
     }
 }

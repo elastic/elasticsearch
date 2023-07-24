@@ -12,10 +12,12 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -29,6 +31,7 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,6 +39,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -47,7 +51,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A response of a search request.
  */
-public class SearchResponse extends ActionResponse implements StatusToXContentObject {
+public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
@@ -129,7 +133,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
 
-    @Override
     public RestStatus status() {
         return RestStatus.status(successfulShards, totalShards, shardFailures);
     }
@@ -264,14 +267,23 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            this.innerToXContentChunked(params),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
+            Iterators.single(clusters),
+            internalResponse.toXContentChunked(params)
+        );
+    }
+
+    public XContentBuilder headerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         if (scrollId != null) {
             builder.field(SCROLL_ID.getPreferredName(), scrollId);
         }
@@ -295,8 +307,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             getFailedShards(),
             getShardFailures()
         );
-        clusters.toXContent(builder, params);
-        internalResponse.toXContent(builder, params);
         return builder;
     }
 
@@ -469,19 +479,65 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         private final int total;
         private final int successful;
         private final int skipped;
+        // NOTE: these two new fields (remoteClusters and ccsMinimizeRoundtrips) have not been added to the wire protocol
+        // or equals/hashCode methods. They are needed for CCS only (async-search CCS in particular). If we need to write
+        // these to the .async-search system index in the future, we may want to refactor Clusters to allow async-search
+        // to subclass it.
+        private final transient int remoteClusters;
+        private final transient boolean ccsMinimizeRoundtrips;
 
+        /**
+         * A Clusters object meant for use with CCS holding additional information about
+         * the number of remote clusters and whether ccsMinimizeRoundtrips is being used.
+         * @param total total number of clusters in the search
+         * @param successful number of clusters that have successfully completed the search
+         * @param skipped number of clusters that were skipped (e.g., unavailable or other error)
+         * @param remoteClusters number of remote clusters in the search
+         * @param ccsMinimizeRoundtrips specifies whether a CCS search is using minimizeRoundtrips feature
+         */
+        public Clusters(int total, int successful, int skipped, int remoteClusters, boolean ccsMinimizeRoundtrips) {
+            assert total >= 0 && successful >= 0 && skipped >= 0 && remoteClusters >= 0
+                : "total: " + total + " successful: " + successful + " skipped: " + skipped + " remote: " + remoteClusters;
+            assert successful <= total : "total: " + total + " successful: " + successful + " skipped: " + skipped;
+            assert remoteClusters <= total : "total: " + total + " remote: " + remoteClusters;
+            assert ccsMinimizeRoundtrips == false || remoteClusters > 0
+                : "ccsMinimizeRoundtrips is true but remoteClusters count is not a positive number: " + remoteClusters;
+            int localCount = total - remoteClusters;
+            assert localCount == 0 || localCount == 1 : "total - remoteClusters should only be 0 or 1";
+            this.total = total;
+            this.successful = successful;
+            this.skipped = skipped;
+            this.remoteClusters = remoteClusters;
+            this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
+        }
+
+        /**
+         * Assumes ccsMinimizeRoundtrips=false.
+         * We are not tracking number of remote clusters in this search.
+         */
         public Clusters(int total, int successful, int skipped) {
-            assert total >= 0 && successful >= 0 && skipped >= 0
+            this(total, successful, skipped, true);
+        }
+
+        /**
+         * @param finalState if true, then do an assert that total = successful + skipped. This is true
+         *                   only when the cluster is in its final state, not an initial or intermediate state.
+         */
+        Clusters(int total, int successful, int skipped, boolean finalState) {
+            assert total >= 0 && successful >= 0 && skipped >= 0 && successful <= total
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
-            assert successful <= total && skipped == total - successful
+            assert finalState == false || skipped == total - successful
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
+            this.remoteClusters = -1;  // means "unknown" and not needed for this usage
+            this.ccsMinimizeRoundtrips = false;
         }
 
-        private Clusters(StreamInput in) throws IOException {
-            this(in.readVInt(), in.readVInt(), in.readVInt());
+        public Clusters(StreamInput in) throws IOException {
+            // when coming across the wire, we don't have context to know if this Cluster is in a final state, so set finalState=false
+            this(in.readVInt(), in.readVInt(), in.readVInt(), false);
         }
 
         @Override
@@ -504,24 +560,39 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
 
         /**
-         * Returns how many total clusters the search was requested to be executed on
+         * @return how many total clusters the search was requested to be executed on
          */
         public int getTotal() {
             return total;
         }
 
         /**
-         * Returns how many total clusters the search was executed successfully on
+         * @return how many total clusters the search was executed successfully on
          */
         public int getSuccessful() {
             return successful;
         }
 
         /**
-         * Returns how many total clusters were during the execution of the search request
+         * @return how many total clusters were used during the execution of the search request
          */
         public int getSkipped() {
             return skipped;
+        }
+
+        /**
+         * @return how many remote clusters were using during the execution of the search request
+         *         If not set, returns -1, meaning 'unknown'.
+         */
+        public int getRemoteClusters() {
+            return remoteClusters;
+        }
+
+        /**
+         * @return whether this search was a cross cluster search done with ccsMinimizeRoundtrips=true
+         */
+        public boolean isCcsMinimizeRoundtrips() {
+            return ccsMinimizeRoundtrips;
         }
 
         @Override
@@ -544,6 +615,17 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         @Override
         public String toString() {
             return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
+        }
+
+        public String toStringExtended() {
+            return Strings.format(
+                "Clusters{total=%d, successful=%d, skipped=%d, remote=%d, ccsMinimizeRoundtrips=%s}",
+                total,
+                successful,
+                skipped,
+                remoteClusters,
+                ccsMinimizeRoundtrips
+            );
         }
     }
 

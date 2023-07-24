@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.transport.netty4;
 
+import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.ssl.SslHandler;
@@ -22,11 +24,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
@@ -66,6 +70,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final boolean remoteClusterPortEnabled;
     private final boolean remoteClusterServerSslEnabled;
     private final SslConfiguration remoteClusterClientSslConfiguration;
+    private final RemoteClusterClientBootstrapOptions remoteClusterClientBootstrapOptions;
 
     public SecurityNetty4Transport(
         final Settings settings,
@@ -104,6 +109,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         } else {
             this.remoteClusterClientSslConfiguration = null;
         }
+        this.remoteClusterClientBootstrapOptions = RemoteClusterClientBootstrapOptions.fromSettings(settings);
     }
 
     @Override
@@ -141,6 +147,21 @@ public class SecurityNetty4Transport extends Netty4Transport {
     @Override
     protected ChannelHandler getClientChannelInitializer(DiscoveryNode node, ConnectionProfile connectionProfile) {
         return new SecurityClientChannelInitializer(node, connectionProfile);
+    }
+
+    @Override
+    protected Bootstrap getClientBootstrap(ConnectionProfile connectionProfile) {
+        final Bootstrap bootstrap = super.getClientBootstrap(connectionProfile);
+        if (false == REMOTE_CLUSTER_PROFILE.equals(connectionProfile.getTransportProfile())
+            || remoteClusterClientBootstrapOptions.isEmpty()) {
+            return bootstrap;
+        }
+
+        logger.trace("reconfiguring client bootstrap for remote cluster client connection");
+        // Only client connections to a new RCS remote cluster can have transport profile of _remote_cluster
+        // All other client connections use the default transport profile regardless of the transport profile used on the server side.
+        remoteClusterClientBootstrapOptions.configure(bootstrap);
+        return bootstrap;
     }
 
     @Override
@@ -277,6 +298,165 @@ public class SecurityNetty4Transport extends Netty4Transport {
                 }
             });
             super.connect(ctx, remoteAddress, localAddress, connectPromise);
+        }
+    }
+
+    // This class captures the differences of client side TCP network settings between default and _remote_cluster transport profiles.
+    // A field will be null if there is no difference between associated settings of the two profiles. It has a non-null value only
+    // when the _remote_cluster profile has a different value from the default profile.
+    record RemoteClusterClientBootstrapOptions(
+        Boolean tcpNoDelay,
+        Boolean tcpKeepAlive,
+        Integer tcpKeepIdle,
+        Integer tcpKeepInterval,
+        Integer tcpKeepCount,
+        ByteSizeValue tcpSendBufferSize,
+        ByteSizeValue tcpReceiveBufferSize,
+        Boolean tcpReuseAddress
+    ) {
+
+        boolean isEmpty() {
+            return tcpNoDelay == null
+                && tcpKeepAlive == null
+                && tcpKeepIdle == null
+                && tcpKeepInterval == null
+                && tcpKeepCount == null
+                && tcpSendBufferSize == null
+                && tcpReceiveBufferSize == null
+                && tcpReuseAddress == null;
+        }
+
+        void configure(Bootstrap bootstrap) {
+            if (tcpNoDelay != null) {
+                bootstrap.option(ChannelOption.TCP_NODELAY, tcpNoDelay);
+            }
+
+            if (tcpKeepAlive != null) {
+                bootstrap.option(ChannelOption.SO_KEEPALIVE, tcpKeepAlive);
+                if (tcpKeepAlive) {
+                    // Note that Netty logs a warning if it can't set the option
+                    if (tcpKeepIdle != null) {
+                        if (tcpKeepIdle >= 0) {
+                            bootstrap.option(OPTION_TCP_KEEP_IDLE, tcpKeepIdle);
+                        } else {
+                            bootstrap.option(OPTION_TCP_KEEP_IDLE, null);
+                        }
+                    }
+                    if (tcpKeepInterval != null) {
+                        if (tcpKeepInterval >= 0) {
+                            bootstrap.option(OPTION_TCP_KEEP_INTERVAL, tcpKeepInterval);
+                        } else {
+                            bootstrap.option(OPTION_TCP_KEEP_INTERVAL, null);
+                        }
+                    }
+                    if (tcpKeepCount != null) {
+                        if (tcpKeepCount >= 0) {
+                            bootstrap.option(OPTION_TCP_KEEP_COUNT, tcpKeepCount);
+                        } else {
+                            bootstrap.option(OPTION_TCP_KEEP_COUNT, null);
+                        }
+                    }
+                } else {
+                    bootstrap.option(OPTION_TCP_KEEP_IDLE, null);
+                    bootstrap.option(OPTION_TCP_KEEP_INTERVAL, null);
+                    bootstrap.option(OPTION_TCP_KEEP_COUNT, null);
+                }
+            }
+
+            if (tcpSendBufferSize != null) {
+                if (tcpSendBufferSize.getBytes() > 0) {
+                    bootstrap.option(ChannelOption.SO_SNDBUF, Math.toIntExact(tcpSendBufferSize.getBytes()));
+                } else {
+                    bootstrap.option(ChannelOption.SO_SNDBUF, null);
+                }
+            }
+
+            if (tcpReceiveBufferSize != null) {
+                if (tcpReceiveBufferSize.getBytes() > 0) {
+                    bootstrap.option(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
+                } else {
+                    bootstrap.option(ChannelOption.SO_RCVBUF, null);
+                }
+            }
+
+            if (tcpReuseAddress != null) {
+                bootstrap.option(ChannelOption.SO_REUSEADDR, tcpReuseAddress);
+            }
+        }
+
+        static RemoteClusterClientBootstrapOptions fromSettings(Settings settings) {
+            Boolean tcpNoDelay = RemoteClusterPortSettings.TCP_NO_DELAY.get(settings);
+            if (tcpNoDelay == TransportSettings.TCP_NO_DELAY.get(settings)) {
+                tcpNoDelay = null;
+            }
+
+            // It is possible that both default and _remote_cluster enable keepAlive but have different
+            // values for either keepIdle, keepInterval or keepCount. In this case, we need have a
+            // non-null value for keepAlive even it is the same between default and _remote_cluster.
+            Boolean tcpKeepAlive = RemoteClusterPortSettings.TCP_KEEP_ALIVE.get(settings);
+            Integer tcpKeepIdle = RemoteClusterPortSettings.TCP_KEEP_IDLE.get(settings);
+            Integer tcpKeepInterval = RemoteClusterPortSettings.TCP_KEEP_INTERVAL.get(settings);
+            Integer tcpKeepCount = RemoteClusterPortSettings.TCP_KEEP_COUNT.get(settings);
+            final Boolean defaultTcpKeepAlive = TransportSettings.TCP_KEEP_ALIVE.get(settings);
+
+            if (tcpKeepAlive) {
+                if (defaultTcpKeepAlive) {
+                    // Both profiles have keepAlive enabled, we need to check whether any keepIdle, keepInterval, keepCount is different
+                    if (tcpKeepIdle.equals(TransportSettings.TCP_KEEP_IDLE.get(settings))) {
+                        tcpKeepIdle = null;
+                    }
+                    if (tcpKeepInterval.equals(TransportSettings.TCP_KEEP_INTERVAL.get(settings))) {
+                        tcpKeepInterval = null;
+                    }
+                    if (tcpKeepCount.equals(TransportSettings.TCP_KEEP_COUNT.get(settings))) {
+                        tcpKeepCount = null;
+                    }
+                    if (tcpKeepIdle == null && tcpKeepInterval == null && tcpKeepCount == null) {
+                        // If keepIdle, keepInterval, keepCount are all identical, keepAlive can be null as well.
+                        // That is no need to update anything keepXxx related
+                        tcpKeepAlive = null;
+                    }
+                }
+            } else {
+                if (false == defaultTcpKeepAlive) {
+                    tcpKeepAlive = null;
+                }
+                // _remote_cluster has keepAlive disabled, all other keepXxx has no reason to exist
+                tcpKeepIdle = null;
+                tcpKeepInterval = null;
+                tcpKeepCount = null;
+            }
+
+            assert (tcpKeepAlive == null && tcpKeepIdle == null && tcpKeepInterval == null && tcpKeepCount == null)
+                || (tcpKeepAlive == false && tcpKeepIdle == null && tcpKeepInterval == null && tcpKeepCount == null)
+                || (tcpKeepAlive && (tcpKeepIdle != null || tcpKeepInterval != null || tcpKeepCount != null))
+                : "keepAlive == true must be accompanied with either keepIdle, keepInterval or keepCount change";
+
+            ByteSizeValue tcpSendBufferSize = RemoteClusterPortSettings.TCP_SEND_BUFFER_SIZE.get(settings);
+            if (tcpSendBufferSize.equals(TransportSettings.TCP_SEND_BUFFER_SIZE.get(settings))) {
+                tcpSendBufferSize = null;
+            }
+
+            ByteSizeValue tcpReceiveBufferSize = RemoteClusterPortSettings.TCP_RECEIVE_BUFFER_SIZE.get(settings);
+            if (tcpReceiveBufferSize.equals(TransportSettings.TCP_RECEIVE_BUFFER_SIZE.get(settings))) {
+                tcpReceiveBufferSize = null;
+            }
+
+            Boolean tcpReuseAddress = RemoteClusterPortSettings.TCP_REUSE_ADDRESS.get(settings);
+            if (tcpReuseAddress == TransportSettings.TCP_REUSE_ADDRESS.get(settings)) {
+                tcpReuseAddress = null;
+            }
+
+            return new RemoteClusterClientBootstrapOptions(
+                tcpNoDelay,
+                tcpKeepAlive,
+                tcpKeepIdle,
+                tcpKeepInterval,
+                tcpKeepCount,
+                tcpSendBufferSize,
+                tcpReceiveBufferSize,
+                tcpReuseAddress
+            );
         }
     }
 }

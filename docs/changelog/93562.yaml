@@ -1,5 +1,0 @@
-pr: 93562
-summary: Fix bug when clipping Geometry collections in vector tiles
-area: Geo
-type: bug
-issues: []

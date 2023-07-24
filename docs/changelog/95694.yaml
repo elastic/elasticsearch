@@ -1,0 +1,5 @@
+pr: 95694
+summary: Add "_storage" internal user
+area: Security
+type: enhancement
+issues: []

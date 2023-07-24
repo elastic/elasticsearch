@@ -9,14 +9,14 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -24,6 +24,7 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
@@ -48,7 +49,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -272,7 +272,8 @@ public class PluginIntrospectorTests extends ESTestCase {
                 IndexNameExpressionResolver indexNameExpressionResolver,
                 Supplier<RepositoriesService> repositoriesServiceSupplier,
                 Tracer tracer,
-                AllocationService allocationService
+                AllocationService allocationService,
+                IndicesService indicesService
             ) {
                 return null;
             }
@@ -337,12 +338,7 @@ public class PluginIntrospectorTests extends ESTestCase {
                 return null;
             }
         }
-        class SubBazIngestPlugin extends BazIngestPlugin {
-            @Override
-            public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-                return null;
-            }
-        }
+        class SubBazIngestPlugin extends BazIngestPlugin {}
 
         assertThat(pluginIntrospector.overriddenMethods(BazIngestPlugin.class), contains("getProcessors"));
         assertThat(pluginIntrospector.overriddenMethods(SubBazIngestPlugin.class), contains("getProcessors"));
@@ -388,12 +384,13 @@ public class PluginIntrospectorTests extends ESTestCase {
     }
 
     public void testDeprecatedMethod() {
-        class JoinValidatorPlugin extends Plugin implements DiscoveryPlugin {
+        class TestClusterPlugin extends Plugin implements ClusterPlugin {
+            @SuppressWarnings("removal")
             @Override
-            public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
-                return null;
+            public Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
+                return Map.of();
             }
         }
-        assertThat(pluginIntrospector.deprecatedMethods(JoinValidatorPlugin.class), hasEntry("getJoinValidator", "DiscoveryPlugin"));
+        assertThat(pluginIntrospector.deprecatedMethods(TestClusterPlugin.class), hasEntry("getShardsAllocators", "ClusterPlugin"));
     }
 }

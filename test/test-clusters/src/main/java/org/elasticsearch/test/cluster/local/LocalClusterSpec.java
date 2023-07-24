@@ -83,6 +83,8 @@ public class LocalClusterSpec implements ClusterSpec {
         private final String keystorePassword;
         private final Map<String, Resource> extraConfigFiles;
         private final Map<String, String> systemProperties;
+        private final List<String> jvmArgs;
+        private final Map<String, String> secrets;
         private Version version;
 
         public LocalNodeSpec(
@@ -102,7 +104,9 @@ public class LocalClusterSpec implements ClusterSpec {
             Map<String, Resource> keystoreFiles,
             String keystorePassword,
             Map<String, Resource> extraConfigFiles,
-            Map<String, String> systemProperties
+            Map<String, String> systemProperties,
+            List<String> jvmArgs,
+            Map<String, String> secrets
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -121,6 +125,8 @@ public class LocalClusterSpec implements ClusterSpec {
             this.keystorePassword = keystorePassword;
             this.extraConfigFiles = extraConfigFiles;
             this.systemProperties = systemProperties;
+            this.jvmArgs = jvmArgs;
+            this.secrets = secrets;
         }
 
         void setVersion(Version version) {
@@ -179,12 +185,24 @@ public class LocalClusterSpec implements ClusterSpec {
             return systemProperties;
         }
 
+        public List<String> getJvmArgs() {
+            return jvmArgs;
+        }
+
+        public Map<String, String> getSecrets() {
+            return secrets;
+        }
+
         public boolean isSecurityEnabled() {
             return Boolean.parseBoolean(getSetting("xpack.security.enabled", getVersion().onOrAfter("8.0.0") ? "true" : "false"));
         }
 
         public boolean isMasterEligible() {
             return getSetting("node.roles", "master").contains("master");
+        }
+
+        public boolean hasRole(String role) {
+            return getSetting("node.roles", "[]").contains(role);
         }
 
         /**
@@ -287,7 +305,9 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.keystoreFiles,
                         n.keystorePassword,
                         n.extraConfigFiles,
-                        n.systemProperties
+                        n.systemProperties,
+                        n.jvmArgs,
+                        n.secrets
                     )
                 )
                 .toList();

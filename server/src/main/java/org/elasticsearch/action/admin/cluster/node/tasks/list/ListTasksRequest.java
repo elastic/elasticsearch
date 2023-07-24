@@ -14,9 +14,12 @@ import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.regex.Regex.simpleMatch;
@@ -119,4 +122,8 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         return this;
     }
 
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
 }

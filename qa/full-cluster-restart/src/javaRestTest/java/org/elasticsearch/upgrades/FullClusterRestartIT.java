@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.Compression;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -73,6 +75,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -958,9 +961,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
             assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
 
-            String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
-            String bwcLuceneVersion = getOldClusterVersion().luceneVersion.toString();
-            String minCompatibleBWCVersion = Version.CURRENT.minimumCompatibilityVersion().luceneVersion.toString();
+            var luceneVersion = IndexVersion.current().luceneVersion();
+            String currentLuceneVersion = luceneVersion.toString();
+            int currentLuceneVersionMajor = luceneVersion.major;
+            String bwcLuceneVersion = getOldClusterIndexVersion().luceneVersion().toString();
             if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
                 int numCurrentVersion = 0;
                 int numBwcVersion = 0;
@@ -972,19 +976,22 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                     if (false == line.startsWith("p")) {
                         continue;
                     }
-                    Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
+                    Matcher m = Pattern.compile("((\\d+)\\.\\d+\\.\\d+)$").matcher(line);
                     assertTrue(line, m.find());
                     String version = m.group(1);
+                    int major = Integer.parseInt(m.group(2));
                     if (currentLuceneVersion.equals(version)) {
                         numCurrentVersion++;
                     } else if (bwcLuceneVersion.equals(version)) {
                         numBwcVersion++;
-                    } else if (minCompatibleBWCVersion.equals(version) && minCompatibleBWCVersion.equals(bwcLuceneVersion) == false) {
-                        // Our upgrade path from 7.non-last always goes through 7.last, which depending on timing can create 7.last
-                        // index segment. We ignore those.
+                    } else if (major == currentLuceneVersionMajor - 1) {
+                        // we can read one lucene version back. The upgrade path might have created old segment versions.
+                        // that's ok, we just ignore them
                         continue;
                     } else {
-                        fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
+                        fail(
+                            "expected lucene version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line
+                        );
                     }
                 }
                 assertNotEquals(
@@ -1103,9 +1110,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
         client().performRequest(createSnapshot);
 
-        checkSnapshot("old_snap", count, getOldClusterVersion());
+        checkSnapshot("old_snap", count, getOldClusterVersion(), getOldClusterIndexVersion());
         if (false == isRunningAgainstOldCluster()) {
-            checkSnapshot("new_snap", count, Version.CURRENT);
+            checkSnapshot("new_snap", count, Version.CURRENT, IndexVersion.current());
         }
     }
 
@@ -1295,14 +1302,18 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     @SuppressWarnings("unchecked")
-    private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
+    private void checkSnapshot(String snapshotName, int count, Version tookOnVersion, IndexVersion tookOnIndexVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
         Map<String, Object> snapResponse = entityAsMap(client().performRequest(listSnapshotRequest));
 
         assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", snapResponse));
         assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", snapResponse));
-        assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", snapResponse));
+        // the format can change depending on the ES node version running & this test code running
+        assertThat(
+            XContentMapValues.extractValue("snapshots.version", snapResponse),
+            either(Matchers.<Object>equalTo(List.of(tookOnVersion.toString()))).or(equalTo(List.of(tookOnIndexVersion.toString())))
+        );
 
         // Remove the routing setting and template so we can test restoring them.
         Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
@@ -1501,9 +1512,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
      */
     public void testOperationBasedRecovery() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+            Settings.Builder settings = indexSettings(1, 1);
             if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
@@ -1741,9 +1750,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assumeTrue("soft deletes must be enabled on 8.0+", getOldClusterVersion().before(Version.V_8_0_0));
         final String snapshot = "snapshot-" + index;
         if (isRunningAgainstOldCluster()) {
-            final Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+            final Settings.Builder settings = indexSettings(1, 1);
             settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
             createIndex(index, settings.build());
             ensureGreen(index);
@@ -1801,10 +1808,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     public void testForbidDisableSoftDeletesOnRestore() throws Exception {
         final String snapshot = "snapshot-" + index;
         if (isRunningAgainstOldCluster()) {
-            final Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+            final Settings.Builder settings = indexSettings(1, 1).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
             createIndex(index, settings.build());
             ensureGreen(index);
             int numDocs = randomIntBetween(0, 100);

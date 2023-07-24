@@ -50,7 +50,7 @@ public class ForceMergeBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                ForceMergeResponse response = client().admin().indices().prepareForceMerge("test").execute().actionGet();
+                ForceMergeResponse response = indicesAdmin().prepareForceMerge("test").execute().actionGet();
                 assertNoFailures(response);
                 assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
             } finally {
@@ -62,7 +62,7 @@ public class ForceMergeBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                assertBlocked(client().admin().indices().prepareForceMerge("test"));
+                assertBlocked(indicesAdmin().prepareForceMerge("test"));
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
@@ -70,12 +70,12 @@ public class ForceMergeBlocksIT extends ESIntegTestCase {
 
         // Merging all indices is blocked when the cluster is read-only
         try {
-            ForceMergeResponse response = client().admin().indices().prepareForceMerge().execute().actionGet();
+            ForceMergeResponse response = indicesAdmin().prepareForceMerge().execute().actionGet();
             assertNoFailures(response);
             assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
             setClusterReadOnly(true);
-            assertBlocked(client().admin().indices().prepareForceMerge());
+            assertBlocked(indicesAdmin().prepareForceMerge());
         } finally {
             setClusterReadOnly(false);
         }

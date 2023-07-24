@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -90,29 +91,29 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             headerBlobCacheByteRange,
             footerBlobCacheByteRange
         );
-        this.cacheFile = cacheFile;
-    }
-
-    @Override
-    protected long getDefaultRangeSize() {
-        return directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize;
+        this.cacheFile = cacheFile.copy();
     }
 
     @Override
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
         final long position = getAbsolutePosition();
         final int length = b.remaining();
+        if (cacheFile.tryRead(b, position)) {
+            stats.addCachedBytesRead(length);
+            return;
+        }
         // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
         // accessing the byte buffer anymore that was passed to readWithoutBlobCache
         // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
         final ByteBufferReference byteBufferReference = new ByteBufferReference(b);
         logger.trace("readInternal: read [{}-{}] from [{}]", position, position + length, this);
         try {
-            final ByteRange startRangeToWrite = computeRange(position);
-            final ByteRange endRangeToWrite = computeRange(position + length - 1);
-            assert startRangeToWrite.end() <= endRangeToWrite.end() : startRangeToWrite + " vs " + endRangeToWrite;
-            final ByteRange rangeToWrite = startRangeToWrite.minEnvelope(endRangeToWrite);
-
+            final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
+                directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize,
+                position,
+                length,
+                fileInfo.length()
+            );
             assert rangeToWrite.start() <= position && position + length <= rangeToWrite.end()
                 : "[" + position + "-" + (position + length) + "] vs " + rangeToWrite;
             final ByteRange rangeToRead = ByteRange.of(position, position + length);
@@ -155,7 +156,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                     final long endTimeNanos = stats.currentTimeNanos();
                     stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
                 }
-            }, SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+            });
             assert bytesRead == length : bytesRead + " vs " + length;
             byteBufferReference.finish(bytesRead);
         } finally {

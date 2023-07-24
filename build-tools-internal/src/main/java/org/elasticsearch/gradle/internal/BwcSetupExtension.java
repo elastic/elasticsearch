@@ -9,8 +9,8 @@
 package org.elasticsearch.gradle.internal;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.LoggedExec;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Action;
@@ -74,12 +74,12 @@ public class BwcSetupExtension {
                 return getJavaHome(Integer.parseInt(minimumCompilerVersion));
             }));
 
-            if (BuildParams.isCi() && Os.isFamily(Os.FAMILY_WINDOWS) == false) {
+            if (BuildParams.isCi() && OS.current() != OS.WINDOWS) {
                 // TODO: Disabled for now until we can figure out why files are getting corrupted
                 // loggedExec.getEnvironment().put("GRADLE_RO_DEP_CACHE", System.getProperty("user.home") + "/gradle_ro_cache");
             }
 
-            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            if (OS.current() == OS.WINDOWS) {
                 loggedExec.getExecutable().set("cmd");
                 loggedExec.args("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
             } else {

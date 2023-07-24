@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -424,6 +425,48 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 .getThreshold(),
             0.0f
         );
+    }
+
+    public void testShardSizeDiscrepancyWithinIndex() {
+        var discoveryNodesBuilder = DiscoveryNodes.builder();
+        for (int node = 0; node < 3; node++) {
+            discoveryNodesBuilder.add(newNode("node-" + node));
+        }
+
+        var metadataBuilder = Metadata.builder();
+        var routingTableBuilder = RoutingTable.builder();
+
+        addIndex(metadataBuilder, routingTableBuilder, "testindex", Map.of("node-0", 1, "node-1", 1));
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder)
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+
+        var index = clusterState.routingTable().index("testindex").getIndex();
+
+        // Even if the two shards in this index vary massively in size, we must compute the balancing threshold to be high enough that
+        // we don't make pointless movements. 500GiB of difference is enough to demonstrate the bug.
+
+        var allocationService = createAllocationService(
+            Settings.EMPTY,
+            () -> new ClusterInfo(
+                Map.of(),
+                Map.of(),
+                Map.of(
+                    ClusterInfo.shardIdentifierFromRouting(new ShardId(index, 0), true),
+                    0L,
+                    ClusterInfo.shardIdentifierFromRouting(new ShardId(index, 1), true),
+                    ByteSizeUnit.GB.toBytes(500)
+                ),
+                Map.of(),
+                Map.of(),
+                Map.of()
+            )
+        );
+
+        assertSame(clusterState, reroute(allocationService, clusterState));
     }
 
     private Map<String, Integer> getTargetShardPerNodeCount(IndexRoutingTable indexRoutingTable) {

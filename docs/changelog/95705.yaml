@@ -1,0 +1,6 @@
+pr: 95705
+summary: Avoid stack overflow while parsing mapping
+area: Mapping
+type: bug
+issues:
+ - 52098

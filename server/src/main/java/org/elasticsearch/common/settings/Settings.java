@@ -78,6 +78,10 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
 
     public static final Settings EMPTY = new Settings(Map.of(), null);
 
+    public static final String FLAT_SETTINGS_PARAM = "flat_settings";
+
+    public static final MapParams FLAT_SETTINGS_TRUE = new MapParams(Map.of(FLAT_SETTINGS_PARAM, "true"));
+
     /** The raw settings from the full key to raw string value. */
     private final NavigableMap<String, Object> settings;
 
@@ -661,7 +665,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Settings settings = SettingsFilter.filterSettings(params, this);
-        if (params.paramAsBoolean("flat_settings", false) == false) {
+        if (params.paramAsBoolean(FLAT_SETTINGS_PARAM, false) == false) {
             toXContentFlat(builder, settings);
         } else {
             toXContent(builder, settings);
@@ -806,7 +810,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         }
     }
 
-    public static final Set<String> FORMAT_PARAMS = Set.of("settings_filter", "flat_settings");
+    public static final Set<String> FORMAT_PARAMS = Set.of("settings_filter", FLAT_SETTINGS_PARAM);
 
     /**
      * Returns {@code true} if this settings object contains no settings
@@ -1136,8 +1140,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         }
 
         private void processLegacyLists(Map<String, Object> map) {
-            String[] array = map.keySet().toArray(new String[map.size()]);
-            for (String key : array) {
+            for (String key : map.keySet().toArray(String[]::new)) {
                 if (key.endsWith(".0")) { // let's only look at the head of the list and convert in order starting there.
                     int counter = 0;
                     String prefix = key.substring(0, key.lastIndexOf('.'));
@@ -1530,7 +1533,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
 
     @Override
     public String toString() {
-        return Strings.toString(this, new MapParams(Collections.singletonMap("flat_settings", "true")));
+        return Strings.toString(this, FLAT_SETTINGS_TRUE);
     }
 
     private static String toString(Object o) {

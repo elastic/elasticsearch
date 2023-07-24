@@ -12,11 +12,11 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 final class ElasticServiceAccounts {
 
@@ -31,6 +31,7 @@ final class ElasticServiceAccounts {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         "search-*",
+                        ".search-acl-filter-*",
                         ".elastic-analytics-collections",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",
@@ -73,6 +74,7 @@ final class ElasticServiceAccounts {
                     )
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("profiling-*").privileges("read", "write", "auto_configure").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     // APM Server (and hence Fleet Server, which issues its API Keys) needs additional privileges
                     // for the non-sensitive "sampled traces" data stream:
@@ -81,6 +83,11 @@ final class ElasticServiceAccounts {
                     // - "read" privilege to search the documents
                     .indices("traces-apm.sampled-*")
                     .privileges("read", "monitor", "maintenance")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-secrets*")
+                    .privileges("read")
+                    .allowRestrictedIndices(true)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")
@@ -111,8 +118,7 @@ final class ElasticServiceAccounts {
         ReservedRolesStore.kibanaSystemRoleDescriptor(NAMESPACE + "/kibana")
     );
 
-    static final Map<String, ServiceAccount> ACCOUNTS = List.of(ENTERPRISE_SEARCH_ACCOUNT, FLEET_ACCOUNT, KIBANA_SYSTEM_ACCOUNT)
-        .stream()
+    static final Map<String, ServiceAccount> ACCOUNTS = Stream.of(ENTERPRISE_SEARCH_ACCOUNT, FLEET_ACCOUNT, KIBANA_SYSTEM_ACCOUNT)
         .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));
 
     private ElasticServiceAccounts() {}

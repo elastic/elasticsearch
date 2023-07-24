@@ -142,7 +142,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             listeners = null;
         }
         if (listenersToExecute != null) {
-            listenersToExecute.stream().map(Tuple::v2).forEach(listener -> executeListener(listener, () -> actionGet(0L)));
+            listenersToExecute.stream().map(Tuple::v2).forEach(listener -> executeListener(listener, this::actionResult));
         }
         assert invariant();
     }
@@ -171,7 +171,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             }
         }
         if (executeImmediate) {
-            executeListener(listener, completed ? () -> actionGet(0L) : () -> progressValue);
+            executeListener(listener, completed ? this::actionResult : () -> progressValue);
         }
         assert invariant();
     }

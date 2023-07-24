@@ -1,5 +1,0 @@
-pr: 93875
-summary: Fix `maxScore` calculation for kNN search
-area: Vector Search
-type: bug
-issues: []

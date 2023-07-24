@@ -8,32 +8,11 @@
 package org.elasticsearch.xpack.ql;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.core.Nullable;
 
-public final class TestNode {
-
-    private final String id;
-    private final Version version;
-    private final HttpHost publishAddress;
-
-    public TestNode(String id, Version version, HttpHost publishAddress) {
-        this.id = id;
-        this.version = version;
-        this.publishAddress = publishAddress;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public HttpHost getPublishAddress() {
-        return publishAddress;
-    }
-
-    public Version getVersion() {
-        return version;
-    }
-
+public record TestNode(String id, Version version, @Nullable TransportVersion transportVersion, HttpHost publishAddress) {
     @Override
     public String toString() {
         return "Node{" + "id='" + id + '\'' + ", version=" + version + '}';

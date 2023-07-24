@@ -90,7 +90,7 @@ public class DelayableWriteableTests extends ESTestCase {
         private final TransportVersion version;
 
         SneakOtherSideVersionOnWire() {
-            version = TransportVersion.CURRENT;
+            version = TransportVersion.current();
         }
 
         SneakOtherSideVersionOnWire(StreamInput in) throws IOException {
@@ -144,7 +144,7 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     public void testSerializesWithRemoteVersion() throws IOException {
-        TransportVersion remoteVersion = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        TransportVersion remoteVersion = TransportVersionUtils.randomCompatibleVersion(random());
         DelayableWriteable<SneakOtherSideVersionOnWire> original = DelayableWriteable.referencing(new SneakOtherSideVersionOnWire());
         assertThat(roundTrip(original, SneakOtherSideVersionOnWire::new, remoteVersion).expand().version, equalTo(remoteVersion));
     }
@@ -157,7 +157,7 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     private <T extends Writeable> void roundTripTestCase(DelayableWriteable<T> original, Writeable.Reader<T> reader) throws IOException {
-        DelayableWriteable<T> roundTripped = roundTrip(original, reader, TransportVersion.CURRENT);
+        DelayableWriteable<T> roundTripped = roundTrip(original, reader, TransportVersion.current());
         assertThat(roundTripped.expand(), equalTo(original.expand()));
     }
 
@@ -193,9 +193,10 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     private static TransportVersion randomOldVersion() {
-        return randomValueOtherThanMany(
-            TransportVersion.CURRENT::before,
-            () -> TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT)
+        return TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
     }
 }

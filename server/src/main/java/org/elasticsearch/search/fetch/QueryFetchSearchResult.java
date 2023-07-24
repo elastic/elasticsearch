@@ -10,6 +10,8 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -21,16 +23,29 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
+    private final RefCounted refCounted;
 
     public QueryFetchSearchResult(StreamInput in) throws IOException {
         super(in);
+        // These get a ref count of 1 when we create them, so we don't need to incRef here
         queryResult = new QuerySearchResult(in);
         fetchResult = new FetchSearchResult(in);
+        refCounted = AbstractRefCounted.of(() -> {
+            queryResult.decRef();
+            fetchResult.decRef();
+        });
     }
 
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
         this.queryResult = queryResult;
         this.fetchResult = fetchResult;
+        // We're acquiring a copy, we should incRef it
+        this.queryResult.incRef();
+        this.fetchResult.incRef();
+        refCounted = AbstractRefCounted.of(() -> {
+            queryResult.decRef();
+            fetchResult.decRef();
+        });
     }
 
     @Override
@@ -71,5 +86,25 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     public void writeTo(StreamOutput out) throws IOException {
         queryResult.writeTo(out);
         fetchResult.writeTo(out);
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 }

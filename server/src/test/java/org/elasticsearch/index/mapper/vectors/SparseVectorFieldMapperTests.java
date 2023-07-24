@@ -14,7 +14,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -22,6 +24,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -70,8 +73,8 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testSparseVectorWith7xIndex() throws Exception {
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version.id()).build();
 
         IndexService indexService = createIndex("index", settings);
         MapperService mapperService = indexService.mapperService();
@@ -110,8 +113,8 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
         );
 
-        MapperParsingException indexException = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException indexException = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(new SourceToParse("id", source, XContentType.JSON))
         );
         assertThat(indexException.getCause().getMessage(), containsString(SparseVectorFieldMapper.ERROR_MESSAGE));

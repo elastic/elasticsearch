@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -40,7 +41,6 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import java.util.Collections;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportResizeActionTests extends ESTestCase {
@@ -63,7 +63,7 @@ public class TransportResizeActionTests extends ESTestCase {
         routingTableBuilder.addAsNew(metadata.index(name));
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
@@ -377,13 +377,7 @@ public class TransportResizeActionTests extends ESTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(
-            nodeId,
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder(nodeId).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)).build();
     }
 
 }

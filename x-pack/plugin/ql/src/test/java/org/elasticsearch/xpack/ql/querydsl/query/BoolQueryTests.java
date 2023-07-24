@@ -19,6 +19,8 @@ import java.util.function.Function;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class BoolQueryTests extends ESTestCase {
     static BoolQuery randomBoolQuery(int depth) {
@@ -35,15 +37,15 @@ public class BoolQueryTests extends ESTestCase {
     }
 
     private static BoolQuery copy(BoolQuery query) {
-        return new BoolQuery(query.source(), query.isAnd(), query.left(), query.right());
+        return new BoolQuery(query.source(), query.isAnd(), query.queries());
     }
 
     private static BoolQuery mutate(BoolQuery query) {
         List<Function<BoolQuery, BoolQuery>> options = Arrays.asList(
-            q -> new BoolQuery(SourceTests.mutate(q.source()), q.isAnd(), q.left(), q.right()),
-            q -> new BoolQuery(q.source(), false == q.isAnd(), q.left(), q.right()),
-            q -> new BoolQuery(q.source(), q.isAnd(), randomValueOtherThan(q.left(), () -> NestedQueryTests.randomQuery(5)), q.right()),
-            q -> new BoolQuery(q.source(), q.isAnd(), q.left(), randomValueOtherThan(q.right(), () -> NestedQueryTests.randomQuery(5)))
+            q -> new BoolQuery(SourceTests.mutate(q.source()), q.isAnd(), left(q), right(q)),
+            q -> new BoolQuery(q.source(), false == q.isAnd(), left(q), right(q)),
+            q -> new BoolQuery(q.source(), q.isAnd(), randomValueOtherThan(left(q), () -> NestedQueryTests.randomQuery(5)), right(q)),
+            q -> new BoolQuery(q.source(), q.isAnd(), left(q), randomValueOtherThan(right(q), () -> NestedQueryTests.randomQuery(5)))
         );
         return randomFrom(options).apply(query);
     }
@@ -124,4 +126,19 @@ public class BoolQueryTests extends ESTestCase {
             ).toString()
         );
     }
+
+    public static Query left(BoolQuery bool) {
+        return indexOf(bool, 0);
+    }
+
+    public static Query right(BoolQuery bool) {
+        return indexOf(bool, 1);
+    }
+
+    private static Query indexOf(BoolQuery bool, int index) {
+        List<Query> queries = bool.queries();
+        assertThat(queries, hasSize(greaterThanOrEqualTo(2)));
+        return queries.get(index);
+    }
+
 }

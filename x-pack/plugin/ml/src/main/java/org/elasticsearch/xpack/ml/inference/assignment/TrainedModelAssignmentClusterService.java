@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AllocationReducer;
@@ -66,8 +67,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
 
-    private static final Version RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION = Version.V_8_3_0;
-    public static final Version DISTRIBUTED_MODEL_ALLOCATION_VERSION = Version.V_8_4_0;
+    private static final TransportVersion RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION = TransportVersion.V_8_3_0;
+    public static final TransportVersion DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION = TransportVersion.V_8_4_0;
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -145,7 +146,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
 
-        if (event.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (event.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             // we should not try to rebalance assignments while there may be nodes running on a version
             // prior to introducing distributed model allocation.
             // But we should remove routing to removed or shutting down nodes.
@@ -209,7 +210,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             event.nodesDelta().removedNodes().stream().map(DiscoveryNode::getId).forEach(removedOrShuttingDownNodeIds::add);
 
             TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(event.state());
-            for (TrainedModelAssignment assignment : metadata.modelAssignments().values()) {
+            for (TrainedModelAssignment assignment : metadata.allAssignments().values()) {
                 if (Sets.intersection(removedOrShuttingDownNodeIds, assignment.getNodeRoutingTable().keySet()).isEmpty() == false) {
                     return true;
                 }
@@ -223,19 +224,19 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         Set<String> assignableNodes = getAssignableNodes(currentState).stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
-        for (TrainedModelAssignment assignment : metadata.modelAssignments().values()) {
+        for (TrainedModelAssignment assignment : metadata.allAssignments().values()) {
             Set<String> routedNodeIdsToRemove = Sets.difference(assignment.getNodeRoutingTable().keySet(), assignableNodes);
             if (routedNodeIdsToRemove.isEmpty() == false) {
                 logger.debug(
                     () -> format(
                         "[%s] removing routing entries to nodes %s because they have been removed or are shutting down",
-                        assignment.getModelId(),
+                        assignment.getDeploymentId(),
                         routedNodeIdsToRemove
                     )
                 );
                 TrainedModelAssignment.Builder assignmentBuilder = TrainedModelAssignment.Builder.fromAssignment(assignment);
                 routedNodeIdsToRemove.forEach(assignmentBuilder::removeRoutingEntry);
-                builder.updateAssignment(assignment.getModelId(), assignmentBuilder.calculateAndSetAssignmentState());
+                builder.updateAssignment(assignment.getDeploymentId(), assignmentBuilder.calculateAndSetAssignmentState());
             }
         }
         return update(currentState, builder);
@@ -248,7 +249,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         logger.debug(
             () -> format(
                 "[%s] updating routing table entry for node [%s], update [%s]",
-                request.getModelId(),
+                request.getDeploymentId(),
                 request.getNodeId(),
                 request.getUpdate()
             )
@@ -275,13 +276,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         StartTrainedModelDeploymentAction.TaskParams params,
         ActionListener<TrainedModelAssignment> listener
     ) {
-        if (clusterService.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (clusterService.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot create new assignment for model [{}] while there are nodes older than version [{}]",
+                    "cannot create new assignment [{}] for model [{}] while cluster upgrade is in progress",
                     RestStatus.CONFLICT,
-                    params.getModelId(),
-                    DISTRIBUTED_MODEL_ALLOCATION_VERSION
+                    params.getDeploymentId(),
+                    params.getModelId()
                 )
             );
             return;
@@ -290,8 +291,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (MlMetadata.getMlMetadata(clusterService.state()).isResetMode()) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot create new assignment for model [{}] while feature reset is in progress.",
+                    "cannot create new assignment [{}] for model [{}] while feature reset is in progress.",
                     RestStatus.CONFLICT,
+                    params.getDeploymentId(),
                     params.getModelId()
                 )
             );
@@ -299,7 +301,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         }
 
         rebalanceAssignments(clusterService.state(), Optional.of(params), "model deployment started", ActionListener.wrap(newMetadata -> {
-            TrainedModelAssignment assignment = newMetadata.getModelAssignment(params.getModelId());
+            TrainedModelAssignment assignment = newMetadata.getDeploymentAssignment(params.getDeploymentId());
             if (assignment == null) {
                 // If we could not allocate the model anywhere then it is possible the assignment
                 // here is null. We should notify the listener of an empty assignment as the
@@ -329,11 +331,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         });
     }
 
-    public void removeModelAssignment(String modelId, ActionListener<AcknowledgedResponse> listener) {
-        submitUnbatchedTask("delete model assignment", new ClusterStateUpdateTask() {
+    public void removeModelAssignment(String deploymentId, ActionListener<AcknowledgedResponse> listener) {
+        submitUnbatchedTask("delete model deployment assignment", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return removeAssignment(currentState, modelId);
+                return removeAssignment(currentState, deploymentId);
             }
 
             @Override
@@ -351,10 +353,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     "model deployment stopped",
                     ActionListener.wrap(
                         metadataAfterRebalance -> logger.debug(
-                            () -> format("Successfully rebalanced model deployments after deployment for model [%s] was stopped", modelId)
+                            () -> format("Successfully rebalanced model deployments after deployment [%s] was stopped", deploymentId)
                         ),
                         e -> logger.error(
-                            format("Failed to rebalance model deployments after deployment for model [%s] was stopped", modelId),
+                            format("Failed to rebalance model deployments after deployment [%s] was stopped", deploymentId),
                             e
                         )
                     )
@@ -397,7 +399,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private static ClusterState forceUpdate(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
         logger.debug(() -> format("updated assignments: %s", modelAssignments.build()));
         Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-        if (currentState.getNodes().getMinNodeVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION)) {
+        if (currentState.getMinTransportVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION)) {
             metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
                 .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
         } else {
@@ -488,7 +490,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         );
         TrainedModelAssignmentMetadata.Builder rebalanced = rebalancer.rebalance();
         if (modelToAdd.isPresent()) {
-            checkModelIsFullyAllocatedIfScalingIsNotPossible(modelToAdd.get().getModelId(), rebalanced, nodes);
+            checkModelIsFullyAllocatedIfScalingIsNotPossible(modelToAdd.get().getDeploymentId(), rebalanced, nodes);
         }
         return rebalanced;
     }
@@ -556,20 +558,21 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             || (smallestMLNode.isPresent() && smallestMLNode.getAsLong() < maxMLNodeSize);
     }
 
-    public void updateNumberOfAllocations(String modelId, int numberOfAllocations, ActionListener<TrainedModelAssignment> listener) {
-        updateNumberOfAllocations(clusterService.state(), modelId, numberOfAllocations, listener);
+    public void updateNumberOfAllocations(String deploymentId, int numberOfAllocations, ActionListener<TrainedModelAssignment> listener) {
+        updateNumberOfAllocations(clusterService.state(), deploymentId, numberOfAllocations, listener);
     }
 
     private void updateNumberOfAllocations(
         ClusterState clusterState,
-        String modelId,
+        String deploymentId,
         int numberOfAllocations,
         ActionListener<TrainedModelAssignment> listener
     ) {
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(clusterState);
-        final TrainedModelAssignment existingAssignment = metadata.getModelAssignment(modelId);
+        final TrainedModelAssignment existingAssignment = metadata.getDeploymentAssignment(deploymentId);
         if (existingAssignment == null) {
-            throw new ResourceNotFoundException("deployment for model with id [{}] not found", modelId);
+            listener.onFailure(ExceptionsHelper.missingModelDeployment(deploymentId));
+            return;
         }
         if (existingAssignment.getTaskParams().getNumberOfAllocations() == numberOfAllocations) {
             listener.onResponse(existingAssignment);
@@ -585,13 +588,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             );
             return;
         }
-        if (clusterState.nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (clusterState.getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot update number_of_allocations for deployment with model id [{}] while there are nodes older than version [{}]",
+                    "cannot update number_of_allocations for deployment with model id [{}] while cluster upgrade is in progress.",
                     RestStatus.CONFLICT,
-                    modelId,
-                    DISTRIBUTED_MODEL_ALLOCATION_VERSION
+                    deploymentId
                 )
             );
             return;
@@ -608,8 +610,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         isUpdated = true;
                         return updatedState;
                     }
-                    logger.debug(() -> format("[%s] Retrying update as cluster state has been modified", modelId));
-                    updateNumberOfAllocations(currentState, modelId, numberOfAllocations, listener);
+                    logger.debug(() -> format("[%s] Retrying update as cluster state has been modified", deploymentId));
+                    updateNumberOfAllocations(currentState, deploymentId, numberOfAllocations, listener);
                     return currentState;
                 }
 
@@ -622,7 +624,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     if (isUpdated) {
                         TrainedModelAssignment updatedAssignment = TrainedModelAssignmentMetadata.fromState(newState)
-                            .getModelAssignment(modelId);
+                            .getDeploymentAssignment(deploymentId);
                         if (updatedAssignment.totalTargetAllocations() > existingAssignment.totalTargetAllocations()) {
                             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
                                 .execute(
@@ -667,13 +669,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 clusterState,
                 TrainedModelAssignmentMetadata.builder(clusterState)
                     .updateAssignment(
-                        assignment.getModelId(),
+                        assignment.getDeploymentId(),
                         TrainedModelAssignment.Builder.fromAssignment(assignment).setNumberOfAllocations(numberOfAllocations)
                     )
             );
             TrainedModelAssignmentMetadata.Builder rebalancedMetadata = rebalanceAssignments(updatedClusterState, Optional.empty());
             if (isScalingPossible(getAssignableNodes(clusterState)) == false
-                && rebalancedMetadata.getAssignment(assignment.getModelId()).build().totalTargetAllocations() < numberOfAllocations) {
+                && rebalancedMetadata.getAssignment(assignment.getDeploymentId()).build().totalTargetAllocations() < numberOfAllocations) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
                         "Could not update deployment because there are not enough resources to provide all requested allocations",
@@ -706,31 +708,31 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             updatedAssignment.setReason(null);
         }
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(clusterState);
-        builder.updateAssignment(assignment.getModelId(), updatedAssignment);
+        builder.updateAssignment(assignment.getDeploymentId(), updatedAssignment);
         listener.onResponse(update(clusterState, builder));
     }
 
-    static ClusterState setToStopping(ClusterState clusterState, String modelId, String reason) {
+    static ClusterState setToStopping(ClusterState clusterState, String deploymentId, String reason) {
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(clusterState);
-        final TrainedModelAssignment existingAssignment = metadata.getModelAssignment(modelId);
+        final TrainedModelAssignment existingAssignment = metadata.getDeploymentAssignment(deploymentId);
         if (existingAssignment == null) {
-            throw new ResourceNotFoundException("assignment for model with id [{}] not found", modelId);
+            throw new ResourceNotFoundException("assignment with id [{}] not found", deploymentId);
         }
         // If we are stopping, don't update anything
         if (existingAssignment.getAssignmentState().equals(AssignmentState.STOPPING)) {
             return clusterState;
         }
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(clusterState);
-        builder.getAssignment(modelId).stopAssignment(reason);
+        builder.getAssignment(deploymentId).stopAssignment(reason);
         return update(clusterState, builder);
     }
 
     static ClusterState updateModelRoutingTable(ClusterState currentState, UpdateTrainedModelAssignmentRoutingInfoAction.Request request) {
-        final String modelId = request.getModelId();
+        final String deploymentId = request.getDeploymentId();
         final String nodeId = request.getNodeId();
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
-        logger.trace(() -> format("[%s] [%s] current metadata before update %s", modelId, nodeId, Strings.toString(metadata)));
-        final TrainedModelAssignment existingAssignment = metadata.getModelAssignment(modelId);
+        logger.trace(() -> format("[%s] [%s] current metadata before update %s", deploymentId, nodeId, Strings.toString(metadata)));
+        final TrainedModelAssignment existingAssignment = metadata.getDeploymentAssignment(deploymentId);
         final TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
         // If state is stopped, this indicates the node process is closed, remove the node from the assignment
         if (request.getUpdate().getStateAndReason().isPresent()
@@ -738,42 +740,47 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             if (existingAssignment == null || existingAssignment.isRoutedToNode(nodeId) == false) {
                 return currentState;
             }
-            builder.getAssignment(modelId).removeRoutingEntry(nodeId).calculateAndSetAssignmentState();
+            builder.getAssignment(deploymentId).removeRoutingEntry(nodeId).calculateAndSetAssignmentState();
             return update(currentState, builder);
         }
 
         if (existingAssignment == null) {
-            throw new ResourceNotFoundException("assignment for model with id [{}] not found", modelId);
+            throw new ResourceNotFoundException("assignment with id [{}] not found", deploymentId);
         }
         // If we are stopping, don't update anything
         if (existingAssignment.getAssignmentState().equals(AssignmentState.STOPPING)) {
             logger.debug(
-                () -> format("[%s] requested update from node [%s] while stopping; update was [%s]", modelId, nodeId, request.getUpdate())
+                () -> format(
+                    "[%s] requested update from node [%s] while stopping; update was [%s]",
+                    deploymentId,
+                    nodeId,
+                    request.getUpdate()
+                )
             );
             return currentState;
         }
         if (existingAssignment.isRoutedToNode(nodeId) == false) {
-            throw new ResourceNotFoundException("assignment for model with id [{}]] is not routed to node [{}]", modelId, nodeId);
+            throw new ResourceNotFoundException("assignment with id [{}]] is not routed to node [{}]", deploymentId, nodeId);
         }
         RoutingInfo routingInfo = existingAssignment.getNodeRoutingTable().get(nodeId);
-        builder.getAssignment(modelId)
+        builder.getAssignment(deploymentId)
             .updateExistingRoutingEntry(nodeId, request.getUpdate().apply(routingInfo))
             .calculateAndSetAssignmentState();
 
         return update(currentState, builder);
     }
 
-    static ClusterState removeAssignment(ClusterState currentState, String modelId) {
+    static ClusterState removeAssignment(ClusterState currentState, String deploymentId) {
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
-        if (builder.hasModel(modelId) == false) {
-            throw new ResourceNotFoundException("assignment for model with id [{}] not found", modelId);
+        if (builder.hasModelDeployment(deploymentId) == false) {
+            throw new ResourceNotFoundException("assignment for deployment with id [{}] not found", deploymentId);
         }
-        logger.debug(() -> format("[%s] removing assignment", modelId));
-        return update(currentState, builder.removeAssignment(modelId));
+        logger.debug(() -> format("[%s] removing assignment", deploymentId));
+        return update(currentState, builder.removeAssignment(deploymentId));
     }
 
     static ClusterState removeAllAssignments(ClusterState currentState) {
-        if (TrainedModelAssignmentMetadata.fromState(currentState).modelAssignments().isEmpty()) {
+        if (TrainedModelAssignmentMetadata.fromState(currentState).allAssignments().isEmpty()) {
             return currentState;
         }
         return forceUpdate(currentState, TrainedModelAssignmentMetadata.Builder.empty());
@@ -782,7 +789,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     static Optional<String> detectReasonToRebalanceModels(final ClusterChangedEvent event) {
         // If there are no assignments created at all, there is nothing to update
         final TrainedModelAssignmentMetadata newMetadata = TrainedModelAssignmentMetadata.fromState(event.state());
-        if (newMetadata == null || newMetadata.modelAssignments().isEmpty()) {
+        if (newMetadata == null || newMetadata.allAssignments().isEmpty()) {
             return Optional.empty();
         }
 
@@ -885,7 +892,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     exitingShutDownNodes
                 )
             );
-            for (TrainedModelAssignment trainedModelAssignment : newMetadata.modelAssignments().values()) {
+            for (TrainedModelAssignment trainedModelAssignment : newMetadata.allAssignments().values()) {
                 if (trainedModelAssignment.getAssignmentState().equals(AssignmentState.STOPPING)) {
                     continue;
                 }
@@ -893,8 +900,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     if (trainedModelAssignment.isRoutedToNode(nodeId)) {
                         logger.debug(
                             () -> format(
-                                "should rebalance because model [%s] has allocations on shutting down node [%s]",
-                                trainedModelAssignment.getModelId(),
+                                "should rebalance because model deployment [%s] has allocations on shutting down node [%s]",
+                                trainedModelAssignment.getDeploymentId(),
                                 nodeId
                             )
                         );
@@ -906,8 +913,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     if (trainedModelAssignment.isRoutedToNode(nodeId) && shuttingDownNodes.contains(nodeId) == false) {
                         logger.debug(
                             () -> format(
-                                "should rebalance because model [%s] has allocations on removed node [%s]",
-                                trainedModelAssignment.getModelId(),
+                                "should rebalance because model deployment [%s] has allocations on removed node [%s]",
+                                trainedModelAssignment.getDeploymentId(),
                                 nodeId
                             )
                         );
@@ -930,9 +937,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
      * Returns the set of nodes that are currently shutting down
      */
     static Set<String> nodesShuttingDown(final ClusterState state) {
-        return NodesShutdownMetadata.getShutdowns(state)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(Map::keySet)
-            .orElse(Collections.emptySet());
+        return state.metadata().nodeShutdowns().getAllNodeIds();
     }
 }

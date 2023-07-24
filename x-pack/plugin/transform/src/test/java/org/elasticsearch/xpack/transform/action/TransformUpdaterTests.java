@@ -7,18 +7,23 @@
 
 package org.elasticsearch.xpack.transform.action;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -39,6 +44,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.action.TransformUpdater.UpdateResult;
+import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -51,17 +58,23 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+
 public class TransformUpdaterTests extends ESTestCase {
 
-    private static final String USER_NAME = "bob";
-    private final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, null) {
-        @Override
-        public User getUser() {
-            return new User(USER_NAME);
-        }
-    };
+    private static final String BOB = "bob";
+    private final SecurityContext bobSecurityContext = newSecurityContextFor(BOB);
+    private static final String JOHN = "john";
+    private final SecurityContext johnSecurityContext = newSecurityContextFor(JOHN);
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
     private Client client;
+    private ClusterService clusterService = mock(ClusterService.class);
+    private TransformAuditor auditor = new MockTransformAuditor(clusterService);
     private final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
 
     private static class MyMockClient extends NoOpClient {
@@ -78,7 +91,19 @@ public class TransformUpdaterTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             if (request instanceof HasPrivilegesRequest) {
-                listener.onResponse((Response) new HasPrivilegesResponse());
+                HasPrivilegesRequest hasPrivilegesRequest = (HasPrivilegesRequest) request;
+                switch (hasPrivilegesRequest.username()) {
+                    case BOB:
+                        // bob has all the privileges
+                        listener.onResponse((Response) new HasPrivilegesResponse());
+                        break;
+                    case JOHN:
+                        // john does not have required privileges
+                        listener.onFailure(new ElasticsearchSecurityException("missing privileges"));
+                        break;
+                    default:
+                        fail("Unexpected username = " + hasPrivilegesRequest.username());
+                }
             } else if (request instanceof ValidateTransformAction.Request) {
                 listener.onResponse((Response) new ValidateTransformAction.Response(Collections.emptyMap()));
             } else {
@@ -93,6 +118,8 @@ public class TransformUpdaterTests extends ESTestCase {
             client.close();
         }
         client = new MyMockClient(getTestName());
+        clusterService = mock(ClusterService.class);
+        auditor = new MockTransformAuditor(clusterService);
     }
 
     @After
@@ -116,12 +143,13 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
-                securityContext,
+                bobSecurityContext,
                 indexNameExpressionResolver,
                 ClusterState.EMPTY_STATE,
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 maxCompatibleConfig,
                 update,
                 null, // seqNoPrimaryTermAndIndex
@@ -134,6 +162,7 @@ public class TransformUpdaterTests extends ESTestCase {
             updateResult -> {
                 assertEquals(UpdateResult.Status.NONE, updateResult.getStatus());
                 assertEquals(maxCompatibleConfig, updateResult.getConfig());
+                assertNull(updateResult.getAuthState());
             }
         );
         assertConfiguration(listener -> transformConfigManager.getTransformConfiguration(maxCompatibleConfig.getId(), listener), config -> {
@@ -149,12 +178,13 @@ public class TransformUpdaterTests extends ESTestCase {
 
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
-                securityContext,
+                bobSecurityContext,
                 indexNameExpressionResolver,
                 ClusterState.EMPTY_STATE,
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 minCompatibleConfig,
                 update,
                 null, // seqNoPrimaryTermAndIndex
@@ -167,6 +197,7 @@ public class TransformUpdaterTests extends ESTestCase {
             updateResult -> {
                 assertEquals(UpdateResult.Status.NONE, updateResult.getStatus());
                 assertEquals(minCompatibleConfig, updateResult.getConfig());
+                assertNull(updateResult.getAuthState());
             }
         );
         assertConfiguration(listener -> transformConfigManager.getTransformConfiguration(minCompatibleConfig.getId(), listener), config -> {
@@ -207,7 +238,8 @@ public class TransformUpdaterTests extends ESTestCase {
                 null, // reason
                 null, // progress
                 null, // node attributes
-                false // shouldStopAtNextCheckpoint
+                false,// shouldStopAtNextCheckpoint
+                null // auth state
             ),
             TransformIndexerStatsTests.randomStats()
         );
@@ -218,12 +250,13 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
-                securityContext,
+                bobSecurityContext,
                 indexNameExpressionResolver,
                 ClusterState.EMPTY_STATE,
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 oldConfig,
                 update,
                 null, // seqNoPrimaryTermAndIndex
@@ -236,6 +269,7 @@ public class TransformUpdaterTests extends ESTestCase {
             updateResult -> {
                 assertEquals(UpdateResult.Status.UPDATED, updateResult.getStatus());
                 assertNotEquals(oldConfig, updateResult.getConfig());
+                assertNull(updateResult.getAuthState());
             }
         );
         assertConfiguration(listener -> transformConfigManager.getTransformConfiguration(oldConfig.getId(), listener), config -> {
@@ -283,12 +317,13 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
-                securityContext,
+                bobSecurityContext,
                 indexNameExpressionResolver,
                 ClusterState.EMPTY_STATE,
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 oldConfigForDryRunUpdate,
                 update,
                 null, // seqNoPrimaryTermAndIndex
@@ -302,6 +337,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 assertEquals(UpdateResult.Status.NEEDS_UPDATE, updateResult.getStatus());
                 assertNotEquals(oldConfigForDryRunUpdate, updateResult.getConfig());
                 assertEquals(Version.CURRENT, updateResult.getConfig().getVersion());
+                assertNull(updateResult.getAuthState());
             }
         );
         assertConfiguration(
@@ -310,6 +346,118 @@ public class TransformUpdaterTests extends ESTestCase {
                 assertNotNull(config);
                 assertEquals(oldConfigForDryRunUpdate, config);
             }
+        );
+    }
+
+    public void testTransformUpdateCheckAccessSuccess() throws InterruptedException {
+        InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
+
+        TransformConfig oldConfig = TransformConfigTests.randomTransformConfig(
+            randomAlphaOfLengthBetween(1, 10),
+            VersionUtils.randomVersionBetween(
+                random(),
+                Version.V_7_2_0,
+                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
+            )
+        );
+        transformConfigManager.putOldTransformConfiguration(oldConfig, ActionListener.noop());
+
+        assertUpdate(
+            listener -> TransformUpdater.updateTransform(
+                bobSecurityContext,
+                indexNameExpressionResolver,
+                ClusterState.EMPTY_STATE,
+                settings,
+                client,
+                transformConfigManager,
+                auditor,
+                oldConfig,
+                TransformConfigUpdate.EMPTY,
+                null, // seqNoPrimaryTermAndIndex
+                false,
+                false,
+                true,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                listener
+            ),
+            updateResult -> {
+                assertThat(updateResult.getStatus(), is(equalTo(UpdateResult.Status.UPDATED)));
+                assertThat(updateResult.getConfig(), is(not(equalTo(oldConfig))));
+                assertThat(updateResult.getConfig().getVersion(), is(equalTo(Version.CURRENT)));
+                assertThat(updateResult.getAuthState(), is(notNullValue()));
+                assertThat(updateResult.getAuthState().getStatus(), is(equalTo(HealthStatus.GREEN)));
+                assertThat(updateResult.getAuthState().getLastAuthError(), is(nullValue()));
+            }
+        );
+    }
+
+    public void testTransformUpdateCheckAccessFailureDeferValidation() throws InterruptedException {
+        InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
+
+        TransformConfig oldConfig = TransformConfigTests.randomTransformConfig(
+            randomAlphaOfLengthBetween(1, 10),
+            VersionUtils.randomVersionBetween(
+                random(),
+                Version.V_7_2_0,
+                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
+            )
+        );
+        transformConfigManager.putOldTransformConfiguration(oldConfig, ActionListener.noop());
+
+        assertUpdate(
+            listener -> TransformUpdater.updateTransform(
+                johnSecurityContext,
+                indexNameExpressionResolver,
+                ClusterState.EMPTY_STATE,
+                settings,
+                client,
+                transformConfigManager,
+                auditor,
+                oldConfig,
+                TransformConfigUpdate.EMPTY,
+                null, // seqNoPrimaryTermAndIndex
+                true,
+                false,
+                true,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                listener
+            ),
+            updateResult -> {
+                assertThat(updateResult.getStatus(), is(equalTo(UpdateResult.Status.UPDATED)));
+                assertThat(updateResult.getConfig(), is(not(equalTo(oldConfig))));
+                assertThat(updateResult.getConfig().getVersion(), is(equalTo(Version.CURRENT)));
+                assertThat(updateResult.getAuthState(), is(notNullValue()));
+                assertThat(updateResult.getAuthState().getStatus(), is(equalTo(HealthStatus.RED)));
+                assertThat(updateResult.getAuthState().getLastAuthError(), is(equalTo("missing privileges")));
+            }
+        );
+    }
+
+    public void testTransformUpdateCheckAccessFailureNoDeferValidation() {
+        InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
+
+        TransformConfig oldConfig = TransformConfigTests.randomTransformConfig();
+        transformConfigManager.putOldTransformConfiguration(oldConfig, ActionListener.noop());
+
+        TransformUpdater.updateTransform(
+            johnSecurityContext,
+            indexNameExpressionResolver,
+            ClusterState.EMPTY_STATE,
+            settings,
+            client,
+            transformConfigManager,
+            auditor,
+            oldConfig,
+            TransformConfigUpdate.EMPTY,
+            null, // seqNoPrimaryTermAndIndex
+            false,
+            false,
+            true,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+            ActionListener.wrap(
+                r -> fail("Should fail due to missing privileges"),
+                e -> assertThat(e.getMessage(), is(equalTo("missing privileges")))
+            )
         );
     }
 
@@ -341,12 +489,21 @@ public class TransformUpdaterTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
-        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(r -> {
             assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
             furtherTests.accept(r);
-        }, e -> { fail("got unexpected exception: " + e); }), latch);
+        }), latch);
 
         function.accept(listener);
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
+    }
+
+    private static SecurityContext newSecurityContextFor(String username) {
+        return new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY)) {
+            @Override
+            public User getUser() {
+                return new User(username);
+            }
+        };
     }
 }

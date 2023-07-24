@@ -10,7 +10,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -157,12 +156,12 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         }
 
         public static Response fromTaskAndState(String datafeedId, RunningState runningState) {
-            return new Response(MapBuilder.<String, RunningState>newMapBuilder().put(datafeedId, runningState).map());
+            return new Response(Map.of(datafeedId, runningState));
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            datafeedRunningState = in.readMap(StreamInput::readString, RunningState::new);
+            datafeedRunningState = in.readMap(RunningState::new);
         }
 
         public Response(Map<String, RunningState> runtimeStateMap) {

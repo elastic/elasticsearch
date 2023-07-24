@@ -43,12 +43,33 @@ setup:
              double_field: 151.0
              string_field: foo
 
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              other_field:
+                type: keyword
+
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_2
+              _id:    "1"
+          - other_field: "other value"
 ---
 "Basic test":
 
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           aggs:
             distinct_int:
@@ -70,6 +91,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           aggs:
             distinct_int:
@@ -97,6 +119,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           size: 0
           aggs:
@@ -122,6 +145,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           query:
             constant_score:
@@ -153,6 +177,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           aggs:
             distinct_missing:
@@ -170,6 +195,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           aggs:
             distinct_missing:
@@ -186,6 +212,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           aggs:
             distinct_missing:
@@ -206,6 +233,7 @@ setup:
       catch: /\[precisionThreshold\] must be greater than or equal to 0. Found \[-1\] in \[distinct_int\]/
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           aggs:
             distinct_int:
@@ -220,6 +248,7 @@ setup:
       reason: introduced in 7.10.0
   - do:
       search:
+        index: test_1
         body:
           profile: true
           size: 0
@@ -246,6 +275,7 @@ setup:
       reason: introduced in 7.10.0
   - do:
       search:
+        index: test_1
         body:
           profile: true
           size: 0
@@ -272,6 +302,7 @@ setup:
       reason: introduced in 7.10.0
   - do:
       search:
+        index: test_1
         body:
           profile: true
           size: 0
@@ -293,6 +324,7 @@ setup:
       reason: execution hints introduced in 8.4.0
   - do:
       search:
+        index: test_1
         body:
           profile: true
           size: 0
@@ -315,6 +347,7 @@ setup:
       reason: execution hints introduced in 8.4.0
   - do:
       search:
+        index: test_1
         body:
           profile: true
           size: 0
@@ -337,6 +370,7 @@ setup:
       reason: execution hints introduced in 8.4.0
   - do:
       search:
+        index: test_1
         body:
           profile: true
           size: 0
@@ -359,6 +393,7 @@ setup:
       reason: execution hints introduced in 8.4.0
   - do:
       search:
+        index: test_1
         body:
           profile: true
           size: 0
@@ -384,6 +419,7 @@ setup:
       reason: execution hints introduced in 8.4.0
   - do:
       search:
+        index: test_1
         body:
           profile: true
           size: 0
@@ -410,6 +446,7 @@ setup:
   - do:
       catch: /Invalid execution mode for cardinality aggregation/
       search:
+        index: test_1
         body:
           profile: true
           size: 0
@@ -418,3 +455,38 @@ setup:
               cardinality:
                 field: string_field
                 execution_hint: bogus
+
+---
+"Partially unmapped":
+
+  - do:
+      search:
+        index: test_1,test_2
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            distinct_int:
+              cardinality:
+                field: int_field
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { aggregations.distinct_int.value: 4 }
+
+---
+"Partially unmapped with missing":
+
+  - do:
+      search:
+        index: test_1,test_2
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            distinct_int:
+              cardinality:
+                field: int_field
+                missing: 100000
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { aggregations.distinct_int.value: 5 }

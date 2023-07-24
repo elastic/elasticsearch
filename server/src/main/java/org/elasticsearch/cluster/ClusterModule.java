@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
@@ -28,8 +29,8 @@ import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
@@ -88,7 +89,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -103,7 +103,8 @@ public class ClusterModule extends AbstractModule {
         "cluster.routing.allocation.type",
         DESIRED_BALANCE_ALLOCATOR,
         Function.identity(),
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
 
     private final ClusterService clusterService;
@@ -175,8 +176,8 @@ public class ClusterModule extends AbstractModule {
         };
     }
 
-    private ClusterState reconcile(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationConsumer) {
-        return allocationService.executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationConsumer);
+    private ClusterState reconcile(ClusterState clusterState, RerouteStrategy rerouteStrategy) {
+        return allocationService.executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", rerouteStrategy);
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -395,6 +396,7 @@ public class ClusterModule extends AbstractModule {
         );
 
         for (ClusterPlugin plugin : clusterPlugins) {
+            // noinspection removal
             plugin.getShardsAllocators(settings, clusterSettings).forEach((k, v) -> {
                 if (allocators.put(k, v) != null) {
                     throw new IllegalArgumentException("ShardsAllocator [" + k + "] already defined");
@@ -402,6 +404,7 @@ public class ClusterModule extends AbstractModule {
             });
         }
         String allocatorName = SHARDS_ALLOCATOR_TYPE_SETTING.get(settings);
+        assert Version.CURRENT.major == Version.V_7_17_0.major + 1; // in v9 there is only one allocator
         Supplier<ShardsAllocator> allocatorSupplier = allocators.get(allocatorName);
         if (allocatorSupplier == null) {
             throw new IllegalArgumentException("Unknown ShardsAllocator [" + allocatorName + "]");

@@ -1,6 +1,0 @@
-pr: 93692
-summary: "[Profiling] Ensure responses are only sent once"
-area: Search
-type: bug
-issues:
- - 93691

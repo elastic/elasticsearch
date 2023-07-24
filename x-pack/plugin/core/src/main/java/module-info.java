@@ -20,9 +20,12 @@ module org.elasticsearch.xcore {
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
     requires unboundid.ldapsdk;
+    requires org.elasticsearch.tdigest;
+    requires org.elasticsearch.xcore.templates;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
+    exports org.elasticsearch.license.internal to org.elasticsearch.internal.license;
     exports org.elasticsearch.protocol.xpack.common;
     exports org.elasticsearch.protocol.xpack.frozen;
     exports org.elasticsearch.protocol.xpack.graph;
@@ -39,6 +42,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.aggregatemetric;
     exports org.elasticsearch.xpack.core.analytics.action;
     exports org.elasticsearch.xpack.core.analytics;
+    exports org.elasticsearch.xpack.core.application;
     exports org.elasticsearch.xpack.core.archive;
     exports org.elasticsearch.xpack.core.async;
     exports org.elasticsearch.xpack.core.ccr.action;
@@ -68,6 +72,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.logstash;
     exports org.elasticsearch.xpack.core.ml.action;
     exports org.elasticsearch.xpack.core.ml.annotations;
+    exports org.elasticsearch.xpack.core.ml.autoscaling;
     exports org.elasticsearch.xpack.core.ml.calendars;
     exports org.elasticsearch.xpack.core.ml.datafeed.extractor;
     exports org.elasticsearch.xpack.core.ml.datafeed;
@@ -106,6 +111,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.job.results;
     exports org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
     exports org.elasticsearch.xpack.core.ml.notifications;
+    exports org.elasticsearch.xpack.core.ml.packageloader.action;
     exports org.elasticsearch.xpack.core.ml.process.writer;
     exports org.elasticsearch.xpack.core.ml.stats;
     exports org.elasticsearch.xpack.core.ml.utils.time;
@@ -151,10 +157,10 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.security.authz.accesscontrol;
     exports org.elasticsearch.xpack.core.security.authz.permission;
     exports org.elasticsearch.xpack.core.security.authz.privilege;
+    exports org.elasticsearch.xpack.core.security.authz.restriction;
     exports org.elasticsearch.xpack.core.security.authz.store;
     exports org.elasticsearch.xpack.core.security.authz.support;
     exports org.elasticsearch.xpack.core.security.authz;
-    exports org.elasticsearch.xpack.core.security.index;
     exports org.elasticsearch.xpack.core.security.support;
     exports org.elasticsearch.xpack.core.security.user;
     exports org.elasticsearch.xpack.core.security.xcontent;

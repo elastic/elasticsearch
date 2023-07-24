@@ -82,6 +82,11 @@ of official GA features.
 default configuration. Synthetic `_source` cannot be used together with
 <<ignore-malformed,`ignore_malformed`>> or <<copy-to,`copy_to`>>.
 
+NOTE: To save space, zero-count buckets are not stored in the histogram doc values.
+As a result, when indexing a histogram field in an index with synthetic source enabled,
+indexing a histogram including zero-count buckets will result in missing buckets when
+fetching back the histogram.
+
 [[histogram-ex]]
 ==== Examples
 

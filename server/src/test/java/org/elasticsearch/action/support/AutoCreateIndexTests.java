@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
@@ -318,15 +318,17 @@ public class AutoCreateIndexTests extends ESTestCase {
         for (String index : indices) {
             metadata.put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1));
         }
-        return ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .build();
+        return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
     }
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
         SystemIndices systemIndices = new SystemIndices(
             List.of(
-                new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME + "*", "")))
+                new SystemIndices.Feature(
+                    "plugin",
+                    "test feature",
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(TEST_SYSTEM_INDEX_NAME + "*", ""))
+                )
             )
         );
         return new AutoCreateIndex(

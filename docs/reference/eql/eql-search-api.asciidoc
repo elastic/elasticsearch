@@ -73,7 +73,7 @@ See <<run-eql-search-across-clusters>>.
 (Optional, Boolean)
 +
 NOTE: This parameter's behavior differs from the `allow_no_indices` parameter
-used in other <<multi-index,multi-target APIs>>.
+used in other <<api-multi-index,multi-target APIs>>.
 +
 If `false`, the request returns an error if any wildcard pattern, alias, or
 `_all` value targets only missing or closed indices. This behavior applies even

@@ -47,7 +47,6 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ZeroTermsQueryOption;
-import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -490,7 +489,8 @@ public class QueryStringQueryParser extends QueryParser {
                 getFuzzyPrefixLength(),
                 fuzzyMaxExpansions,
                 fuzzyTranspositions,
-                context
+                context,
+                null
             );
         } catch (RuntimeException e) {
             if (lenient) {
@@ -503,9 +503,9 @@ public class QueryStringQueryParser extends QueryParser {
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         int numEdits = Fuzziness.fromEdits((int) minimumSimilarity).asDistance(term.text());
-        FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions);
-        QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
-        return query;
+        return fuzzyRewriteMethod == null
+            ? new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions)
+            : new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions, fuzzyRewriteMethod);
     }
 
     @Override

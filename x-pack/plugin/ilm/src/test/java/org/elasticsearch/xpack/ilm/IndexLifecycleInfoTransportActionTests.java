@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
@@ -93,7 +94,13 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(policies, indexPolicies);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
-        var usageAction = new IndexLifecycleUsageTransportAction(mock(TransportService.class), null, null, mock(ActionFilters.class), null);
+        var usageAction = new IndexLifecycleUsageTransportAction(
+            mock(TransportService.class),
+            null,
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            null
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, clusterState, future);
         IndexLifecycleFeatureSetUsage ilmUsage = (IndexLifecycleFeatureSetUsage) future.get().getUsage();
@@ -116,12 +123,7 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 
         Metadata.Builder metadata = Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata);
         indexPolicies.forEach((indexName, policyName) -> {
-            Settings indexSettings = Settings.builder()
-                .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build();
+            Settings indexSettings = indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, policyName).build();
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(indexSettings);
             metadata.put(indexMetadata);
         });

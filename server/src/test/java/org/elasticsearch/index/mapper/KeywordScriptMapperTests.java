@@ -14,6 +14,7 @@ import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -72,22 +73,22 @@ public class KeywordScriptMapperTests extends MapperScriptTestCase<StringFieldSc
     }
 
     @Override
-    protected void assertMultipleValues(IndexableField[] fields) {
-        assertEquals(2, fields.length);
-        assertEquals("indexed,omitNorms,indexOptions=DOCS,docValuesType=SORTED_SET<field:[76 61 6c 75 65 31]>", fields[0].toString());
-        assertEquals("indexed,omitNorms,indexOptions=DOCS,docValuesType=SORTED_SET<field:[76 61 6c 75 65 32]>", fields[1].toString());
+    protected void assertMultipleValues(List<IndexableField> fields) {
+        assertEquals(2, fields.size());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS,docValuesType=SORTED_SET<field:[76 61 6c 75 65 31]>", fields.get(0).toString());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS,docValuesType=SORTED_SET<field:[76 61 6c 75 65 32]>", fields.get(1).toString());
     }
 
     @Override
-    protected void assertDocValuesDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:[76 61 6c 75 65]>", fields[0].toString());
+    protected void assertDocValuesDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:[76 61 6c 75 65]>", fields.get(0).toString());
     }
 
     @Override
-    protected void assertIndexDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("docValuesType=SORTED_SET<field:[76 61 6c 75 65]>", fields[0].toString());
+    protected void assertIndexDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("docValuesType=SORTED_SET<field:[76 61 6c 75 65]>", fields.get(0).toString());
     }
 
     @Override
@@ -115,7 +116,7 @@ public class KeywordScriptMapperTests extends MapperScriptTestCase<StringFieldSc
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> {}));
-        IndexableField[] letterFields = doc.rootDoc().getFields("letters");
-        assertEquals(8, letterFields.length);
+        List<IndexableField> letterFields = doc.rootDoc().getFields("letters");
+        assertEquals(8, letterFields.size());
     }
 }

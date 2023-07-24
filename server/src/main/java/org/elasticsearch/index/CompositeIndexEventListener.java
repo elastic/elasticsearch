@@ -256,7 +256,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 nextListener.beforeIndexShardRecovery(indexShard, indexSettings, future);
                 if (future.isDone()) {
                     // common case, not actually async, so just check for an exception and continue on the same thread
-                    future.get();
+                    future.result();
                     continue;
                 }
             } catch (Exception e) {

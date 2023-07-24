@@ -165,11 +165,11 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
@@ -198,10 +198,9 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .get();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+        ).get();
 
         var reservedState = clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
 
@@ -220,7 +219,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
             "java.lang.IllegalArgumentException: Failed to process request "
                 + "[org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest/unset] "
                 + "with errors: [[indices.recovery.max_bytes_per_sec] set as read-only by [file_settings]]",
-            expectThrows(ExecutionException.class, () -> client().admin().cluster().updateSettings(req).get()).getMessage()
+            expectThrows(ExecutionException.class, () -> clusterAdmin().updateSettings(req).get()).getMessage()
         );
 
         assertTrue(
@@ -256,7 +255,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> create snapshot manually");
         var request = new CreateSnapshotRequest("repo", "file-snap").waitForCompletion(true);
-        var response = admin().cluster().createSnapshot(request).get();
+        var response = clusterAdmin().createSnapshot(request).get();
         RestStatus status = response.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
@@ -281,7 +280,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         // Cancel/delete the snapshot
         try {
-            client().admin().cluster().prepareDeleteSnapshot(REPO, snapshotName).get();
+            clusterAdmin().prepareDeleteSnapshot(REPO, snapshotName).get();
         } catch (SnapshotMissingException e) {
             // ignore
         }
@@ -313,10 +312,9 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .actionGet();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+        ).actionGet();
 
         assertThat(clusterStateResponse.getState().metadata().persistentSettings().get("search.allow_expensive_queries"), nullValue());
 
@@ -338,11 +336,8 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
                     .contains("search.allow_expensive_queries") == false
         );
 
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("search.allow_expensive_queries", "false")
-        );
         // This should succeed, nothing was reserved
-        client().admin().cluster().updateSettings(req).get();
+        updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", "false"));
         // This will fail because repo-new isn't there, not because we can't write test-snapshots-err, meaning we were allowed to
         // make the request
         assertEquals(

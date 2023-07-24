@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -47,7 +48,7 @@ public final class ClientHelper {
     );
 
     public static void assertNoAuthorizationHeader(Map<String, String> headers) {
-        if (org.elasticsearch.Assertions.ENABLED) {
+        if (Assertions.ENABLED) {
             for (String header : headers.keySet()) {
                 if (authorizationHeaderPattern.matcher(header).find()) {
                     assert false : "headers contain \"Authorization\"";
@@ -93,7 +94,7 @@ public final class ClientHelper {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(threadContext.getHeaders()),
             key -> new AuthenticationContextSerializer(key).readFromContext(threadContext),
-            clusterState.nodes().getMinNodeVersion().transportVersion // TODO revisit this once node's version is refactored
+            clusterState.getMinTransportVersion()
         );
     }
 
@@ -109,7 +110,7 @@ public final class ClientHelper {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(headers),
             authenticationReader,
-            clusterState.nodes().getMinNodeVersion().transportVersion // TODO revisit this once node's version is refactored
+            clusterState.getMinTransportVersion()
         );
     }
 
@@ -185,10 +186,12 @@ public final class ClientHelper {
     public static final String TRANSFORM_ORIGIN = "transform";
     public static final String ASYNC_SEARCH_ORIGIN = "async_search";
     public static final String IDP_ORIGIN = "idp";
+    public static final String PROFILING_ORIGIN = "profiling";
     public static final String STACK_ORIGIN = "stack";
     public static final String SEARCHABLE_SNAPSHOTS_ORIGIN = "searchable_snapshots";
     public static final String LOGSTASH_MANAGEMENT_ORIGIN = "logstash_management";
     public static final String FLEET_ORIGIN = "fleet";
+    public static final String ENT_SEARCH_ORIGIN = "enterprise_search";
 
     private ClientHelper() {}
 

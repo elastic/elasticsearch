@@ -177,7 +177,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         request.setIndices(new String[] { indexName });
         var response = followerClient().execute(FollowStatsAction.INSTANCE, request).actionGet();
         return response.getStatsResponses().stream().map(r -> r.status().getFatalException()).filter(Objects::nonNull).anyMatch(e -> {
-            if (e.getCause()instanceof IllegalStateException ise) {
+            if (e.getCause() instanceof IllegalStateException ise) {
                 return ise.getMessage().contains("Unable to open any connections to remote cluster");
             }
             return false;

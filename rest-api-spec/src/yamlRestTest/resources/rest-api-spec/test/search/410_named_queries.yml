@@ -1,0 +1,96 @@
+named_queries:
+    - skip:
+          version: " - 8.7.99"
+          reason: introduced in 8.8.0
+
+    - do:
+          bulk:
+              refresh: true
+              body:
+                  - '{ "index" : { "_index" : "test_1", "_id" : "1" } }'
+                  - '{"field" : 1 }'
+                  - '{ "index" : { "_index" : "test_1", "_id" : "2" } }'
+                  - '{"field" : [1, 2] }'
+
+    - do:
+          search:
+              index: test_1
+              body:
+                  query:
+                      bool: {
+                          should: [
+                              {
+                                  match: {
+                                      field: {
+                                          query: 1,
+                                          _name: match_field_1
+                                      }
+                                  }
+                              },
+                              {
+                                  match: {
+                                      field: {
+                                          query: 2,
+                                          _name: match_field_2,
+                                          boost: 10
+                                      }
+                                  }
+                              }
+                          ]
+                      }
+
+    - match:  {hits.total.value: 2}
+    - length: {hits.hits.0.matched_queries: 2}
+    - match:  {hits.hits.0.matched_queries: ["match_field_1", "match_field_2"]}
+    - length: {hits.hits.1.matched_queries: 1 }
+    - match:  {hits.hits.1.matched_queries: ["match_field_1"]}
+
+---
+named_queries_with_score:
+    - skip:
+          version: " - 8.7.99"
+          reason: introduced in 8.8.0
+
+    - do:
+          bulk:
+              refresh: true
+              body:
+                - '{ "index" : { "_index" : "test_1", "_id" : "1" } }'
+                - '{"field" : 1 }'
+                - '{ "index" : { "_index" : "test_1", "_id" : "2" } }'
+                - '{"field" : [1, 2] }'
+
+    - do:
+          search:
+              include_named_queries_score: true
+              index: test_1
+              body:
+                  query:
+                      bool: {
+                          should: [
+                              {
+                                  match: {
+                                      field: {
+                                          query: 1,
+                                          _name: match_field_1
+                                      }
+                                  }
+                              },
+                              {
+                                  match: {
+                                      field: {
+                                          query: 2,
+                                          _name: match_field_2,
+                                          boost: 10
+                                      }
+                                  }
+                              }
+                          ]
+                      }
+
+    - match:  {hits.total.value: 2}
+    - length: {hits.hits.0.matched_queries: 2}
+    - match:  {hits.hits.0.matched_queries.match_field_1: 1}
+    - match:  {hits.hits.0.matched_queries.match_field_2: 10}
+    - length: {hits.hits.1.matched_queries: 1}
+    - match:  {hits.hits.1.matched_queries.match_field_1: 1}

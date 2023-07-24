@@ -72,11 +72,6 @@ public class Literal extends LeafExpression {
     }
 
     @Override
-    protected Expression canonicalize() {
-        return this;
-    }
-
-    @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;

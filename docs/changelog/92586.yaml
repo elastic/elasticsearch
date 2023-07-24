@@ -1,6 +1,0 @@
-pr: 92586
-summary: "Grok returns a list of matches for repeated pattern names #92092"
-area: Ingest Node
-type: bug
-issues:
- - 92092

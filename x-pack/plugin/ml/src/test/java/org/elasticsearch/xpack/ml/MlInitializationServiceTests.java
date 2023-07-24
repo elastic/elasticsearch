@@ -81,7 +81,10 @@ public class MlInitializationServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             client,
-            mlAssignmentNotifier
+            mlAssignmentNotifier,
+            true,
+            true,
+            true
         );
         initializationService.onMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
@@ -93,7 +96,10 @@ public class MlInitializationServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             client,
-            mlAssignmentNotifier
+            mlAssignmentNotifier,
+            true,
+            true,
+            true
         );
         initializationService.offMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(false));

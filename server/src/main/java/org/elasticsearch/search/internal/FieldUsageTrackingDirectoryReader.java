@@ -330,11 +330,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             }
 
             @Override
-            public long getSumDocFreq() throws IOException {
-                return in.getSumDocFreq();
-            }
-
-            @Override
             public BytesRef getMin() throws IOException {
                 return in.getMin();
             }

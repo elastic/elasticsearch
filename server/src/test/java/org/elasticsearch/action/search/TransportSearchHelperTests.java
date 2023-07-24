@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -16,17 +16,15 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportSearchHelperTests extends ESTestCase {
 
     public static AtomicArray<SearchPhaseResult> generateQueryResults() {
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
-        DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node_2");
+        DiscoveryNode node3 = DiscoveryNodeUtils.create("node_3");
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(
             new ShardSearchContextId("a", 1),
             node1
@@ -67,23 +65,5 @@ public class TransportSearchHelperTests extends ESTestCase {
         assertNull(parseScrollId.getContext()[2].getClusterAlias());
         assertEquals(42, parseScrollId.getContext()[2].getSearchContextId().getId());
         assertThat(parseScrollId.getContext()[2].getSearchContextId().getSessionId(), equalTo("c"));
-    }
-
-    public void testGetPreviousMinorSeries() throws Exception {
-        final List<Version> declaredVersions = Version.getDeclaredVersions(Version.class);
-        Version randomVersion = randomValueOtherThanMany(v -> v.before(Version.V_7_1_0), () -> randomFrom(declaredVersions));
-        Version previousFirstMinor = TransportSearchHelper.getPreviousMinorSeries(randomVersion);
-        assertTrue(previousFirstMinor.before(randomVersion));
-        assertTrue(previousFirstMinor.revision == 0);
-        for (int i = declaredVersions.indexOf(previousFirstMinor); i < declaredVersions.indexOf(randomVersion); i++) {
-            Version version = declaredVersions.get(i);
-            assertTrue(version.before(randomVersion));
-            if (randomVersion.major == previousFirstMinor.major) {
-                assertTrue(previousFirstMinor.minor == randomVersion.minor - 1);
-            } else {
-                assertTrue((randomVersion.major - 1) == previousFirstMinor.major);
-                assertTrue(randomVersion.minor == 0);
-            }
-        }
     }
 }

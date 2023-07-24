@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Debug Elasticsearch (node 2)" type="Remote">
+    <option name="USE_SOCKET_TRANSPORT" value="true" />
+    <option name="SERVER_MODE" value="true" />
+    <option name="SHMEM_ADDRESS" />
+    <option name="HOST" value="localhost" />
+    <option name="PORT" value="5008" />
+    <option name="AUTO_RESTART" value="true" />
+    <method v="2" />
+  </configuration>
+</component>

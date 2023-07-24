@@ -48,7 +48,7 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
         AuthorizationInfo authorizationInfo,
         ActionListener<Void> listener
     ) {
-        if (requestInfo.getRequest()instanceof ResizeRequest request) {
+        if (requestInfo.getRequest() instanceof ResizeRequest request) {
             final AuditTrail auditTrail = auditTrailService.get();
             final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
             final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);

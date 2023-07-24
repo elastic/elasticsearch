@@ -38,7 +38,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA8_HOME=$HOME/.java/java8
             JAVA11_HOME=$HOME/.java/java11
       - shell: |
@@ -46,5 +45,5 @@
          $WORKSPACE/.ci/scripts/run-gradle.sh :build-tools-internal:bootstrapPerformanceTests
          $WORKSPACE/.ci/scripts/install-gradle-profiler.sh
          $WORKSPACE/.ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-part2.scenarios --project-dir . --output-dir profile-out
-         mkdir $WORKSPACE/build  
+         mkdir $WORKSPACE/build
          tar -czf $WORKSPACE/build/${BUILD_NUMBER}.tar.bz2 profile-out

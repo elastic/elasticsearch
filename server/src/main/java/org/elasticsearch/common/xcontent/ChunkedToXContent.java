@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 
 /**
@@ -84,4 +85,9 @@ public interface ChunkedToXContent {
     default boolean isFragment() {
         return true;
     }
+
+    /**
+     * A {@link ChunkedToXContent} that yields no chunks
+     */
+    ChunkedToXContent EMPTY = params -> Collections.emptyIterator();
 }

@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Version
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
@@ -30,6 +31,10 @@ tasks.named("yamlRestTest").configure {
     'ml/3rd_party_deployment/Test start deployment fails with missing model definition',
     'ml/3rd_party_deployment/Test start deployment with low priority and multiple allocations',
     'ml/3rd_party_deployment/Test start deployment with low priority and multiple threads per allocation',
+    'ml/3rd_party_deployment/Test stop deployments with allow_no_match',
+    'ml/3rd_party_deployment/Test cannot start 2 deployments with the same Id',
+    'ml/3rd_party_deployment/Test cannot start when deployment Id matches a different model',
+    'ml/3rd_party_deployment/Test cannot create model with a deployment Id',
     'ml/calendar_crud/Test get calendar given missing',
     'ml/calendar_crud/Test cannot create calendar with name _all',
     'ml/calendar_crud/Test PageParams with ID is invalid',
@@ -176,6 +181,7 @@ tasks.named("yamlRestTest").configure {
     'ml/inference_crud/Test put nlp model config with vocabulary set',
     'ml/inference_crud/Test put model model aliases with nlp model',
     'ml/inference_processor/Test create processor with missing mandatory fields',
+    'ml/inference_rescore/Test rescore with missing model',
     'ml/inference_stats_crud/Test get stats given missing trained model',
     'ml/inference_stats_crud/Test get stats given expression without matches and allow_no_match is false',
     'ml/jobs_crud/Test cannot create job with model snapshot id set',
@@ -252,4 +258,5 @@ testClusters.configureEach {
   user username: "no_ml", password: "x-pack-test-password", role: "minimal"
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
+  requiresFeature 'es.inference_rescorer_feature_flag_enabled', Version.fromString("8.10.0")
 }

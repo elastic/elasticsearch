@@ -20,11 +20,9 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
@@ -41,11 +39,7 @@ class APMAgentSettings {
      * Sensible defaults that Elasticsearch configures. This cannot be done via the APM agent
      * config file, as then their values could not be overridden dynamically via system properties.
      */
-    // tag::noformat
-    static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of(
-        "transaction_sample_rate", "0.2"
-    );
-    // end::noformat
+    static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of("transaction_sample_rate", "0.2");
 
     void addClusterSettingsListeners(ClusterService clusterService, APMTracer apmTracer) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
@@ -128,23 +122,19 @@ class APMAgentSettings {
         }
     );
 
-    static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
+    static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
         APM_SETTING_PREFIX + "names.include",
-        Collections.emptyList(),
-        Function.identity(),
         OperatorDynamic,
         NodeScope
     );
 
-    static final Setting<List<String>> APM_TRACING_NAMES_EXCLUDE_SETTING = Setting.listSetting(
+    static final Setting<List<String>> APM_TRACING_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
         APM_SETTING_PREFIX + "names.exclude",
-        Collections.emptyList(),
-        Function.identity(),
         OperatorDynamic,
         NodeScope
     );
 
-    static final Setting<List<String>> APM_TRACING_SANITIZE_FIELD_NAMES = Setting.listSetting(
+    static final Setting<List<String>> APM_TRACING_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
         APM_SETTING_PREFIX + "sanitize_field_names",
         List.of(
             "password",
@@ -160,7 +150,6 @@ class APMAgentSettings {
             "*principal*",
             "set-cookie"
         ),
-        Function.identity(),
         OperatorDynamic,
         NodeScope
     );

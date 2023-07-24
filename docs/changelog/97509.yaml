@@ -1,0 +1,6 @@
+pr: 97509
+summary: Fix bug when creating empty `geo_lines`
+area: Geo
+type: bug
+issues:
+ - 97311

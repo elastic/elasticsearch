@@ -126,8 +126,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     public Set<String> parseContext(LuceneDocument document) {
         Set<String> values = null;
         if (fieldName != null) {
-            IndexableField[] fields = document.getFields(fieldName);
-            values = Sets.newHashSetWithExpectedSize(fields.length);
+            List<IndexableField> fields = document.getFields(fieldName);
+            values = Sets.newHashSetWithExpectedSize(fields.size());
             // TODO we should be checking mapped field types, not lucene field types
             for (IndexableField field : fields) {
                 if (field instanceof SortedDocValuesField || field instanceof SortedSetDocValuesField || field instanceof StoredField) {

@@ -100,10 +100,15 @@ public class DataTier {
         final Map<String, Settings> tmpSettings = new HashMap<>();
         for (int i = 0, ordered_frozen_to_hot_tiersSize = ORDERED_FROZEN_TO_HOT_TIERS.size(); i < ordered_frozen_to_hot_tiersSize; i++) {
             String tier = ORDERED_FROZEN_TO_HOT_TIERS.get(i);
-            final String prefTierString = String.join(",", ORDERED_FROZEN_TO_HOT_TIERS.subList(i, ORDERED_FROZEN_TO_HOT_TIERS.size()))
-                .intern();
-            tmp.put(tier, prefTierString);
-            tmpSettings.put(tier, Settings.builder().put(DataTier.TIER_PREFERENCE, prefTierString).build());
+            if (tier.equals(DATA_FROZEN)) {
+                tmp.put(tier, DATA_FROZEN);
+                tmpSettings.put(DATA_FROZEN, Settings.builder().put(DataTier.TIER_PREFERENCE, DATA_FROZEN).build());
+            } else {
+                final String prefTierString = String.join(",", ORDERED_FROZEN_TO_HOT_TIERS.subList(i, ORDERED_FROZEN_TO_HOT_TIERS.size()))
+                    .intern();
+                tmp.put(tier, prefTierString);
+                tmpSettings.put(tier, Settings.builder().put(DataTier.TIER_PREFERENCE, prefTierString).build());
+            }
         }
         PREFERENCE_TIER_CONFIGURATIONS = Map.copyOf(tmp);
         PREFERENCE_TIER_CONFIGURATION_SETTINGS = Map.copyOf(tmpSettings);

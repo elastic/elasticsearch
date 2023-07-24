@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.watcher.history;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -28,9 +28,9 @@ public class HistoryStore {
 
     private static final Logger logger = LogManager.getLogger(HistoryStore.class);
 
-    private final BulkProcessor bulkProcessor;
+    private final BulkProcessor2 bulkProcessor;
 
-    public HistoryStore(BulkProcessor bulkProcessor) {
+    public HistoryStore(BulkProcessor2 bulkProcessor) {
         this.bulkProcessor = bulkProcessor;
     }
 
@@ -79,9 +79,5 @@ public class HistoryStore {
         return indexMetadata == null
             || (indexMetadata.getState() == IndexMetadata.State.OPEN
                 && state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
-    }
-
-    public void flush() {
-        bulkProcessor.flush();
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.action.token;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.ActionFilters;
@@ -80,6 +81,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         when(securityIndex.isAvailable()).thenReturn(false);
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.getUnavailableReason()).thenReturn(new ElasticsearchException("simulated"));
         final TokenService tokenService = new TokenService(
             SETTINGS,
             Clock.systemUTC(),
@@ -104,7 +106,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         assertThat(ese.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
 
         request = new InvalidateTokenRequest(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.CURRENT, UUIDs.randomBase64UUID()),
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), UUIDs.randomBase64UUID()),
             REFRESH_TOKEN.getValue(),
             null,
             null
@@ -147,7 +149,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         assertThat(ese.status(), equalTo(RestStatus.BAD_REQUEST));
 
         request = new InvalidateTokenRequest(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.CURRENT, UUIDs.randomBase64UUID()),
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), UUIDs.randomBase64UUID()),
             REFRESH_TOKEN.getValue(),
             null,
             null
@@ -161,8 +163,8 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
 
     private String generateAccessTokenString() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput(TokenService.MINIMUM_BASE64_BYTES)) {
-            out.setTransportVersion(TransportVersion.CURRENT);
-            TransportVersion.writeVersion(TransportVersion.CURRENT, out);
+            out.setTransportVersion(TransportVersion.current());
+            TransportVersion.writeVersion(TransportVersion.current(), out);
             out.writeString(UUIDs.randomBase64UUID());
             return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
         }

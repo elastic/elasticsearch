@@ -145,7 +145,15 @@ public class Setting<T> implements ToXContentObject {
          * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
          * forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
-        IndexSettingDeprecatedInV7AndRemovedInV8
+        IndexSettingDeprecatedInV7AndRemovedInV8,
+
+        /**
+         * Indicates that this setting is accessible by non-operator users (public) in serverless
+         * Users will be allowed to set and see values of this setting.
+         * All other settings will be rejected when used on a PUT request
+         * and filtered out on a GET
+         */
+        ServerlessPublic
     }
 
     private final Key key;
@@ -363,6 +371,13 @@ public class Setting<T> implements ToXContentObject {
      */
     public final boolean isOperatorOnly() {
         return properties.contains(Property.OperatorDynamic);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting is accessibly by non-operators (public users), otherwise <code>false</code>
+     */
+    public final boolean isServerlessPublic() {
+        return properties.contains(Property.ServerlessPublic);
     }
 
     /**
@@ -1278,7 +1293,7 @@ public class Setting<T> implements ToXContentObject {
         Validator<Version> validator,
         Property... properties
     ) {
-        return new Setting<>(key, fallbackSetting, s -> Version.fromId(Integer.parseInt(s)), properties);
+        return new Setting<>(key, fallbackSetting, s -> Version.fromId(Integer.parseInt(s)), validator, properties);
     }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {
@@ -1644,6 +1659,7 @@ public class Setting<T> implements ToXContentObject {
         return new ListSetting<>(key, null, s -> defValue, Setting::parseableStringToList, v -> {}, properties) {
             @Override
             public List<String> get(Settings settings) {
+                checkDeprecation(settings);
                 return settings.getAsList(getKey(), defValue);
             }
         };

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -51,7 +52,6 @@ import java.io.OutputStream;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -73,13 +73,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         nodeEnvironment = newNodeEnvironment();
-        localNode = new DiscoveryNode(
-            "node1",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        localNode = DiscoveryNodeUtils.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)).build();
         clusterName = new ClusterName(randomAlphaOfLength(10));
         final Settings.Builder settingsBuilder = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value());
         if (randomBoolean()) {
@@ -171,16 +165,9 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         return builder.build();
     }
 
-    private IndexMetadata createIndexMetadata(String indexName, int numberOfShards, long version) {
+    private static IndexMetadata createIndexMetadata(String indexName, int numberOfShards, long version) {
         return IndexMetadata.builder(indexName)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_INDEX_UUID, indexName)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .build()
-            )
+            .settings(indexSettings(Version.CURRENT, numberOfShards, 0).put(IndexMetadata.SETTING_INDEX_UUID, indexName).build())
             .version(version)
             .build();
     }
@@ -384,13 +371,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         final List<Closeable> cleanup = new ArrayList<>(2);
 
         try {
-            DiscoveryNode localNode = new DiscoveryNode(
-                "node1",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE),
-                Version.CURRENT
-            );
+            DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE)).build();
             Settings settings = Settings.builder()
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value())
                 .put(nonMasterNode())
@@ -419,7 +400,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 new MetaStateService(nodeEnvironment, xContentRegistry()),
                 null,
                 null,
-                persistedClusterStateService
+                persistedClusterStateService,
+                List.of()
             );
             final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
             assertThat(persistedState, instanceOf(GatewayMetaState.AsyncPersistedState.class));
@@ -536,7 +518,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             () -> 0L
         ) {
             @Override
-            Directory createDirectory(Path path) {
+            protected Directory createDirectory(Path path) {
                 final MockDirectoryWrapper wrapper = newMockFSDirectory(path);
                 wrapper.setAllowRandomFileNotFoundException(randomBoolean());
                 wrapper.setRandomIOExceptionRate(ioExceptionRate.get());

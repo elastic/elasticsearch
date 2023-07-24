@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -137,8 +138,12 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 break;
             }
         }
+
         usageStats.put("fls", fls);
         usageStats.put("dls", dls);
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            usageStats.put("remote_indices", localPermissions.values().stream().filter(RoleDescriptor::hasRemoteIndicesPrivileges).count());
+        }
 
         return usageStats;
     }
@@ -304,7 +309,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     if (token == XContentParser.Token.START_OBJECT) {
                         // we pass true as last parameter because we do not want to reject files if field permissions
                         // are given in 2.x syntax
-                        RoleDescriptor descriptor = RoleDescriptor.parse(roleName, parser, true);
+                        RoleDescriptor descriptor = RoleDescriptor.parse(roleName, parser, true, false);
                         return checkDescriptor(descriptor, path, logger, settings, xContentRegistry);
                     } else {
                         logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", roleName, path.toAbsolutePath());

@@ -159,7 +159,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             mb.put(indexMetadata, false);
         }
 
-        ClusterState initialClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(mb)
             .routingTable(routingTable)
             .nodes(nb)

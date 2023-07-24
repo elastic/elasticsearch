@@ -238,11 +238,9 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
             return builder.field(UNRATED_FIELD.getPreferredName(), this.unratedDocs);
         }
 
-        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(
-            NAME,
-            true,
-            args -> { return new Detail((Integer) args[0]); }
-        );
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
+            return new Detail((Integer) args[0]);
+        });
 
         static {
             PARSER.declareInt(constructorArg(), UNRATED_FIELD);

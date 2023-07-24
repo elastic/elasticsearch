@@ -108,11 +108,11 @@ See <<create-index-template,create an index template>>.
 <<mapping-routing-field,custom routing>>. Defaults to `false`.
 
 `hidden`::
-(Optional, Boolean) If `true`, the data stream is <<hidden,hidden>>. Defaults to
+(Optional, Boolean) If `true`, the data stream is <<multi-hidden,hidden>>. Defaults to
 `false`.
 
 `index_mode`::
-preview:[] (Optional, string) Type of data stream to create. Valid values are `null`
+(Optional, string) Type of data stream to create. Valid values are `null`
 (regular data stream) and `time_series` (<<tsds,time series data stream>>).
 +
 If `time_series`, each backing index has an `index.mode` index setting of

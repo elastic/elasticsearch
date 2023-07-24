@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -88,9 +89,13 @@ public abstract class AbstractCompositeAggFunction implements Function {
                         return;
                     }
                     final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
+                    if (agg == null || agg.getBuckets().isEmpty()) {
+                        listener.onResponse(Collections.emptyList());
+                        return;
+                    }
+
                     TransformIndexerStats stats = new TransformIndexerStats();
                     TransformProgress progress = new TransformProgress();
-
                     List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats, progress).map(
                         this::documentTransformationFunction
                     ).collect(Collectors.toList());
@@ -104,31 +109,44 @@ public abstract class AbstractCompositeAggFunction implements Function {
     }
 
     @Override
-    public void validateQuery(Client client, SourceConfig sourceConfig, TimeValue timeout, ActionListener<Boolean> listener) {
+    public void validateQuery(
+        Client client,
+        Map<String, String> headers,
+        SourceConfig sourceConfig,
+        TimeValue timeout,
+        ActionListener<Boolean> listener
+    ) {
         SearchRequest searchRequest = buildSearchRequest(sourceConfig, timeout, TEST_QUERY_PAGE_SIZE);
-        client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
-            if (response == null) {
-                listener.onFailure(new ValidationException().addValidationError("Unexpected null response from test query"));
-                return;
-            }
-            if (response.status() != RestStatus.OK) {
+        ClientHelper.executeWithHeadersAsync(
+            headers,
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            searchRequest,
+            ActionListener.wrap(response -> {
+                if (response == null) {
+                    listener.onFailure(new ValidationException().addValidationError("Unexpected null response from test query"));
+                    return;
+                }
+                if (response.status() != RestStatus.OK) {
+                    listener.onFailure(
+                        new ValidationException().addValidationError(
+                            format("Unexpected status from response of test query: %s", response.status())
+                        )
+                    );
+                    return;
+                }
+                listener.onResponse(true);
+            }, e -> {
+                Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                RestStatus status = unwrapped instanceof ElasticsearchException
+                    ? ((ElasticsearchException) unwrapped).status()
+                    : RestStatus.SERVICE_UNAVAILABLE;
                 listener.onFailure(
-                    new ValidationException().addValidationError(
-                        format("Unexpected status from response of test query: %s", response.status())
-                    )
+                    new ValidationException(unwrapped).addValidationError(format("Failed to test query, received status: %s", status))
                 );
-                return;
-            }
-            listener.onResponse(true);
-        }, e -> {
-            Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-            RestStatus status = unwrapped instanceof ElasticsearchException
-                ? ((ElasticsearchException) unwrapped).status()
-                : RestStatus.SERVICE_UNAVAILABLE;
-            listener.onFailure(
-                new ValidationException(unwrapped).addValidationError(format("Failed to test query, received status: %s", status))
-            );
-        }));
+            })
+        );
     }
 
     @Override

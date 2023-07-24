@@ -19,7 +19,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -68,14 +67,9 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         final AtomicBoolean exceptionThrown = new AtomicBoolean(false);
         int numDocs = scaledRandomIntBetween(100, 1000);
         Client client = internalCluster().coordOnlyNodeClient();
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().get();
         NodeStats unluckyNode = randomFrom(nodeStats.getNodes().stream().filter((s) -> s.getNode().canContainData()).toList());
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("index")
-                .setSettings(Settings.builder().put("index.number_of_replicas", 1).put("index.number_of_shards", 5))
-        );
+        assertAcked(indicesAdmin().prepareCreate("index").setSettings(indexSettings(5, 1)));
         ensureGreen("index");
         logger.info("unlucky node: {}", unluckyNode.getNode());
         // create a transport service that throws a ConnectTransportException for one bulk request and therefore triggers a retry.
@@ -139,7 +133,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         assertSearchResponse(searchResponse);
         assertThat(dupCounter, equalTo(0L));
         assertHitCount(searchResponse, numDocs);
-        IndicesStatsResponse index = client().admin().indices().prepareStats("index").clear().setSegments(true).get();
+        IndicesStatsResponse index = indicesAdmin().prepareStats("index").clear().setSegments(true).get();
         IndexStats indexStats = index.getIndex("index");
         long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
         for (IndexShardStats indexShardStats : indexStats) {

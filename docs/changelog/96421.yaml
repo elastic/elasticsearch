@@ -1,0 +1,6 @@
+pr: 96421
+summary: Promptly fail recovery from snapshot
+area: Recovery
+type: bug
+issues:
+ - 95525

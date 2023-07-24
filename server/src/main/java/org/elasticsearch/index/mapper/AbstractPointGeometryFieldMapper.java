@@ -71,19 +71,22 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         private final T nullValue;
         private final boolean ignoreZValue;
         protected final boolean ignoreMalformed;
+        private final boolean allowMultipleValues;
 
         protected PointParser(
             String field,
             CheckedFunction<XContentParser, T, IOException> objectParser,
             T nullValue,
             boolean ignoreZValue,
-            boolean ignoreMalformed
+            boolean ignoreMalformed,
+            boolean allowMultipleValues
         ) {
             this.field = field;
             this.objectParser = objectParser;
             this.nullValue = nullValue == null ? null : validate(nullValue);
             this.ignoreZValue = ignoreZValue;
             this.ignoreMalformed = ignoreMalformed;
+            this.allowMultipleValues = allowMultipleValues;
         }
 
         protected abstract T validate(T in);
@@ -115,7 +118,11 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
                     T point = createPoint(x, y);
                     consumer.accept(validate(point));
                 } else {
+                    int count = 0;
                     while (token != XContentParser.Token.END_ARRAY) {
+                        if (allowMultipleValues == false && ++count > 1) {
+                            throw new ElasticsearchParseException("field type for [{}] does not accept more than single value", field);
+                        }
                         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                             if (nullValue != null) {
                                 consumer.accept(nullValue);

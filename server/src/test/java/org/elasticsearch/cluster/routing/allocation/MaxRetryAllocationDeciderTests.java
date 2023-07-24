@@ -63,7 +63,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("idx"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))

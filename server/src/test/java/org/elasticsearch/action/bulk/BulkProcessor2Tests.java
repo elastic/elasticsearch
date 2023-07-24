@@ -30,6 +30,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -38,6 +39,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -406,6 +408,128 @@ public class BulkProcessor2Tests extends ESTestCase {
         }
         assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
         consumerExecutor.shutdown();
+    }
+
+    public void testAddWithNoBackpressureThrowsException() throws InterruptedException {
+        /*
+         * This tests that if we reduce the configured batch size and max bytes in flight then we can force add() to throw
+         * EsRejectedExecutionExceptions.
+         */
+        BulkResponse bulkResponse = new BulkResponse(
+            new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), mockResponse()) },
+            0
+        );
+        final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                listener.onResponse(bulkResponse);
+            });
+        };
+        int numberOfRequests = 100;
+        final AtomicBoolean haveSeenRejections = new AtomicBoolean(false);
+        final BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
+
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {}
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {
+                fail("afterBulk should not return exception");
+            }
+        };
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(consumer, listener, threadPool)
+            .setBulkSize(ByteSizeValue.ofBytes(512))
+            .setMaxBytesInFlight(ByteSizeValue.ofBytes(1024))
+            .setFlushInterval(TimeValue.timeValueMillis(1))
+            .build();
+        try {
+            for (int i = 0; i < numberOfRequests; i++) {
+                bulkProcessor.add(new IndexRequest().source(Collections.singletonMap("this_is_a_key" + i, "this_is_a_value" + i)));
+            }
+        } catch (EsRejectedExecutionException e) {
+            // We are throwing more data at the processor than the max bytes in flight setting can handle
+            haveSeenRejections.set(true);
+        } finally {
+            bulkProcessor.awaitClose(1, TimeUnit.SECONDS);
+        }
+        assertThat(haveSeenRejections.get(), equalTo(true));
+    }
+
+    public void testAddWithBackpressure() throws InterruptedException {
+        /*
+         * This test reduces the configured batch size and max bytes in flight so that using add() would throw
+         * EsRejectedExecutionExceptions (see testAddWithNoBackpressureThrowsException). But instead this test uses addWithBackpressure
+         * so that it blocks the calling thread until requests can be added.
+         */
+        BulkResponse bulkResponse = new BulkResponse(
+            new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), mockResponse()) },
+            0
+        );
+        final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                listener.onResponse(bulkResponse);
+            });
+        };
+        int numberOfRequests = 100;
+        final CountDownLatch countDownLatch = new CountDownLatch(numberOfRequests);
+        final BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
+
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {}
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                for (int i = 0; i < request.requests.size(); i++) {
+                    countDownLatch.countDown();
+                }
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {
+                fail("afterBulk should not return exception");
+            }
+        };
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(consumer, listener, threadPool)
+            .setBulkSize(ByteSizeValue.ofBytes(512))
+            .setMaxBytesInFlight(ByteSizeValue.ofBytes(1024))
+            .setFlushInterval(TimeValue.timeValueMillis(1))
+            .build();
+        AtomicBoolean abort = new AtomicBoolean(false);
+        final AtomicBoolean haveSeenRejections = new AtomicBoolean(false);
+        try {
+            for (int i = 0; i < numberOfRequests; i++) {
+                bulkProcessor.addWithBackpressure(
+                    new IndexRequest().source(Collections.singletonMap("this_is_a_key" + i, "this_is_a_value" + i)),
+                    abort::get
+                );
+            }
+            assertTrue(countDownLatch.await(5, TimeUnit.MINUTES));
+            assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
+            abort.set(true);
+            try {
+                bulkProcessor.addWithBackpressure(
+                    new IndexRequest().source(Collections.singletonMap("this_is_a_key", "this_is_a_value")),
+                    abort::get
+                );
+            } catch (EsRejectedExecutionException e) {
+                haveSeenRejections.set(true);
+            }
+        } finally {
+            bulkProcessor.awaitClose(1, TimeUnit.SECONDS);
+        }
+        assertThat(haveSeenRejections.get(), equalTo(true));
     }
 
     private BulkProcessor2.Listener emptyListener() {

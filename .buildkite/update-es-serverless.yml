@@ -1,0 +1,8 @@
+steps:
+  - trigger: elasticsearch-serverless-update-submodule
+    label: ":elasticsearch: Update elasticsearch submodule in serverless"
+    build:
+      message: "Elasticsearch submodule update build"
+      env:
+        ELASTICSEARCH_SUBMODULE_COMMIT: "${BUILDKITE_COMMIT}"
+

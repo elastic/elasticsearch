@@ -306,7 +306,7 @@ public class Metadata {
      * @param writable - can the field be updated after the initial set
      * @param extendedValidation - value validation after type checking, may be used for values that may be one of a set
      */
-    public record FieldProperty<T> (Class<T> type, boolean nullable, boolean writable, BiConsumer<String, T> extendedValidation) {
+    public record FieldProperty<T>(Class<T> type, boolean nullable, boolean writable, BiConsumer<String, T> extendedValidation) {
 
         public FieldProperty(Class<T> type) {
             this(type, false, false, null);

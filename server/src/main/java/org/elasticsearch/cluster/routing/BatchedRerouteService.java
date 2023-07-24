@@ -43,7 +43,7 @@ public class BatchedRerouteService implements RerouteService {
 
     private final Object mutex = new Object();
     @Nullable // null if no reroute is currently pending
-    private List<ActionListener<ClusterState>> pendingRerouteListeners;
+    private List<ActionListener<Void>> pendingRerouteListeners;
     private Priority pendingTaskPriority = Priority.LANGUID;
 
     public interface RerouteAction {
@@ -62,12 +62,12 @@ public class BatchedRerouteService implements RerouteService {
      * Initiates a reroute.
      */
     @Override
-    public final void reroute(String reason, Priority priority, ActionListener<ClusterState> listener) {
-        final ActionListener<ClusterState> wrappedListener = ContextPreservingActionListener.wrapPreservingContext(
+    public final void reroute(String reason, Priority priority, ActionListener<Void> listener) {
+        final ActionListener<Void> wrappedListener = ContextPreservingActionListener.wrapPreservingContext(
             listener,
             clusterService.getClusterApplierService().threadPool().getThreadContext()
         );
-        final List<ActionListener<ClusterState>> currentListeners;
+        final List<ActionListener<Void>> currentListeners;
         synchronized (mutex) {
             if (pendingRerouteListeners != null) {
                 if (priority.sameOrAfter(pendingTaskPriority)) {
@@ -147,12 +147,12 @@ public class BatchedRerouteService implements RerouteService {
                             e
                         );
                     }
-                    ActionListener.onFailure(currentListeners, new ElasticsearchException("delayed reroute [" + reason + "] failed", e));
+                    ActionListener.onFailure(currentListeners, e);
                 }
 
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    future.addListener(ActionListener.running(() -> ActionListener.onResponse(currentListeners, newState)));
+                    future.addListener(ActionListener.running(() -> ActionListener.onResponse(currentListeners, null)));
                 }
             });
         } catch (Exception e) {

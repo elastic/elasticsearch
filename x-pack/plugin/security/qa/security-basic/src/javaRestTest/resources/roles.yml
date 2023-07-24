@@ -17,3 +17,13 @@ api_key_admin_role:
 api_key_user_role:
   cluster:
     - manage_own_api_key
+
+# Role with remote indices privileges
+role_remote_indices:
+  remote_indices:
+    - clusters:
+        - 'remote-*'
+      names:
+        - 'shared-index'
+      privileges:
+        - READ

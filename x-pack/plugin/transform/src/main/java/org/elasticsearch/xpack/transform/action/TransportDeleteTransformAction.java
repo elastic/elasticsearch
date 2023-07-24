@@ -10,6 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -20,20 +22,26 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
 
 public class TransportDeleteTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
@@ -70,6 +78,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+        final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final boolean transformIsRunning = TransformTask.getTransformTask(request.getId(), state) != null;
         if (transformIsRunning && request.isForce() == false) {
             listener.onFailure(
@@ -81,8 +90,9 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             return;
         }
 
-        ActionListener<StopTransformAction.Response> stopTransformActionListener = ActionListener.wrap(
-            unusedStopResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
+        // <3> Delete transform config
+        ActionListener<AcknowledgedResponse> deleteDestIndexListener = ActionListener.wrap(
+            unusedAcknowledgedResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
                 logger.debug("[{}] deleted transform", request.getId());
                 auditor.info(request.getId(), "Deleted transform.");
                 listener.onResponse(AcknowledgedResponse.of(r));
@@ -90,12 +100,63 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             listener::onFailure
         );
 
+        // <2> Delete destination index if requested
+        ActionListener<StopTransformAction.Response> stopTransformActionListener = ActionListener.wrap(unusedStopResponse -> {
+            if (request.isDeleteDestIndex()) {
+                deleteDestinationIndex(parentTaskId, request.getId(), request.timeout(), deleteDestIndexListener);
+            } else {
+                deleteDestIndexListener.onResponse(null);
+            }
+        }, listener::onFailure);
+
+        // <1> Stop transform if it's currently running
+        stopTransform(transformIsRunning, parentTaskId, request.getId(), request.timeout(), stopTransformActionListener);
+    }
+
+    private void stopTransform(
+        boolean transformIsRunning,
+        TaskId parentTaskId,
+        String transformId,
+        TimeValue timeout,
+        ActionListener<StopTransformAction.Response> listener
+    ) {
         if (transformIsRunning == false) {
-            stopTransformActionListener.onResponse(null);
+            listener.onResponse(null);
             return;
         }
-        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(request.getId(), true, true, null, true, false);
-        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, StopTransformAction.INSTANCE, stopTransformRequest, stopTransformActionListener);
+        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(transformId, true, true, timeout, true, false);
+        stopTransformRequest.setParentTask(parentTaskId);
+        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, StopTransformAction.INSTANCE, stopTransformRequest, listener);
+    }
+
+    private void deleteDestinationIndex(
+        TaskId parentTaskId,
+        String transformId,
+        TimeValue timeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        // <2> Delete destination index
+        ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> getTransformConfigurationListener = ActionListener.wrap(
+            transformConfigAndVersion -> {
+                TransformConfig config = transformConfigAndVersion.v1();
+                String destIndex = config.getDestination().getIndex();
+                DeleteIndexRequest deleteDestIndexRequest = new DeleteIndexRequest(destIndex);
+                deleteDestIndexRequest.timeout(timeout);
+                deleteDestIndexRequest.setParentTask(parentTaskId);
+                executeWithHeadersAsync(
+                    config.getHeaders(),
+                    TRANSFORM_ORIGIN,
+                    client,
+                    DeleteIndexAction.INSTANCE,
+                    deleteDestIndexRequest,
+                    listener
+                );
+            },
+            listener::onFailure
+        );
+
+        // <1> Fetch transform configuration
+        transformConfigManager.getTransformConfigurationForUpdate(transformId, getTransformConfigurationListener);
     }
 
     @Override

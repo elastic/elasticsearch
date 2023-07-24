@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -107,7 +106,7 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
         List<LifecyclePolicy> result = new ArrayList<>();
 
         Map<String, ?> source = parser.map();
-        var config = XContentParserConfiguration.EMPTY.withRegistry(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
+        var config = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry);
 
         for (String name : source.keySet()) {
             @SuppressWarnings("unchecked")

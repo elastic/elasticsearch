@@ -11,6 +11,7 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -67,6 +68,11 @@ public interface FieldValues<T> {
                 }
                 return values;
             }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NEEDS_SOURCE;       // TODO can we get more information from the script
+            }
         };
     }
 
@@ -99,6 +105,11 @@ public interface FieldValues<T> {
                     ignoredValues.addAll(values);
                 }
                 return formatter.apply(values);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NEEDS_SOURCE;   // TODO can we get more info from the script?
             }
         };
     }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.metrics;
 
-import org.elasticsearch.Assertions;
+import org.elasticsearch.core.Assertions;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;

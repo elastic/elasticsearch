@@ -230,7 +230,9 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             .filter(Objects::nonNull)
             .filter(setting -> setting.getProperties().contains(Setting.Property.NotCopyableOnResize) == false)
             .filter(setting -> setting.getProperties().contains(Setting.Property.PrivateIndex) == false)
-            .forEach(setting -> { newIndexSettings.put(setting.getKey(), currentIndexSettings.get(setting.getKey())); });
+            .forEach(setting -> {
+                newIndexSettings.put(setting.getKey(), currentIndexSettings.get(setting.getKey()));
+            });
         return newIndexSettings.build();
     }
 

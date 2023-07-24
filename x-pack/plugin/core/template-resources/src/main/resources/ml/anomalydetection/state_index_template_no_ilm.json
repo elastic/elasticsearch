@@ -1,0 +1,26 @@
+{
+  "priority": 2147483647,
+  "version" : ${xpack.ml.version.id},
+  "index_patterns" : [
+    ".ml-state*"
+  ],
+  "template" : {
+    "settings" : {
+      "index" : {
+        "auto_expand_replicas" : "0-1",
+        "hidden": true
+      }
+    },
+    "mappings" : {
+      "_meta": {
+        "version": "${xpack.ml.version}"
+      },
+      "enabled": false
+    },
+    "aliases" : {}
+  },
+  "_meta" : {
+    "description": "index template for ML state indices",
+    "managed": true
+  }
+}

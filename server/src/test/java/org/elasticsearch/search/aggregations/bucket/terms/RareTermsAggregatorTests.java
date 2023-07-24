@@ -14,8 +14,8 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -241,7 +240,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("another_string");
                 MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("another_long", NumberFieldMapper.NumberType.LONG);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     String[] fieldNames = new String[] { "string", "long" };
                     for (int i = 0; i < fieldNames.length; i++) {
@@ -272,7 +271,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 }
                 MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType("field", rangeType);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name").field("field");
                     expectThrows(
@@ -350,7 +349,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 document.add(new SortedDocValuesField("keyword", new BytesRef("e")));
                 indexWriter.addDocument(document);
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global").subAggregation(
                         new RareTermsAggregationBuilder("terms").field("keyword")
@@ -396,7 +395,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     new RareTermsAggregationBuilder("terms").field("nested_value").maxDocCount(1)
                 );
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("nested_value", NumberFieldMapper.NumberType.LONG);
-                try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                     AggTestConfig aggTestConfig = new AggTestConfig(nested, fieldType).withQuery(new FieldExistsQuery(PRIMARY_TERM_NAME));
                     // match root document only
                     InternalNested result = searchAndReduce(newIndexSearcher(indexReader), aggTestConfig);
@@ -431,7 +430,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                             )
                     );
                     MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("nested_value", NumberFieldMapper.NumberType.LONG);
-                    try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                    try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
 
                         if (withScore) {
 
@@ -481,15 +480,15 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
         for (int nestedValue : nestedValues) {
             Document document = new Document();
-            document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            document.add(new Field(NestedPathFieldMapper.NAME, "nested_object", NestedPathFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO));
+            document.add(new StringField(NestedPathFieldMapper.NAME, "nested_object", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("nested_value", nestedValue));
             documents.add(document);
         }
 
         LuceneDocument document = new LuceneDocument();
-        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
-        document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.YES));
+        document.add(new StringField(NestedPathFieldMapper.NAME, "docs", Field.Store.NO));
         document.add(new SortedNumericDocValuesField("value", value));
         sequenceIDFields.addFields(document);
         documents.add(document);
@@ -544,7 +543,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 }
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 MappedFieldType[] types = new MappedFieldType[] {

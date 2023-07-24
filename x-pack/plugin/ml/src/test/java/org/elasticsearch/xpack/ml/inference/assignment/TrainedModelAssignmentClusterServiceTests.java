@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -21,10 +22,11 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -62,6 +64,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
+import static java.util.Map.entry;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -119,6 +122,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .add(buildNode(startedNode, true, ByteSizeValue.ofGb(4).getBytes(), 8))
                     .build()
             )
+            .putTransportVersion(nodeId, TransportVersion.current())
             .metadata(
                 Metadata.builder()
                     .putCustom(
@@ -145,7 +149,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
 
         assertThat(
-            TrainedModelAssignmentMetadata.fromState(currentState).getModelAssignment(modelId).getAssignmentState(),
+            TrainedModelAssignmentMetadata.fromState(currentState).getDeploymentAssignment(modelId).getAssignmentState(),
             equalTo(AssignmentState.STARTING)
         );
 
@@ -155,14 +159,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
         assertThat(
             TrainedModelAssignmentMetadata.fromState(newState)
-                .getModelAssignment(modelId)
+                .getDeploymentAssignment(modelId)
                 .getNodeRoutingTable()
                 .get(startedNode)
                 .getState(),
             equalTo(RoutingState.STARTED)
         );
         assertThat(
-            TrainedModelAssignmentMetadata.fromState(newState).getModelAssignment(modelId).getAssignmentState(),
+            TrainedModelAssignmentMetadata.fromState(newState).getDeploymentAssignment(modelId).getAssignmentState(),
             equalTo(AssignmentState.STARTED)
         );
 
@@ -210,11 +214,11 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             )
         );
         assertThat(
-            TrainedModelAssignmentMetadata.fromState(updateState).getModelAssignment(modelId).getNodeRoutingTable(),
+            TrainedModelAssignmentMetadata.fromState(updateState).getDeploymentAssignment(modelId).getNodeRoutingTable(),
             not(hasKey(nodeId))
         );
         assertThat(
-            TrainedModelAssignmentMetadata.fromState(updateState).getModelAssignment(modelId).getAssignmentState(),
+            TrainedModelAssignmentMetadata.fromState(updateState).getDeploymentAssignment(modelId).getAssignmentState(),
             equalTo(AssignmentState.STARTED)
         );
     }
@@ -232,6 +236,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         ClusterState clusterStateWithAssignment = ClusterState.builder(new ClusterName("testRemoveAssignment"))
             .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build())
+            .putTransportVersion("test-node", TransportVersion.current())
             .metadata(
                 Metadata.builder()
                     .putCustom(
@@ -243,10 +248,13 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .build()
             )
             .build();
-        assertThat(TrainedModelAssignmentMetadata.fromState(clusterStateWithAssignment).getModelAssignment(modelId), is(not(nullValue())));
+        assertThat(
+            TrainedModelAssignmentMetadata.fromState(clusterStateWithAssignment).getDeploymentAssignment(modelId),
+            is(not(nullValue()))
+        );
 
         ClusterState modified = TrainedModelAssignmentClusterService.removeAssignment(clusterStateWithAssignment, modelId);
-        assertThat(TrainedModelAssignmentMetadata.fromState(modified).getModelAssignment(modelId), is(nullValue()));
+        assertThat(TrainedModelAssignmentMetadata.fromState(modified).getDeploymentAssignment(modelId), is(nullValue()));
     }
 
     public void testRemoveAllAssignments() {
@@ -260,6 +268,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         ClusterState clusterStateWithAssignments = ClusterState.builder(new ClusterName("testRemoveAllAssignments"))
             .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build())
+            .putTransportVersion("test-node", TransportVersion.current())
             .metadata(
                 Metadata.builder()
                     .putCustom(TrainedModelAssignmentMetadata.NAME, TrainedModelAssignmentMetadataTests.randomInstance())
@@ -267,7 +276,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             )
             .build();
         ClusterState modified = TrainedModelAssignmentClusterService.removeAllAssignments(clusterStateWithAssignments);
-        assertThat(TrainedModelAssignmentMetadata.fromState(modified).modelAssignments(), is(anEmptyMap()));
+        assertThat(TrainedModelAssignmentMetadata.fromState(modified).allAssignments(), is(anEmptyMap()));
     }
 
     public void testCreateAssignment_GivenModelCannotByFullyAllocated_AndScalingIsPossible() throws Exception {
@@ -292,7 +301,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = createClusterService(5);
         ClusterState newState = trainedModelAssignmentClusterService.createModelAssignment(currentState, newParams("new-model", 150, 4, 1));
-        TrainedModelAssignment createdAssignment = TrainedModelAssignmentMetadata.fromState(newState).getModelAssignment("new-model");
+        TrainedModelAssignment createdAssignment = TrainedModelAssignmentMetadata.fromState(newState).getDeploymentAssignment("new-model");
 
         assertThat(createdAssignment, is(not(nullValue())));
         assertThat(createdAssignment.getNodeRoutingTable().keySet(), hasSize(1));
@@ -356,6 +365,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
+            .putTransportVersion("ml-node-with-room", TransportVersion.current())
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build()))
             .build();
         when(clusterService.state()).thenReturn(currentState);
@@ -372,7 +382,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                         assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.CONFLICT));
                         assertThat(
                             e.getMessage(),
-                            equalTo("cannot create new assignment for model [new-model] while feature reset is in progress.")
+                            equalTo("cannot create new assignment [new-model] for model [new-model] while feature reset is in progress.")
                         );
                     }
                 ),
@@ -1354,15 +1364,17 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         DiscoveryNode node3 = buildNode(nodeId3, true, ByteSizeValue.ofGb(4).getBytes(), 8);
         ClusterState currentState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
             .nodes(DiscoveryNodes.builder().add(node1).add(node3).build())
+            .putTransportVersion(nodeId1, TransportVersion.current())
+            .putTransportVersion(nodeId3, TransportVersion.current())
             .metadata(metadata)
             .build();
 
         ClusterState resultState = TrainedModelAssignmentClusterService.removeRoutingToUnassignableNodes(currentState);
 
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(resultState);
-        assertThat(trainedModelAssignmentMetadata.modelAssignments(), is(aMapWithSize(2)));
+        assertThat(trainedModelAssignmentMetadata.allAssignments(), is(aMapWithSize(2)));
         for (String modelId : List.of(modelId1, modelId2)) {
-            TrainedModelAssignment assignment = trainedModelAssignmentMetadata.getModelAssignment(modelId);
+            TrainedModelAssignment assignment = trainedModelAssignmentMetadata.getDeploymentAssignment(modelId);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
             assertThat(assignment.getNodeRoutingTable(), hasKey(nodeId1));
@@ -1406,6 +1418,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         ClusterState clusterStateWithAllocation = ClusterState.builder(new ClusterName("testSetAllocationToStopping"))
             .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build())
+            .putTransportVersion("test-node", TransportVersion.current())
             .metadata(
                 Metadata.builder()
                     .putCustom(
@@ -1418,12 +1431,12 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             )
             .build();
         TrainedModelAssignmentMetadata before = TrainedModelAssignmentMetadata.fromState(clusterStateWithAllocation);
-        assertThat(before.getModelAssignment(modelId), is(not(nullValue())));
-        assertThat(before.getModelAssignment(modelId).getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(before.getDeploymentAssignment(modelId), is(not(nullValue())));
+        assertThat(before.getDeploymentAssignment(modelId).getAssignmentState(), equalTo(AssignmentState.STARTING));
 
         ClusterState modified = TrainedModelAssignmentClusterService.setToStopping(clusterStateWithAllocation, modelId, "test");
         assertThat(
-            TrainedModelAssignmentMetadata.fromState(modified).getModelAssignment(modelId).getAssignmentState(),
+            TrainedModelAssignmentMetadata.fromState(modified).getDeploymentAssignment(modelId).getAssignmentState(),
             equalTo(AssignmentState.STOPPING)
         );
     }
@@ -1433,11 +1446,11 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ClusterState original
     ) {
         TrainedModelAssignmentMetadata tempMetadata = TrainedModelAssignmentMetadata.fromState(original);
-        if (tempMetadata.modelAssignments().isEmpty()) {
+        if (tempMetadata.allAssignments().isEmpty()) {
             return;
         }
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(original);
-        for (String modelId : tempMetadata.modelAssignments().keySet()) {
+        for (String modelId : tempMetadata.allAssignments().keySet()) {
             builder.getAssignment(modelId).stopAssignment("test");
         }
         TrainedModelAssignmentMetadata metadataWithStopping = builder.build();
@@ -1464,22 +1477,28 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {
-        return buildNode(name, isML, nativeMemory, allocatedProcessors, Version.CURRENT);
+        return buildNode(name, isML, nativeMemory, allocatedProcessors, VersionInformation.CURRENT);
     }
 
-    private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory, int allocatedProcessors, Version version) {
-        return new DiscoveryNode(
-            name,
-            name,
-            buildNewFakeTransportAddress(),
-            MapBuilder.<String, String>newMapBuilder()
-                .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(nativeMemory))
-                .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10))
-                .put(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, String.valueOf(allocatedProcessors))
-                .map(),
-            isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
-            version
-        );
+    private static DiscoveryNode buildNode(
+        String name,
+        boolean isML,
+        long nativeMemory,
+        int allocatedProcessors,
+        VersionInformation version
+    ) {
+        return DiscoveryNodeUtils.builder(name)
+            .name(name)
+            .attributes(
+                Map.ofEntries(
+                    entry(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(nativeMemory)),
+                    entry(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10)),
+                    entry(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, String.valueOf(allocatedProcessors))
+                )
+            )
+            .roles(isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+            .version(version)
+            .build();
     }
 
     private static RoutingInfoUpdate started() {
@@ -1487,7 +1506,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildOldNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {
-        return buildNode(name, isML, nativeMemory, allocatedProcessors, Version.V_7_15_0);
+        return buildNode(name, isML, nativeMemory, allocatedProcessors, VersionInformation.inferVersions(Version.V_7_15_0));
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId, long modelSize) {
@@ -1501,6 +1520,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         int threadsPerAllocation
     ) {
         return new StartTrainedModelDeploymentAction.TaskParams(
+            modelId,
             modelId,
             modelSize,
             numberOfAllocations,

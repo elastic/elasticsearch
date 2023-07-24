@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 /**
  * A StreamInput that reads off a {@link BytesRefIterator}. This is used to provide
@@ -201,17 +202,9 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public void readBytes(byte[] b, int bOffset, int len) throws IOException {
-        final int length = bytesReference.length();
-        final int offset = offset();
-        if (offset + len > length) {
-            throwIndexOutOfBounds(len, length, offset);
-        }
+        Objects.checkFromIndexSize(offset(), len, bytesReference.length());
         final int bytesRead = read(b, bOffset, len);
         assert bytesRead == len : bytesRead + " vs " + len;
-    }
-
-    private static void throwIndexOutOfBounds(int len, int length, int offset) {
-        throw new IndexOutOfBoundsException("Cannot read " + len + " bytes from stream with length " + length + " at offset " + offset);
     }
 
     @Override

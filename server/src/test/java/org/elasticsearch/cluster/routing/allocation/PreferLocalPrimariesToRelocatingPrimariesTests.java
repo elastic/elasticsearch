@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -59,9 +60,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
             .addAsNew(metadata.index("test2"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("adding two nodes and performing rerouting till all are allocated");
         clusterState = ClusterState.builder(clusterState)
@@ -79,21 +78,11 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
         metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(clusterState.metadata().index("test1"))
-                    .settings(
-                        settings(Version.CURRENT).put("index.number_of_shards", numberOfShards)
-                            .put("index.number_of_replicas", 0)
-                            .put("index.routing.allocation.exclude._name", "node2")
-                            .build()
-                    )
+                    .settings(indexSettings(Version.CURRENT, numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2"))
             )
             .put(
                 IndexMetadata.builder(clusterState.metadata().index("test2"))
-                    .settings(
-                        settings(Version.CURRENT).put("index.number_of_shards", numberOfShards)
-                            .put("index.number_of_replicas", 0)
-                            .put("index.routing.allocation.exclude._name", "node2")
-                            .build()
-                    )
+                    .settings(indexSettings(Version.CURRENT, numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2"))
             )
             .build();
         clusterState = ClusterState.builder(clusterState)

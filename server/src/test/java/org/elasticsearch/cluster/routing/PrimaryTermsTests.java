@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -73,10 +74,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             )
             .build();
 
-        this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        this.clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
     }
 
     /**

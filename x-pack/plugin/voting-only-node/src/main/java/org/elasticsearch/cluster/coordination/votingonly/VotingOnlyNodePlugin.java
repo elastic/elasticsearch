@@ -29,8 +29,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -55,10 +56,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, NetworkPlugin, ActionPlugin {
+public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationPlugin, NetworkPlugin, ActionPlugin {
 
     private static final String VOTING_ONLY_ELECTION_STRATEGY = "supports_voting_only";
 
@@ -95,7 +97,8 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         this.threadPool.set(threadPool);
         return Collections.emptyList();
@@ -220,8 +223,8 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                         }
 
                         @Override
-                        public String executor() {
-                            return handler.executor();
+                        public Executor executor(ThreadPool threadPool) {
+                            return handler.executor(threadPool);
                         }
 
                         @Override

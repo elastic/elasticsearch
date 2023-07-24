@@ -35,9 +35,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -1087,9 +1088,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
-                )
+                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1132,9 +1131,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
-                )
+                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1177,9 +1174,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
-                )
+                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1265,9 +1260,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
-                )
+                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1310,9 +1303,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
-                )
+                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
             );
 
             IllegalArgumentException e = expectThrows(
@@ -2503,7 +2494,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     ) {
         Settings.Builder indexSettings;
         if (enableSoftDeletes == false) {
-            indexSettings = settings(VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0)).put(
+            indexSettings = settings(IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0)).put(
                 IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
                 false
             );

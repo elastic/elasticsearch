@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -46,7 +47,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -160,12 +160,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             );
             ScriptService scriptService = mock(ScriptService.class);
             MappedFieldType fieldType = mockFieldType(suggestionBuilder.field());
-            IndexAnalyzers indexAnalyzers = new IndexAnalyzers(new HashMap<>() {
-                @Override
-                public NamedAnalyzer get(Object key) {
-                    return new NamedAnalyzer(key.toString(), AnalyzerScope.INDEX, new SimpleAnalyzer());
-                }
-            }, Collections.emptyMap(), Collections.emptyMap());
+            IndexAnalyzers indexAnalyzers = (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, new SimpleAnalyzer());
+            ;
             MapperService mapperService = mock(MapperService.class);
             when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
             when(scriptService.compile(any(Script.class), any())).then(
@@ -177,6 +173,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 0,
                 0,
                 idxSettings,
+                ClusterSettings.createBuiltInClusterSettings(),
                 null,
                 null,
                 mapperService,
@@ -233,6 +230,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             0,
             0,
             idxSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             mock(MapperService.class),

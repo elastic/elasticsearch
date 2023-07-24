@@ -103,7 +103,7 @@ public class WeekTimes implements Times {
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("could not parse week times. expected an object, but found [{}]", token);
         }
-        Set<DayOfWeek> daysSet = new HashSet<>();
+        EnumSet<DayOfWeek> daysSet = EnumSet.noneOf(DayOfWeek.class);
         Set<DayTimes> timesSet = new HashSet<>();
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -142,9 +142,8 @@ public class WeekTimes implements Times {
                 }
             }
         }
-        EnumSet<DayOfWeek> days = daysSet.isEmpty() ? EnumSet.of(DayOfWeek.MONDAY) : EnumSet.copyOf(daysSet);
-        DayTimes[] times = timesSet.isEmpty() ? new DayTimes[] { new DayTimes(0, 0) } : timesSet.toArray(new DayTimes[timesSet.size()]);
-        return new WeekTimes(days, times);
+
+        return new WeekTimes(daysSet, timesSet.toArray(DayTimes[]::new));
     }
 
     static DayOfWeek parseDayValue(XContentParser parser, XContentParser.Token token) throws IOException {

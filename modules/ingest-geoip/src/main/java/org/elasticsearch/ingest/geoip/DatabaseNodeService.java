@@ -193,7 +193,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         boolean valid = metadata.isValid(currentState.metadata().settings());
         if (valid && metadata.isCloseToExpiration()) {
             HeaderWarning.addWarning(
-                "database [{}] was not updated for over 25 days, geoip processor" + " will stop working if there is no update for 30 days",
+                "database [{}] was not updated for over 25 days, geoip processor will stop working if there is no update for 30 days",
                 databaseFile
             );
         }
@@ -206,7 +206,10 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         // There is a need for reference counting in order to avoid using an instance
         // that gets closed while using it. (this can happen during a database update)
         while (true) {
-            DatabaseReaderLazyLoader instance = databases.getOrDefault(name, configDatabases.getDatabase(name));
+            DatabaseReaderLazyLoader instance = databases.get(name);
+            if (instance == null) {
+                instance = configDatabases.getDatabase(name);
+            }
             if (instance == null || instance.preLookup()) {
                 return instance;
             }

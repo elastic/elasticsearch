@@ -28,12 +28,13 @@ public class ClientYamlSuiteRestApi {
 
     private final String location;
     private final String name;
-    private Set<Path> paths = new LinkedHashSet<>();
-    private Map<String, Boolean> params = new HashMap<>();
+    private final Set<Path> paths = new LinkedHashSet<>();
+    private final Map<String, Boolean> params = new HashMap<>();
     private Body body = Body.NOT_SUPPORTED;
     private Stability stability;
     private Visibility visibility;
     private String featureFlag;
+
     private List<String> responseMimeTypes;
     private List<String> requestMimeTypes;
 

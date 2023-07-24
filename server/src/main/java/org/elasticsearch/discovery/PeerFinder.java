@@ -19,11 +19,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -31,11 +32,14 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.Executor;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.Strings.format;
@@ -78,6 +82,7 @@ public abstract class PeerFinder {
 
     private final Object mutex = new Object();
     private final TransportService transportService;
+    private final Executor clusterCoordinationExecutor;
     private final TransportAddressConnector transportAddressConnector;
     private final ConfiguredHostsResolver configuredHostsResolver;
 
@@ -99,12 +104,13 @@ public abstract class PeerFinder {
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         verbosityIncreaseTimeout = VERBOSITY_INCREASE_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
+        this.clusterCoordinationExecutor = transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION);
         this.transportAddressConnector = transportAddressConnector;
         this.configuredHostsResolver = configuredHostsResolver;
 
         transportService.registerRequestHandler(
             REQUEST_PEERS_ACTION_NAME,
-            Names.GENERIC,
+            Names.CLUSTER_COORDINATION,
             false,
             false,
             PeersRequest::new,
@@ -129,11 +135,14 @@ public abstract class PeerFinder {
 
     public void deactivate(DiscoveryNode leader) {
         final boolean peersRemoved;
-        final List<Releasable> connectionReferences;
+        final Collection<Releasable> connectionReferences;
         synchronized (mutex) {
             logger.trace("deactivating and setting leader to {}", leader);
             active = false;
-            connectionReferences = peersByAddress.values().stream().map(Peer::getConnectionReference).toList();
+            connectionReferences = new ArrayList<>(peersByAddress.size());
+            for (Peer peer : peersByAddress.values()) {
+                connectionReferences.add(peer.getConnectionReference());
+            }
             peersRemoved = handleWakeUp();
             this.leader = Optional.of(leader);
             assert assertInactiveWithNoKnownPeers();
@@ -174,9 +183,13 @@ public abstract class PeerFinder {
     }
 
     PeersResponse handlePeersRequest(PeersRequest peersRequest) {
+        final Collection<DiscoveryNode> knownPeers;
+        final Optional<DiscoveryNode> leader;
+        final long currentTerm;
         synchronized (mutex) {
             assert peersRequest.getSourceNode().equals(getLocalNode()) == false;
-            final List<DiscoveryNode> knownPeers;
+            leader = this.leader;
+            currentTerm = this.currentTerm;
             if (active) {
                 assert leader.isPresent() == false : leader;
                 if (peersRequest.getSourceNode().isMasterNode()) {
@@ -188,8 +201,8 @@ public abstract class PeerFinder {
                 assert leader.isPresent() || lastAcceptedNodes == null;
                 knownPeers = emptyList();
             }
-            return new PeersResponse(leader, knownPeers, currentTerm);
         }
+        return new PeersResponse(leader, List.copyOf(knownPeers), currentTerm);
     }
 
     // exposed for checking invariant in o.e.c.c.Coordinator (public since this is a different package)
@@ -239,9 +252,16 @@ public abstract class PeerFinder {
         }
     }
 
-    private List<DiscoveryNode> getFoundPeersUnderLock() {
+    private Collection<DiscoveryNode> getFoundPeersUnderLock() {
         assert holdsLock() : "PeerFinder mutex not held";
-        return peersByAddress.values().stream().map(Peer::getDiscoveryNode).filter(Objects::nonNull).distinct().toList();
+        Set<DiscoveryNode> peers = Sets.newHashSetWithExpectedSize(peersByAddress.size());
+        for (Peer peer : peersByAddress.values()) {
+            DiscoveryNode discoveryNode = peer.getDiscoveryNode();
+            if (discoveryNode != null) {
+                peers.add(discoveryNode);
+            }
+        }
+        return peers;
     }
 
     /**
@@ -270,20 +290,9 @@ public abstract class PeerFinder {
             }
         });
 
-        transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, Names.GENERIC, new AbstractRunnable() {
+        transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, Names.CLUSTER_COORDINATION, new Runnable() {
             @Override
-            public boolean isForceExecution() {
-                return true;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert false : e;
-                logger.debug("unexpected exception in wakeup", e);
-            }
-
-            @Override
-            protected void doRun() {
+            public void run() {
                 synchronized (mutex) {
                     if (handleWakeUp() == false) {
                         return;
@@ -450,9 +459,9 @@ public abstract class PeerFinder {
             logger.trace("{} requesting peers", this);
             peersRequestInFlight = true;
 
-            final List<DiscoveryNode> knownNodes = getFoundPeersUnderLock();
+            final List<DiscoveryNode> knownNodes = List.copyOf(getFoundPeersUnderLock());
 
-            final TransportResponseHandler<PeersResponse> peersResponseHandler = new TransportResponseHandler<PeersResponse>() {
+            final TransportResponseHandler<PeersResponse> peersResponseHandler = new TransportResponseHandler<>() {
 
                 @Override
                 public PeersResponse read(StreamInput in) throws IOException {
@@ -469,8 +478,10 @@ public abstract class PeerFinder {
 
                         peersRequestInFlight = false;
 
-                        response.getMasterNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
-                        response.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(PeerFinder.this::startProbe);
+                        response.getMasterNode().ifPresent(node -> startProbe(node.getAddress()));
+                        for (DiscoveryNode node : response.getKnownPeers()) {
+                            startProbe(node.getAddress());
+                        }
                     }
 
                     if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
@@ -487,8 +498,8 @@ public abstract class PeerFinder {
                 }
 
                 @Override
-                public String executor() {
-                    return Names.GENERIC;
+                public Executor executor(ThreadPool threadPool) {
+                    return clusterCoordinationExecutor;
                 }
             };
             transportService.sendRequest(

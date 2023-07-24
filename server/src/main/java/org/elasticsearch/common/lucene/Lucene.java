@@ -84,6 +84,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class Lucene {
     public static final String LATEST_CODEC = "Lucene95";
@@ -772,9 +773,7 @@ public class Lucene {
 
             @Override
             public boolean get(int index) {
-                if (index < 0 || index >= maxDoc) {
-                    throw new IndexOutOfBoundsException(index + " is out of bounds: [" + 0 + "-" + maxDoc + "[");
-                }
+                Objects.checkIndex(index, maxDoc);
                 if (index < previous) {
                     throw new IllegalArgumentException(
                         "This Bits instance can only be consumed in order. "

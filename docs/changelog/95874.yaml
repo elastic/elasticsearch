@@ -1,0 +1,6 @@
+pr: 95874
+summary: Enable validation for `versionSettings`
+area: "Infra/Settings"
+type: bug
+issues:
+ - 95873

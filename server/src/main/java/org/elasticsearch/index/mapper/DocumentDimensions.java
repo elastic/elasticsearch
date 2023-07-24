@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexSettings;
 
 import java.net.InetAddress;
 import java.util.HashSet;
@@ -18,6 +19,13 @@ import java.util.Set;
  * Collects dimensions from documents.
  */
 public interface DocumentDimensions {
+
+    /**
+     * Build an index's DocumentDimensions using its settings
+     */
+    static DocumentDimensions fromIndexSettings(IndexSettings indexSettings) {
+        return indexSettings.getMode().buildDocumentDimensions(indexSettings);
+    }
 
     /**
      * This overloaded method tries to take advantage of the fact that the UTF-8

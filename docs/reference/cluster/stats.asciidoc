@@ -285,6 +285,26 @@ shards assigned to selected nodes.
 (integer)
 Total number of evictions from the field data cache across all shards assigned
 to selected nodes.
+
+`global_ordinals.build_time`::
+(<<time-units,time unit>>)
+The total time spent building global ordinals for all fields.
+
+`global_ordinals.build_time_in_millis`::
+(integer)
+The total time, in milliseconds, spent building global ordinals for all fields.
+
+`global_ordinals.fields.[field-name].build_time`::
+(<<time-units,time unit>>)
+The total time spent building global ordinals for field with specified name.
+
+`global_ordinals.fields.[field-name].build_time_in_millis`::
+(integer)
+The total time, in milliseconds, spent building global ordinals for field with specified name.
+
+`global_ordinals.fields.[field-name].shard_max_value_count`::
+(long)
+The total time spent building global ordinals for field with specified name.
 =====
 
 `query_cache`::
@@ -1274,7 +1294,7 @@ Number of selected nodes using the HTTP type.
 
 `discovery_types`::
 (object)
-Contains statistics about the <<modules-discovery-hosts-providers,discovery
+Contains statistics about the <<discovery-hosts-providers,discovery
 types>> used by selected nodes.
 +
 .Properties of `discovery_types`
@@ -1282,7 +1302,7 @@ types>> used by selected nodes.
 =====
 `<discovery_type>`::
 (integer)
-Number of selected nodes using the <<modules-discovery-hosts-providers,discovery
+Number of selected nodes using the <<discovery-hosts-providers,discovery
 type>> to find other nodes.
 =====
 
@@ -1514,7 +1534,11 @@ The API returns the following response:
       "fielddata": {
          "memory_size": "0b",
          "memory_size_in_bytes": 0,
-         "evictions": 0
+         "evictions": 0,
+         "global_ordinals": {
+            "build_time" : "0s",
+            "build_time_in_millis" : 0
+         }
       },
       "query_cache": {
          "memory_size": "0b",

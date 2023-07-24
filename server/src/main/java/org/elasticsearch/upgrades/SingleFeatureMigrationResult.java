@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -26,7 +26,7 @@ import java.util.Objects;
 /**
  * Holds the results of migrating a single feature. See also {@link FeatureMigrationResults}.
  */
-public class SingleFeatureMigrationResult implements SimpleDiffable<SingleFeatureMigrationResult>, Writeable, ToXContent {
+public class SingleFeatureMigrationResult implements SimpleDiffable<SingleFeatureMigrationResult>, Writeable, ToXContentObject {
     private static final String NAME = "feature_migration_status";
     private static final ParseField SUCCESS_FIELD = new ParseField("successful");
     private static final ParseField FAILED_INDEX_NAME_FIELD = new ParseField("failed_index");
@@ -143,11 +143,6 @@ public class SingleFeatureMigrationResult implements SimpleDiffable<SingleFeatur
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     @Override

@@ -18,8 +18,19 @@ import java.util.function.ToIntBiFunction;
 
 public abstract class AbstractBytesReference implements BytesReference {
 
+    protected final int length;
+
     private int hash;           // we cache the hash of this reference since it can be quite costly to re-calculated it
     private boolean hashIsZero; // if the calculated hash is actually zero
+
+    protected AbstractBytesReference(int length) {
+        this.length = length;
+    }
+
+    @Override
+    public final int length() {
+        return length;
+    }
 
     @Override
     public int getInt(int index) {

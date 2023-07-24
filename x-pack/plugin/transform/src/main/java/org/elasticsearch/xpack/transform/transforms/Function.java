@@ -117,10 +117,16 @@ public interface Function {
      * Deduce mappings based on the input mappings and the known configuration.
      *
      * @param client a client instance for querying the source mappings
+     * @param headers headers to be used to query only for what the caller is allowed to
      * @param sourceConfig the source configuration
      * @param listener listener to take the deduced mapping
      */
-    void deduceMappings(Client client, SourceConfig sourceConfig, ActionListener<Map<String, String>> listener);
+    void deduceMappings(
+        Client client,
+        Map<String, String> headers,
+        SourceConfig sourceConfig,
+        ActionListener<Map<String, String>> listener
+    );
 
     /**
      * Create a preview of the function.
@@ -178,11 +184,18 @@ public interface Function {
      * Runtime validation by querying the source and checking if source and config fit.
      *
      * @param client a client instance for querying the source
+     * @param headers headers to be used to query only for what the caller is allowed to
      * @param sourceConfig the source configuration
      * @param timeout search query timeout
      * @param listener the result listener
      */
-    void validateQuery(Client client, SourceConfig sourceConfig, @Nullable TimeValue timeout, ActionListener<Boolean> listener);
+    void validateQuery(
+        Client client,
+        Map<String, String> headers,
+        SourceConfig sourceConfig,
+        @Nullable TimeValue timeout,
+        ActionListener<Boolean> listener
+    );
 
     /**
      * Create a change collector instance and return it

@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -46,7 +47,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
         .module("reindex")
         .module("ingest-geoip")
         .systemProperty("ingest.geoip.downloader.enabled.default", "true")
-        .settings(s -> useFixture ? Map.of("ingest.geoip.downloader.endpoint", fixture.getAddress()) : Map.of())
+        .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
         .build();
 
     @ClassRule
@@ -79,10 +80,10 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             assertThat(nodes.size(), equalTo(1));
             Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
-            List<String> databases = ((List<?>) node.get("databases")).stream()
-                .map(o -> (String) ((Map<?, ?>) o).get("name"))
-                .collect(Collectors.toList());
-            assertThat(databases, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb"));
+            List<?> databases = ((List<?>) node.get("databases"));
+            assertThat(databases, notNullValue());
+            List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).collect(Collectors.toList());
+            assertThat(databaseNames, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb"));
         });
     }
 

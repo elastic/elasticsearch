@@ -1,0 +1,24 @@
+{
+  "processors": [
+    {
+      "set": {
+        "description": "If '@timestamp' is missing, set it with the ingest timestamp",
+        "field": "@timestamp",
+        "override": false,
+        "copy_from": "_ingest.timestamp"
+      }
+    },
+    {
+      "pipeline" : {
+        "name": "logs@custom",
+        "ignore_missing_pipeline": true,
+        "description": "A custom pipeline for logs data streams, which does not exist by default, but can be added if additional processing is required"
+      }
+    }
+  ],
+  "_meta": {
+    "description": "default pipeline for the logs index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version}
+}

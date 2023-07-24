@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -85,10 +86,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
                     .build()
             )
             .build();
-        this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(testRoutingTable)
-            .build();
+        this.clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(testRoutingTable).build();
     }
 
     /**
@@ -118,8 +116,8 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testAllShards() {
-        assertThat(this.emptyRoutingTable.allShards().size(), is(0));
-        assertThat(this.clusterState.routingTable().allShards().size(), is(this.totalNumberOfShards));
+        assertThat(this.emptyRoutingTable.allShards().count(), is(0L));
+        assertThat(this.clusterState.routingTable().allShards().count(), is((long) this.totalNumberOfShards));
 
         assertThat(this.clusterState.routingTable().allShards(TEST_INDEX_1).size(), is(this.shardsPerIndex));
         try {

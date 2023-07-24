@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
@@ -65,8 +66,8 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
                     license.uid(),
                     license.type(),
                     license.operationMode().description(),
-                    LicenseService.status(license),
-                    LicenseService.getExpiryDate(license)
+                    LicenseUtils.status(license),
+                    LicenseUtils.getExpiryDate(license)
                 );
             }
         }
@@ -79,7 +80,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
                 client.executeLocally(
                     infoAction,
                     request,
-                    ActionListener.wrap(response -> featureSets.add(response.getInfo()), listener::onFailure)
+                    listener.delegateFailureAndWrap((l, response) -> featureSets.add(response.getInfo()))
                 );
             }
             featureSetsInfo = new FeatureSetsInfo(featureSets);

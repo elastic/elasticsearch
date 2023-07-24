@@ -43,7 +43,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.BEATS;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.KIBANA;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.LOGSTASH;
@@ -58,18 +57,13 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
     private void stopMonitoring() {
         // Now disabling the monitoring service, so that no more collection are started
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .putNull(MonitoringService.ENABLED.getKey())
-                        .putNull("xpack.monitoring.exporters._local.type")
-                        .putNull("xpack.monitoring.exporters._local.enabled")
-                        .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
-                        .putNull("xpack.monitoring.exporters._local.index.name.time_format")
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(MonitoringService.ENABLED.getKey())
+                .putNull("xpack.monitoring.exporters._local.type")
+                .putNull("xpack.monitoring.exporters._local.enabled")
+                .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
+                .putNull("xpack.monitoring.exporters._local.index.name.time_format")
         );
     }
 
@@ -98,7 +92,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             }
 
             // local exporter is now enabled
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
+            updateClusterSettings(exporterSettings);
 
             if (randomBoolean()) {
                 // export some documents now, before starting the monitoring service
@@ -264,7 +258,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
      * fields and belongs to the right data or timestamped index.
      */
     private void checkMonitoringDocs() {
-        ClusterStateResponse response = client().admin().cluster().prepareState().get();
+        ClusterStateResponse response = clusterAdmin().prepareState().get();
         String customTimeFormat = response.getState()
             .getMetadata()
             .persistentSettings()

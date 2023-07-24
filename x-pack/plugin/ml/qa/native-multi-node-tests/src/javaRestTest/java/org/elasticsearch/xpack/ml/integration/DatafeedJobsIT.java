@@ -76,11 +76,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     @After
     public void cleanup() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.datafeed").build())
-            .get();
+        updateClusterSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.datafeed"));
         cleanUp();
     }
 
@@ -93,7 +89,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         indexDocs(logger, "data-1", numDocs, twoWeeksAgo, oneWeekAgo);
 
         client().admin().indices().prepareCreate("data-2").setMapping("time", "type=date").get();
-        client().admin().cluster().prepareHealth("data-1", "data-2").setWaitForYellowStatus().get();
+        clusterAdmin().prepareHealth("data-1", "data-2").setWaitForYellowStatus().get();
         long numDocs2 = randomIntBetween(32, 2048);
         indexDocs(logger, "data-2", numDocs2, oneWeekAgo, now);
 
@@ -139,7 +135,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         long twoWeeksAgo = oneWeekAgo - 604800000;
         indexDocs(logger, "datafeed_data_stream", numDocs, twoWeeksAgo, oneWeekAgo);
 
-        client().admin().cluster().prepareHealth("datafeed_data_stream").setWaitForYellowStatus().get();
+        clusterAdmin().prepareHealth("datafeed_data_stream").setWaitForYellowStatus().get();
 
         Job.Builder job = createScheduledJob("lookback-data-stream-job");
         PutJobAction.Response putJobResponse = putJob(job);
@@ -292,11 +288,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testStopAndRestartCompositeDatafeed() throws Exception {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("logger.org.elasticsearch.xpack.ml.datafeed", "TRACE").build())
-            .get();
+        updateClusterSettings(Settings.builder().put("logger.org.elasticsearch.xpack.ml.datafeed", "TRACE"));
         String indexName = "stop-restart-data";
         client().admin().indices().prepareCreate("stop-restart-data").setMapping("time", "type=date").get();
         long numDocs = randomIntBetween(32, 2048);
@@ -326,7 +318,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             Intervals.alignToCeil(oneWeekAgo, intervalMillis),
             Intervals.alignToFloor(now, intervalMillis)
         );
-        client().admin().cluster().prepareHealth(indexName).setWaitForYellowStatus().get();
+        clusterAdmin().prepareHealth(indexName).setWaitForYellowStatus().get();
 
         String scrollJobId = "stop-restart-scroll";
         Job.Builder scrollJob = createScheduledJob(scrollJobId);
@@ -476,7 +468,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             StopDatafeedAction.Response stopJobResponse = stopDatafeed(datafeedId);
             assertTrue(stopJobResponse.isStopped());
         } catch (Exception e) {
-            NodesHotThreadsResponse nodesHotThreadsResponse = client().admin().cluster().prepareNodesHotThreads().get();
+            NodesHotThreadsResponse nodesHotThreadsResponse = clusterAdmin().prepareNodesHotThreads().get();
             int i = 0;
             for (NodeHotThreads nodeHotThreads : nodesHotThreadsResponse.getNodes()) {
                 logger.info(i++ + ":\n" + nodeHotThreads.getHotThreads());
@@ -499,7 +491,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             CloseJobAction.Response closeJobResponse = closeJob(jobId);
             assertTrue(closeJobResponse.isClosed());
         } catch (Exception e) {
-            NodesHotThreadsResponse nodesHotThreadsResponse = client().admin().cluster().prepareNodesHotThreads().get();
+            NodesHotThreadsResponse nodesHotThreadsResponse = clusterAdmin().prepareNodesHotThreads().get();
             int i = 0;
             for (NodeHotThreads nodeHotThreads : nodesHotThreadsResponse.getNodes()) {
                 logger.info(i++ + ":\n" + nodeHotThreads.getHotThreads());
@@ -546,7 +538,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             CloseJobAction.Response closeJobResponse = closeJob(jobId, useForce);
             assertTrue(closeJobResponse.isClosed());
         } catch (Exception e) {
-            NodesHotThreadsResponse nodesHotThreadsResponse = client().admin().cluster().prepareNodesHotThreads().get();
+            NodesHotThreadsResponse nodesHotThreadsResponse = clusterAdmin().prepareNodesHotThreads().get();
             int i = 0;
             for (NodeHotThreads nodeHotThreads : nodesHotThreadsResponse.getNodes()) {
                 logger.info(i++ + ":\n" + nodeHotThreads.getHotThreads());

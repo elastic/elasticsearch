@@ -8,14 +8,12 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -35,8 +33,8 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         FIELDDATA_CACHE_KEY,
         FIELDDATA_CACHE_VALUE_NODE,
         (s) -> switch (s) {
-        case "node", "none" -> s;
-        default -> throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,none]");
+            case "node", "none" -> s;
+            default -> throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,none]");
         },
         Property.IndexScope
     );
@@ -47,11 +45,6 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     // the below map needs to be modified under a lock
     private final Map<String, IndexFieldDataCache> fieldDataCaches = new HashMap<>();
     private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {
-        @Override
-        public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {}
-
-        @Override
-        public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {}
     };
     private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;
 

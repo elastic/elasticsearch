@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.health;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -267,7 +268,8 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
         builder.field(INITIALIZING_SHARDS, getInitializingShards());
         builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
 
-        if ("shards".equals(params.param("level", "indices"))) {
+        ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
+        if (level == ClusterStatsLevel.SHARDS) {
             builder.startObject(SHARDS);
             for (ClusterShardHealth shardHealth : shards.values()) {
                 shardHealth.toXContent(builder, params);

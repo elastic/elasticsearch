@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -20,22 +21,24 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public final class OpenPointInTimeRequest extends ActionRequest implements IndicesRequest.Replaceable {
+
     private String[] indices;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private TimeValue keepAlive;
-
+    private int maxConcurrentShardRequests = SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS;
     @Nullable
     private String routing;
     @Nullable
     private String preference;
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
 
     public OpenPointInTimeRequest(String... indices) {
         this.indices = Objects.requireNonNull(indices, "[index] is not specified");
@@ -48,6 +51,9 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         this.keepAlive = in.readTimeValue();
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
+            this.maxConcurrentShardRequests = in.readVInt();
+        }
     }
 
     @Override
@@ -58,6 +64,9 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         out.writeTimeValue(keepAlive);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
+            out.writeVInt(maxConcurrentShardRequests);
+        }
     }
 
     @Override
@@ -123,6 +132,27 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         return this;
     }
 
+    /**
+     * Similar to {@link SearchRequest#getMaxConcurrentShardRequests()}, this returns the number of shard requests that should be
+     * executed concurrently on a single node . This value should be used as a protection mechanism to reduce the number of shard
+     * requests fired per open point-in-time request. The default is {@code 5}
+     */
+    public int maxConcurrentShardRequests() {
+        return maxConcurrentShardRequests;
+    }
+
+    /**
+     * Similar to {@link SearchRequest#setMaxConcurrentShardRequests(int)}, this sets the number of shard requests that should be
+     * executed concurrently on a single node. This value should be used as a protection mechanism to reduce the number of shard
+     * requests fired per open point-in-time request.
+     */
+    public void maxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        if (maxConcurrentShardRequests < 1) {
+            throw new IllegalArgumentException("maxConcurrentShardRequests must be >= 1");
+        }
+        this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+    }
+
     @Override
     public boolean allowsRemoteIndices() {
         return true;
@@ -139,7 +169,45 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     }
 
     @Override
+    public String toString() {
+        return "OpenPointInTimeRequest{"
+            + "indices="
+            + Arrays.toString(indices)
+            + ", keepAlive="
+            + keepAlive
+            + ", maxConcurrentShardRequests="
+            + maxConcurrentShardRequests
+            + ", routing='"
+            + routing
+            + '\''
+            + ", preference='"
+            + preference
+            + '\''
+            + '}';
+    }
+
+    @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::getDescription, parentTaskId, headers);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        OpenPointInTimeRequest that = (OpenPointInTimeRequest) o;
+        return maxConcurrentShardRequests == that.maxConcurrentShardRequests
+            && Arrays.equals(indices, that.indices)
+            && indicesOptions.equals(that.indicesOptions)
+            && keepAlive.equals(that.keepAlive)
+            && Objects.equals(routing, that.routing)
+            && Objects.equals(preference, that.preference);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(indicesOptions, keepAlive, maxConcurrentShardRequests, routing, preference);
+        result = 31 * result + Arrays.hashCode(indices);
+        return result;
     }
 }

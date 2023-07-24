@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -633,15 +634,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         aliases.add(new ResolvedAlias(ia.getName(), indexNames));
                     }
                     case DATA_STREAM -> {
-                        IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) ia;
+                        DataStream dataStream = (DataStream) ia;
                         String[] backingIndices = dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new);
-                        dataStreams.add(
-                            new ResolvedDataStream(
-                                dataStream.getName(),
-                                backingIndices,
-                                dataStream.getDataStream().getTimeStampField().getName()
-                            )
-                        );
+                        dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
                     }
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
                 }

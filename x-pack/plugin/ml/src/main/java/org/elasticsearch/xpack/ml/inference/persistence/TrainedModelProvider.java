@@ -863,6 +863,23 @@ public class TrainedModelProvider {
         }));
     }
 
+    /**
+     * Returns a Tuple of
+     *  - hit count: the number of matching model Ids
+     *  - Map model id -> aliases: All matched model Ids and
+     *    the list of aliases that reference the model Id
+     *
+     * @param idExpression The expression to expand
+     * @param allowNoResources When wildcard expressions are used allow
+     *                         no matches (don't error)
+     * @param pageParams paging
+     * @param tags Tags the model must contain
+     * @param modelAliasMetadata Aliases
+     * @param parentTaskId Optional parent task Id
+     * @param previouslyMatchedIds Ids that have already been matched (e.g. deployment Id).
+     *                             It is not an error if these Ids are not matched in the query
+     * @param idsListener The listener
+     */
     public void expandIds(
         String idExpression,
         boolean allowNoResources,
@@ -870,6 +887,7 @@ public class TrainedModelProvider {
         Set<String> tags,
         ModelAliasMetadata modelAliasMetadata,
         @Nullable TaskId parentTaskId,
+        Set<String> previouslyMatchedIds,
         ActionListener<Tuple<Long, Map<String, Set<String>>>> idsListener
     ) {
         String[] tokens = Strings.tokenizeToStringArray(idExpression, ",");
@@ -973,6 +991,7 @@ public class TrainedModelProvider {
                 // Reverse lookup to see what model aliases were matched by their found trained model IDs
                 ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoResources);
                 requiredMatches.filterMatchedIds(matchedTokens);
+                requiredMatches.filterMatchedIds(previouslyMatchedIds);
                 if (requiredMatches.hasUnmatchedIds()) {
                     idsListener.onFailure(ExceptionsHelper.missingTrainedModel(requiredMatches.unmatchedIdsString()));
                 } else {

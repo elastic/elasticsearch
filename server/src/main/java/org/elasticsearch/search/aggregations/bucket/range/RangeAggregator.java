@@ -392,7 +392,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
         boolean wholeNumbersOnly = false == ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint();
         FilterByFilterAggregator.AdapterBuilder<FromFilters<?>> filterByFilterBuilder = new FilterByFilterAggregator.AdapterBuilder<
-            FromFilters<?>>(name, false, null, context, parent, cardinality, metadata) {
+            FromFilters<?>>(name, false, false, null, context, parent, cardinality, metadata) {
             @Override
             protected FromFilters<?> adapt(CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> delegate)
                 throws IOException {

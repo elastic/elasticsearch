@@ -170,6 +170,12 @@ Reporting users should also be assigned additional roles that grant
 {kibana-ref}/xpack-security-authorization.html[access to {kib}] as well as read
 access to the <<roles-indices-priv,indices>> that will be used to generate reports.
 
+[[built-in-roles-rollup-admin]] `rollup_admin`::
+Grants `manage_rollup` cluster privileges, which enable you to manage and execute all rollup actions. 
+
+[[built-in-roles-rollup-user]] `rollup_user`::
+Grants `monitor_rollup` cluster privileges, which enable you to perform read-only operations related to rollups. 
+
 [[built-in-roles-snapshot-user]] `snapshot_user`::
 Grants the necessary privileges to create snapshots of **all** the indices and
 to view their metadata. This role enables users to view the configuration of

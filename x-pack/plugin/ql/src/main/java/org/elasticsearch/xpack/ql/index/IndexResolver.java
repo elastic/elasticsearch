@@ -587,21 +587,15 @@ public class IndexResolver {
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
         client.fieldCaps(fieldRequest, wrap(response -> {
-            client.admin()
-                .indices()
-                .getAliases(
-                    createGetAliasesRequest(response, includeFrozen),
-                    wrap(
-                        aliases -> { listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases())); },
-                        ex -> {
-                            if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
-                            } else {
-                                listener.onFailure(ex);
-                            }
-                        }
-                    )
-                );
+            client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
+                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));
+            }, ex -> {
+                if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
+                    listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
+                } else {
+                    listener.onFailure(ex);
+                }
+            }));
         }, listener::onFailure));
 
     }
@@ -710,7 +704,7 @@ public class IndexResolver {
                     for (String concreteIndex : concreteIndices) {
                         if (aliases.containsKey(concreteIndex)) {
                             List<AliasMetadata> concreteIndexAliases = aliases.get(concreteIndex);
-                            concreteIndexAliases.stream().forEach(e -> uniqueAliases.add(e.alias()));
+                            concreteIndexAliases.forEach(e -> uniqueAliases.add(e.alias()));
                         }
                     }
                     concreteIndices.addAll(uniqueAliases);

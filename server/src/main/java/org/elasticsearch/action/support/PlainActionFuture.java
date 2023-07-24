@@ -223,6 +223,36 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
     }
 
     /**
+     * Return the result of this future, similarly to {@link FutureUtils#get} with a zero timeout except that this method ignores the
+     * interrupted status of the calling thread.
+     * <p>
+     * As with {@link FutureUtils#get}, if the future completed exceptionally with a {@link RuntimeException} then this method throws that
+     * exception, but if the future completed exceptionally with an exception that is not a {@link RuntimeException} then this method throws
+     * an {@link UncategorizedExecutionException} whose cause is an {@link ExecutionException} whose cause is the completing exception.
+     * <p>
+     * It is not valid to call this method if the future is incomplete.
+     *
+     * @return the result of this future, if it has been completed successfully.
+     * @throws RuntimeException if this future was completed exceptionally, wrapping checked exceptions as described above.
+     * @throws CancellationException if this future was cancelled.
+     */
+    public T result() {
+        return sync.result();
+    }
+
+    /**
+     * Return the result of this future, if it has been completed successfully, or unwrap and throw the exception with which it was
+     * completed exceptionally. It is not valid to call this method if the future is incomplete.
+     */
+    public T actionResult() {
+        try {
+            return result();
+        } catch (ElasticsearchException e) {
+            throw unwrapEsException(e);
+        }
+    }
+
+    /**
      * <p>Following the contract of {@link AbstractQueuedSynchronizer} we create a
      * private subclass to hold the synchronizer.  This synchronizer is used to
      * implement the blocking and waiting calls as well as to handle state changes
@@ -320,6 +350,26 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
             }
         }
 
+        V result() {
+            final int state = getState();
+            switch (state) {
+                case COMPLETED:
+                    if (exception instanceof RuntimeException runtimeException) {
+                        throw runtimeException;
+                    } else if (exception != null) {
+                        throw new UncategorizedExecutionException("Failed execution", new ExecutionException(exception));
+                    } else {
+                        return value;
+                    }
+                case CANCELLED:
+                    throw new CancellationException("Task was cancelled.");
+                default:
+                    final var message = "Error, synchronizer in invalid state: " + state;
+                    assert false : message;
+                    throw new IllegalStateException(message);
+            }
+        }
+
         /**
          * Checks if the state is {@link #COMPLETED} or {@link #CANCELLED}.
          */
@@ -385,8 +435,8 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
 
     private static RuntimeException unwrapEsException(ElasticsearchException esEx) {
         Throwable root = esEx.unwrapCause();
-        if (root instanceof RuntimeException) {
-            return (RuntimeException) root;
+        if (root instanceof RuntimeException runtimeException) {
+            return runtimeException;
         }
         return new UncategorizedExecutionException("Failed execution", root);
     }

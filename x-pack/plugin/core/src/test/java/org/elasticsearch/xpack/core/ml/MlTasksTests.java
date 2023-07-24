@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -210,7 +210,7 @@ public class MlTasksTests extends ESTestCase {
         );
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node-1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+            .add(DiscoveryNodeUtils.create("node-1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
             .localNodeId("node-1")
             .masterNodeId("node-1")
             .build();
@@ -240,7 +240,7 @@ public class MlTasksTests extends ESTestCase {
         );
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node-1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+            .add(DiscoveryNodeUtils.create("node-1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
             .localNodeId("node-1")
             .masterNodeId("node-1")
             .build();

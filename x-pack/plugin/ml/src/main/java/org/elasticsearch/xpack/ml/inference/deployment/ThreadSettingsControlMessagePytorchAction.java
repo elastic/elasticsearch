@@ -20,7 +20,7 @@ public class ThreadSettingsControlMessagePytorchAction extends AbstractControlMe
     private final int numAllocationThreads;
 
     ThreadSettingsControlMessagePytorchAction(
-        String modelId,
+        String deploymentId,
         long requestId,
         int numAllocationThreads,
         TimeValue timeout,
@@ -28,7 +28,7 @@ public class ThreadSettingsControlMessagePytorchAction extends AbstractControlMe
         ThreadPool threadPool,
         ActionListener<ThreadSettings> listener
     ) {
-        super(modelId, requestId, timeout, processContext, threadPool, listener);
+        super(deploymentId, requestId, timeout, processContext, threadPool, listener);
         this.numAllocationThreads = numAllocationThreads;
     }
 

@@ -1,5 +1,0 @@
-pr: 93238
-summary: "Upgrade antlr to 4.11.1 for ql, eql and sql"
-area: Query Languages
-type: upgrade
-issues: []

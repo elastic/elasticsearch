@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
@@ -26,7 +25,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.deployment.NlpInferenceInput;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,8 +40,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
     public TransportInferTrainedModelDeploymentAction(
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters,
-        TrainedModelProvider provider
+        ActionFilters actionFilters
     ) {
         super(
             InferTrainedModelDeploymentAction.NAME,
@@ -70,9 +67,9 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             throw failedNodeExceptions.get(0);
         } else if (tasks.isEmpty()) {
             throw new ElasticsearchStatusException(
-                "Unable to find deployment task for model [{}] please stop and start the deployment or try again momentarily",
+                "Unable to find model deployment task [{}] please stop and start the deployment or try again momentarily",
                 RestStatus.NOT_FOUND,
-                request.getModelId()
+                request.getId()
             );
         } else {
             assert tasks.size() == 1;
@@ -82,13 +79,11 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         InferTrainedModelDeploymentAction.Request request,
         TrainedModelDeploymentTask task,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
-        assert actionTask instanceof CancellableTask : "task [" + actionTask + "] not cancellable";
-
         var nlpInputs = new ArrayList<NlpInferenceInput>();
         if (request.getTextInput() != null) {
             for (var text : request.getTextInput()) {
@@ -101,10 +96,9 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         }
 
         // Multiple documents to infer on, wait for all results
-        ActionListener<Collection<InferenceResults>> collectingListener = ActionListener.wrap(
-            pyTorchResults -> { listener.onResponse(new InferTrainedModelDeploymentAction.Response(new ArrayList<>(pyTorchResults))); },
-            listener::onFailure
-        );
+        ActionListener<Collection<InferenceResults>> collectingListener = ActionListener.wrap(pyTorchResults -> {
+            listener.onResponse(new InferTrainedModelDeploymentAction.Response(new ArrayList<>(pyTorchResults)));
+        }, listener::onFailure);
 
         GroupedActionListener<InferenceResults> groupedListener = new GroupedActionListener<>(nlpInputs.size(), collectingListener);
         for (var input : nlpInputs) {

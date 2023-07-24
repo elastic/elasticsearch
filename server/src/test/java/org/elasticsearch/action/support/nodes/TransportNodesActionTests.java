@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
@@ -143,7 +143,7 @@ public class TransportNodesActionTests extends ESTestCase {
         assertNotEquals(failedNodeIds.isEmpty(), response.hasFailures());
         for (FailedNodeException failure : response.failures()) {
             assertThat(failedNodeIds, Matchers.hasItem(failure.nodeId()));
-            if (failure.getCause()instanceof ElasticsearchException elasticsearchException) {
+            if (failure.getCause() instanceof ElasticsearchException elasticsearchException) {
                 final var cause = elasticsearchException.unwrapCause();
                 assertEquals("simulated", cause.getMessage());
             } else {
@@ -158,7 +158,10 @@ public class TransportNodesActionTests extends ESTestCase {
 
         final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
         final PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
-        action.execute(cancellableTask, new TestNodesRequest(), listener);
+        action.execute(cancellableTask, new TestNodesRequest(), listener.delegateResponse((l, e) -> {
+            assert Thread.currentThread().getName().contains("[" + ThreadPool.Names.GENERIC + "]");
+            l.onFailure(e);
+        }));
 
         final List<CapturingTransport.CapturedRequest> capturedRequests = new ArrayList<>(
             Arrays.asList(transport.getCapturedRequestsAndClear())
@@ -266,7 +269,7 @@ public class TransportNodesActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             TestNodesRequest::new,
             TestNodeRequest::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.GENERIC
         );
     }
 
@@ -278,13 +281,13 @@ public class TransportNodesActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             TestNodesRequest::new,
             TestNodeRequest::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.GENERIC
         );
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         String node = "node_" + nodeId;
-        return new DiscoveryNode(node, node, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
+        return DiscoveryNodeUtils.builder(node).name(node).attributes(attributes).roles(roles).build();
     }
 
     private static class TestTransportNodesAction extends TransportNodesAction<
@@ -302,17 +305,7 @@ public class TransportNodesActionTests extends ESTestCase {
             Writeable.Reader<TestNodeRequest> nodeRequest,
             String nodeExecutor
         ) {
-            super(
-                "indices:admin/test",
-                threadPool,
-                clusterService,
-                transportService,
-                actionFilters,
-                request,
-                nodeRequest,
-                nodeExecutor,
-                TestNodeResponse.class
-            );
+            super("indices:admin/test", threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
         }
 
         @Override

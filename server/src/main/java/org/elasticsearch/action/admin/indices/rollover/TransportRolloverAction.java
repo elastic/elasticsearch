@@ -137,7 +137,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             IndicesStatsAction.INSTANCE,
             statsRequest,
 
-            ActionListener.wrap(statsResponse -> {
+            listener.delegateFailureAndWrap((delegate, statsResponse) -> {
                 // Now that we have the stats for the cluster, we need to know the names of the index for which we should evaluate
                 // conditions, as well as what our newly created index *would* be.
                 final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
@@ -153,7 +153,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                 // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
                 final Map<String, Boolean> trialConditionResults = evaluateConditions(
-                    rolloverRequest.getConditions().values(),
+                    rolloverRequest.getConditionValues(),
                     buildStats(metadata.index(trialSourceIndexName), statsResponse)
                 );
 
@@ -169,20 +169,20 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                 // If this is a dry run, return with the results without invoking a cluster state update
                 if (rolloverRequest.isDryRun()) {
-                    listener.onResponse(trialRolloverResponse);
+                    delegate.onResponse(trialRolloverResponse);
                     return;
                 }
 
                 // Pre-check the conditions to see whether we should submit a new cluster state task
                 if (rolloverRequest.areConditionsMet(trialConditionResults)) {
                     String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
-                    RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, listener);
+                    RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, delegate);
                     rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
                 } else {
                     // conditions not met
-                    listener.onResponse(trialRolloverResponse);
+                    delegate.onResponse(trialRolloverResponse);
                 }
-            }, listener::onFailure)
+            })
         );
     }
 
@@ -308,13 +308,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             // Re-evaluate the conditions, now with our final source index name
             IndexMetadata rolloverSourceIndex = currentState.metadata().index(rolloverNames.sourceName());
             final Map<String, Boolean> postConditionResults = evaluateConditions(
-                rolloverRequest.getConditions().values(),
+                rolloverRequest.getConditionValues(),
                 buildStats(rolloverSourceIndex, rolloverTask.statsResponse())
             );
 
-            if (rolloverRequest.areConditionsMet(postConditionResults)) {
-                final List<Condition<?>> metConditions = rolloverRequest.getConditions()
-                    .values()
+            if (rolloverRequest.getConditions().areConditionsMet(postConditionResults)) {
+                final List<Condition<?>> metConditions = rolloverRequest.getConditionValues()
                     .stream()
                     .filter(condition -> postConditionResults.get(condition.toString()))
                     .toList();
@@ -374,7 +373,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 // Return the new rollover cluster state, which includes the changes that create the new index
                 return rolloverResult.clusterState();
             } else {
-                // Upon re-evaluation of the conditions, none were met, so therefore do not perform a rollover, returning the current
+                // Upon re-evaluation of the conditions, none were met, so do not perform a rollover, returning the current
                 // cluster state.
                 rolloverTaskContext.success(() -> rolloverTask.listener().onResponse(rolloverTask.trialRolloverResponse()));
                 return currentState;

@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -1309,7 +1308,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         buildIndex.accept(indexWriter);
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         try (AggregationContext context = createAggregationContext(indexSearcher, query, fieldType)) {

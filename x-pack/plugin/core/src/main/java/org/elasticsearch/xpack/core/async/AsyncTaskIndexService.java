@@ -524,11 +524,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                     asyncExecutionId,
                     false,
                     false,
-                    outerListener.delegateFailure(
-                        (listener, resp) -> listener.onResponse(
-                            statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded())
-                        )
-                    )
+                    outerListener.map(resp -> statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded()))
                 );
             }
         } catch (Exception exc) {
@@ -569,13 +565,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private void writeResponse(R response, OutputStream os) throws IOException {
         // do not close the output
         os = Streams.noCloseStream(os);
-        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        TransportVersion.writeVersion(minNodeVersion.transportVersion, new OutputStreamStreamOutput(os));
-        if (minNodeVersion.onOrAfter(Version.V_7_15_0)) {
+        TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
+        TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
+        if (minNodeVersion.onOrAfter(TransportVersion.V_7_15_0)) {
             os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
         }
         try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
-            out.setTransportVersion(minNodeVersion.transportVersion);
+            out.setTransportVersion(minNodeVersion);
             response.writeTo(out);
         }
     }
@@ -595,7 +591,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             }
         });
         TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
-        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
+        assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
         if (version.onOrAfter(TransportVersion.V_7_15_0)) {
             encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
         }

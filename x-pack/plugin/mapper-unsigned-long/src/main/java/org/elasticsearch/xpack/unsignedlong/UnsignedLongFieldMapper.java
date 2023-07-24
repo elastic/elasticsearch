@@ -330,7 +330,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                         name(),
                         IndexNumericFieldData.NumericType.LONG,
                         valuesSourceType,
-                        (dv, n) -> { throw new UnsupportedOperationException(); }
+                        (dv, n) -> {
+                            throw new UnsupportedOperationException();
+                        }
                     ).build(cache, breakerService);
                     return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new);
                 };

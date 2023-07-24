@@ -11,11 +11,11 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 restResources {
   restApi {
     include '_common', 'bulk', 'count', 'cluster', 'field_caps', 'knn_search', 'index', 'indices', 'msearch',
-      'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll', 'search_mvt'
+      'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll', 'search_mvt', 'eql', 'sql'
   }
   restTests {
     includeCore 'field_caps', 'msearch', 'search', 'suggest', 'scroll', "indices.resolve_index"
-    includeXpack 'async_search', 'vector-tile'
+    includeXpack 'async_search', 'vector-tile', 'sql'
   }
 }
 
@@ -27,6 +27,8 @@ dependencies {
   clusterModules project(':x-pack:plugin:analytics')
   clusterModules project(':x-pack:plugin:vector-tile')
   clusterModules project(':modules:legacy-geo')
+  clusterModules project(':x-pack:plugin:eql')
+  clusterModules project(':x-pack:plugin:sql')
 }
 
 tasks.named("yamlRestTest") {

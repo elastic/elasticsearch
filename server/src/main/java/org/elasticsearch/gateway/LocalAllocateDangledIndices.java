@@ -11,7 +11,6 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -31,8 +30,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -93,7 +94,7 @@ public class LocalAllocateDangledIndices {
             masterNode,
             ACTION_NAME,
             request,
-            new ActionListenerResponseHandler<>(listener, AllocateDangledResponse::new, ThreadPool.Names.SAME)
+            new ActionListenerResponseHandler<>(listener, AllocateDangledResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
     }
 
@@ -123,9 +124,8 @@ public class LocalAllocateDangledIndices {
                         allocationService.getShardRoutingRoleStrategy(),
                         currentState.routingTable()
                     );
-                    final Version minIndexCompatibilityVersion = currentState.getNodes()
-                        .getMaxNodeVersion()
-                        .minimumIndexCompatibilityVersion();
+                    IndexVersion minIndexCompatibilityVersion = currentState.nodes().getMinSupportedIndexVersion();
+                    IndexVersion maxIndexCompatibilityVersion = currentState.nodes().getMaxDataNodeCompatibleIndexVersion();
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();
                     for (IndexMetadata indexMetadata : request.indices) {
@@ -140,14 +140,14 @@ public class LocalAllocateDangledIndices {
                             );
                             continue;
                         }
-                        if (currentState.nodes().getMinNodeVersion().before(indexMetadata.getCompatibilityVersion())) {
+                        if (indexMetadata.getCompatibilityVersion().after(maxIndexCompatibilityVersion)) {
                             logger.warn(
                                 "ignoring dangled index [{}] on node [{}] since its current compatibility version [{}] "
-                                    + "is later than the oldest versioned node in the cluster [{}]",
+                                    + "is later than the maximum supported index version in the cluster [{}]",
                                 indexMetadata.getIndex(),
                                 request.fromNode,
                                 indexMetadata.getCompatibilityVersion(),
-                                currentState.getNodes().getMasterNode().getVersion()
+                                maxIndexCompatibilityVersion
                             );
                             continue;
                         }

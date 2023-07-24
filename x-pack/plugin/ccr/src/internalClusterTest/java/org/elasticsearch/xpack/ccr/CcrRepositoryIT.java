@@ -162,9 +162,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .indexSettings(settingsBuilder)
             .quiet(true);
 
-        PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-        RestoreInfo restoreInfo = future.actionGet();
+        final RestoreInfo restoreInfo = startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
         assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
         assertEquals(0, restoreInfo.failedShards());
@@ -235,9 +233,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .indexSettings(settingsBuilder)
             .quiet(true);
 
-        PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-        RestoreInfo restoreInfo = future.actionGet();
+        final RestoreInfo restoreInfo = startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
         assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
         assertEquals(0, restoreInfo.failedShards());
@@ -304,9 +300,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .indexSettings(settingsBuilder)
             .quiet(true);
 
-        PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-        future.actionGet();
+        startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
         if (followerRateLimiting) {
             assertTrue(repositories.stream().anyMatch(cr -> cr.getRestoreThrottleTimeInNanos() > 0));
@@ -345,8 +339,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             transportServices.add(mockTransportService);
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(GetCcrRestoreFileChunkAction.NAME) == false
-                    && action.equals(TransportActionProxy.getProxyAction(GetCcrRestoreFileChunkAction.NAME)) == false) {
+                if (action.equals(GetCcrRestoreFileChunkAction.INTERNAL_NAME) == false
+                    && action.equals(TransportActionProxy.getProxyAction(GetCcrRestoreFileChunkAction.INTERNAL_NAME)) == false) {
                     connection.sendRequest(requestId, action, request, options);
                 }
             });
@@ -374,8 +368,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         try {
             final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
             final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
-            PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-            restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+            final PlainActionFuture<RestoreInfo> future = startRestore(clusterService, restoreService, restoreRequest);
 
             // Depending on when the timeout occurs this can fail in two ways. If it times-out when fetching
             // metadata this will throw an exception. If it times-out when restoring a shard, the shard will
@@ -454,7 +447,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             transportServices.add(mockTransportService);
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PutCcrRestoreSessionAction.NAME)) {
+                if (action.equals(PutCcrRestoreSessionAction.INTERNAL_NAME)) {
                     updateMappings.run();
                     connection.sendRequest(requestId, action, request, options);
                 } else {
@@ -464,9 +457,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         }
 
         try {
-            PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-            restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-            RestoreInfo restoreInfo = future.actionGet();
+            RestoreInfo restoreInfo = startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
             assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
             assertEquals(0, restoreInfo.failedShards());
@@ -594,7 +585,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
             )
             .quiet(true);
-        restoreService.restoreSnapshot(restoreRequest, PlainActionFuture.newFuture());
+        restoreService.restoreSnapshot(restoreRequest, ActionListener.noop());
 
         waitForRestoreInProgress.get(30L, TimeUnit.SECONDS);
         clusterService.removeListener(listener);

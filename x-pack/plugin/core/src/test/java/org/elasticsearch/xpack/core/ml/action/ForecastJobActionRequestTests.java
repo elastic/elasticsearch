@@ -24,11 +24,6 @@ public class ForecastJobActionRequestTests extends AbstractXContentSerializingTe
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request createTestInstance() {
         Request request = new Request(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {

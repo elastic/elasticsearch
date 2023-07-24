@@ -13,14 +13,13 @@ import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesReq
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -175,14 +174,7 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DiscoveryNode newDiscoveryNode(String nodeName) {
-        return new DiscoveryNode(
-            nodeName,
-            UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.create(nodeName, UUIDs.randomBase64UUID(random()));
     }
 
     public static double randomNumberOfProcessors() {

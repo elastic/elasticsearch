@@ -332,7 +332,25 @@ with latency metrics (in milliseconds) for different networks:
 
 [source,console]
 --------------------------------------------------
-PUT metrics_index/_doc/1
+PUT metrics_index
+{
+  "mappings": {
+    "properties": {
+      "network": {
+        "properties": {
+          "name": {
+            "type": "keyword"
+          }
+        }
+      },
+      "latency_histo": {
+         "type": "histogram"
+      }
+    }
+  }
+}
+
+PUT metrics_index/_doc/1?refresh
 {
   "network.name" : "net-1",
   "latency_histo" : {
@@ -341,7 +359,7 @@ PUT metrics_index/_doc/1
    }
 }
 
-PUT metrics_index/_doc/2
+PUT metrics_index/_doc/2?refresh
 {
   "network.name" : "net-2",
   "latency_histo" : {
@@ -372,7 +390,7 @@ return the following output:
 {
   ...
   "aggregations": {
-    "prices": {
+    "latency_buckets": {
       "buckets": [
         {
           "key": 0.0,
@@ -395,7 +413,7 @@ return the following output:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[skip:test not setup]
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 [IMPORTANT]
 ========

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
@@ -40,7 +39,7 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
     }
 
     public void testGlobalCheckpointListeners() throws Exception {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex("test", indexSettings(1, 0).build());
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -107,7 +106,7 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
     }
 
     public void testGlobalCheckpointListenerTimeout() throws InterruptedException {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex("test", indexSettings(1, 0).build());
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));

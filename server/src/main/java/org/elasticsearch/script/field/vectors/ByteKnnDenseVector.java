@@ -50,7 +50,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public int dotProduct(byte[] queryVector) {
-        return (int) VectorUtil.dotProduct(docVector, queryVector);
+        return VectorUtil.dotProduct(docVector, queryVector);
     }
 
     @Override
@@ -103,14 +103,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public double l2Norm(byte[] queryVector) {
-        int result = 0;
-        int i = 0;
-        while (i < docVector.length) {
-            int diff = docVector[i] - queryVector[i];
-            result += diff * diff;
-            i++;
-        }
-        return Math.sqrt(result);
+        return Math.sqrt(VectorUtil.squareDistance(docVector, queryVector));
     }
 
     @Override

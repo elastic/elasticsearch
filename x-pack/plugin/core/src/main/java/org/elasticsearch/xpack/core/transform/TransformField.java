@@ -36,6 +36,7 @@ public final class TransformField {
     public static final ParseField METADATA = new ParseField("_meta");
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField FORCE = new ParseField("force");
+    public static final ParseField DELETE_DEST_INDEX = new ParseField("delete_dest_index");
     public static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
     public static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
     public static final ParseField DATES_AS_EPOCH_MILLIS = new ParseField("dates_as_epoch_millis");

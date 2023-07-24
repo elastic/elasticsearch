@@ -44,10 +44,11 @@ public class BlobCacheUtils {
         }
     }
 
-    public static ByteRange computeRange(long rangeSize, long position, long length) {
-        long start = (position / rangeSize) * rangeSize;
-        long end = Math.min(start + rangeSize, length);
-        return ByteRange.of(start, end);
+    public static ByteRange computeRange(long rangeSize, long position, long size, long blobLength) {
+        return ByteRange.of(
+            (position / rangeSize) * rangeSize,
+            Math.min((((position + size - 1) / rangeSize) + 1) * rangeSize, blobLength)
+        );
     }
 
     public static void ensureSlice(String sliceName, long sliceOffset, long sliceLength, IndexInput input) {

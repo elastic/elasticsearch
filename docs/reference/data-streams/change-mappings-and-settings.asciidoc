@@ -1,6 +1,9 @@
-[role="xpack"]
+[[modify-data-streams]]
+== Modify a data stream
+
+[discrete]
 [[data-streams-change-mappings-and-settings]]
-== Change mappings and settings for a data stream
+=== Change mappings and settings for a data stream
 
 Each data stream has a <<create-index-template,matching index
 template>>. Mappings and index settings from this template are applied to new
@@ -82,7 +85,7 @@ DELETE /_ilm/policy/my-data-stream-policy
 
 [discrete]
 [[add-new-field-mapping-to-a-data-stream]]
-=== Add a new field mapping to a data stream
+==== Add a new field mapping to a data stream
 
 To add a mapping for a new field to a data stream, following these steps:
 
@@ -161,7 +164,7 @@ PUT /my-data-stream/_mapping?write_index_only=true
 
 [discrete]
 [[change-existing-field-mapping-in-a-data-stream]]
-=== Change an existing field mapping in a data stream
+==== Change an existing field mapping in a data stream
 
 The documentation for each <<mapping-params,mapping parameter>> indicates
 whether you can update it for an existing field using the
@@ -269,7 +272,7 @@ data stream and reindex your data into it. See
 
 [discrete]
 [[change-dynamic-index-setting-for-a-data-stream]]
-=== Change a dynamic index setting for a data stream
+==== Change a dynamic index setting for a data stream
 
 To change a <<index-modules-settings,dynamic index setting>> for a data stream,
 follow these steps:
@@ -326,7 +329,7 @@ policy. See <<switch-lifecycle-policies>>.
 
 [discrete]
 [[change-static-index-setting-for-a-data-stream]]
-=== Change a static index setting for a data stream
+==== Change a static index setting for a data stream
 
 <<index-modules-settings,Static index settings>> can only be set when a backing
 index is created. You cannot update static index settings using the
@@ -371,7 +374,7 @@ new data stream and reindex your data into it. See
 
 [discrete]
 [[data-streams-use-reindex-to-change-mappings-settings]]
-=== Use reindex to change mappings or settings
+==== Use reindex to change mappings or settings
 
 You can use a reindex to change the mappings or settings of a data stream. This
 is often required to change the data type of an existing field or update static
@@ -481,15 +484,16 @@ to create this data stream>>. Later, you will reindex older data from an
 existing data stream into this new stream. This could result in one or more
 backing indices that contains a mix of new and old data.
 +
-[[data-stream-mix-new-old-data]]
-.Mixing new and old data in a data stream
 [IMPORTANT]
-====
+======
+[[data-stream-mix-new-old-data]]
+*Mixing new and old data in a data stream*
+
 While mixing new and old data is safe, it could interfere with data retention.
 If you delete older indices, you could accidentally delete a backing index that
 contains both new and old data. To prevent premature data loss, you would need
 to retain such a backing index until you are ready to delete its newest data.
-====
+======
 +
 --
 The following create data stream API request targets `new-data-stream`, which
@@ -683,3 +687,13 @@ backing indices and any data they contain.
 DELETE /_data_stream/my-data-stream
 ----
 --
+
+[discrete]
+[[data-streams-change-alias]]
+=== Update or add an alias to a data stream
+
+Use the <<indices-aliases,aliases API>> to update an existing data stream's
+aliases. Changing an existing data stream's aliases in its index pattern has no
+effect.
+
+include::../alias.asciidoc[tag=alias-multiple-actions-example]

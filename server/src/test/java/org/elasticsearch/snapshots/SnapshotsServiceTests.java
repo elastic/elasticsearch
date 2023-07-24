@@ -14,8 +14,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -30,6 +30,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryShardId;
@@ -422,15 +423,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
     private static DiscoveryNodes discoveryNodes(String localNodeId) {
         return DiscoveryNodes.builder()
-            .add(
-                new DiscoveryNode(
-                    localNodeId,
-                    ESTestCase.buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.roles()),
-                    Version.CURRENT
-                )
-            )
+            .add(DiscoveryNodeUtils.builder(localNodeId).roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
             .localNodeId(localNodeId)
             .build();
     }
@@ -505,16 +498,22 @@ public class SnapshotsServiceTests extends ESTestCase {
         );
     }
 
-    private static void assertIsNoop(ClusterState state, SnapshotsService.ShardSnapshotUpdate shardCompletion) throws Exception {
+    private static void assertIsNoop(ClusterState state, SnapshotsService.SnapshotTask shardCompletion) throws Exception {
         assertSame(applyUpdates(state, shardCompletion), state);
     }
 
-    private static ClusterState applyUpdates(ClusterState state, SnapshotsService.ShardSnapshotUpdate... updates) throws Exception {
-        return ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
-            state,
-            SnapshotsService.SHARD_STATE_EXECUTOR,
-            Arrays.asList(updates)
-        );
+    private static ClusterState applyUpdates(ClusterState state, SnapshotsService.SnapshotTask... updates) throws Exception {
+        return ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(state, batchExecutionContext -> {
+            final SnapshotsInProgress existing = batchExecutionContext.initialState()
+                .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            final var context = new SnapshotsService.SnapshotShardsUpdateContext(batchExecutionContext);
+            final SnapshotsInProgress updated = context.computeUpdatedState();
+            context.completeWithUpdatedState(updated);
+            if (existing == updated) {
+                return batchExecutionContext.initialState();
+            }
+            return ClusterState.builder(batchExecutionContext.initialState()).putCustom(SnapshotsInProgress.TYPE, updated).build();
+        }, Arrays.asList(updates));
     }
 
     private static SnapshotsInProgress.Entry snapshotEntry(
@@ -532,7 +531,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             randomNonNegativeLong(),
             shards,
             Collections.emptyMap(),
-            Version.CURRENT,
+            IndexVersion.current(),
             Collections.emptyList()
         );
     }
@@ -547,7 +546,8 @@ public class SnapshotsServiceTests extends ESTestCase {
             .map(RepositoryShardId::index)
             .distinct()
             .collect(Collectors.toMap(IndexId::getName, Function.identity()));
-        return SnapshotsInProgress.startClone(snapshot, source, indexIds, 1L, randomNonNegativeLong(), Version.CURRENT).withClones(clones);
+        return SnapshotsInProgress.startClone(snapshot, source, indexIds, 1L, randomNonNegativeLong(), IndexVersion.current())
+            .withClones(clones);
     }
 
     private static SnapshotsInProgress.ShardSnapshotStatus initShardStatus(String nodeId) {

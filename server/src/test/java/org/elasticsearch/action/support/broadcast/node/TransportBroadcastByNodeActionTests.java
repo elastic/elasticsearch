@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -280,7 +281,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     static DiscoveryNode newNode(int nodeId) {
-        return new DiscoveryNode("node_" + nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        return DiscoveryNodeUtils.builder("node_" + nodeId).roles(emptySet()).build();
     }
 
     @AfterClass

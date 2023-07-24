@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.apache.lucene.search.Query;
+import org.elasticsearch.index.query.ParsedQuery;
 
 import java.util.Collections;
 import java.util.List;
@@ -62,7 +62,7 @@ public class RescoreContext {
     /**
      * Returns queries associated with the rescorer
      */
-    public List<Query> getQueries() {
+    public List<ParsedQuery> getParsedQueries() {
         return Collections.emptyList();
     }
 }

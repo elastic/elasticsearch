@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.OS
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -53,7 +52,7 @@ tasks.withType(JavaCompile).configureEach {
   options.compilerArgs << '-Xlint:-classfile'
 }
 
-if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+if (OS.current() == OS.WINDOWS) {
   tasks.named("test").configure {
     // Windows cannot cleanup database files properly unless it loads everything on heap.
     // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
@@ -62,7 +61,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 }
 
 tasks.named("internalClusterTest") {
-  onlyIf { OS.current() != OS.WINDOWS }
+  onlyIf("OS != windows") { OS.current() != OS.WINDOWS }
 }
 
 tasks.named("forbiddenPatterns").configure {

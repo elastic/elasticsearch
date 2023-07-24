@@ -61,7 +61,7 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
     }
 
     private void setupTestIndex() {
-        assertAcked(client().admin().indices().prepareCreate("test").get());
+        assertAcked(indicesAdmin().prepareCreate("test").get());
         client().prepareBulk()
             .add(new IndexRequest("test").id("1").source("field", "bar"))
             .add(new IndexRequest("test").id("2").source("field", "baz"))
@@ -71,15 +71,6 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
     }
 
     private long getNumberOfSearchContexts() {
-        return client().admin()
-            .indices()
-            .prepareStats("test")
-            .clear()
-            .setSearch(true)
-            .get()
-            .getIndex("test")
-            .getTotal()
-            .getSearch()
-            .getOpenContexts();
+        return indicesAdmin().prepareStats("test").clear().setSearch(true).get().getIndex("test").getTotal().getSearch().getOpenContexts();
     }
 }

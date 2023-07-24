@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.common.IndexNameGenerator.generateValidIndexName;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -138,7 +139,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         lifecycleState.setAction(step.getKey().action());
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-        String generatedShrunkenIndexName = GenerateUniqueIndexNameStep.generateValidIndexName(SHRUNKEN_INDEX_PREFIX, sourceIndexName);
+        String generatedShrunkenIndexName = generateValidIndexName(SHRUNKEN_INDEX_PREFIX, sourceIndexName);
         lifecycleState.setShrinkIndexName(generatedShrunkenIndexName);
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))

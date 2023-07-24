@@ -11,18 +11,24 @@ package org.elasticsearch.search.dfs;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.dfs.DfsProfiler;
 import org.elasticsearch.search.profile.dfs.DfsTimingType;
 import org.elasticsearch.search.profile.query.CollectorResult;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
+import org.elasticsearch.search.profile.query.ProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
@@ -34,12 +40,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
  * The additional information is used to better compare the scores coming from all the shards, which depend on local factors (e.g. idf).
- *
  * When a kNN search is provided alongside the query, the DFS phase is also used to gather the top k candidates from each shard. Then the
  * global top k hits are passed on to the query phase.
  */
@@ -63,16 +67,6 @@ public class DfsPhase {
 
         Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
         Map<Term, TermStatistics> stats = new HashMap<>();
-        final Consumer<DfsTimingType> maybeStart = dtt -> {
-            if (profiler != null) {
-                profiler.startTimer(dtt);
-            }
-        };
-        final Consumer<DfsTimingType> maybeStop = dtt -> {
-            if (profiler != null) {
-                profiler.stopTimer(dtt);
-            }
-        };
 
         IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
             @Override
@@ -80,7 +74,7 @@ public class DfsPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                maybeStart.accept(DfsTimingType.TERM_STATISTICS);
+                Timer timer = maybeStartTimer(profiler, DfsTimingType.TERM_STATISTICS);
                 try {
                     TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
                     if (ts != null) {
@@ -88,7 +82,9 @@ public class DfsPhase {
                     }
                     return ts;
                 } finally {
-                    maybeStop.accept(DfsTimingType.TERM_STATISTICS);
+                    if (timer != null) {
+                        timer.stop();
+                    }
                 }
             }
 
@@ -97,7 +93,7 @@ public class DfsPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                maybeStart.accept(DfsTimingType.COLLECTION_STATISTICS);
+                Timer timer = maybeStartTimer(profiler, DfsTimingType.COLLECTION_STATISTICS);
                 try {
                     CollectionStatistics cs = super.collectionStatistics(field);
                     if (cs != null) {
@@ -105,7 +101,9 @@ public class DfsPhase {
                     }
                     return cs;
                 } finally {
-                    maybeStop.accept(DfsTimingType.COLLECTION_STATISTICS);
+                    if (timer != null) {
+                        timer.stop();
+                    }
                 }
             }
         };
@@ -115,26 +113,32 @@ public class DfsPhase {
         }
 
         try {
+            Timer timer = maybeStartTimer(profiler, DfsTimingType.CREATE_WEIGHT);
             try {
-                maybeStart.accept(DfsTimingType.CREATE_WEIGHT);
                 searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
             } finally {
-                maybeStop.accept(DfsTimingType.CREATE_WEIGHT);
+                if (timer != null) {
+                    timer.stop();
+                }
             }
             for (RescoreContext rescoreContext : context.rescore()) {
-                for (Query query : rescoreContext.getQueries()) {
+                for (ParsedQuery parsedQuery : rescoreContext.getParsedQueries()) {
                     final Query rewritten;
+                    timer = maybeStartTimer(profiler, DfsTimingType.REWRITE);
                     try {
-                        maybeStart.accept(DfsTimingType.REWRITE);
-                        rewritten = searcher.rewrite(query);
+                        rewritten = searcher.rewrite(parsedQuery.query());
                     } finally {
-                        maybeStop.accept(DfsTimingType.REWRITE);
+                        if (timer != null) {
+                            timer.stop();
+                        }
                     }
+                    timer = maybeStartTimer(profiler, DfsTimingType.CREATE_WEIGHT);
                     try {
-                        maybeStart.accept(DfsTimingType.CREATE_WEIGHT);
                         searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1);
                     } finally {
-                        maybeStop.accept(DfsTimingType.CREATE_WEIGHT);
+                        if (timer != null) {
+                            timer.stop();
+                        }
                     }
                 }
             }
@@ -156,6 +160,17 @@ public class DfsPhase {
             .maxDoc(context.searcher().getIndexReader().maxDoc());
     }
 
+    /**
+     * If profiler isn't null, this returns a started {@link Timer}.
+     * Otherwise, returns null.
+     */
+    private static Timer maybeStartTimer(DfsProfiler profiler, DfsTimingType dtt) {
+        if (profiler != null) {
+            return profiler.startTimer(dtt);
+        }
+        return null;
+    };
+
     private void executeKnnVectorQuery(SearchContext context) throws IOException {
         SearchSourceBuilder source = context.request().source();
         if (source == null || source.knnSearch().isEmpty()) {
@@ -174,26 +189,27 @@ public class DfsPhase {
         List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
         for (int i = 0; i < knnSearch.size(); i++) {
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(knnSearch.get(i).k(), Integer.MAX_VALUE);
-            Collector collector = topScoreDocCollector;
-            if (context.getProfilers() != null) {
-                InternalProfileCollector ipc = new InternalProfileCollector(
-                    topScoreDocCollector,
-                    CollectorResult.REASON_SEARCH_TOP_HITS,
-                    List.of()
-                );
-                QueryProfiler knnProfiler = context.getProfilers().getDfsProfiler().addQueryProfiler(ipc);
-                collector = ipc;
-                // Set the current searcher profiler to gather query profiling information for gathering top K docs
-                context.searcher().setProfiler(knnProfiler);
-            }
-            context.searcher().search(knnQuery, collector);
-            knnResults.add(new DfsKnnResults(topScoreDocCollector.topDocs().scoreDocs));
-        }
-        // Set profiler back after running KNN searches
-        if (context.getProfilers() != null) {
-            context.searcher().setProfiler(context.getProfilers().getCurrentQueryProfiler());
+            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher()));
         }
         context.dfsResult().knnResults(knnResults);
+    }
+
+    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher) throws IOException {
+        CollectorManager<? extends Collector, TopDocs> cm = TopScoreDocCollector.createSharedManager(k, null, Integer.MAX_VALUE);
+
+        if (profilers != null) {
+            ProfileCollectorManager<TopDocs> ipcm = new ProfileCollectorManager<>(cm, CollectorResult.REASON_SEARCH_TOP_HITS);
+            QueryProfiler knnProfiler = profilers.getDfsProfiler().addQueryProfiler(ipcm);
+            cm = ipcm;
+            // Set the current searcher profiler to gather query profiling information for gathering top K docs
+            searcher.setProfiler(knnProfiler);
+        }
+        TopDocs topDocs = searcher.search(knnQuery, cm);
+
+        // Set profiler back after running KNN searches
+        if (profilers != null) {
+            searcher.setProfiler(profilers.getCurrentQueryProfiler());
+        }
+        return new DfsKnnResults(topDocs.scoreDocs);
     }
 }

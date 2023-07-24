@@ -1,8 +1,310 @@
 [[release-notes-8.8.0]]
 == {es} version 8.8.0
 
-coming[8.8.0]
-
 Also see <<breaking-changes-8.8,Breaking changes in 8.8>>.
+
+[[bug-8.8.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Merge two histograms using the higher number of digits among all histograms {es-pull}93704[#93704] (issue: {es-issue}92822[#92822])
+
+Allocation::
+* Avoid copying during iteration of all shards in routing table {es-pull}94417[#94417]
+* Avoid duplicate application of `RoutingTable` diff {es-pull}94379[#94379]
+* Balance priorities during reconciliation {es-pull}95454[#95454]
+* Fix `RebalanceOnlyWhenActiveAllocationDecider` {es-pull}96025[#96025]
+* Streamline `AsyncShardFetch#getNumberOfInFlightFetches` {es-pull}93632[#93632] (issue: {es-issue}93631[#93631])
+
+Application::
+* Check if an analytics event data stream exists before installing pipeline {es-pull}95621[#95621]
+* [Behavioral Analytics] Use a client with ent-search origin in the `BulkProcessorFactory` {es-pull}95614[#95614]
+
+Authorization::
+* Fix role transformation to include missing properties {es-pull}94714[#94714]
+* [Fleet] Add read privileges to `profiling-*` for symbolization support {es-pull}95596[#95596]
+
+CRUD::
+* Avoid null `Location` in post write refresh {es-pull}95229[#95229]
+
+Cluster Coordination::
+* Read register current term asynchronously in `StoreHeartbeatService` {es-pull}95351[#95351]
+
+DLM::
+* Remove rollover cluster setting validator {es-pull}94447[#94447]
+* [DLM] Fix the new endpoint rest-api specification {es-pull}95665[#95665]
+
+Data streams::
+* Allow deletion of component templates that are specified in the `ignore_missing_component_templates` array {es-pull}95527[#95527]
+* Fix searching a filtered and unfiltered data stream alias {es-pull}95865[#95865] (issue: {es-issue}95786[#95786])
+
+Distributed::
+* Check shard availability before including in stats {es-pull}96015[#96015] (issues: {es-issue}96000[#96000], {es-issue}87001[#87001])
+* Fix `GetPipelineResponse` equality {es-pull}93695[#93695]
+
+Engine::
+* Ensure refresh to return the latest commit generation {es-pull}94249[#94249]
+
+Geo::
+* Adjust `BoundedGeoHexGridTiler#FACTOR` to prevent missing hits {es-pull}96088[#96088] (issue: {es-issue}96057[#96057])
+* Fix bug where `geo_line` does not respect `sort_order` {es-pull}94734[#94734] (issue: {es-issue}94733[#94733])
+
+ILM+SLM::
+* Retry downsample ILM action using a new target index {es-pull}94965[#94965] (issue: {es-issue}93580[#93580])
+* Strip disallowed chars from generated snapshot name {es-pull}95767[#95767] (issue: {es-issue}95593[#95593])
+* [ILM] Fix the migrate to tiers service and migrate action tiers configuration {es-pull}95934[#95934]
+
+Infra/Core::
+* Fix race condition in `NodeEnvironment.close()` {es-pull}94677[#94677] (issue: {es-issue}94672[#94672])
+* Use double wildcards for filtered excludes properly {es-pull}94195[#94195] (issue: {es-issue}92632[#92632])
+
+Infra/REST API::
+* Add level parameter validation in REST layer {es-pull}94136[#94136] (issue: {es-issue}93981[#93981])
+
+Infra/Scripting::
+* Allow low level paging in `LeafDocLookup` {es-pull}93711[#93711]
+* Revert usage of `SafeMustacheFactory` in `CustomMustacheFactory` {es-pull}95557[#95557]
+
+Ingest Node::
+* Fix `Grok.match()` with offset and suffix pattern {es-pull}95003[#95003] (issue: {es-issue}95002[#95002])
+* Fix bug in verbose simulations of the ingest pipeline API {es-pull}95232[#95232]
+
+Machine Learning::
+* Avoid expensive source parsing by using doc values when querying model definition meta fields {es-pull}95590[#95590]
+
+Mapping::
+* Longer timeout for mapping update during resize {es-pull}95221[#95221]
+
+Network::
+* Fix `RecyclerBytesStreamOutput` corrupting when ending write on page boundary {es-pull}95114[#95114]
+* Fix maximum seek limit `RecyclerBytesStreamOutput` {es-pull}95133[#95133]
+
+Ranking::
+* Fix versioning for tests cases using a randomly generated rank builder {es-pull}95514[#95514]
+
+Search::
+* Fix `_terms_enum` display values {es-pull}94080[#94080] (issue: {es-issue}94041[#94041])
+* Support ignore malformed in boolean fields {es-pull}93239[#93239] (issue: {es-issue}89542[#89542])
+* Support search template api explain query string argument {es-pull}94832[#94832] (issue: {es-issue}83363[#83363])
+
+Snapshot/Restore::
+* Cancel cold cache prewarming tasks if store is closing {es-pull}95891[#95891] (issue: {es-issue}95504[#95504])
+* Fix 0 default value for repo snapshot speed {es-pull}95854[#95854] (issue: {es-issue}95561[#95561])
+* Fix Azure `InputStream#read` method {es-pull}96034[#96034]
+* Stop sorting indices in get-snapshots API {es-pull}94890[#94890]
+
+Transform::
+* Call listener in order to prevent the request from hanging {es-pull}96221[#96221]
+* Do not fail upon `ResourceAlreadyExistsException` during destination index creation {es-pull}96274[#96274] (issue: {es-issue}95310[#95310])
+* Fix privileges check failures by adding `allow_restricted_indices` flag {es-pull}95187[#95187]
+* Secondary credentials used with transforms should only require source and destination index privileges, not transform privileges {es-pull}94420[#94420]
+* Use monotonic time in `TransformScheduler` {es-pull}95456[#95456] (issue: {es-issue}95445[#95445])
+
+[[deprecation-8.8.0]]
+[float]
+=== Deprecations
+
+Allocation::
+* Deprecate `cluster.routing.allocation.type` {es-pull}94066[#94066]
+
+[[enhancement-8.8.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Add `keyed` parameter to filters agg, allowing the user to get non-keyed buckets of named filters agg {es-pull}89256[#89256] (issue: {es-issue}83957[#83957])
+* Add global ordinal info to stats APIs {es-pull}94500[#94500]
+* Don't create many `Rounding.Prepared` instances when checking for empty buckets in date_histogram aggregator. {es-pull}94649[#94649]
+
+Analysis::
+* Add origin of synonym rules to exception message {es-pull}93702[#93702]
+
+Application::
+* Behavioral Analytics event ingest tuning {es-pull}95405[#95405]
+* [Behavioral Analytics] Add geo ip and user agent to events {es-pull}95433[#95433]
+* [Behavioral analytics] Implement search filters into events {es-pull}95212[#95212]
+
+Authentication::
+* Do not fail node if SAML HTTP metadata is unavailable {es-pull}92810[#92810] (issue: {es-issue}37608[#37608])
+* Finer control over authentication metadata serialization {es-pull}93726[#93726]
+
+Authorization::
+* Add permissions to `kibana_system` for TI package transforms to support IOC expiration {es-pull}94506[#94506] (issue: {es-issue}94505[#94505])
+* Ensure checking indices privileges works with `nested-limited-role` {es-pull}95170[#95170]
+
+Cluster Coordination::
+* Improve master service batching queues {es-pull}92021[#92021] (issue: {es-issue}81626[#81626])
+
+DLM::
+* Adding origination date to DLM {es-pull}95113[#95113]
+
+Engine::
+* Increase the merge factor to 32 for time-based data {es-pull}94134[#94134]
+* Reduce the likelihood of writing small segments due to an oversize translog {es-pull}93524[#93524] (issue: {es-issue}75611[#75611])
+* Sort segments on timestamp in read only engine {es-pull}93576[#93576]
+* Use `LogByteSizeMergePolicy` instead of `TieredMergePolicy` for time-based data {es-pull}92684[#92684]
+* Use mmap for temporary files {es-pull}93595[#93595]
+
+Geo::
+* Allow docvalues-only search on `geo_shape` {es-pull}94396[#94396]
+* Support for store parameter in `geo_shape` field {es-pull}94418[#94418] (issue: {es-issue}83655[#83655])
+
+Highlighting::
+* Use `storedFieldsSpec` to load stored fields for highlighting {es-pull}91841[#91841]
+
+ILM+SLM::
+* Implicitly rollover data streams / aliases based on `max_primary_shard_docs` {es-pull}94065[#94065] (issue: {es-issue}87246[#87246])
+* Sort ILM explain output by natural index name {es-pull}94879[#94879] (issue: {es-issue}94768[#94768])
+
+Indices APIs::
+* Adding initial public and internal serverless scopes to data management rest handlers {es-pull}93990[#93990]
+* Servlerless API protection with annotations {es-pull}93607[#93607]
+
+Infra/Core::
+* Allow preserving specific headers on thread context stash {es-pull}94680[#94680]
+
+Infra/Plugins::
+* Improve module/plugin loading logging message. {es-pull}93952[#93952] (issue: {es-issue}93881[#93881])
+
+Infra/Transport API::
+* Add `transport_version` to node info JSON {es-pull}94669[#94669]
+
+Ingest Node::
+* Add `reroute` processor {es-pull}76511[#76511]
+* Introduce redirect method on `IngestDocument` {es-pull}94000[#94000] (issue: {es-issue}83653[#83653])
+* [Ingest Processor] Add `ignore_missing` param to the `uri_parts` ingest processor {es-pull}95068[#95068]
+
+Machine Learning::
+* Add `_meta` field to data frame analytics config {es-pull}94529[#94529]
+* Add `embedding_size` to text embedding config {es-pull}95176[#95176]
+* Include model definition install status for Pytorch models {es-pull}95271[#95271]
+* Integrate ELSER model download into put trained model API {es-pull}95281[#95281]
+* Start, stop and infer of a trained model can now optionally use a deployment ID that is different to the model ID {es-pull}95168[#95168]
+* [ML] Get trained model stats by deployment id or model id {es-pull}95440[#95440]
+
+Mapping::
+* Cut over from Field to `StringField` when applicable {es-pull}94540[#94540]
+* Enable `_terms_enum` on `ip` fields {es-pull}94322[#94322] (issue: {es-issue}89933[#89933])
+* Enable synthetic source for malformed booleans {es-pull}94121[#94121]
+* Index sequence numbers via a single Lucene field {es-pull}94504[#94504]
+* Use a combined field to index terms and doc values on keyword fields {es-pull}93579[#93579]
+
+Monitoring::
+* Add `event_loop_utilization` Kibana stats to the monitoring index templates {es-pull}95388[#95388]
+
+Network::
+* Add request/response body logging to HTTP tracer {es-pull}93133[#93133]
+* Avoid deserializing responses in proxy node {es-pull}93799[#93799]
+* Report transport message size per action {es-pull}94543[#94543] (issue: {es-issue}88151[#88151])
+* Retain underlying error on proxy mode connection failure {es-pull}94998[#94998]
+
+SQL::
+* Add `WildcardLike/Pattern` to QL {es-pull}95357[#95357]
+
+Search::
+* Adding initial public and internal serverless scopes to Search team REST handlers {es-pull}94035[#94035]
+* Enable `_terms_enum` on version fields {es-pull}93839[#93839] (issue: {es-issue}83403[#83403])
+* Introduce `DocumentParsingException` {es-pull}92646[#92646] (issue: {es-issue}85083[#85083])
+* Leverage `Weight#count` when size is set to 0 {es-pull}94858[#94858]
+* Make `SourceProvider` using stored fields segment-thread-safe {es-pull}95082[#95082]
+* Shortcut total hit count when `terminate_after` is used {es-pull}94889[#94889]
+* [Profiling] Map stack frames more efficiently {es-pull}94327[#94327]
+* [Profiling] Parallelize response handling {es-pull}93960[#93960]
+
+Security::
+* Fleet: Add new mappings for `.fleet-actions` signing {es-pull}93802[#93802]
+
+Snapshot/Restore::
+* Add register analysis to repo analysis API {es-pull}93955[#93955]
+* Add snapshot activity in cluster stats {es-pull}93680[#93680]
+* Add support for custom endpoints in the Azure repository {es-pull}94576[#94576] (issue: {es-issue}94537[#94537])
+* Failed tasks proactively cancel children tasks {es-pull}92588[#92588] (issue: {es-issue}90353[#90353])
+
+TSDB::
+* Support position `time_series_metric` on `geo_point` fields {es-pull}93946[#93946]
+
+Transform::
+* Add `delete_destination_index` parameter to the `Delete Transform API` {es-pull}94162[#94162]
+* Allow specifying destination index aliases in the Transform's `dest` config {es-pull}94943[#94943]
+* Expose authorization failure as transform health issue {es-pull}94724[#94724]
+
+Vector Search::
+* Increase max number of vector dims to 2048 {es-pull}95257[#95257]
+
+Watcher::
+* Add Watcher APIs for updating/retrieving settings {es-pull}95342[#95342] (issue: {es-issue}92991[#92991])
+* Porting watcher over to `BulkProcessor2` {es-pull}94133[#94133]
+
+[[feature-8.8.0]]
+[float]
+=== New features
+
+Application::
+* Initial Search Application Search API with templates {es-pull}95026[#95026]
+* [Behavioral Analytics] Add a `final_pipeline` to event data streams {es-pull}95198[#95198]
+
+Authentication::
+* GA release of the JWT realm {es-pull}95398[#95398]
+
+CRUD::
+* New `TransportBroadcastUnpromotableAction` action {es-pull}93600[#93600]
+
+DLM::
+* Add new endpoints to configure data lifecycle on a data stream level {es-pull}94590[#94590]
+* Dlm add auto rollover condition max age {es-pull}94950[#94950]
+* Initial implementation for `DataLifecycleService` {es-pull}94012[#94012]
+* Introduce a _lifecycle/explain API for data stream backing indices {es-pull}94621[#94621]
+* Introduce the `index.lifecycle.prefer_ilm` setting {es-pull}95423[#95423]
+* [DLM] Extend the template to simulate api to support include defaults {es-pull}94861[#94861]
+* [DLM] Introduce default rollover cluster setting & expose it via APIs {es-pull}94240[#94240]
+
+Health::
+* Add new `ShardsCapacity` Health Indicator Service {es-pull}94552[#94552]
+* Add to `HealthMetadata` information about `ShardLimits` {es-pull}94116[#94116]
+
+Ingest Node::
+* Add license checking to the redact processor {es-pull}95477[#95477]
+
+Machine Learning::
+* Text Expansion Query {es-pull}93694[#93694]
+
+Ranking::
+* Add support for Reciprocal Rank Fusion to the search API {es-pull}93396[#93396]
+
+Search::
+* Add Enterprise Search Module {es-pull}94381[#94381]
+* Add new `similarity` field to `knn` clause in `_search` {es-pull}94828[#94828]
+* Add the ability to return the score of the named queries {es-pull}94564[#94564] (issue: {es-issue}29606[#29606])
+* Implements behavioral analytics events ingest API {es-pull}95027[#95027]
+
+TSDB::
+* Encode using 40, 48 and 56 bits per value {es-pull}93371[#93371]
+* Flattened field synthetic support {es-pull}94842[#94842]
+* Support flattened fields as time series dimension fields {es-pull}95273[#95273]
+
+[[upgrade-8.8.0]]
+[float]
+=== Upgrades
+
+Engine::
+* Upgrade to `lucene-9.6-snapshot-dcc2154a1d3` {es-pull}94955[#94955]
+
+Infra/Core::
+* Upgrade Jackson xml to 2.15.0 {es-pull}95641[#95641]
+
+Ingest Node::
+* Upgrading tika to `2.7.0` {es-pull}93759[#93759]
+
+Network::
+* Upgrade to Netty `4.1.89` {es-pull}94179[#94179]
+
+Packaging::
+* Bump bundled JDK to Java `20.0.1` {es-pull}95359[#95359]
+
+Search::
+* Upgrade Lucene to the final 9.6.0 release {es-pull}95967[#95967]
+* Upgrade to `lucene-9.6.0-snapshot-8a815153fbe` {es-pull}94635[#94635]
+* Upgrade to `lucene-9.6.0-snapshot-f5d1e1c787c` {es-pull}94494[#94494]
 
 

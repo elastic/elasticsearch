@@ -8,15 +8,10 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.mapper.MapperRegistry;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Collections;
 
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.test.VersionUtils.randomIndexCompatibleVersion;
@@ -25,7 +20,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndexMetadataConversionTests extends ESTestCase {
 
     public void testConvertSearchableSnapshotSettings() {
-        IndexMetadataVerifier service = getIndexMetadataVerifier();
         IndexMetadata src = newIndexMeta("foo", Settings.EMPTY);
         IndexMetadata indexMetadata = IndexMetadataVerifier.convertSharedCacheTierPreference(src);
         assertSame(indexMetadata, src);
@@ -79,7 +73,6 @@ public class IndexMetadataConversionTests extends ESTestCase {
     }
 
     public void testRemoveSingleTierAllocationFilters() {
-        IndexMetadataVerifier service = getIndexMetadataVerifier();
         IndexMetadata src = newIndexMeta(
             "foo",
             Settings.builder()
@@ -109,25 +102,11 @@ public class IndexMetadataConversionTests extends ESTestCase {
         assertSame(indexMetadata, src);
     }
 
-    private IndexMetadataVerifier getIndexMetadataVerifier() {
-        return new IndexMetadataVerifier(
-            Settings.EMPTY,
-            xContentRegistry(),
-            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            null
-        );
-    }
-
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, randomIndexCompatibleVersion(random()))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-            .put(IndexMetadata.SETTING_CREATION_DATE, randomNonNegativeLong())
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
-            .put(indexSettings)
-            .build();
+        final Settings settings = indexSettings(randomIndexCompatibleVersion(random()), between(1, 5), between(0, 5)).put(
+            IndexMetadata.SETTING_CREATION_DATE,
+            randomNonNegativeLong()
+        ).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())).put(indexSettings).build();
         final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(name).settings(settings);
         if (randomBoolean()) {
             indexMetadataBuilder.state(IndexMetadata.State.CLOSE);

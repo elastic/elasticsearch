@@ -1,0 +1,5 @@
+pr: 97274
+summary: Improve model downloader robustness
+area: Machine Learning
+type: bug
+issues: []

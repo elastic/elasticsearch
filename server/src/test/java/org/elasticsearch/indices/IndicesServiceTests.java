@@ -88,6 +88,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -733,14 +734,16 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bax")));
         }
         {
+            // querying an unfiltered and a filtered alias for the same data stream should drop the filters
             String index = backingIndex1.getIndex().getName();
             AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs", "logs_bar"));
-            assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo", "logs"));
-            BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
-            assertThat(filter.filter(), empty());
-            assertThat(filter.must(), empty());
-            assertThat(filter.mustNot(), empty());
-            assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bar")));
+            assertThat(result, is(AliasFilter.EMPTY));
+        }
+        {
+            // similarly, querying the data stream name and a filtered alias should drop the filter
+            String index = backingIndex1.getIndex().getName();
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs", dataStreamName1));
+            assertThat(result, is(AliasFilter.EMPTY));
         }
     }
 }

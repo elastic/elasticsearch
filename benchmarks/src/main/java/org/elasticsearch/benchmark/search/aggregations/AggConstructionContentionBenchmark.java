@@ -43,7 +43,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -152,7 +151,6 @@ public class AggConstructionContentionBenchmark {
 
         private final CircuitBreaker breaker;
         private final PreallocatedCircuitBreakerService preallocated;
-        private final MultiBucketConsumer multiBucketConsumer;
 
         DummyAggregationContext(long bytesToPreallocate) {
             CircuitBreakerService breakerService;
@@ -168,7 +166,6 @@ public class AggConstructionContentionBenchmark {
                 preallocated = null;
             }
             breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-            multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
         }
 
         @Override
@@ -273,6 +270,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public ClusterSettings getClusterSettings() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
             throw new UnsupportedOperationException();
         }
@@ -298,8 +300,13 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public MultiBucketConsumer multiBucketConsumer() {
-            return multiBucketConsumer;
+        public void removeReleasable(Aggregator aggregator) {
+            releaseMe.remove(aggregator);
+        }
+
+        @Override
+        public int maxBuckets() {
+            return Integer.MAX_VALUE;
         }
 
         @Override

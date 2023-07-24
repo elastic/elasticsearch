@@ -75,7 +75,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
                 Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(shardId));
                 ShardPath shardPath = new ShardPath(false, path, path, shId);
                 ShardRouting routing = createShardRouting(shId, (shardId == 0));
-                shards.add(new ShardStats(routing, shardPath, null, null, null, null));
+                shards.add(new ShardStats(routing, shardPath, null, null, null, null, false, 0));
                 AtomicLong primaryShardsCounter = expectedIndexToPrimaryShardsCount.computeIfAbsent(
                     index.getName(),
                     k -> new AtomicLong(0L)
@@ -124,7 +124,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
             Path path = createTempDir().resolve("indices").resolve(shId.getIndex().getUUID()).resolve(String.valueOf(shId.id()));
             ShardPath shardPath = new ShardPath(false, path, path, shId);
             ShardRouting routing = createShardRouting(shId, (shId.id() == 0));
-            stats.add(new ShardStats(routing, shardPath, new CommonStats(), null, null, null));
+            stats.add(new ShardStats(routing, shardPath, new CommonStats(), null, null, null, false, 0));
         }
         final IndicesStatsResponse indicesStatsResponse = new IndicesStatsResponse(
             stats.toArray(new ShardStats[0]),

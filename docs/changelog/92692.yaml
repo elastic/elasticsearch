@@ -1,6 +1,0 @@
-pr: 92692
-summary: Allow different filters per `DataStream` in a `DataStreamAlias`
-area: Data streams
-type: bug
-issues:
- - 92050

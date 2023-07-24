@@ -1,0 +1,5 @@
+pr: 96433
+summary: Upgrade Lucene to a 9.7.0 snapshot
+area: Search
+type: upgrade
+issues: []

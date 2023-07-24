@@ -716,14 +716,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         List<String> nodes = new ArrayList<>(nodeMap.keySet());
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            createIndex(
-                indexName,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                    .build()
-            );
+            createIndex(indexName, indexSettings(1, randomInt(2)).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all").build());
             ensureGreen(indexName);
             updateIndexSettings(
                 indexName,

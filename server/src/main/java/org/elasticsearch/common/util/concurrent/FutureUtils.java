@@ -74,8 +74,8 @@ public class FutureUtils {
     }
 
     public static RuntimeException rethrowExecutionException(ExecutionException e) {
-        if (e.getCause() instanceof RuntimeException) {
-            return (RuntimeException) e.getCause();
+        if (e.getCause() instanceof RuntimeException runtimeException) {
+            return runtimeException;
         } else {
             return new UncategorizedExecutionException("Failed execution", e);
         }

@@ -8,9 +8,11 @@
 
 apply plugin: 'elasticsearch.java'
 
-archivesBaseName = "x-content-impl"
+base {
+  archivesName = "x-content-impl"
+}
 
-String jacksonVersion = "2.14.2"
+String jacksonVersion = "2.15.0"
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core')

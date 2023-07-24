@@ -9,13 +9,15 @@
 package org.elasticsearch.action.admin.indices.shards;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.Failure;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus.AllocationStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.xcontent.ToXContent;
@@ -30,14 +32,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesShardStoreResponseTests extends ESTestCase {
     public void testBasicSerialization() throws Exception {
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         List<StoreStatus> storeStatusList = List.of(
             new StoreStatus(node1, null, AllocationStatus.PRIMARY, null),
             new StoreStatus(node2, UUIDs.randomBase64UUID(), AllocationStatus.REPLICA, null),
@@ -48,10 +49,10 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
         var failures = List.of(new Failure("node1", "test", 3, new NodeDisconnectedException(node1, "")));
         var storesResponse = new IndicesShardStoresResponse(indexStoreStatuses, failures);
 
+        AbstractChunkedSerializingTestCase.assertChunkCount(storesResponse, this::getExpectedChunkCount);
+
         XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
-        contentBuilder.startObject();
-        storesResponse.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
-        contentBuilder.endObject();
+        ChunkedToXContent.wrapAsToXContent(storesResponse).toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = BytesReference.bytes(contentBuilder);
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
@@ -97,8 +98,12 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
         }
     }
 
+    private int getExpectedChunkCount(IndicesShardStoresResponse response) {
+        return 6 + response.getFailures().size() + response.getStoreStatuses().values().stream().mapToInt(m -> 4 + m.size()).sum();
+    }
+
     public void testStoreStatusOrdering() throws Exception {
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         List<StoreStatus> orderedStoreStatuses = new ArrayList<>();
         orderedStoreStatuses.add(new StoreStatus(node1, UUIDs.randomBase64UUID(), AllocationStatus.PRIMARY, null));
         orderedStoreStatuses.add(new StoreStatus(node1, UUIDs.randomBase64UUID(), AllocationStatus.REPLICA, null));

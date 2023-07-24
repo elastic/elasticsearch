@@ -1,5 +1,0 @@
-pr: 93876
-summary: Fix explain for kNN search matches
-area: Vector Search
-type: bug
-issues: []

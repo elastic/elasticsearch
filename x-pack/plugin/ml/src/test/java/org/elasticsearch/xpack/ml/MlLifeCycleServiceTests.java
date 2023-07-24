@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -189,33 +189,30 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         // Local node is node-2 here
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "node-1-name",
                     "node-1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                     Collections.emptyMap(),
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
+                    DiscoveryNodeRole.roles()
                 )
             )
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "node-2-name",
                     "node-2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
                     Collections.emptyMap(),
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
+                    DiscoveryNodeRole.roles()
                 )
             )
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "node-3-name",
                     "node-3",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
                     Collections.emptyMap(),
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
+                    DiscoveryNodeRole.roles()
                 )
             )
             .masterNodeId("node-1")
@@ -254,33 +251,30 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         // Local node is node-2 here
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "node-1-name",
                     "node-1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                     Collections.emptyMap(),
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
+                    DiscoveryNodeRole.roles()
                 )
             )
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "node-2-name",
                     "node-2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
                     Collections.emptyMap(),
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
+                    DiscoveryNodeRole.roles()
                 )
             )
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "node-3-name",
                     "node-3",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
                     Collections.emptyMap(),
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
+                    DiscoveryNodeRole.roles()
                 )
             )
             .masterNodeId("node-1")

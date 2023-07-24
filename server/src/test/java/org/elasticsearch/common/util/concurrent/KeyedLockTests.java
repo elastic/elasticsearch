@@ -29,7 +29,7 @@ public class KeyedLockTests extends ESTestCase {
     public void testIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
         ConcurrentHashMap<String, Integer> counter = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
-        KeyedLock<String> connectionLock = new KeyedLock<>(randomBoolean());
+        KeyedLock<String> connectionLock = new KeyedLock<>();
         String[] names = new String[randomIntBetween(1, 40)];
         for (int i = 0; i < names.length; i++) {
             names[i] = randomRealisticUnicodeOfLengthBetween(10, 20);

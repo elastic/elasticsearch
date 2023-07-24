@@ -52,42 +52,27 @@ public class TaskRecoveryIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode();
         String nodeWithPrimary = internalCluster().startDataOnlyNode();
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put("index.routing.allocation.include._name", nodeWithPrimary)
-                )
+            indicesAdmin().prepareCreate(indexName)
+                .setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", nodeWithPrimary))
         );
         try {
             String nodeWithReplica = internalCluster().startDataOnlyNode();
 
             // Create an index so that there is something to recover
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica)
-                    )
+            updateIndexSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica),
+                indexName
             );
             // Translog recovery is stalled, so we can inspect the running tasks.
             assertBusy(() -> {
-                List<TaskInfo> primaryTasks = client().admin()
-                    .cluster()
-                    .prepareListTasks(nodeWithPrimary)
+                List<TaskInfo> primaryTasks = clusterAdmin().prepareListTasks(nodeWithPrimary)
                     .setActions(PeerRecoverySourceService.Actions.START_RECOVERY)
                     .get()
                     .getTasks();
                 assertThat("Expected a single primary task", primaryTasks.size(), equalTo(1));
-                List<TaskInfo> replicaTasks = client().admin()
-                    .cluster()
-                    .prepareListTasks(nodeWithReplica)
+                List<TaskInfo> replicaTasks = clusterAdmin().prepareListTasks(nodeWithReplica)
                     .setActions(PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG)
                     .get()
                     .getTasks();

@@ -78,11 +78,13 @@ public class RefCountingListenerTests extends ESTestCase {
 
             var listener = refs.acquire();
             assertThat(listener.toString(), containsString("refCounting[test listener]"));
+            assertFalse(refs.isFailing());
             if (randomBoolean()) {
                 listener.onResponse(null);
             } else {
                 listener.onFailure(new ElasticsearchException("simulated"));
                 exceptionCount.incrementAndGet();
+                assertTrue(refs.isFailing());
             }
 
             var reachChecker = new ReachabilityChecker();
@@ -109,6 +111,9 @@ public class RefCountingListenerTests extends ESTestCase {
                 assertFalse(consumed.get());
                 exceptionCount.incrementAndGet();
             }
+
+            assertEquals(exceptionCount.get() > 0, refs.isFailing());
+
             reachChecker.ensureUnreachable();
             assertThat(consumingListener.toString(), containsString("refCounting[test listener][null]"));
 
@@ -133,6 +138,7 @@ public class RefCountingListenerTests extends ESTestCase {
                 }
             }
 
+            assertEquals(exceptionCount.get() > 0, refs.isFailing());
             assertFalse(executed.get());
         }
 
@@ -174,12 +180,31 @@ public class RefCountingListenerTests extends ESTestCase {
                 expectedMessage = RefCountingRunnable.ALREADY_CLOSED_MESSAGE;
             } else {
                 throwingRunnable = refs::close;
-                expectedMessage = "already closed";
+                expectedMessage = "invalid decRef call: already closed";
             }
 
             assertEquals(expectedMessage, expectThrows(AssertionError.class, throwingRunnable).getMessage());
             assertEquals(1, callCount.get());
         }
+    }
+
+    public void testConsumerFailure() {
+        final var executed = new AtomicBoolean();
+        try (var refs = new RefCountingListener(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                fail("unexpected success");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e.getMessage(), equalTo("simulated"));
+                executed.set(true);
+            }
+        })) {
+            refs.acquire(ignored -> { throw new ElasticsearchException("simulated"); }).onResponse(null);
+        }
+        assertTrue(executed.get());
     }
 
     public void testJavaDocExample() {

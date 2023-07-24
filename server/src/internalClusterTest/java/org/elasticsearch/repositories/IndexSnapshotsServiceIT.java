@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -36,8 +36,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.index.IndexVersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -113,7 +113,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         final boolean useBwCFormat = randomBoolean();
         if (useBwCFormat) {
-            final Version version = randomVersionBetween(random(), Version.V_7_5_0, Version.CURRENT);
+            final IndexVersion version = randomVersionBetween(random(), IndexVersion.V_7_5_0, IndexVersion.current());
             initWithSnapshotVersion(repoName, repoPath, version);
         }
 
@@ -175,9 +175,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         blockAllDataNodes(fsRepoName);
 
         final String snapshotName = "snap-1";
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(fsRepoName, snapshotName)
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(fsRepoName, snapshotName)
             .setIndices(indexName)
             .setWaitForCompletion(true)
             .execute();
@@ -293,9 +291,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             ((MockRepository) repositoriesService.repository(repoName)).setBlockAndFailOnWriteSnapFiles();
         }
 
-        client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repoName, "snap")
+        clusterAdmin().prepareCreateSnapshot(repoName, "snap")
             .setIndices(indexName)
             .setWaitForCompletion(false)
             .setFeatureStates(NO_FEATURE_STATES_VALUE)

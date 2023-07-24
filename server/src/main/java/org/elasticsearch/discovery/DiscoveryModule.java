@@ -15,6 +15,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
+import org.elasticsearch.cluster.coordination.PreVoteCollector;
+import org.elasticsearch.cluster.coordination.Reconfigurator;
+import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -33,6 +37,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,6 +49,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -70,10 +76,8 @@ public class DiscoveryModule {
         Property.NodeScope
     );
 
-    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING = Setting.stringListSetting(
         "discovery.seed_providers",
-        Collections.emptyList(),
-        Function.identity(),
         Property.NodeScope
     );
 
@@ -97,7 +101,8 @@ public class DiscoveryModule {
         MasterService masterService,
         ClusterApplier clusterApplier,
         ClusterSettings clusterSettings,
-        List<DiscoveryPlugin> plugins,
+        List<DiscoveryPlugin> discoveryPlugins,
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins,
         AllocationService allocationService,
         Path configFile,
         GatewayMetaState gatewayMetaState,
@@ -111,12 +116,15 @@ public class DiscoveryModule {
         hostProviders.put("file", () -> new FileBasedSeedHostsProvider(configFile));
         final Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
         electionStrategies.put(DEFAULT_ELECTION_STRATEGY, ElectionStrategy.DEFAULT_INSTANCE);
-        for (DiscoveryPlugin plugin : plugins) {
+        for (DiscoveryPlugin plugin : discoveryPlugins) {
             plugin.getSeedHostProviders(transportService, networkService).forEach((key, value) -> {
                 if (hostProviders.put(key, value) != null) {
                     throw new IllegalArgumentException("Cannot register seed provider [" + key + "] twice");
                 }
             });
+        }
+
+        for (ClusterCoordinationPlugin plugin : clusterCoordinationPlugins) {
             BiConsumer<DiscoveryNode, ClusterState> joinValidator = plugin.getJoinValidator();
             if (joinValidator != null) {
                 joinValidators.add(joinValidator);
@@ -174,6 +182,10 @@ public class DiscoveryModule {
                 );
         }
 
+        var reconfigurator = getReconfigurator(settings, clusterSettings, clusterCoordinationPlugins);
+        var preVoteCollectorFactory = getPreVoteCollectorFactory(clusterCoordinationPlugins);
+        var leaderHeartbeatService = getLeaderHeartbeatService(settings, clusterCoordinationPlugins);
+
         if (MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)
             || LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)
             || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
@@ -194,13 +206,73 @@ public class DiscoveryModule {
                 rerouteService,
                 electionStrategy,
                 nodeHealthService,
-                circuitBreakerService
+                circuitBreakerService,
+                reconfigurator,
+                leaderHeartbeatService,
+                preVoteCollectorFactory
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
 
         logger.info("using discovery type [{}] and seed hosts providers {}", discoveryType, seedProviderNames);
+    }
+
+    // visible for testing
+    static Reconfigurator getReconfigurator(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins
+    ) {
+        final var reconfiguratorFactories = clusterCoordinationPlugins.stream()
+            .map(ClusterCoordinationPlugin::getReconfiguratorFactory)
+            .flatMap(Optional::stream)
+            .toList();
+
+        if (reconfiguratorFactories.size() > 1) {
+            throw new IllegalStateException("multiple reconfigurator factories found: " + reconfiguratorFactories);
+        }
+
+        if (reconfiguratorFactories.size() == 1) {
+            return reconfiguratorFactories.get(0).newReconfigurator(settings, clusterSettings);
+        }
+
+        return new Reconfigurator(settings, clusterSettings);
+    }
+
+    // visible for testing
+    static PreVoteCollector.Factory getPreVoteCollectorFactory(List<ClusterCoordinationPlugin> clusterCoordinationPlugins) {
+        final var preVoteCollectorFactories = clusterCoordinationPlugins.stream()
+            .map(ClusterCoordinationPlugin::getPreVoteCollectorFactory)
+            .flatMap(Optional::stream)
+            .toList();
+
+        if (preVoteCollectorFactories.size() > 1) {
+            throw new IllegalStateException("multiple pre-vote collector factories found: " + preVoteCollectorFactories);
+        }
+
+        if (preVoteCollectorFactories.size() == 1) {
+            return preVoteCollectorFactories.get(0);
+        }
+
+        return StatefulPreVoteCollector::new;
+    }
+
+    static LeaderHeartbeatService getLeaderHeartbeatService(Settings settings, List<ClusterCoordinationPlugin> clusterCoordinationPlugins) {
+        final var heartbeatServices = clusterCoordinationPlugins.stream()
+            .map(plugin -> plugin.getLeaderHeartbeatService(settings))
+            .flatMap(Optional::stream)
+            .toList();
+
+        if (heartbeatServices.size() > 1) {
+            throw new IllegalStateException("multiple leader heart beat service factories found: " + heartbeatServices);
+        }
+
+        if (heartbeatServices.size() == 1) {
+            return heartbeatServices.get(0);
+        }
+
+        return LeaderHeartbeatService.NO_OP;
     }
 
     public static boolean isSingleNodeDiscovery(Settings settings) {

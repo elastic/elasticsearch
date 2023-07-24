@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.spatial.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -15,10 +14,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -44,7 +45,7 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
     public void init() {
         clusterService = mock(ClusterService.class);
 
-        DiscoveryNode discoveryNode = new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("nodeId");
         when(clusterService.localNode()).thenReturn(discoveryNode);
         ClusterName clusterName = new ClusterName("cluster_name");
         when(clusterService.getClusterName()).thenReturn(clusterName);
@@ -61,7 +62,7 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
         var usageAction = new SpatialUsageTransportAction(
             mock(TransportService.class),
             clusterService,
-            null,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             mockClient()
@@ -86,7 +87,7 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
         SpatialUsageTransportAction usageAction = new SpatialUsageTransportAction(
             mock(TransportService.class),
             clusterService,
-            null,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             mockClient()

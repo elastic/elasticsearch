@@ -24,6 +24,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -51,6 +52,8 @@ class S3BlobStore implements BlobStore {
 
     private final RepositoryMetadata repositoryMetadata;
 
+    private final ThreadPool threadPool;
+
     private final Stats stats = new Stats();
 
     final RequestMetricCollector getMetricCollector;
@@ -66,7 +69,8 @@ class S3BlobStore implements BlobStore {
         String cannedACL,
         String storageClass,
         RepositoryMetadata repositoryMetadata,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        ThreadPool threadPool
     ) {
         this.service = service;
         this.bigArrays = bigArrays;
@@ -76,6 +80,7 @@ class S3BlobStore implements BlobStore {
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
+        this.threadPool = threadPool;
         this.getMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
@@ -213,6 +218,10 @@ class S3BlobStore implements BlobStore {
         }
 
         throw new BlobStoreException("cannedACL is not valid: [" + cannedACL + "]");
+    }
+
+    ThreadPool getThreadPool() {
+        return threadPool;
     }
 
     static class Stats {

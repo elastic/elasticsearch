@@ -8,6 +8,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -53,12 +54,35 @@ public final class TransportActionProxy {
             assert assertConsistentTaskType(task, wrappedRequest);
             TaskId taskId = task.taskInfo(service.localNode.getId(), false).taskId();
             wrappedRequest.setParentTask(taskId);
-            service.sendRequest(
-                targetNode,
-                action,
-                wrappedRequest,
-                new ProxyResponseHandler<>(channel, responseFunction.apply(wrappedRequest))
-            );
+            service.sendRequest(targetNode, action, wrappedRequest, new TransportResponseHandler<>() {
+                @Override
+                public void handleResponse(TransportResponse response) {
+                    try {
+                        response.incRef();
+                        channel.sendResponse(response);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    try {
+                        channel.sendResponse(exp);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+
+                @Override
+                public TransportResponse read(StreamInput in) throws IOException {
+                    if (in.getTransportVersion().equals(channel.getVersion()) && in.supportReadAllToReleasableBytesReference()) {
+                        return new BytesTransportResponse(in);
+                    } else {
+                        return responseFunction.apply(wrappedRequest).read(in);
+                    }
+                }
+            });
         }
 
         private static boolean assertConsistentTaskType(Task proxyTask, TransportRequest wrapped) {
@@ -76,38 +100,32 @@ public final class TransportActionProxy {
         }
     }
 
-    private static class ProxyResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+    static final class BytesTransportResponse extends TransportResponse {
+        final ReleasableBytesReference bytes;
 
-        private final Writeable.Reader<T> reader;
-        private final TransportChannel channel;
-
-        ProxyResponseHandler(TransportChannel channel, Writeable.Reader<T> reader) {
-            this.reader = reader;
-            this.channel = channel;
+        BytesTransportResponse(StreamInput in) throws IOException {
+            super(in);
+            this.bytes = in.readAllToReleasableBytesReference();
         }
 
         @Override
-        public T read(StreamInput in) throws IOException {
-            return reader.read(in);
+        public void writeTo(StreamOutput out) throws IOException {
+            bytes.writeTo(out);
         }
 
         @Override
-        public void handleResponse(T response) {
-            try {
-                response.incRef();
-                channel.sendResponse(response);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+        public void incRef() {
+            bytes.incRef();
         }
 
         @Override
-        public void handleException(TransportException exp) {
-            try {
-                channel.sendResponse(exp);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+        public boolean tryIncRef() {
+            return bytes.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return bytes.decRef();
         }
     }
 

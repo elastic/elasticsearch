@@ -202,7 +202,7 @@ By default, searches return only the top 10 matching hits. To retrieve
 more or fewer documents, see <<paginate-search-results>>.
 
 *Retrieve selected fields* +
-The search response's `hit.hits` property includes the full document
+The search response's `hits.hits` property includes the full document
 <<mapping-source-field,`_source`>> for each hit. To retrieve only a subset of
 the `_source` or other fields, see <<search-fields>>.
 
@@ -478,7 +478,11 @@ The response will not contain any hits as the `size` was set to `0`. The
 matching documents, or greater than `0` meaning that there were at least
 as many documents matching the query when it was early terminated.
 Also if the query was terminated early, the `terminated_early` flag will
-be set to `true` in the response.
+be set to `true` in the response. Some queries are able to retrieve the hits
+count directly from the index statistics, which is much faster as it does
+not require executing the query. In those situations, no documents are
+collected, the returned `total.hits` will be higher than `terminate_after`,
+and `terminated_early` will be set to `false`.
 
 [source,console-result]
 --------------------------------------------------
@@ -503,8 +507,8 @@ be set to `true` in the response.
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 3/"took": $body.took/]
+// TESTRESPONSE[s/"terminated_early": true/"terminated_early": $body.terminated_early/]
 // TESTRESPONSE[s/"value": 1/"value": $body.hits.total.value/]
-// TESTRESPONSE[s/"relation": "eq"/"relation": $body.hits.total.relation/]
 
 The `took` time in the response contains the milliseconds that this request
 took for processing, beginning quickly after the node received the query, up
@@ -527,3 +531,4 @@ include::search-shard-routing.asciidoc[]
 include::search-template.asciidoc[]
 include::sort-search-results.asciidoc[]
 include::knn-search.asciidoc[]
+include::semantic-search.asciidoc[]

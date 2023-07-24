@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -62,7 +63,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     }
 
     AsyncResultsService<AsyncTask, StoredAsyncResponse<Response>> createResultsService(
-        TransportService transportServiceArg,
+        TransportService transportService,
         ClusterService clusterService,
         NamedWriteableRegistry registry,
         Client client,
@@ -86,7 +87,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
             false,
             asyncTaskClass,
             (task, listener, timeout) -> AsyncTaskManagementService.addCompletionListener(threadPool, task, listener, timeout),
-            transportServiceArg.getTaskManager(),
+            transportService.getTaskManager(),
             clusterService
         );
     }
@@ -107,7 +108,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
                 node,
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, responseReader(), ThreadPool.Names.SAME)
+                new ActionListenerResponseHandler<>(listener, responseReader(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );
         }
     }

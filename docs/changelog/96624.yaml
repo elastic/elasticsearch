@@ -1,0 +1,5 @@
+pr: 96624
+summary: Enable analytics geoip in behavioral analytics
+area: "Application"
+type: feature
+issues: []

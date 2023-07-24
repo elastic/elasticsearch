@@ -54,7 +54,7 @@ public class PreConfiguredTokenFilterTests extends ESTestCase {
     }
 
     public void testCachingWithElasticsearchVersion() throws IOException {
-        PreConfiguredTokenFilter pctf = PreConfiguredTokenFilter.elasticsearchVersion(
+        PreConfiguredTokenFilter pctf = PreConfiguredTokenFilter.indexVersion(
             "elasticsearch_version",
             randomBoolean(),
             (tokenStream, esVersion) -> new TokenFilter(tokenStream) {

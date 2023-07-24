@@ -103,7 +103,7 @@ public class RestSearchActionTests extends RestActionTestCase {
             ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
             SearchRequest searchRequest = new SearchRequest();
-            KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", new float[] { 1, 1, 1 }, 10, 100);
+            KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", new float[] { 1, 1, 1 }, 10, 100, null);
             searchRequest.source(new SearchSourceBuilder().knnSearch(List.of(knnSearch)));
 
             Exception ex = expectThrows(

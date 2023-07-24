@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.Manifest;
@@ -24,6 +25,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -50,7 +52,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
     @Override
     ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
         // Just set localNode here, not to mess with ClusterService and IndicesService mocking
-        return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
+        return ClusterStateUpdaters.setLocalNode(clusterState, localNode, TransportVersion.current());
     }
 
     public void start(Settings settings, NodeEnvironment nodeEnvironment, NamedXContentRegistry xContentRegistry) {
@@ -78,7 +80,8 @@ public class MockGatewayMetaState extends GatewayMetaState {
                 xContentRegistry,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L
-            )
+            ),
+            List.of()
         );
     }
 }

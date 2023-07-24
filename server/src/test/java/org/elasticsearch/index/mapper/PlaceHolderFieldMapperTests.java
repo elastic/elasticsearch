@@ -10,10 +10,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
@@ -38,7 +38,7 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
             b.field("someparam", "value");
             b.endObject();
         });
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping);
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping);
         assertThat(service.fieldType("myfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
         assertEquals(Strings.toString(mapping), Strings.toString(service.documentMapper().mapping()));
 
@@ -55,7 +55,7 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testFetchValue() throws Exception {
-        MapperService mapperService = createMapperService(Version.fromString("5.0.0"), fieldMapping(b -> b.field("type", "unknown")));
+        MapperService mapperService = createMapperService(IndexVersion.fromId(5000099), fieldMapping(b -> b.field("type", "unknown")));
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(
                 createMapperService(fieldMapping(b -> b.field("type", "keyword"))).documentMapper()

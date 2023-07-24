@@ -94,8 +94,11 @@ final class PerThreadIDVersionAndSeqNoLookup {
         this.readerKey = readerKey;
 
         this.loadedTimestampRange = loadTimestampRange;
-        if (loadTimestampRange) {
-            PointValues tsPointValues = reader.getPointValues(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        // Also check for the existence of the timestamp field, because sometimes a segment can only contain tombstone documents,
+        // which don't have any mapped fields (also not the timestamp field) and just some meta fields like _id, _seq_no etc.
+        if (loadTimestampRange && reader.getFieldInfos().fieldInfo(DataStream.TIMESTAMP_FIELD_NAME) != null) {
+            PointValues tsPointValues = reader.getPointValues(DataStream.TIMESTAMP_FIELD_NAME);
+            assert tsPointValues != null : "no timestamp field for reader:" + reader + " and parent:" + reader.getContext().parent.reader();
             minTimestamp = LongPoint.decodeDimension(tsPointValues.getMinPackedValue(), 0);
             maxTimestamp = LongPoint.decodeDimension(tsPointValues.getMaxPackedValue(), 0);
         } else {

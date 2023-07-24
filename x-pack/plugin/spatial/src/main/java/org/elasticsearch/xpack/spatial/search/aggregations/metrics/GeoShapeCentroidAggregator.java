@@ -47,25 +47,20 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (GeoShapeValuesSource) valuesSourceConfig.getValuesSource() : null;
-        if (valuesSource != null) {
-            lonSum = bigArrays().newDoubleArray(1, true);
-            lonCompensations = bigArrays().newDoubleArray(1, true);
-            latSum = bigArrays().newDoubleArray(1, true);
-            latCompensations = bigArrays().newDoubleArray(1, true);
-            weightSum = bigArrays().newDoubleArray(1, true);
-            weightCompensations = bigArrays().newDoubleArray(1, true);
-            counts = bigArrays().newLongArray(1, true);
-            dimensionalShapeTypes = bigArrays().newByteArray(1, true);
-        }
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (GeoShapeValuesSource) valuesSourceConfig.getValuesSource();
+        lonSum = bigArrays().newDoubleArray(1, true);
+        lonCompensations = bigArrays().newDoubleArray(1, true);
+        latSum = bigArrays().newDoubleArray(1, true);
+        latCompensations = bigArrays().newDoubleArray(1, true);
+        weightSum = bigArrays().newDoubleArray(1, true);
+        weightCompensations = bigArrays().newDoubleArray(1, true);
+        counts = bigArrays().newLongArray(1, true);
+        dimensionalShapeTypes = bigArrays().newByteArray(1, true);
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         final GeoShapeValues values = valuesSource.shapeValues(aggCtx.getLeafReaderContext());
         final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
@@ -128,7 +123,7 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= counts.size()) {
+        if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
         final long bucketCount = counts.get(bucket);
@@ -141,7 +136,7 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoCentroid(name, null, 0L, metadata());
+        return InternalGeoCentroid.empty(name, metadata());
     }
 
     @Override

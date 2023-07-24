@@ -57,7 +57,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         nonInputProperties.systemProperty('tests.clustername', baseName)
       }
       systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      onlyIf { project.bwc_tests_enabled }
+      onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
     }
 
     tasks.register(bwcTaskName(bwcVersion)) {

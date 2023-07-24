@@ -79,14 +79,14 @@ The object body contains options for the alias. Supports an empty object.
 =====
 `alias`::
 (Required*, string) Alias for the action. Index alias names support
-<<date-math-index-names,date math>>. If `aliases` is not specified, the `add`
+<<api-date-math-index-names,date math>>. If `aliases` is not specified, the `add`
 and `remove` actions require this parameter. For the `remove` action, this
 parameter supports wildcards (`*`). The `remove_index` action doesn't support
 this parameter.
 
 `aliases`::
 (Required*, array of strings) Aliases for the action. Index alias names support
-<<date-math-index-names,date math>>. If `alias` is not specified, the `add` and
+<<api-date-math-index-names,date math>>. If `alias` is not specified, the `add` and
 `remove` actions require this parameter. For the `remove` action, this parameter
 supports wildcards (`*`). The `remove_index` action doesn't support this
 parameter.
@@ -122,7 +122,7 @@ Only the `add` action supports this parameter.
 
 // tag::alias-options[]
 `is_hidden`::
-(Optional, Boolean) If `true`, the alias is <<hidden,hidden>>. Defaults to
+(Optional, Boolean) If `true`, the alias is <<multi-hidden,hidden>>. Defaults to
 `false`. All data streams or indices for the alias must have the same
 `is_hidden` value.
 // end::alias-options[]

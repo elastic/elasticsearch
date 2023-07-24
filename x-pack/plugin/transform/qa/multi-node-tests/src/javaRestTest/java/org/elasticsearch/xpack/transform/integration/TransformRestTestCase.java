@@ -11,7 +11,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -70,6 +69,8 @@ import static org.hamcrest.core.Is.is;
 public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected static String TRANSFORM_ENDPOINT = "/_transform/";
+    protected static final String AUTH_KEY = "Authorization";
+    protected static final String SECONDARY_AUTH_KEY = "es-secondary-authorization";
 
     private final Set<String> createdTransformIds = new HashSet<>();
 
@@ -127,8 +128,8 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             try {
                 stopTransform(id);
                 deleteTransform(id);
-            } catch (ElasticsearchStatusException ex) {
-                if (ex.status().equals(RestStatus.NOT_FOUND)) {
+            } catch (ResponseException ex) {
+                if (ex.getResponse().getStatusLine().getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
                     logger.info("tried to cleanup already deleted transform [{}]", id);
                 } else {
                     throw ex;
@@ -141,7 +142,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     protected void refreshIndex(String index, RequestOptions options) throws IOException {
         var r = new Request("POST", index + "/_refresh");
         r.setOptions(options);
-        assertOK(client().performRequest(r));
+        assertOK(adminClient().performRequest(r));
     }
 
     protected Map<String, Object> getIndexMapping(String index, RequestOptions options) throws IOException {
@@ -209,8 +210,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void deleteTransform(String id) throws IOException {
-        Request request = new Request("DELETE", TRANSFORM_ENDPOINT + id);
-        assertOK(adminClient().performRequest(request));
+        deleteTransform(id, false);
     }
 
     protected void deleteTransform(String id, boolean force) throws IOException {
@@ -230,6 +230,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         put.setJsonEntity(config);
         put.setOptions(options);
         assertOK(client().performRequest(put));
+        createdTransformIds.add(id);
     }
 
     protected Map<String, Object> previewTransform(String transformConfig, RequestOptions options) throws IOException {
@@ -389,14 +390,15 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         return TransformConfig.builder()
             .setId(id)
             .setSource(new SourceConfig(sourceIndices, queryConfig, Collections.emptyMap()))
-            .setDest(new DestConfig(destinationIndex, null))
+            .setDest(new DestConfig(destinationIndex, null, null))
             .setFrequency(TimeValue.timeValueSeconds(10))
             .setDescription("Test transform config id: " + id);
     }
 
-    protected void updateConfig(String id, String update) throws Exception {
+    protected void updateConfig(String id, String update, RequestOptions options) throws Exception {
         Request updateRequest = new Request("POST", "_transform/" + id + "/_update");
         updateRequest.setJsonEntity(update);
+        updateRequest.setOptions(options);
         assertOK(client().performRequest(updateRequest));
     }
 
@@ -453,7 +455,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             Request req = new Request("PUT", indexName);
             req.setEntity(indexMappings);
             req.setOptions(RequestOptions.DEFAULT);
-            assertOK(client().performRequest(req));
+            assertOK(adminClient().performRequest(req));
         }
 
         // create index
@@ -494,7 +496,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         }
         bulkRequest.setJsonEntity(bulkDocuments);
         bulkRequest.setOptions(RequestOptions.DEFAULT);
-        Response bulkResponse = client().performRequest(bulkRequest);
+        Response bulkResponse = adminClient().performRequest(bulkRequest);
         assertOK(bulkResponse);
         var bulkMap = entityAsMap(bulkResponse);
         assertThat((boolean) bulkMap.get("errors"), is(equalTo(false)));
@@ -521,7 +523,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         );
         request.addParameters(parameters);
         try {
-            client().performRequest(request);
+            adminClient().performRequest(request);
         } catch (Exception e) {
             throw new AssertionError("Failed to wait for pending tasks to complete", e);
         }

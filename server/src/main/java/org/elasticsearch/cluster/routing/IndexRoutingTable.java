@@ -220,6 +220,10 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         return shards[shardId];
     }
 
+    public Stream<IndexShardRoutingTable> allShards() {
+        return Stream.of(shards);
+    }
+
     /**
      * Returns <code>true</code> if all shards are primary and active. Otherwise <code>false</code>.
      */
@@ -297,7 +301,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         IndexRoutingTable that = (IndexRoutingTable) o;
 
         if (index.equals(that.index) == false) return false;
-        return Arrays.equals(shards, that.shards) != false;
+        return Arrays.equals(shards, that.shards);
     }
 
     @Override

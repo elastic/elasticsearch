@@ -12,6 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
@@ -24,6 +26,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRestHandler {
 
     public RestClearServiceAccountTokenStoreCacheAction(Settings settings, XPackLicenseState licenseState) {

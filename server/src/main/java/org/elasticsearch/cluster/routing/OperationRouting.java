@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -29,6 +30,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
+
 public class OperationRouting {
 
     public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING = Setting.boolSetting(
@@ -39,8 +42,10 @@ public class OperationRouting {
     );
 
     private boolean useAdaptiveReplicaSelection;
+    private final boolean isStateless;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
+        this.isStateless = DiscoveryNode.isStateless(settings);
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
     }
@@ -51,6 +56,7 @@ public class OperationRouting {
 
     /**
      * Shards to use for a {@code GET} operation.
+     * @return A shard iterator that can be used for GETs, or null if e.g. due to preferences no match is found.
      */
     public ShardIterator getShards(
         ClusterState clusterState,
@@ -74,6 +80,19 @@ public class OperationRouting {
             null,
             null
         );
+    }
+
+    public ShardIterator useOnlyPromotableShardsForStateless(ShardIterator shards) {
+        // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
+        // implemented for search shards.
+        if (isStateless && shards != null) {
+            return new PlainShardIterator(
+                shards.shardId(),
+                shards.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
+            );
+        } else {
+            return shards;
+        }
     }
 
     public GroupShardsIterator<ShardIterator> searchShards(
@@ -105,8 +124,11 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                var searchableShards = iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
-                set.add(new PlainShardIterator(iterator.shardId(), searchableShards));
+                var shardsThatCanHandleSearches = iterator.getShardRoutings()
+                    .stream()
+                    .filter(shardRouting -> canSearchShard(shardRouting, clusterState))
+                    .toList();
+                set.add(new PlainShardIterator(iterator.shardId(), shardsThatCanHandleSearches));
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
@@ -244,5 +266,13 @@ public class OperationRouting {
     public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
         IndexMetadata indexMetadata = indexMetadata(clusterState, index);
         return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).getShard(id, routing));
+    }
+
+    public static boolean canSearchShard(ShardRouting shardRouting, ClusterState clusterState) {
+        if (INDEX_FAST_REFRESH_SETTING.get(clusterState.metadata().index(shardRouting.index()).getSettings())) {
+            return shardRouting.isPromotableToPrimary();
+        } else {
+            return shardRouting.isSearchable();
+        }
     }
 }

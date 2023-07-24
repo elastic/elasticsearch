@@ -152,7 +152,7 @@ public class NodeClient extends AbstractClient {
         return namedWriteableRegistry;
     }
 
-    private record SafelyWrappedActionListener<Response> (ActionListener<Response> listener) implements ActionListener<Response> {
+    private record SafelyWrappedActionListener<Response>(ActionListener<Response> listener) implements ActionListener<Response> {
 
         @Override
         public void onResponse(Response response) {

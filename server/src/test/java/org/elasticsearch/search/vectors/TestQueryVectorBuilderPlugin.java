@@ -73,7 +73,7 @@ class TestQueryVectorBuilderPlugin implements SearchPlugin {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override

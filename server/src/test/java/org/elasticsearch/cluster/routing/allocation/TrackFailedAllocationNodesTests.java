@@ -43,7 +43,7 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
             discoNodes.add(newNode("node-" + i));
         }
         discoNodes.masterNodeId("node-0").localNodeId("node-0");
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoNodes)
             .metadata(metadata)
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("idx")).build())

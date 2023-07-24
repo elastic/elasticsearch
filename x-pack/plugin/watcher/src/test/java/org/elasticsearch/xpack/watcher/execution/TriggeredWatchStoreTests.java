@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -94,15 +94,13 @@ import static org.mockito.Mockito.when;
 
 public class TriggeredWatchStoreTests extends ESTestCase {
 
-    private Settings indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-        .build();
+    private static final Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
 
     private Client client;
     private TriggeredWatch.Parser parser;
     private TriggeredWatchStore triggeredWatchStore;
     private final Map<BulkRequest, BulkResponse> bulks = new LinkedHashMap<>();
-    private BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+    private BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
         @Override
         public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -112,7 +110,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }
 
         @Override
-        public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+        public void afterBulk(long executionId, BulkRequest request, Exception failure) {
             throw new ElasticsearchException(failure);
         }
     };
@@ -126,10 +124,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         parser = mock(TriggeredWatch.Parser.class);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client::bulk, listener, "TriggeredWatchStoreTests")
-            .setConcurrentRequests(0)
-            .setBulkActions(1)
-            .build();
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(client::bulk, listener, client.threadPool()).setBulkActions(1).build();
         triggeredWatchStore = new TriggeredWatchStore(settings, client, parser, bulkProcessor);
     }
 
@@ -152,9 +147,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
         int numShards = 2 + randomInt(2);
         int numStartedShards = 1;
-        Settings settings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, numShards, 1).build();
         metadataBuilder.put(
             IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(settings).numberOfShards(numShards).numberOfReplicas(1)
         );

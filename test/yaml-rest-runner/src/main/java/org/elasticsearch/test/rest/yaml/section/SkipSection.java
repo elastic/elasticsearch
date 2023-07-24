@@ -174,12 +174,12 @@ public class SkipSection {
         if (rawRanges == null) {
             return Collections.singletonList(new VersionRange(null, null));
         }
-        if (rawRanges.trim().equals("all")) {
-            return Collections.singletonList(new VersionRange(VersionUtils.getFirstVersion(), Version.CURRENT));
-        }
         String[] ranges = rawRanges.split(",");
         List<VersionRange> versionRanges = new ArrayList<>();
         for (String rawRange : ranges) {
+            if (rawRange.trim().equals("all")) {
+                return Collections.singletonList(new VersionRange(VersionUtils.getFirstVersion(), Version.CURRENT));
+            }
             String[] skipVersions = rawRange.split("-", -1);
             if (skipVersions.length > 2) {
                 throw new IllegalArgumentException("version range malformed: " + rawRanges);

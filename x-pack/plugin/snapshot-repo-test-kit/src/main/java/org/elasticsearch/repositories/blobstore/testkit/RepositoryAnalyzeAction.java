@@ -29,7 +29,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -450,14 +452,15 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);
 
             final String registerName = "test-register-" + UUIDs.randomBase64UUID(random);
-            try (var registerRefs = new RefCountingRunnable(finalRegisterValueVerifier(registerName, requestRefs.acquire()))) {
-                final long registerOperations = Math.max(nodes.size(), request.getConcurrency());
+            try (var registerRefs = new RefCountingRunnable(finalRegisterValueVerifier(registerName, random, requestRefs.acquire()))) {
+                final int registerOperations = Math.max(nodes.size(), request.getConcurrency());
                 for (int i = 0; i < registerOperations; i++) {
                     final RegisterAnalyzeAction.Request registerAnalyzeRequest = new RegisterAnalyzeAction.Request(
                         request.getRepositoryName(),
                         blobPath,
                         registerName,
-                        registerOperations
+                        registerOperations,
+                        random.nextInt((registerOperations + 1) * 2)
                     );
                     final DiscoveryNode node = nodes.get(i < nodes.size() ? i : random.nextInt(nodes.size()));
                     final Releasable registerRef = registerRefs.acquire();
@@ -589,21 +592,24 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             }
         }
 
-        private Runnable finalRegisterValueVerifier(String registerName, Releasable ref) {
+        private Runnable finalRegisterValueVerifier(String registerName, Random random, Releasable ref) {
             return () -> {
                 if (isRunning()) {
                     final var expectedFinalRegisterValue = expectedRegisterValue.get();
                     transportService.getThreadPool()
                         .executor(ThreadPool.Names.SNAPSHOT)
-                        .execute(ActionRunnable.supply(ActionListener.releaseAfter(new ActionListener<>() {
+                        .execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<OptionalBytesReference>() {
                             @Override
-                            public void onResponse(Long actualFinalRegisterValue) {
-                                if (actualFinalRegisterValue != expectedFinalRegisterValue) {
+                            public void onResponse(OptionalBytesReference actualFinalRegisterValue) {
+                                if (actualFinalRegisterValue.isPresent() == false
+                                    || RegisterAnalyzeAction.longFromBytes(
+                                        actualFinalRegisterValue.bytesReference()
+                                    ) != expectedFinalRegisterValue) {
                                     fail(
                                         new RepositoryVerificationException(
                                             request.getRepositoryName(),
                                             Strings.format(
-                                                "register [%s] should have value [%d] but instead had value [%d]",
+                                                "register [%s] should have value [%d] but instead had value [%s]",
                                                 registerName,
                                                 expectedFinalRegisterValue,
                                                 actualFinalRegisterValue
@@ -620,13 +626,31 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                                     fail(exp);
                                 }
                             }
-                        }, ref),
-                            () -> getBlobContainer().compareAndExchangeRegister(
-                                registerName,
-                                expectedFinalRegisterValue,
-                                expectedFinalRegisterValue
-                            )
-                        ));
+                        }, ref), listener -> {
+                            switch (random.nextInt(3)) {
+                                case 0 -> getBlobContainer().getRegister(registerName, listener);
+                                case 1 -> getBlobContainer().compareAndExchangeRegister(
+                                    registerName,
+                                    RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
+                                    new BytesArray(new byte[] { (byte) 0xff }),
+                                    listener
+                                );
+                                case 2 -> getBlobContainer().compareAndSetRegister(
+                                    registerName,
+                                    RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
+                                    new BytesArray(new byte[] { (byte) 0xff }),
+                                    listener.map(
+                                        b -> b
+                                            ? OptionalBytesReference.of(RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue))
+                                            : OptionalBytesReference.MISSING
+                                    )
+                                );
+                                default -> {
+                                    assert false;
+                                    throw new IllegalStateException();
+                                }
+                            }
+                        }));
                 } else {
                     ref.close();
                 }

@@ -128,8 +128,8 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
             byte upper[] = address.getAddress();
             for (int i = prefixLength; i < 8 * lower.length; i++) {
                 int m = 1 << (7 - (i & 7));
-                lower[i >> 3] &= ~m;
-                upper[i >> 3] |= m;
+                lower[i >> 3] &= (byte) ~m;
+                upper[i >> 3] |= (byte) m;
             }
             this.key = key;
             try {

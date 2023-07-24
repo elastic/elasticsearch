@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.DateHistogramAggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -1069,7 +1070,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                         null,
                         () -> false,
                         builder,
-                        context.multiBucketConsumer(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(context.maxBuckets(), context.breaker()),
                         PipelineTree.EMPTY
                     )
                 );
@@ -1169,8 +1170,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("_name");
                 if (configure != null) {

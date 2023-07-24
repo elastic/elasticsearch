@@ -35,7 +35,6 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
@@ -144,14 +143,14 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
      * explicit refresh if the interval is -1 because we don't have that kind of control over refresh. It can happen all on its own.
      */
     public void testNoRefreshInterval() throws InterruptedException, ExecutionException {
-        client().admin().indices().prepareUpdateSettings("test").setSettings(singletonMap("index.refresh_interval", -1)).get();
+        updateIndexSettings(Settings.builder().put("index.refresh_interval", -1), "test");
         ActionFuture<IndexResponse> index = client().prepareIndex("test")
             .setId("1")
             .setSource("foo", "bar")
             .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
             .execute();
         while (false == index.isDone()) {
-            client().admin().indices().prepareRefresh("test").get();
+            indicesAdmin().prepareRefresh("test").get();
         }
         assertEquals(RestStatus.CREATED, index.get().status());
         assertFalse("request shouldn't have forced a refresh", index.get().forcedRefresh());

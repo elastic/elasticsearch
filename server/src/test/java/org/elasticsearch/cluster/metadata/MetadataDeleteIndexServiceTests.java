@@ -30,6 +30,7 @@ import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -94,7 +95,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
                 Map.of(),
                 null,
                 SnapshotInfoTestUtils.randomUserMetadata(),
-                VersionUtils.randomVersion(random())
+                IndexVersionUtils.randomVersion(random())
             )
         );
         ClusterState state = ClusterState.builder(clusterState(index)).putCustom(SnapshotsInProgress.TYPE, snaps).build();

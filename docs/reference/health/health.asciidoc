@@ -78,6 +78,10 @@ for health status set `verbose` to `false` to disable the more expensive analysi
   `slm`::
       Reports health issues related to
       Snapshot Lifecycle Management.
+
+  `shards_capacity`::
+      Reports health issues related to the shards
+      capacity of the cluster.
 --
 
 [[health-api-query-params]]
@@ -361,6 +365,43 @@ watermark threshold>>.
 `policies`::
     (int) The number of index lifecycle policies that the system is managing.
 
+`stagnating_indices`::
+    (int) the number of indices managed by {ilm} that has been stagnant longer than expected.
+
+`stagnating_indices_per_action`::
+    (optional, map) Summary of the number of indices, grouped by action, that have been stagnant longer than
+    expected.
++
+.Properties of `stagnating_indices_per_action`
+[%collapsible%open]
+=======
+`downsample`::
+(int) The number of stagnant indices in the `downsample` action.
+
+`allocate`::
+(int) The number of stagnant indices in the `allocate` action.
+
+`shrink`::
+(int) The number of stagnant indices in the `shrink` action.
+
+`searchable_snapshot`::
+(int) The number of stagnant indices in the `searchable_snapshot` action.
+
+`rollover`::
+(int) The number of stagnant indices in the `rollver` action.
+
+`forcemerge`::
+(int) The number of stagnant indices in the `forcemerge` action.
+
+`delete`::
+(int) The number of stagnant indices in the `delete` action.
+
+`migrate`::
+(int) The number of stagnant indices in the `migrate` action.
+
+
+=======
+
 [[health-api-response-details-slm]]
 ===== slm
 
@@ -376,6 +417,36 @@ watermark threshold>>.
     The `count` key represents the number of unhealthy policies (int).
     The `invocations_since_last_success` key will report a map where the unhealthy policy
     name is the key and it's corresponding number of failed invocations is the value.
+
+[[health-api-response-details-shards-capacity]]
+===== shards_capacity
+`data`::
+(map) A view with information about the current capacity of shards for data nodes that do not belong to the frozen tier.
++
+.Properties of `data`
+[%collapsible%open]
+=====
+`max_shards_in_cluster`::
+(int) Indicates the maximum number of shards that the cluster can hold.
+
+`current_used_shards`::
+(optional, int) The total number of shards hold by the cluster. Only displayed in the case the indicator's status is `red` or `yellow`.
+
+=====
+
+`frozen`::
+(map) A view with information about the current capacity of shards for data nodes that belong to the frozen tier.
++
+.Properties of `frozen`
+[%collapsible%open]
+=====
+`max_shards_in_cluster`::
+(int) Indicates the maximum number of shards the cluster can hold for the partially mounted indices.
+
+`current_used_shards`::
+(optional, int) The total number of shards the partially mounted indices have in the cluster. Only displayed in the case the indicator's status is `red` or `yellow`.
+
+=====
 
 [[health-api-example]]
 ==== {api-examples-title}

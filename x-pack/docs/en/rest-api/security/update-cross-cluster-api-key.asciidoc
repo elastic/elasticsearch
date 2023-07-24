@@ -1,0 +1,254 @@
+[role="xpack"]
+[[security-api-update-cross-cluster-api-key]]
+=== Update Cross-Cluster API key API
+
+++++
+<titleabbrev>Update Cross-Cluster API key</titleabbrev>
+++++
+
+Update an existing cross-cluster API Key.
+
+
+[[security-api-update-cross-cluster-api-key-request]]
+==== {api-request-title}
+
+`PUT /_security/cross_cluster/api_key/<id>`
+
+[[security-api-update-cross-cluster-api-key-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster privilege.
+Users can only update API keys that they created.
+To update another user's API key, use the <<run-as-privilege,`run_as` feature>>
+to submit a request on behalf of another user.
+
+IMPORTANT: It's not possible to use an API key as the authentication credential for this API.
+To update an API key, the owner user's credentials are required.
+
+[[security-api-update-cross-cluster-api-key-desc]]
+==== {api-description-title}
+
+Use this API to update cross-cluster API keys created by the <<security-api-create-cross-cluster-api-key,Create Cross-Cluster API key API>>.
+It's not possible to update expired API keys, or API keys that have been invalidated by
+<<security-api-invalidate-api-key,invalidate API Key>>.
+
+This API supports updates to an API key's access scope and metadata.
+The owner user's information, e.g. `username`, `realm`, is also updated automatically on every call.
+
+NOTE: This API cannot update <<security-api-create-api-key,REST API keys>>, which should be updated by
+either <<security-api-update-api-key>> or <<security-api-bulk-update-api-keys>> API.
+
+[[security-api-update-cross-cluster-api-key-path-params]]
+==== {api-path-parms-title}
+
+`id`::
+(Required, string) The ID of the API key to update.
+
+[[security-api-update-cross-cluster-api-key-request-body]]
+==== {api-request-body-title}
+
+You can specify the following parameters in the request body. The parameters are optional. But they cannot all be absent.
+
+[[security-api-update-cross-cluster-api-key-api-key-role-descriptors]]
+`access`::
+(Optional, object) The access to be granted to this API key. The access is
+composed of permissions for cross cluster search and cross cluster replication.
+At least one of them must be specified.
+When specified, the new access assignment fully replaces the previously assigned access.
+Refer to the <<cross-cluster-api-key-access,parameter of the same of the Create Cross-Cluster API key API>>
+for the field's structure.
+
+`metadata`::
+(Optional, object) Arbitrary metadata that you want to associate with the API key.
+It supports nested data structure.
+Within the `metadata` object, top-level keys beginning with `_` are reserved for system usage.
+When specified, this fully replaces metadata previously associated with the API key.
+
+[[security-api-update-cross-cluster-api-key-response-body]]
+==== {api-response-body-title}
+
+`updated`::
+(boolean) If `true`, the API key was updated.
+If `false`, the API key didn't change because no change was detected.
+
+[[security-api-update-cross-cluster-api-key-example]]
+==== {api-examples-title}
+
+If you create a cross-cluster API key as follows:
+
+[source,console]
+------------------------------------------------------------
+POST /_security/cross_cluster/api_key
+{
+  "name": "my-cross-cluster-api-key",
+  "access": {
+    "search": [
+      {
+        "names": ["logs*"]
+      }
+    ]
+  },
+  "metadata": {
+    "application": "search"
+  }
+}
+------------------------------------------------------------
+
+A successful call returns a JSON structure that provides API key information.
+For example:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id": "VuaCfGcBCdbkQm-e5aOx",
+  "name": "my-cross-cluster-api-key",
+  "api_key": "ui2lp2axTNmsyakw9tvNnw",
+  "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
+}
+--------------------------------------------------
+// TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
+// TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
+
+Information of the API key, including its exact role descriptor can be inspected with
+the <<security-api-get-api-key,Get API key API>>
+
+[source,console]
+--------------------------------------------------
+GET /_security/api_key?id=VuaCfGcBCdbkQm-e5aOx
+--------------------------------------------------
+// TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TEST[continued]
+
+A successful call returns a JSON structure that contains the information of the API key:
+
+[source,js]
+--------------------------------------------------
+{
+  "api_keys": [
+    {
+      "id": "VuaCfGcBCdbkQm-e5aOx",
+      "name": "my-cross-cluster-api-key",
+      "type": "cross_cluster",
+      "creation": 1548550550158,
+      "expiration": null,
+      "invalidated": false,
+      "username": "myuser",
+      "realm": "native1",
+      "metadata": {
+        "application": "search"
+      },
+      "role_descriptors": {
+        "cross_cluster": {  <1>
+          "cluster": [
+              "cross_cluster_search"
+          ],
+          "indices": [
+            {
+              "names": [
+                "logs*"
+              ],
+              "privileges": [
+                "read", "read_cross_cluster", "view_index_metadata"
+              ],
+              "allow_restricted_indices": false
+            }
+          ],
+          "applications": [ ],
+          "run_as": [ ],
+          "metadata": { },
+          "transient_metadata": {
+            "enabled": true
+          }
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> Role descriptor corresponding to the specified `access` scope at creation time.
+In this example, it grants cross cluster search permission for the `logs*` index pattern.
+
+
+The following example updates the API key created above, assigning it new access scope and metadata:
+
+[source,console]
+----
+PUT /_security/cross_cluster/api_key/VuaCfGcBCdbkQm-e5aOx
+{
+  "access": {
+    "replication": [
+      {
+        "names": ["archive"]
+      }
+    ]
+  },
+  "metadata": {
+    "application": "replication"
+  }
+}
+----
+// TEST[s/VuaCfGcBCdbkQm-e5aOx/\${body.api_keys.0.id}/]
+// TEST[continued]
+
+A successful call returns a JSON structure indicating that the API key was updated:
+
+[source,console-result]
+----
+{
+  "updated": true
+}
+----
+
+The API key's permissions after the update can be inspected again with the <<security-api-get-api-key,Get API key API>>
+and it will be:
+
+[source,js]
+--------------------------------------------------
+{
+  "api_keys": [
+    {
+      "id": "VuaCfGcBCdbkQm-e5aOx",
+      "name": "my-cross-cluster-api-key",
+      "type": "cross_cluster",
+      "creation": 1548550550158,
+      "expiration": null,
+      "invalidated": false,
+      "username": "myuser",
+      "realm": "native1",
+      "metadata": {
+        "application": "replication"
+      },
+      "role_descriptors": {
+        "cross_cluster": {  <1>
+          "cluster": [
+              "cross_cluster_replication"
+          ],
+          "indices": [
+            {
+              "names": [
+                "archive*"
+              ],
+              "privileges": [
+                "cross_cluster_replication", "cross_cluster_replication_internal"
+              ],
+              "allow_restricted_indices": false
+            }
+          ],
+          "applications": [ ],
+          "run_as": [ ],
+          "metadata": { },
+          "transient_metadata": {
+            "enabled": true
+          }
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> Role descriptor is updated to be the `access` scope specified at update time.
+In this example, it is updated to grant the cross cluster replication permission
+for the `archive*` index pattern.

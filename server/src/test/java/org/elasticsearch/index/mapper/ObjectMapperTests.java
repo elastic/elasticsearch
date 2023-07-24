@@ -8,12 +8,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -313,7 +313,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testUnknownLegacyFields() throws Exception {
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
             b.field("type", "unknown");
             b.field("unknown_setting", 5);
@@ -323,7 +323,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testUnmappedLegacyFields() throws Exception {
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
             b.field("type", CompletionFieldMapper.CONTENT_TYPE);
             b.field("unknown_setting", 5);
@@ -473,10 +473,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", false)));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("subobjects", true); })))
-        );
+        Mapping mergeWith = mapperService.parseMapping("_doc", new CompressedXContent(BytesReference.bytes(topMapping(b -> {
+            b.field("subobjects", true);
+        }))));
         MapperException exception = expectThrows(
             MapperException.class,
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)

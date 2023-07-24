@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
@@ -115,6 +116,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         if (instance.getAnalysis() instanceof Classification) {
             builder.setAnalysis(ClassificationTests.mutateForVersion((Classification) instance.getAnalysis(), version));
         }
+        if (version.before(TransportVersion.V_8_8_0)) {
+            builder.setMeta(null);
+        }
         return builder.build();
     }
 
@@ -178,6 +182,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         }
         if (randomBoolean()) {
             builder.setMaxNumThreads(randomIntBetween(1, 20));
+        }
+        if (randomBoolean()) {
+            builder.setMeta(randomMeta());
         }
         return builder;
     }
@@ -464,5 +471,19 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()),
             json.streamInput()
         );
+    }
+
+    public static Map<String, Object> randomMeta() {
+        return rarely() ? null : randomMap(0, 10, () -> {
+            String key = randomAlphaOfLengthBetween(1, 10);
+            Object value = switch (randomIntBetween(0, 3)) {
+                case 0 -> null;
+                case 1 -> randomLong();
+                case 2 -> randomAlphaOfLengthBetween(1, 10);
+                case 3 -> randomMap(0, 3, () -> Tuple.tuple(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+                default -> throw new AssertionError("Error in test code");
+            };
+            return Tuple.tuple(key, value);
+        });
     }
 }

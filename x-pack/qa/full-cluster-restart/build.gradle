@@ -9,8 +9,10 @@ dependencies {
   // Currently needed for MlConfigIndexMappingsFullClusterRestartIT and SLM classes used in
   // FullClusterRestartIT
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart")))
+  javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
   javaRestTestImplementation project(':x-pack:qa')
+  javaRestTestImplementation project(':modules:rest-root')
+
 }
 
 BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->

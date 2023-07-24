@@ -1,0 +1,286 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test-index3
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test-index4
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+---
+teardown:
+  - do:
+      search_application.delete:
+        name: test-search-application
+        ignore: 404
+
+  - do:
+      search_application.delete:
+        name: another-test-search-application
+        ignore: 404
+
+  - do:
+      search_application.delete:
+        name: test-updated-search-application
+        ignore: 404
+
+  - do:
+      search_application.delete:
+        name: test-re-creating-search-application
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: [ "test-index1", "test-index2", "test-index3", "test-index4" ]
+        ignore: 404
+
+---
+"Create Search Application":
+  - do:
+      search_application.put:
+        name: test-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
+            dictionary:
+              additionalProperties: false
+              required: [ "query_string" ]
+              properties:
+                query_string:
+                  type: string
+
+  - match: { result: "created" }
+
+  - do:
+      indices.exists_alias:
+        name: test-search-application
+
+  - is_true: ''
+
+  - do:
+      search_application.get:
+        name: test-search-application
+  - match: { indices: [ "test-index1", "test-index2" ] }
+  - match:
+      template:
+        script:
+          source:
+            query:
+              query_string:
+                query: "{{query_string}}"
+          lang: "mustache"
+          options:
+            content_type: "application/json;charset=utf-8"
+        dictionary:
+          additionalProperties: false
+          required: [ "query_string" ]
+          properties:
+            query_string:
+              type: string
+
+---
+"Create Search Application with string encoded template script":
+  - do:
+      search_application.put:
+        name: another-test-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          template:
+            script:
+              source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }"
+              params:
+                query_string: "elastic"
+              lang: "mustache"
+            dictionary:
+              properties:
+                another_query_string:
+                  type: "string"
+
+  - do:
+      search_application.get:
+        name: another-test-search-application
+
+  - match:
+      template:
+        script:
+          source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }"
+          params:
+            query_string: "elastic"
+          lang: "mustache"
+        dictionary:
+          properties:
+            another_query_string:
+              type: "string"
+
+  - match: { indices: [ "test-index1", "test-index2" ] }
+
+---
+"Update Search Application with null template, results in default template being applied":
+  - do:
+      search_application.put:
+        name: test-updated-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
+
+  - do:
+      search_application.put:
+        name: test-updated-search-application
+        body:
+          indices: [ "test-index3", "test-index4" ]
+          template: null
+
+  - match: { result: "updated" }
+
+  - do:
+      search_application.get:
+        name: test-updated-search-application
+
+  - match:
+      template:
+        script:
+          source: "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n"
+          lang: "mustache"
+          params:
+            query_string: "*"
+            default_field: "*"
+
+  - match: { indices: [ "test-index3", "test-index4" ] }
+
+---
+"Update Search Application - Dictionary is not a valid JSON Schema":
+  - do:
+      catch: bad_request
+      search_application.put:
+        name: test-updated-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
+            dictionary:
+              properties:
+                query_string:
+                  type: notValidType
+
+---
+"Create Search Application - Index does not exist":
+  - do:
+      catch: bad_request
+      search_application.put:
+        name: test-error-search-application
+        body:
+          indices: [ "test-index1", "test-index-does-not-exist" ]
+
+---
+"Create Search Application - Resource already exists":
+  - do:
+      search_application.put:
+        name: test-re-creating-search-application
+        create: true
+        body:
+          indices: [ "test-index1" ]
+
+  - match: { result: "created" }
+
+  - do:
+      catch: conflict
+      search_application.put:
+        name: test-re-creating-search-application
+        create: true
+        body:
+          indices: [ "test-index1" ]
+
+  - match: { error.type: "version_conflict_engine_exception" }
+
+---
+"Create Search Application - Insufficient privilege":
+  - do:
+      catch: forbidden
+      search_application.put:
+        name: another-search-application
+        create: true
+        body:
+          indices: [ "another-index" ]
+
+  - match: { error.type: "security_exception" }
+
+---
+"Create Search Application - Incorrect template language":
+  - do:
+      catch: bad_request
+      search_application.put:
+        name: test-error-template-language-search-application
+        body:
+          indices: [ "test-index1", "test-index-does-not-exist" ]
+          template:
+            script:
+              lang: painless
+              source: >
+                int total = 0;
+                for (int i = 0; i < doc['goals'].length; ++i) {
+                  total += doc['goals'][i];
+                }
+                return total;
+---
+"Create Search Application - Cluster State Template":
+  - do:
+      catch: bad_request
+      search_application.put:
+        name: test-error-cluster-state-template-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          template:
+            script:
+              id: test-script
+  - match: { error.type: "x_content_parse_exception" }
+---
+"Create Search Application - Script missing from template":
+  - do:
+      catch: bad_request
+      search_application.put:
+        name: test-search-application-with-invalid-template
+        body:
+          indices: [ "test-index1" ]
+          template: {}

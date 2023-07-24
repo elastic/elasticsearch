@@ -260,11 +260,6 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                 }
 
                 @Override
-                public boolean isCompletable() {
-                    return true;
-                }
-
-                @Override
                 public boolean isRetryable() {
                     return true;
                 }

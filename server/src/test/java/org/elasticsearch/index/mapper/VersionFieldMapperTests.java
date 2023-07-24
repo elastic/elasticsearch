@@ -42,7 +42,7 @@ public class VersionFieldMapperTests extends MetadataMapperTestCase {
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source(b -> b.field("_version", 1))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> docMapper.parse(source(b -> b.field("_version", 1))));
 
         assertThat(e.getCause().getMessage(), containsString("Field [_version] is a metadata field and cannot be added inside a document"));
     }
@@ -50,10 +50,10 @@ public class VersionFieldMapperTests extends MetadataMapperTestCase {
     public void testDefaults() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         ParsedDocument document = mapper.parse(source(b -> b.field("field", "value")));
-        IndexableField[] fields = document.rootDoc().getFields(VersionFieldMapper.NAME);
-        assertEquals(1, fields.length);
-        assertEquals(IndexOptions.NONE, fields[0].fieldType().indexOptions());
-        assertEquals(DocValuesType.NUMERIC, fields[0].fieldType().docValuesType());
+        List<IndexableField> fields = document.rootDoc().getFields(VersionFieldMapper.NAME);
+        assertEquals(1, fields.size());
+        assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
+        assertEquals(DocValuesType.NUMERIC, fields.get(0).fieldType().docValuesType());
     }
 
     public void testFetchFieldValue() throws IOException {

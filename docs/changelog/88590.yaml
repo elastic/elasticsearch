@@ -1,0 +1,6 @@
+pr: 88590
+summary: Add shard explain info to `ReactiveReason` about unassigned shards
+area: Autoscaling
+type: enhancement
+issues:
+ - 85243

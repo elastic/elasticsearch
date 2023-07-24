@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -71,21 +72,21 @@ public class DoubleScriptMapperTests extends MapperScriptTestCase<DoubleFieldScr
     }
 
     @Override
-    protected void assertMultipleValues(IndexableField[] fields) {
-        assertEquals(2, fields.length);
-        assertEquals("DoubleField <field:3.14>", fields[0].toString());
-        assertEquals("DoubleField <field:2.78>", fields[1].toString());
+    protected void assertMultipleValues(List<IndexableField> fields) {
+        assertEquals(2, fields.size());
+        assertEquals("DoubleField <field:3.14>", fields.get(0).toString());
+        assertEquals("DoubleField <field:2.78>", fields.get(1).toString());
     }
 
     @Override
-    protected void assertDocValuesDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("DoublePoint <field:3.14>", fields[0].toString());
+    protected void assertDocValuesDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("DoublePoint <field:3.14>", fields.get(0).toString());
     }
 
     @Override
-    protected void assertIndexDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("docValuesType=SORTED_NUMERIC<field:4614253070214989087>", fields[0].toString());
+    protected void assertIndexDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("docValuesType=SORTED_NUMERIC<field:4614253070214989087>", fields.get(0).toString());
     }
 }

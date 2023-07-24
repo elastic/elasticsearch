@@ -36,7 +36,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
 
         }
     };
@@ -74,7 +74,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
                     }
 
                     @Override
-                    public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+                    public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                         failed.set(true);
                         latch.countDown();
                     }

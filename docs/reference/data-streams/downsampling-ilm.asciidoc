@@ -401,7 +401,7 @@ index, in this case `downsample-6tkn-.ds-datastream-2022.08.26-000001`.
 // TEST[skip:todo]
 // TEST[continued]
 
-Run a search query on the datastream.
+Run a search query on the datastream (note that when querying downsampled indices there are <<querying-downsampled-indices-notes,a few nuances to be aware of>>).
 
 [source,console]
 ----

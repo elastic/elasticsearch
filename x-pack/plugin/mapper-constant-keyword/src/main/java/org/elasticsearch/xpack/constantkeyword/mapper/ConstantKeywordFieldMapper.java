@@ -25,6 +25,7 @@ import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,7 +51,6 @@ import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -149,7 +150,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return value == null ? (lookup, doc, ignoredValues) -> List.of() : (lookup, doc, ignoredValues) -> List.of(value);
+            return value == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(value);
         }
 
         @Override
@@ -182,7 +183,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
             if (value == null) {
                 return false;
             }
@@ -226,7 +227,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();

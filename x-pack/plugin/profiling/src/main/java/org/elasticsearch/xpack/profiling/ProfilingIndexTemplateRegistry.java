@@ -89,7 +89,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
         new LifecyclePolicyConfig(
             "profiling-60-days",
-            "/profiler/ilm-policy/profiling-60-days.json",
+            "/profiling/ilm-policy/profiling-60-days.json",
             Map.of(PROFILING_TEMPLATE_VERSION_VARIABLE, String.valueOf(INDEX_TEMPLATE_VERSION))
         ).load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)
     );
@@ -106,61 +106,61 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         for (IndexTemplateConfig config : List.of(
             new IndexTemplateConfig(
                 "profiling-events",
-                "/profiler/component-template/profiling-events.json",
+                "/profiling/component-template/profiling-events.json",
                 INDEX_TEMPLATE_VERSION,
                 PROFILING_TEMPLATE_VERSION_VARIABLE,
                 indexVersion("events", PROFILING_EVENTS_VERSION)
             ),
             new IndexTemplateConfig(
                 "profiling-executables",
-                "/profiler/component-template/profiling-executables.json",
+                "/profiling/component-template/profiling-executables.json",
                 INDEX_TEMPLATE_VERSION,
                 PROFILING_TEMPLATE_VERSION_VARIABLE,
                 indexVersion("executables", PROFILING_EXECUTABLES_VERSION)
             ),
             new IndexTemplateConfig(
                 "profiling-ilm",
-                "/profiler/component-template/profiling-ilm.json",
+                "/profiling/component-template/profiling-ilm.json",
                 INDEX_TEMPLATE_VERSION,
                 PROFILING_TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
                 "profiling-hot-tier",
-                "/profiler/component-template/profiling-hot-tier.json",
+                "/profiling/component-template/profiling-hot-tier.json",
                 INDEX_TEMPLATE_VERSION,
                 PROFILING_TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
                 "profiling-metrics",
-                "/profiler/component-template/profiling-metrics.json",
+                "/profiling/component-template/profiling-metrics.json",
                 INDEX_TEMPLATE_VERSION,
                 PROFILING_TEMPLATE_VERSION_VARIABLE,
                 indexVersion("metrics", PROFILING_METRICS_VERSION)
             ),
             new IndexTemplateConfig(
                 "profiling-hosts",
-                "/profiler/component-template/profiling-hosts.json",
+                "/profiling/component-template/profiling-hosts.json",
                 INDEX_TEMPLATE_VERSION,
                 PROFILING_TEMPLATE_VERSION_VARIABLE,
                 indexVersion("hosts", PROFILING_HOSTS_VERSION)
             ),
             new IndexTemplateConfig(
                 "profiling-stackframes",
-                "/profiler/component-template/profiling-stackframes.json",
+                "/profiling/component-template/profiling-stackframes.json",
                 INDEX_TEMPLATE_VERSION,
                 PROFILING_TEMPLATE_VERSION_VARIABLE,
                 indexVersion("stackframes", PROFILING_STACKFRAMES_VERSION)
             ),
             new IndexTemplateConfig(
                 "profiling-stacktraces",
-                "/profiler/component-template/profiling-stacktraces.json",
+                "/profiling/component-template/profiling-stacktraces.json",
                 INDEX_TEMPLATE_VERSION,
                 PROFILING_TEMPLATE_VERSION_VARIABLE,
                 indexVersion("stacktraces", PROFILING_STACKTRACES_VERSION)
             ),
             new IndexTemplateConfig(
                 "profiling-symbols",
-                "/profiler/component-template/profiling-symbols.json",
+                "/profiling/component-template/profiling-symbols.json",
                 INDEX_TEMPLATE_VERSION,
                 PROFILING_TEMPLATE_VERSION_VARIABLE,
                 indexVersion("symbols", PROFILING_SYMBOLS_VERSION)
@@ -190,71 +190,71 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
         new IndexTemplateConfig(
             "profiling-events",
-            "/profiler/index-template/profiling-events.json",
+            "/profiling/index-template/profiling-events.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),
         new IndexTemplateConfig(
             "profiling-metrics",
-            "/profiler/index-template/profiling-metrics.json",
+            "/profiling/index-template/profiling-metrics.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),
         new IndexTemplateConfig(
             "profiling-hosts",
-            "/profiler/index-template/profiling-hosts.json",
+            "/profiling/index-template/profiling-hosts.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),
         new IndexTemplateConfig(
             "profiling-executables",
-            "/profiler/index-template/profiling-executables.json",
+            "/profiling/index-template/profiling-executables.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),
         new IndexTemplateConfig(
             "profiling-stackframes",
-            "/profiler/index-template/profiling-stackframes.json",
+            "/profiling/index-template/profiling-stackframes.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),
         new IndexTemplateConfig(
             "profiling-stacktraces",
-            "/profiler/index-template/profiling-stacktraces.json",
+            "/profiling/index-template/profiling-stacktraces.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),
         // templates for regular indices
         new IndexTemplateConfig(
             "profiling-returnpads-private",
-            "/profiler/index-template/profiling-returnpads-private.json",
+            "/profiling/index-template/profiling-returnpads-private.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE,
             indexVersion("returnpads.private", PROFILING_RETURNPADS_PRIVATE_VERSION)
         ),
         new IndexTemplateConfig(
             "profiling-sq-executables",
-            "/profiler/index-template/profiling-sq-executables.json",
+            "/profiling/index-template/profiling-sq-executables.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE,
             indexVersion("sq.executables", PROFILING_SQ_EXECUTABLES_VERSION)
         ),
         new IndexTemplateConfig(
             "profiling-sq-leafframes",
-            "/profiler/index-template/profiling-sq-leafframes.json",
+            "/profiling/index-template/profiling-sq-leafframes.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE,
             indexVersion("sq.leafframes", PROFILING_SQ_LEAFFRAMES_VERSION)
         ),
         new IndexTemplateConfig(
             "profiling-symbols-global",
-            "/profiler/index-template/profiling-symbols-global.json",
+            "/profiling/index-template/profiling-symbols-global.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),
         new IndexTemplateConfig(
             "profiling-symbols-private",
-            "/profiler/index-template/profiling-symbols-private.json",
+            "/profiling/index-template/profiling-symbols-private.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         )

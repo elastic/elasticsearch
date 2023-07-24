@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
@@ -36,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<RollupShardTaskParams> {
+    private static final Logger logger = LogManager.getLogger(RollupShardPersistentTaskExecutor.class);
     private final Client client;
     private final IndicesService indicesService;
 
@@ -106,11 +109,14 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<R
             task.markAsCompleted();
         } catch (final RollupShardIndexerException e) {
             if (e.isRetriable()) {
+                logger.error("Downsampling task [" + task.getPersistentTaskId() + " retriable failure [" + e.getMessage() + "]");
                 task.markAsLocallyAborted(e.getMessage());
             } else {
+                logger.error("Downsampling task [" + task.getPersistentTaskId() + " non retriable failure [" + e.getMessage() + "]");
                 task.markAsFailed(e);
             }
         } catch (final Exception e) {
+            logger.error("Downsampling task [" + task.getPersistentTaskId() + " non-retriable failure [" + e.getMessage() + "]");
             task.markAsFailed(e);
         }
     }

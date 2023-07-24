@@ -158,7 +158,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(
             NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_template.json",
+            "/ml/notifications_index_template.json",
             Version.CURRENT.id,
             "xpack.ml.version",
             Map.of(
@@ -197,7 +197,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(
             NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_template.json",
+            "/ml/notifications_index_template.json",
             Version.CURRENT.id,
             "xpack.ml.version",
             Map.of(
@@ -224,7 +224,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(
             NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_template.json",
+            "/ml/notifications_index_template.json",
             Version.CURRENT.id,
             "xpack.ml.version",
             Map.of(

@@ -142,6 +142,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
+                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
                 false
@@ -180,6 +181,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
+                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
                 false
@@ -253,6 +255,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
+                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
                 false
@@ -288,6 +291,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
+                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
                 false
@@ -313,6 +317,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
+                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
                 false
@@ -379,6 +384,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
+                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
                 false

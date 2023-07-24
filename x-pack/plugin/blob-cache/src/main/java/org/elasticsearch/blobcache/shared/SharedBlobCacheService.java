@@ -391,7 +391,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return effectiveRegionSize;
     }
 
-    public CacheFileRegion get(KeyType cacheKey, long fileLength, int region) {
+    public Entry<CacheFileRegion> get(KeyType cacheKey, long fileLength, int region) {
         final RegionKey<KeyType> regionKey = new RegionKey<>(cacheKey, region);
         final long now = threadPool.relativeTimeInMillis();
         // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path if we did not
@@ -416,10 +416,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             maybePromote(now, entry);
         }
 
-        return entry.chunk;
+        return entry;
     }
 
-    private CacheFileRegion initChunk(Entry<CacheFileRegion> entry) {
+    private Entry<CacheFileRegion> initChunk(Entry<CacheFileRegion> entry) {
         assert Thread.holdsLock(entry.chunk);
         RegionKey<KeyType> regionKey = entry.chunk.regionKey;
         if (keyMapping.get(regionKey) != entry) {
@@ -448,7 +448,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
 
-        return entry.chunk;
+        return entry;
     }
 
     private void maybePromote(long now, Entry<CacheFileRegion> entry) {
@@ -783,10 +783,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
             int startingPos = buf.position();
-            try (SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos)) {
-                fileChannel.read(buf, physicalStartOffset() + getRegionRelativePosition(offset));
-            }
-            if (evicted.get() || hasReferences() == false) {
+            sharedBytes.getFileChannel(sharedBytesPos).read(buf, physicalStartOffset() + getRegionRelativePosition(offset));
+            if (isEvicted() || hasReferences() == false) {
                 buf.position(startingPos);
                 return false;
             }
@@ -801,24 +799,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final ActionListener<Integer> listener
         ) {
             assert rangeToRead.length() > 0;
-            final Releasable[] resources = new Releasable[2];
+            Releasable resource = null;
             try {
-                ensureOpen();
                 incRef();
-                resources[1] = Releasables.releaseOnce(this::decRef);
-
+                resource = Releasables.releaseOnce(this::decRef);
                 ensureOpen();
-                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
-                resources[0] = Releasables.releaseOnce(fileChannel);
-
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                     rangeToWrite,
                     rangeToRead,
-                    ActionListener.runBefore(listener, () -> Releasables.close(resources)).delegateFailureAndWrap((l, success) -> {
+                    ActionListener.runBefore(listener, resource::close).delegateFailureAndWrap((l, success) -> {
                         final long physicalStartOffset = physicalStartOffset();
                         assert regionOwners.get(sharedBytesPos) == this;
                         final int read = reader.onRangeAvailable(
-                            fileChannel,
+                            sharedBytes.getFileChannel(sharedBytesPos),
                             physicalStartOffset + rangeToRead.start(),
                             rangeToRead.start(),
                             rangeToRead.length()
@@ -837,14 +830,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 );
 
                 if (gaps.isEmpty() == false) {
-                    fillGaps(writer, fileChannel, gaps);
+                    fillGaps(writer, gaps);
                 }
             } catch (Exception e) {
-                releaseAndFail(listener, Releasables.wrap(resources), e);
+                releaseAndFail(listener, resource, e);
             }
         }
 
-        private void fillGaps(RangeMissingHandler writer, SharedBytes.IO fileChannel, List<SparseFileTracker.Gap> gaps) {
+        private void fillGaps(RangeMissingHandler writer, List<SparseFileTracker.Gap> gaps) {
+            SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
             for (SparseFileTracker.Gap gap : gaps) {
                 ioExecutor.execute(new AbstractRunnable() {
 
@@ -899,9 +893,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         private final KeyType cacheKey;
         private final long length;
 
+        private Entry<CacheFileRegion> lastAccessedRegion;
+
         private CacheFile(KeyType cacheKey, long length) {
             this.cacheKey = cacheKey;
             this.length = length;
+        }
+
+        public CacheFile copy() {
+            return new CacheFile(cacheKey, length);
         }
 
         public long getLength() {
@@ -919,11 +919,23 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             if (startRegion != endRegion) {
                 return false;
             }
-            final CacheFileRegion fileRegion = get(cacheKey, length, startRegion);
-            if (fileRegion.tracker.checkAvailable(getRegionRelativePosition(end)) == false) {
+            var fileRegion = lastAccessedRegion;
+            if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
+                // existing item, check if we need to promote item
+                long now = threadPool.relativeTimeInMillis();
+                if (now - fileRegion.lastAccessed >= minTimeDelta) {
+                    maybePromote(now, fileRegion);
+                }
+            } else {
+                fileRegion = get(cacheKey, length, startRegion);
+            }
+            final var region = fileRegion.chunk;
+            if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
                 return false;
             }
-            return fileRegion.tryRead(buf, offset);
+            boolean res = region.tryRead(buf, offset);
+            lastAccessedRegion = res ? fileRegion : null;
+            return res;
         }
 
         public int populateAndRead(
@@ -952,7 +964,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             int region
         ) throws InterruptedException, ExecutionException {
             final PlainActionFuture<Integer> readFuture = PlainActionFuture.newFuture();
-            final CacheFileRegion fileRegion = get(cacheKey, length, region);
+            final CacheFileRegion fileRegion = get(cacheKey, length, region).chunk;
             final long regionStart = getRegionStart(region);
             fileRegion.populateAndRead(
                 mapSubRangeToRegion(rangeToWrite, region),
@@ -981,7 +993,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         // nothing to read, skip
                         continue;
                     }
-                    final CacheFileRegion fileRegion = get(cacheKey, length, region);
+                    final CacheFileRegion fileRegion = get(cacheKey, length, region).chunk;
                     final long regionStart = getRegionStart(region);
                     fileRegion.populateAndRead(
                         mapSubRangeToRegion(rangeToWrite, region),

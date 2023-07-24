@@ -73,18 +73,12 @@ public class Pow extends ScalarFunction implements OptionalArgument, Mappable {
 
     @Evaluator(extraName = "Long", warnExceptions = { ArithmeticException.class })
     static long processLong(double base, double exponent) {
-        if (exponent == 1) {
-            return validateAsLong(base);
-        }
-        return validateAsLong(base, exponent);
+        return exponent == 1 ? validateAsLong(base) : validateAsLong(base, exponent);
     }
 
     @Evaluator(extraName = "Int", warnExceptions = { ArithmeticException.class })
     static int processInt(double base, double exponent) {
-        if (exponent == 1) {
-            return validateAsInt(base);
-        }
-        return validateAsInt(base, exponent);
+        return exponent == 1 ? validateAsInt(base) : validateAsInt(base, exponent);
     }
 
     private static double validateAsDouble(double base, double exponent) {

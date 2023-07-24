@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
@@ -411,17 +410,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
                                     @Override
                                     public void onFailure(Exception e) {
-                                        logger.error("error while starting downsampling persistent task", e);
+                                        logger.error("error while waiting for downsampling persistent task", e);
                                         listener.onFailure(e);
                                     }
                                 }),
-                                e -> {
-                                    if (e instanceof ResourceAlreadyExistsException) {
-                                        waitForExistingTask(request, listener, persistentRollupTaskId);
-                                    } else {
-                                        listener.onFailure(e);
-                                    }
-                                }
+                                e -> listener.onFailure(
+                                    new ElasticsearchException("Task [" + persistentRollupTaskId + "] already exists", e)
+                                )
                             )
                         );
                     }
@@ -430,19 +425,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 }
             }, listener::onFailure));
         }, listener::onFailure));
-    }
-
-    private void waitForExistingTask(
-        final DownsampleAction.Request request,
-        final ActionListener<AcknowledgedResponse> listener,
-        final String persistentRollupTaskId
-    ) {
-        persistentTasksService.waitForPersistentTasksCondition(existingTask -> {
-            PersistentTasksCustomMetadata.PersistentTask<?> existingPersistentTask = existingTask.getTask(persistentRollupTaskId);
-            final RollupShardPersistentTaskState existingPersistentTaskState = (RollupShardPersistentTaskState) existingPersistentTask
-                .getState();
-            return existingPersistentTaskState.done();
-        }, request.getTimeout(), ActionListener.wrap(response -> { throw new AssertionError("implement this"); }, listener::onFailure));
     }
 
     private static RollupShardTaskParams createRollupShardTaskParams(

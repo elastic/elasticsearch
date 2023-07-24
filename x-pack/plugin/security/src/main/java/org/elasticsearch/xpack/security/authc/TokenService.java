@@ -2214,15 +2214,10 @@ public final class TokenService {
         if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
             byte[] accessTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_TOTAL_LENGTH);
             if (includeRefreshToken) {
-                byte[] refreshTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_TOTAL_LENGTH);
-                // an access and refresh token pair are "related" by having a common fixed-length suffix
-                System.arraycopy(
-                    accessTokenBytes,
-                    RAW_TOKEN_BYTES_LENGTH,
-                    refreshTokenBytes,
-                    RAW_TOKEN_BYTES_LENGTH,
-                    RAW_TOKEN_DOC_ID_BYTES_LENGTH
-                );
+                byte[] refreshTokenBytes = new byte[RAW_TOKEN_BYTES_TOTAL_LENGTH];
+                System.arraycopy(getRandomBytes(RAW_TOKEN_BYTES_LENGTH), 0, refreshTokenBytes, 0, RAW_TOKEN_BYTES_LENGTH);
+                // access and refresh tokens are paired by having a common fixed-length suffix
+                System.arraycopy(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, refreshTokenBytes, 0, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
                 return new Tuple<>(accessTokenBytes, refreshTokenBytes);
             } else {
                 return new Tuple<>(accessTokenBytes, null);

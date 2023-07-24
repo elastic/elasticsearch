@@ -1187,7 +1187,6 @@ public class TokenServiceTests extends ESTestCase {
             .realmRef(realmRef)
             .build(false);
 
-        final SearchHit hit = new SearchHit(randomInt(), "token_" + userToken.getId());
         BytesReference source = TokenService.createTokenDocument(
             userToken,
             storedAccessToken,
@@ -1236,10 +1235,14 @@ public class TokenServiceTests extends ESTestCase {
                 assertThat(bool.filter().get(1), instanceOf(TermQueryBuilder.class));
                 TermQueryBuilder refreshFilter = (TermQueryBuilder) bool.filter().get(1);
                 assertThat(refreshFilter.fieldName(), is("refresh_token.token"));
-                assertThat(refreshFilter.value(), is(storedRefreshToken));
-                hit.sourceRef(docSource);
-
-                final SearchHits hits = new SearchHits(new SearchHit[] { hit }, null, 1);
+                final SearchHits hits;
+                if (storedRefreshToken.equals(refreshFilter.value())) {
+                    SearchHit hit = new SearchHit(randomInt(), "token_" + userToken.getId());
+                    hit.sourceRef(docSource);
+                    hits = new SearchHits(new SearchHit[] { hit }, null, 1);
+                } else {
+                    hits = SearchHits.EMPTY_WITH_TOTAL_HITS;
+                }
                 when(response.getHits()).thenReturn(hits);
                 listener.onResponse(response);
                 return Void.TYPE;

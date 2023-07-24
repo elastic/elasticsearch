@@ -102,8 +102,7 @@ public record RollupShardPersistentTaskState(RollupShardIndexerStatus rollupShar
     public static RollupShardPersistentTaskState fromXContent(final XContentParser parser) throws IOException {
         final RollupShardPersistentTaskState.Builder builder = new RollupShardPersistentTaskState.Builder();
         PARSER.parse(parser, builder, null);
-        RollupShardPersistentTaskState build = builder.build();
-        return build;
+        return builder.build();
     }
 
     public static class Builder {

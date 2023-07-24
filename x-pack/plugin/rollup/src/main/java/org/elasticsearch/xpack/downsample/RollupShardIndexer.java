@@ -305,7 +305,6 @@ class RollupShardIndexer {
                         );
                     logger.error("Shard [{}] failed to populate rollup index. Failures: [{}]", indexShard.shardId(), failures);
 
-                    // cancel rollup task
                     abort = true;
                 }
             }
@@ -317,7 +316,6 @@ class RollupShardIndexer {
                     task.addNumFailed(items);
                     logger.error(() -> format("Shard [%s] failed to populate rollup index.", indexShard.shardId()), failure);
 
-                    // cancel rollup task
                     abort = true;
                 }
             }

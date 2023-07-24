@@ -33,7 +33,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
-import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;

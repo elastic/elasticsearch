@@ -93,8 +93,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.time.Clock;
@@ -116,6 +114,7 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_BYTES_LENGTH;
+import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_BYTES_TOTAL_LENGTH;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_DOC_ID_BYTES_LENGTH;
 import static org.elasticsearch.xpack.security.authc.TokenService.VERSION_CLIENT_AUTH_FOR_REFRESH;
 import static org.elasticsearch.xpack.security.authc.TokenService.VERSION_GET_TOKEN_DOC_FOR_REFRESH;
@@ -496,7 +495,7 @@ public class TokenServiceTests extends ESTestCase {
             assertThat(result.getErrors(), empty());
             PlainActionFuture<TokenService.CreateTokenResult> refreshTokenFuture = new PlainActionFuture<>();
             tokenService.refreshToken(clientRefreshToken, refreshTokenFuture);
-            ExecutionException e = expectThrows(ExecutionException.class, () -> refreshTokenFuture.get());
+            ExecutionException e = expectThrows(ExecutionException.class, refreshTokenFuture::get);
             assertThat(e.getCause(), instanceOf(ElasticsearchSecurityException.class));
             assertThat(e.getCause().toString(), containsString("invalid_grant"));
         }
@@ -912,12 +911,19 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, Clock.systemUTC());
         Authentication authentication = AuthenticationTests.randomAuthentication(null, null);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
-        final String refrehToken = UUIDs.randomBase64UUID();
+        byte[] refreshTokenBytes = new byte[RAW_TOKEN_BYTES_TOTAL_LENGTH];
+        random().nextBytes(refreshTokenBytes);
         Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(true);
         final byte[] iv = tokenService.getRandomBytes(TokenService.IV_BYTES);
         final byte[] salt = tokenService.getRandomBytes(TokenService.SALT_BYTES);
         final TransportVersion version = tokenService.getTokenVersionCompatibility();
-        String encryptedTokens = tokenService.encryptSupersedingTokens(newTokenBytes.v1(), newTokenBytes.v2(), refrehToken, iv, salt);
+        String encryptedTokens = tokenService.encryptSupersedingTokens(
+            newTokenBytes.v1(),
+            newTokenBytes.v2(),
+            Base64.getUrlEncoder().encodeToString(refreshTokenBytes),
+            iv,
+            salt
+        );
         RefreshTokenStatus refreshTokenStatus = newRefreshTokenStatus(
             false,
             authentication,
@@ -929,7 +935,13 @@ public class TokenServiceTests extends ESTestCase {
         );
         refreshTokenStatus.setTransportVersion(version);
         mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), authentication, false, null);
-        tokenService.decryptAndReturnSupersedingTokens(refrehToken, refreshTokenStatus, securityTokensIndex, authentication, tokenFuture);
+        tokenService.decryptAndReturnSupersedingTokens(
+            Base64.getUrlEncoder().encodeToString(refreshTokenBytes),
+            refreshTokenStatus,
+            securityTokensIndex,
+            authentication,
+            tokenFuture
+        );
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             // previous versions serialized the access token encrypted and the cipher text was different each time (due to different IVs)
             assertThat(
@@ -965,11 +977,6 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.tryAuthenticateToken(bearerToken, authFuture);
         UserToken authToken = authFuture.actionGet();
         assertThat(authToken, Matchers.nullValue());
-    }
-
-    public void testHashedTokenIsUrlSafe() {
-        final String hashedId = TokenService.hashTokenString(UUIDs.randomBase64UUID());
-        assertEquals(hashedId, URLEncoder.encode(hashedId, StandardCharsets.UTF_8));
     }
 
     private TokenService createTokenService(Settings settings, Clock clock) throws GeneralSecurityException {

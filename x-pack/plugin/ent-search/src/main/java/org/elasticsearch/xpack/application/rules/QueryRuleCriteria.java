@@ -43,16 +43,24 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     private static final Logger logger = LogManager.getLogger(QueryRuleCriteria.class);
 
     public enum CriteriaType {
-        GLOBAL,
-        EXACT,
-        EXACT_FUZZY,
-        PREFIX,
-        SUFFIX,
-        CONTAINS,
-        LT,
-        LTE,
-        GT,
-        GTE;
+        GLOBAL(true, true),
+        EXACT(true, true),
+        EXACT_FUZZY(true, false),
+        PREFIX(true, false),
+        SUFFIX(true, false),
+        CONTAINS(true, false),
+        LT(false, true),
+        LTE(false, true),
+        GT(false, true),
+        GTE(false, true);
+
+        final boolean supportsStringMatchInput;
+        final boolean supportsNumericMatchInput;
+
+        CriteriaType(boolean supportsStringMatchInput, boolean supportsNumericMatchInput) {
+            this.supportsStringMatchInput = supportsStringMatchInput;
+            this.supportsNumericMatchInput = supportsNumericMatchInput;
+        }
 
         public static CriteriaType criteriaType(String criteriaType) {
             for (CriteriaType type : values()) {
@@ -214,9 +222,13 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         final String matchString = matchValue.toString();
         boolean matchFound = false;
 
+        if (matchType.supportsNumericMatchInput == false && matchValue instanceof Number) {
+            throw new IllegalArgumentException("Query rule criteria [" + criteriaValues + "] type mismatch against [" + matchString + "]");
+        }
+
         for (Object criteriaValue : criteriaValues) {
             final String criteriaValueString = criteriaValue != null ? criteriaValue.toString() : null;
-            if (criteriaValueString != null && matchValue instanceof String) {
+            if (criteriaValueString != null && matchType.supportsStringMatchInput) {
                 matchFound = switch (matchType) {
                     case EXACT -> matchString.equals(criteriaValueString);
                     case EXACT_FUZZY -> ld.getDistance(matchString, criteriaValueString) > 0.75f; // TODO make configurable
@@ -228,10 +240,13 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
                 if (matchFound) {
                     return matchFound;
                 }
-            } else if (criteriaValueString != null && matchValue instanceof Number) {
+            }
+            if (criteriaValueString != null && matchType.supportsNumericMatchInput) {
                 try {
-                    double matchDouble = ((Number) matchValue).doubleValue();
-                    double parsedCriteriaValue = Double.parseDouble(criteriaValueString);
+                    double matchDouble = (matchValue instanceof Number)
+                        ? ((Number) matchValue).doubleValue()
+                        : Double.parseDouble(matchString);
+                    double parsedCriteriaValue = Double.parseDouble(criteriaValue.toString());
                     matchFound = switch (matchType) {
                         case EXACT -> matchDouble == parsedCriteriaValue;
                         case LT -> matchDouble < parsedCriteriaValue;
@@ -244,10 +259,12 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
                         return matchFound;
                     }
                 } catch (NumberFormatException e) {
-                    throw new IllegalStateException(
-                        "Query rule criteria [" + criteriaValues + "] type mismatch against [" + matchString + "]",
-                        e
-                    );
+                    if (matchType.supportsStringMatchInput == false) {
+                        throw new IllegalArgumentException(
+                            "Query rule criteria [" + criteriaValues + "] type mismatch against [" + matchString + "]",
+                            e
+                        );
+                    }
                 }
             }
         }

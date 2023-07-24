@@ -1,6 +1,7 @@
 {
   "settings": {
-    "auto_expand_replicas": "0-1"
+    "auto_expand_replicas": "0-1",
+    "fast_refresh": "true"
   },
   "mappings": {
     "_doc" : {

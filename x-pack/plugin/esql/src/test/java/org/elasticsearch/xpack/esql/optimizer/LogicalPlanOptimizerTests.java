@@ -1082,6 +1082,23 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(topN.child(), Enrich.class);
     }
 
+    public void testEnrichNotNullFilter() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval x = to_string(languages)
+            | enrich languages_idx on x
+            | where not is_null(language_name)
+            | limit 10
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var enrich = as(filter.child(), Enrich.class);
+        assertTrue(enrich.policyName().resolved());
+        assertThat(enrich.policyName().fold(), is(BytesRefs.toBytesRef("languages_idx")));
+        var eval = as(enrich.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
     /**
      * Expects
      * EsqlProject[[a{r}#3, last_name{f}#9]]

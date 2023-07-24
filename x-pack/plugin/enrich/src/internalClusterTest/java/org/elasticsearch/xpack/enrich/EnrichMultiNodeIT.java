@@ -239,7 +239,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             }
         }
 
-        EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
+        EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request(false))
             .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(internalCluster().size()));
         String nodeId = internalCluster().getInstance(ClusterService.class, coordinatingNode).localNode().getId();

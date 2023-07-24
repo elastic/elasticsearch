@@ -49,7 +49,7 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
 
     public void testEnrichCacheValuesCannotBeCorrupted() {
         // Ensure enrich cache is empty
-        var statsRequest = new EnrichStatsAction.Request();
+        var statsRequest = new EnrichStatsAction.Request(false);
         var statsResponse = client().execute(EnrichStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(statsResponse.getCacheStats().size(), equalTo(1));
         assertThat(statsResponse.getCacheStats().get(0).getCount(), equalTo(0L));

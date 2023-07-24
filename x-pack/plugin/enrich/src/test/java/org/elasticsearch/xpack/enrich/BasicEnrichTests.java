@@ -146,7 +146,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             }
         }
 
-        EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
+        EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request(false))
             .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(1));
         String localNodeId = getInstanceFromNode(ClusterService.class).localNode().getId();
@@ -226,7 +226,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         assertThat(entries.containsKey(matchField), is(true));
         assertThat(entries.get(enrichField), equalTo("94040"));
 
-        EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
+        EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request(false))
             .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(1));
         String localNodeId = getInstanceFromNode(ClusterService.class).localNode().getId();

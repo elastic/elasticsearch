@@ -33,16 +33,36 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
     }
 
     public static class Request extends MasterNodeRequest<Request> {
+        private final boolean rollupStats;
 
-        public Request() {}
+        public Request(boolean rollupStats) {
+            this.rollupStats = rollupStats;
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
+                rollupStats = in.readBoolean();
+            } else {
+                rollupStats = false;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
+                out.writeBoolean(this.rollupStats);
+            }
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        public boolean shouldRollupStats() {
+            return rollupStats;
         }
     }
 

@@ -21,6 +21,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
+import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CacheStats;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutingPolicy;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
@@ -99,9 +100,49 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(EnrichStatsAction.Response.CacheStats::getNodeId))
                 .collect(Collectors.toList());
+            if (request.shouldRollupStats()) {
+                coordinatorStats = rollupCoordinatorStats(coordinatorStats);
+                cacheStats = rollupCacheStats(cacheStats);
+            }
             listener.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats, cacheStats));
         }, listener::onFailure);
         client.execute(EnrichCoordinatorStatsAction.INSTANCE, statsRequest, statsListener);
+    }
+
+    private static List<CoordinatorStats> rollupCoordinatorStats(List<CoordinatorStats> coordinatorStatsList) {
+        if (coordinatorStatsList.isEmpty()) {
+            return coordinatorStatsList;
+        }
+        int totalQueueSize = 0;
+        int totalRemoteRequestsCurrent = 0;
+        long totalRemoteRequestsTotal = 0;
+        long totalExecutedSearchesTotal = 0;
+        for (CoordinatorStats stats : coordinatorStatsList) {
+            totalQueueSize += stats.getQueueSize();
+            totalRemoteRequestsCurrent += stats.getRemoteRequestsCurrent();
+            totalRemoteRequestsTotal += stats.getRemoteRequestsTotal();
+            totalExecutedSearchesTotal += stats.getExecutedSearchesTotal();
+        }
+        return List.of(
+            new CoordinatorStats("N/A", totalQueueSize, totalRemoteRequestsCurrent, totalRemoteRequestsTotal, totalExecutedSearchesTotal)
+        );
+    }
+
+    private static List<CacheStats> rollupCacheStats(List<CacheStats> cacheStatsList) {
+        if (cacheStatsList.isEmpty()) {
+            return cacheStatsList;
+        }
+        long totalCount = 0;
+        long totalHits = 0;
+        long totalMisses = 0;
+        long totalEvictions = 0;
+        for (CacheStats stats : cacheStatsList) {
+            totalCount += stats.getCount();
+            totalHits += stats.getHits();
+            totalMisses += stats.getMisses();
+            totalEvictions += stats.getEvictions();
+        }
+        return List.of(new CacheStats("N/A", totalCount, totalHits, totalMisses, totalEvictions));
     }
 
     @Override

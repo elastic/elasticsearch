@@ -10,7 +10,10 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.concurrent.Executor;
 
 public interface TransportResponseHandler<T extends TransportResponse> extends Writeable.Reader<T> {
 
@@ -18,8 +21,8 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
 
     void handleException(TransportException exp);
 
-    default String executor() {
-        return ThreadPool.Names.SAME;
+    default Executor executor(ThreadPool threadPool) {
+        return EsExecutors.DIRECT_EXECUTOR_SERVICE;
     }
 
     /**

@@ -217,7 +217,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         for (Object criteriaValue : criteriaValues) {
             final String criteriaValueString = criteriaValue != null ? criteriaValue.toString() : null;
             if (criteriaValueString != null && matchValue instanceof String) {
-                matchFound |= switch (matchType) {
+                matchFound = switch (matchType) {
                     case EXACT -> matchString.equals(criteriaValueString);
                     case EXACT_FUZZY -> ld.getDistance(matchString, criteriaValueString) > 0.75f; // TODO make configurable
                     case PREFIX -> matchString.startsWith(criteriaValueString);
@@ -225,20 +225,29 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
                     case CONTAINS -> matchString.contains(criteriaValueString);
                     default -> false;
                 };
+                if (matchFound) {
+                    return matchFound;
+                }
             } else if (criteriaValueString != null && matchValue instanceof Number) {
                 try {
-                    Number matchNumber = (Number) matchValue;
-                    matchFound |= switch (matchType) {
-                        case EXACT -> matchNumber.doubleValue() == Double.parseDouble(criteriaValueString);
-                        case LT -> matchNumber.doubleValue() < Double.parseDouble(criteriaValueString);
-                        case LTE -> matchNumber.doubleValue() <= Double.parseDouble(criteriaValueString);
-                        case GT -> matchNumber.doubleValue() > Double.parseDouble(criteriaValueString);
-                        case GTE -> matchNumber.doubleValue() >= Double.parseDouble(criteriaValueString);
+                    double matchDouble = ((Number) matchValue).doubleValue();
+                    double parsedCriteriaValue = Double.parseDouble(criteriaValueString);
+                    matchFound = switch (matchType) {
+                        case EXACT -> matchDouble == parsedCriteriaValue;
+                        case LT -> matchDouble < parsedCriteriaValue;
+                        case LTE -> matchDouble <= parsedCriteriaValue;
+                        case GT -> matchDouble > parsedCriteriaValue;
+                        case GTE -> matchDouble >= parsedCriteriaValue;
                         default -> false;
                     };
+                    if (matchFound) {
+                        return matchFound;
+                    }
                 } catch (NumberFormatException e) {
-                    logger.warn("Query rule criteria [" + criteriaValues + "] type mismatch against [" + matchString + "]", e);
-                    return false;
+                    throw new IllegalStateException(
+                        "Query rule criteria [" + criteriaValues + "] type mismatch against [" + matchString + "]",
+                        e
+                    );
                 }
             }
         }

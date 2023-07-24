@@ -33,9 +33,11 @@ import java.util.function.Function;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
+import static org.elasticsearch.index.IndexSettings.STATELESS_MIN_NON_FAST_REFRESH_INTERVAL;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -331,6 +333,30 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(DEFAULT_REFRESH_INTERVAL, settings.getRefreshInterval());
     }
 
+    public void testDisableRefreshInterval() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(TimeValue.MINUS_ONE, settings.getRefreshInterval());
+    }
+
+    public void testNegativeRefreshInterval() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-10s")
+                .build()
+        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        assertThat(e, hasToString(containsString("negative durations are not supported")));
+    }
+
     public void testStatelessDefaultRefreshInterval() {
         IndexMetadata metadata = newIndexMeta(
             "index",
@@ -339,8 +365,39 @@ public class IndexSettingsTests extends ESTestCase {
                 .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
                 .build()
         );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        IndexSettings settings = new IndexSettings(metadata, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build());
         assertEquals(STATELESS_DEFAULT_REFRESH_INTERVAL, settings.getRefreshInterval());
+    }
+
+    public void testStatelessMinRefreshInterval() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "2s")
+                .build()
+        );
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(metadata, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build())
+        );
+        String expectedMessage = "[index.refresh_interval=2s] should be either -1 or equal to or greater than "
+            + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL.toString();
+        assertThat(e, hasToString(containsString(expectedMessage)));
+    }
+
+    public void testStatelessDisableRefreshInterval() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build());
+        assertEquals(TimeValue.MINUS_ONE, settings.getRefreshInterval());
     }
 
     public void testStatelessFastRefreshDefaultRefreshInterval() {
@@ -355,6 +412,21 @@ public class IndexSettingsTests extends ESTestCase {
             .build();
         IndexSettings settings = new IndexSettings(metadata, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build());
         assertEquals(DEFAULT_REFRESH_INTERVAL, settings.getRefreshInterval());
+    }
+
+    public void testStatelessFastRefreshDisableRefreshInterval() {
+        IndexMetadata metadata = IndexMetadata.builder("index")
+            .system(true)
+            .settings(
+                indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
+                    .put(INDEX_FAST_REFRESH_SETTING.getKey(), true)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                    .build()
+            )
+            .build();
+        IndexSettings settings = new IndexSettings(metadata, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build());
+        assertEquals(TimeValue.MINUS_ONE, settings.getRefreshInterval());
     }
 
     private String getRandomTimeString() {

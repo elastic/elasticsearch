@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -58,6 +59,9 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -79,6 +83,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIden
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
@@ -110,6 +115,9 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_FA
 public class TrainedModelProvider {
 
     public static final Set<String> MODELS_STORED_AS_RESOURCE = Collections.singleton("lang_ident_model_1");
+    private static final ToXContent.Params FOR_INTERNAL_STORAGE_PARAMS = new ToXContent.MapParams(
+        Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
+    );
     private static final String MODEL_RESOURCE_PATH = "/org/elasticsearch/xpack/ml/inference/persistence/";
     private static final String MODEL_RESOURCE_FILE_EXT = ".json";
     private static final int COMPRESSED_MODEL_CHUNK_SIZE = 16 * 1024 * 1024;
@@ -126,6 +134,10 @@ public class TrainedModelProvider {
     }
 
     public void storeTrainedModel(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
+        storeTrainedModel(trainedModelConfig, listener, false);
+    }
+
+    public void storeTrainedModel(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener, boolean allowOverwriting) {
         if (MODELS_STORED_AS_RESOURCE.contains(trainedModelConfig.getModelId())) {
             listener.onFailure(
                 new ResourceAlreadyExistsException(
@@ -162,13 +174,17 @@ public class TrainedModelProvider {
         }
 
         if (definition != null) {
-            storeTrainedModelAndDefinition(trainedModelConfig, listener);
+            storeTrainedModelAndDefinition(trainedModelConfig, listener, allowOverwriting);
         } else {
-            storeTrainedModelConfig(trainedModelConfig, listener);
+            storeTrainedModelConfig(trainedModelConfig, listener, allowOverwriting);
         }
     }
 
     public void storeTrainedModelConfig(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
+        storeTrainedModelConfig(trainedModelConfig, listener, false);
+    }
+
+    public void storeTrainedModelConfig(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener, boolean allowOverwriting) {
         if (MODELS_STORED_AS_RESOURCE.contains(trainedModelConfig.getModelId())) {
             listener.onFailure(
                 new ResourceAlreadyExistsException(
@@ -179,11 +195,11 @@ public class TrainedModelProvider {
         }
         assert trainedModelConfig.getModelDefinition() == null;
 
-        IndexRequest request = IndexRequestCreator.create(
-            trainedModelConfig.getModelId(),
+        IndexRequest request = createRequest(
             trainedModelConfig.getModelId(),
             InferenceIndexConstants.LATEST_INDEX_NAME,
-            trainedModelConfig
+            trainedModelConfig,
+            allowOverwriting
         );
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -222,6 +238,16 @@ public class TrainedModelProvider {
         Vocabulary vocabulary,
         ActionListener<Void> listener
     ) {
+        storeTrainedModelVocabulary(modelId, vocabularyConfig, vocabulary, listener, false);
+    }
+
+    public void storeTrainedModelVocabulary(
+        String modelId,
+        VocabularyConfig vocabularyConfig,
+        Vocabulary vocabulary,
+        ActionListener<Void> listener,
+        boolean allowOverwriting
+    ) {
         if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
             listener.onFailure(new ResourceAlreadyExistsException(Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, modelId)));
             return;
@@ -230,8 +256,9 @@ public class TrainedModelProvider {
             client,
             ML_ORIGIN,
             IndexAction.INSTANCE,
-            IndexRequestCreator.create(modelId, VocabularyConfig.docId(modelId), vocabularyConfig.getIndex(), vocabulary)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+            createRequest(VocabularyConfig.docId(modelId), vocabularyConfig.getIndex(), vocabulary, allowOverwriting).setRefreshPolicy(
+                WriteRequest.RefreshPolicy.IMMEDIATE
+            ),
             ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     listener.onFailure(
@@ -255,6 +282,15 @@ public class TrainedModelProvider {
         String index,
         ActionListener<Void> listener
     ) {
+        storeTrainedModelDefinitionDoc(trainedModelDefinitionDoc, index, listener, false);
+    }
+
+    public void storeTrainedModelDefinitionDoc(
+        TrainedModelDefinitionDoc trainedModelDefinitionDoc,
+        String index,
+        ActionListener<Void> listener,
+        boolean allowOverwriting
+    ) {
         if (MODELS_STORED_AS_RESOURCE.contains(trainedModelDefinitionDoc.getModelId())) {
             listener.onFailure(
                 new ResourceAlreadyExistsException(
@@ -268,12 +304,7 @@ public class TrainedModelProvider {
             client,
             ML_ORIGIN,
             IndexAction.INSTANCE,
-            IndexRequestCreator.create(
-                trainedModelDefinitionDoc.getModelId(),
-                trainedModelDefinitionDoc.getDocId(),
-                index,
-                trainedModelDefinitionDoc
-            ),
+            createRequest(trainedModelDefinitionDoc.getDocId(), index, trainedModelDefinitionDoc, allowOverwriting),
             ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     listener.onFailure(
@@ -303,6 +334,14 @@ public class TrainedModelProvider {
     }
 
     public void storeTrainedModelMetadata(TrainedModelMetadata trainedModelMetadata, ActionListener<Void> listener) {
+        storeTrainedModelMetadata(trainedModelMetadata, listener, false);
+    }
+
+    public void storeTrainedModelMetadata(
+        TrainedModelMetadata trainedModelMetadata,
+        ActionListener<Void> listener,
+        boolean allowOverwriting
+    ) {
         if (MODELS_STORED_AS_RESOURCE.contains(trainedModelMetadata.getModelId())) {
             listener.onFailure(
                 new ResourceAlreadyExistsException(
@@ -315,11 +354,11 @@ public class TrainedModelProvider {
             client,
             ML_ORIGIN,
             IndexAction.INSTANCE,
-            IndexRequestCreator.create(
-                trainedModelMetadata.getModelId(),
+            createRequest(
                 trainedModelMetadata.getDocId(),
                 InferenceIndexConstants.LATEST_INDEX_NAME,
-                trainedModelMetadata
+                trainedModelMetadata,
+                allowOverwriting
             ),
             ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
@@ -391,7 +430,11 @@ public class TrainedModelProvider {
         );
     }
 
-    private void storeTrainedModelAndDefinition(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
+    private void storeTrainedModelAndDefinition(
+        TrainedModelConfig trainedModelConfig,
+        ActionListener<Boolean> listener,
+        boolean allowOverwriting
+    ) {
 
         List<TrainedModelDefinitionDoc> trainedModelDefinitionDocs = new ArrayList<>();
         try {
@@ -432,10 +475,8 @@ public class TrainedModelProvider {
 
         BulkRequestBuilder bulkRequest = client.prepareBulk(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(IndexRequestCreator.create(trainedModelConfig.getModelId(), trainedModelConfig.getModelId(), trainedModelConfig));
-        trainedModelDefinitionDocs.forEach(
-            defDoc -> bulkRequest.add(IndexRequestCreator.create(defDoc.getModelId(), defDoc.getDocId(), defDoc))
-        );
+            .add(createRequest(trainedModelConfig.getModelId(), trainedModelConfig, allowOverwriting));
+        trainedModelDefinitionDocs.forEach(defDoc -> bulkRequest.add(createRequest(defDoc.getDocId(), defDoc, allowOverwriting)));
 
         ActionListener<Boolean> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
             if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
@@ -1320,6 +1361,27 @@ public class TrainedModelProvider {
         } catch (IOException e) {
             logger.error(() -> "[" + modelId + "] failed to parse model metadata", e);
             throw e;
+        }
+    }
+
+    private static IndexRequest createRequest(String docId, String index, ToXContentObject body, boolean allowOverwriting) {
+        return createRequest(new IndexRequest(index), docId, body, allowOverwriting);
+    }
+
+    private static IndexRequest createRequest(String docId, ToXContentObject body, boolean allowOverwriting) {
+        return createRequest(new IndexRequest(), docId, body, allowOverwriting);
+    }
+
+    private static IndexRequest createRequest(IndexRequest request, String docId, ToXContentObject body, boolean allowOverwriting) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder source = body.toXContent(builder, FOR_INTERNAL_STORAGE_PARAMS);
+            var operation = allowOverwriting ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE;
+
+            return request.opType(operation).id(docId).source(source);
+        } catch (IOException ex) {
+            // This should never happen. If we were able to deserialize the object (from Native or REST) and then fail to serialize it again
+            // that is not the users fault. We did something wrong and should throw.
+            throw ExceptionsHelper.serverError("Unexpected serialization exception for [" + docId + "]", ex);
         }
     }
 }

@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizerTests.TEST_CASED_VOCAB;
-import static org.elasticsearch.xpack.ml.inference.persistence.IndexRequestCreator.PRE_PACKAGED_MODELS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -357,16 +356,25 @@ public class TrainedModelProviderTests extends ESTestCase {
         }
     }
 
-    public void testStoreTrainedModelConfigCallsClientExecuteWithOperationIndex() {
-        for (String modelId : PRE_PACKAGED_MODELS) {
-            try (var client = createMockClient()) {
-                var config = TrainedModelConfigTests.createTestInstance(modelId).build();
-                var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
-                var future = new PlainActionFuture<Boolean>();
+    public void testStoreTrainedModelConfigCallsClientExecuteWithOperationCreateWhenAllowOverwriteIsFalse() {
+        try (var client = createMockClient()) {
+            var config = TrainedModelConfigTests.createTestInstance("modelId").build();
+            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var future = new PlainActionFuture<Boolean>();
 
-                trainedModelProvider.storeTrainedModelConfig(config, future);
-                assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.INDEX);
-            }
+            trainedModelProvider.storeTrainedModelConfig(config, future, false);
+            assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.CREATE);
+        }
+    }
+
+    public void testStoreTrainedModelConfigCallsClientExecuteWithOperationIndex() {
+        try (var client = createMockClient()) {
+            var config = TrainedModelConfigTests.createTestInstance("modelId").build();
+            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var future = new PlainActionFuture<Boolean>();
+
+            trainedModelProvider.storeTrainedModelConfig(config, future, true);
+            assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.INDEX);
         }
     }
 
@@ -381,16 +389,25 @@ public class TrainedModelProviderTests extends ESTestCase {
         }
     }
 
-    public void testStoreTrainedModelWithDefinitionCallsClientExecuteWithOperationIndex() throws IOException {
-        for (String modelId : PRE_PACKAGED_MODELS) {
-            try (var client = createMockClient()) {
-                var config = createTrainedModelConfigWithDefinition(modelId);
-                var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
-                var future = new PlainActionFuture<Boolean>();
+    public void testStoreTrainedModelWithDefinitionCallsClientExecuteWithOperationCreateWhenAllowOverwriteIsFalse() throws IOException {
+        try (var client = createMockClient()) {
+            var config = createTrainedModelConfigWithDefinition("modelId");
+            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var future = new PlainActionFuture<Boolean>();
 
-                trainedModelProvider.storeTrainedModel(config, future);
-                assertThatBulkIndexRequestHasOperation(client, DocWriteRequest.OpType.INDEX);
-            }
+            trainedModelProvider.storeTrainedModel(config, future, false);
+            assertThatBulkIndexRequestHasOperation(client, DocWriteRequest.OpType.CREATE);
+        }
+    }
+
+    public void testStoreTrainedModelWithDefinitionCallsClientExecuteWithOperationIndex() throws IOException {
+        try (var client = createMockClient()) {
+            var config = createTrainedModelConfigWithDefinition("modelId");
+            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var future = new PlainActionFuture<Boolean>();
+
+            trainedModelProvider.storeTrainedModel(config, future, true);
+            assertThatBulkIndexRequestHasOperation(client, DocWriteRequest.OpType.INDEX);
         }
     }
 
@@ -405,16 +422,25 @@ public class TrainedModelProviderTests extends ESTestCase {
         }
     }
 
-    public void testStoreTrainedModelDefinitionDocCallsClientExecuteWithOperationIndex() {
-        for (String modelId : PRE_PACKAGED_MODELS) {
-            try (var client = createMockClient()) {
-                var config = TrainedModelDefinitionDocTests.createDefinitionDocInstance(modelId);
-                var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
-                var future = new PlainActionFuture<Void>();
+    public void testStoreTrainedModelDefinitionDocCallsClientExecuteWithOperationCreateWhenAllowOverwriteIsFalse() {
+        try (var client = createMockClient()) {
+            var config = TrainedModelDefinitionDocTests.createDefinitionDocInstance("modelId");
+            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var future = new PlainActionFuture<Void>();
 
-                trainedModelProvider.storeTrainedModelDefinitionDoc(config, future);
-                assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.INDEX);
-            }
+            trainedModelProvider.storeTrainedModelDefinitionDoc(config, "index", future, false);
+            assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.CREATE);
+        }
+    }
+
+    public void testStoreTrainedModelDefinitionDocCallsClientExecuteWithOperationIndex() {
+        try (var client = createMockClient()) {
+            var config = TrainedModelDefinitionDocTests.createDefinitionDocInstance("modelId");
+            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var future = new PlainActionFuture<Void>();
+
+            trainedModelProvider.storeTrainedModelDefinitionDoc(config, "index", future, true);
+            assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.INDEX);
         }
     }
 
@@ -429,20 +455,29 @@ public class TrainedModelProviderTests extends ESTestCase {
         }
     }
 
-    public void testStoreTrainedModelVocabularyCallsClientExecuteWithOperationIndex() {
-        for (String modelId : PRE_PACKAGED_MODELS) {
-            try (var client = createMockClient()) {
-                var vocab = createVocabulary();
-                var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
-                var future = new PlainActionFuture<Void>();
+    public void testStoreTrainedModelVocabularyCallsClientExecuteWithOperationCreateWhenAllowOverwritingIsFalse() {
+        try (var client = createMockClient()) {
+            var vocab = createVocabulary();
+            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var future = new PlainActionFuture<Void>();
 
-                trainedModelProvider.storeTrainedModelVocabulary(modelId, mock(VocabularyConfig.class), vocab, future);
-                assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.INDEX);
-            }
+            trainedModelProvider.storeTrainedModelVocabulary("modelId", mock(VocabularyConfig.class), vocab, future, false);
+            assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.CREATE);
         }
     }
 
-    public void testStoreTrainedModelMetadataCallsClientExecuteWithOperationIndex() {
+    public void testStoreTrainedModelVocabularyCallsClientExecuteWithOperationIndex() {
+        try (var client = createMockClient()) {
+            var vocab = createVocabulary();
+            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var future = new PlainActionFuture<Void>();
+
+            trainedModelProvider.storeTrainedModelVocabulary("modelId", mock(VocabularyConfig.class), vocab, future, true);
+            assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.INDEX);
+        }
+    }
+
+    public void testStoreTrainedModelMetadataCallsClientExecuteWithOperationCreate() {
         try (var client = createMockClient()) {
             var metadata = TrainedModelMetadataTests.randomInstance("modelId");
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
@@ -453,16 +488,25 @@ public class TrainedModelProviderTests extends ESTestCase {
         }
     }
 
-    public void testStoreTrainedModelMetadataCallsClientExecuteWithOperationCreate() {
-        for (String modelId : PRE_PACKAGED_MODELS) {
-            try (var client = createMockClient()) {
-                var metadata = TrainedModelMetadataTests.randomInstance(modelId);
-                var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
-                var future = new PlainActionFuture<Void>();
+    public void testStoreTrainedModelMetadataCallsClientExecuteWithOperationCreateWhenAllowOverwritingIsFalse() {
+        try (var client = createMockClient()) {
+            var metadata = TrainedModelMetadataTests.randomInstance("modelId");
+            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var future = new PlainActionFuture<Void>();
 
-                trainedModelProvider.storeTrainedModelMetadata(metadata, future);
-                assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.INDEX);
-            }
+            trainedModelProvider.storeTrainedModelMetadata(metadata, future, false);
+            assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.CREATE);
+        }
+    }
+
+    public void testStoreTrainedModelMetadataCallsClientExecuteWithOperationIndex() {
+        try (var client = createMockClient()) {
+            var metadata = TrainedModelMetadataTests.randomInstance("modelId");
+            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var future = new PlainActionFuture<Void>();
+
+            trainedModelProvider.storeTrainedModelMetadata(metadata, future, true);
+            assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.INDEX);
         }
     }
 

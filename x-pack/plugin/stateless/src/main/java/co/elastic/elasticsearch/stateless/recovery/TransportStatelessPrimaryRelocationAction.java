@@ -114,7 +114,11 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
                 request,
                 task,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, in -> ActionResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC)
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    in -> ActionResponse.Empty.INSTANCE,
+                    transportService.getThreadPool().generic()
+                )
             );
         }
     }
@@ -198,7 +202,7 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
                             logger.trace("[{}] primary context handoff succeeded", request.shardId());
                             indexShard.recoveryStats().decCurrentAsSource();
                             return null;
-                        }), in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC)
+                        }), in -> TransportResponse.Empty.INSTANCE, transportService.getThreadPool().generic())
                     );
                 }), indexShard.getThreadPool().generic(), indexShard.getThreadPool().getThreadContext());
             }, listener0.map(ignored -> ActionResponse.Empty.INSTANCE));

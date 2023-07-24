@@ -1269,23 +1269,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(regexpQuery.value(), is(".*foo.*"));
     }
 
-    public void testTopNNotPushedDownOnOverlimit() {
-        int pageSize = config.pragmas().pageSize();
-        var optimized = optimizedPlan(physicalPlan("from test | sort emp_no | limit " + (pageSize + 1) + " | keep emp_no"));
-
-        var project = as(optimized, ProjectExec.class);
-        var topN = as(project.child(), TopNExec.class);
-        var exchange = asRemoteExchange(topN.child());
-        project = as(exchange.child(), ProjectExec.class);
-        List<String> projectionNames = project.projections().stream().map(NamedExpression::name).collect(Collectors.toList());
-        assertTrue(projectionNames.containsAll(List.of("emp_no")));
-        var extract = as(project.child(), FieldExtractExec.class);
-        var source = source(extract.child());
-        assertThat(source.limit(), is(topN.limit()));
-        assertThat(source.sorts(), is(sorts(topN.order())));
-        assertThat(source.limit(), equalTo(l(10000)));
-    }
-
     private static EsQueryExec source(PhysicalPlan plan) {
         if (plan instanceof ExchangeExec exchange) {
             plan = exchange.child();

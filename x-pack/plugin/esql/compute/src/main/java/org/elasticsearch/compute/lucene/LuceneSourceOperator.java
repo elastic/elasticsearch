@@ -92,8 +92,13 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     @Override
-    public boolean isFinished() {
+    protected boolean doneCollecting() {
         return currentLeaf >= leaves.size() || numCollectedDocs >= maxCollectedDocs;
+    }
+
+    @Override
+    public boolean isFinished() {
+        return doneCollecting();
     }
 
     @Override

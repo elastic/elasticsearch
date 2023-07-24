@@ -276,7 +276,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 if (currentScorer == null) {
                     // doesn't match anything; move to the next leaf or abort if finished
                     currentLeaf++;
-                    if (isFinished()) {
+                    if (doneCollecting()) {
                         return true;
                     }
                 }
@@ -285,6 +285,8 @@ public abstract class LuceneOperator extends SourceOperator {
         }
         return false;
     }
+
+    protected abstract boolean doneCollecting();
 
     @Override
     public void close() {

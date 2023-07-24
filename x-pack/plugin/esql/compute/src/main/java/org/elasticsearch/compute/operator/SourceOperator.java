@@ -35,8 +35,9 @@ public abstract class SourceOperator implements Operator {
     /**
      * A factory for creating source operators.
      */
-    public interface SourceOperatorFactory extends Describable {
+    public interface SourceOperatorFactory extends OperatorFactory, Describable {
         /** Creates a new source operator. */
+        @Override
         SourceOperator get(DriverContext driverContext);
     }
 }

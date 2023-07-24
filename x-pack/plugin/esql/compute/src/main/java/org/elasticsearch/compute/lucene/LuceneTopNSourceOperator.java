@@ -56,11 +56,17 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
 
     private LeafReaderContext previousLeafReaderContext;
 
+    /**
+     * Collected docs. {@code null} until we're {@link #doneCollecting}.
+     */
+    private ScoreDoc[] scoreDocs;
+    /**
+     * The offset in {@link #scoreDocs} of the next page.
+     */
+    private int offset = 0;
+
     public LuceneTopNSourceOperator(IndexReader reader, int shardId, Sort sort, Query query, int maxPageSize, int limit) {
         super(reader, shardId, query, maxPageSize);
-        if (limit > maxPageSize) {
-            throw new IllegalArgumentException("For TopN Source operator the limit cannot be larger than the page size");
-        }
         this.leafReaderContexts = reader.leaves();
         this.collectorManager = TopFieldCollector.createSharedManager(sort, limit, null, 0);
         try {
@@ -135,13 +141,13 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         @Override
         public String describe() {
             String notPrettySorts = sorts.stream().map(s -> Strings.toString(s)).collect(Collectors.joining(","));
-            return "LuceneTopNSourceOperator(dataPartitioning = "
+            return "LuceneTopNSourceOperator[dataPartitioning = "
                 + dataPartitioning
                 + ", limit = "
                 + limit
                 + ", sorts = ["
                 + notPrettySorts
-                + "])";
+                + "]]";
         }
 
     }
@@ -177,22 +183,39 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
     }
 
     @Override
-    public boolean isFinished() {
+    protected boolean doneCollecting() {
         return currentLeaf >= leaves.size();
+    }
+
+    private boolean doneEmitting() {
+        return offset >= scoreDocs.length;
+    }
+
+    @Override
+    public boolean isFinished() {
+        return doneCollecting() && doneEmitting();
     }
 
     @Override
     public Page getOutput() {
+        if (doneCollecting()) {
+            return emit();
+        }
+        return collect();
+    }
+
+    private Page collect() {
+        assert false == doneCollecting();
         // initialize weight if not done yet
         initializeWeightIfNecessary();
 
         // if there are documents matching, initialize currentLeafReaderContext and currentScorer when we switch to a new group in the slice
         if (maybeReturnEarlyOrInitializeScorer()) {
             // if there are no more documents matching and we reached the final slice, build the Page
-            return buildPage();
+            scoreDocs = topFieldCollector.topDocs().scoreDocs;
+            return emit();
         }
 
-        Page page = null;
         try {
             // one leaf collector per thread and per segment/leaf
             if (currentLeafCollector == null
@@ -214,55 +237,51 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
                 // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
                 currentScorerPos = currentLeafReaderContext.maxDoc;
             }
-
-            if (currentScorerPos >= currentLeafReaderContext.maxDoc) {
-                // move to the next leaf if we are done reading from the current leaf (current scorer position reached the final doc)
-                currentLeaf++;
-                currentLeafReaderContext = null;
-                currentScorer = null;
-                currentScorerPos = 0;
-            }
-
-            if (isFinished()) {
-                // we reached the final leaf in this slice/operator, build the single Page this operator should create
-                page = buildPage();
-            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return page;
+        if (currentScorerPos >= currentLeafReaderContext.maxDoc) {
+            // move to the next leaf if we are done reading from the current leaf (current scorer position reached the final doc)
+            currentLeaf++;
+            currentLeafReaderContext = null;
+            currentScorer = null;
+            currentScorerPos = 0;
+        }
+        if (doneCollecting()) {
+            // we reached the final leaf in this slice/operator, build the single Page this operator should create
+            scoreDocs = topFieldCollector.topDocs().scoreDocs;
+            return emit();
+        }
+        return null;
     }
 
-    private Page buildPage() {
-        ScoreDoc[] scoreDocs = topFieldCollector.topDocs().scoreDocs;
-        int positions = scoreDocs.length;
-        Page page = null;
-
-        if (positions > 0) {
-            IntVector.Builder currentSegmentBuilder = IntVector.newVectorBuilder(positions);
-            IntVector.Builder currentDocsBuilder = IntVector.newVectorBuilder(positions);
-
-            for (ScoreDoc doc : scoreDocs) {
-                int segment = ReaderUtil.subIndex(doc.doc, leafReaderContexts);
-                currentSegmentBuilder.appendInt(segment);
-                currentDocsBuilder.appendInt(doc.doc - leafReaderContexts.get(segment).docBase); // the offset inside the segment
-            }
-
-            pagesEmitted++;
-            if (pagesEmitted > 1) {
-                throw new IllegalStateException("should emit one Page only");
-            }
-
-            page = new Page(
-                positions,
-                new DocVector(
-                    IntBlock.newConstantBlockWith(shardId, positions).asVector(),
-                    currentSegmentBuilder.build(),
-                    currentDocsBuilder.build(),
-                    null
-                ).asBlock()
-            );
+    private Page emit() {
+        assert doneCollecting();
+        if (doneEmitting()) {
+            return null;
         }
-        return page;
+        int size = Math.min(maxPageSize, scoreDocs.length - offset);
+        IntVector.Builder currentSegmentBuilder = IntVector.newVectorBuilder(size);
+        IntVector.Builder currentDocsBuilder = IntVector.newVectorBuilder(size);
+
+        int start = offset;
+        offset += size;
+        for (int i = start; i < offset; i++) {
+            int doc = scoreDocs[i].doc;
+            int segment = ReaderUtil.subIndex(doc, leafReaderContexts);
+            currentSegmentBuilder.appendInt(segment);
+            currentDocsBuilder.appendInt(doc - leafReaderContexts.get(segment).docBase); // the offset inside the segment
+        }
+
+        pagesEmitted++;
+        return new Page(
+            size,
+            new DocVector(
+                IntBlock.newConstantBlockWith(shardId, size).asVector(),
+                currentSegmentBuilder.build(),
+                currentDocsBuilder.build(),
+                null
+            ).asBlock()
+        );
     }
 }

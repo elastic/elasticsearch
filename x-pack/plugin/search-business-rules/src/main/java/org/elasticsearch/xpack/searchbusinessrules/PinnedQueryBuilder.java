@@ -102,13 +102,13 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
          * Read from a stream.
          */
         public Item(StreamInput in) throws IOException {
-            index = in.readString();
+            index = in.readOptionalString();
             id = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(index);
+            out.writeOptionalString(index);
             out.writeString(id);
         }
 

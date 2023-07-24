@@ -1,0 +1,81 @@
+---
+"get cluster stats returns synonym sets stats":
+
+  - skip:
+      version: " - 8.9.99"
+      reason:  "synonym sets stats are added for v8.10.0"
+
+  - do:
+      cluster.stats: {}
+
+  - length: { indices.analysis.synonyms_sets: 0 }
+
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            analysis:
+              filter:
+                en-stem-filter:
+                  name: light_english
+                  type: stemmer
+                  language: light_english
+
+                synonyms_filter:
+                  type: synonym
+                  updateable: true
+                  synonyms_set: b-reused-synonym-set
+
+                other_synonyms_filter:
+                  type: synonym
+                  updateable: true
+                  synonyms_set: c-different-synonym-set
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          settings:
+            "analysis":
+              "filter":
+                "bigram_max_size":
+                  "type": "length"
+                  "max": "16"
+                  "min": "0"
+
+                "en-stop-words-filter":
+                  "type": "stop"
+                  "stopwords": "_english_"
+
+                "synonyms_filter":
+                  "type": "synonym_graph"
+                  "updateable": "true"
+                  "synonyms_set": "b-reused-synonym-set"
+
+                "a_repeated_synonyms_filter":
+                  "type": "synonym"
+                  "updateable": "true"
+                  "synonyms_set": "b-reused-synonym-set"
+
+                "other_synonyms_filter":
+                  "type": "synonym"
+                  "updateable": "true"
+                  "synonyms_set": "a-synonym-set"
+
+
+
+
+  - do:
+      cluster.stats: {}
+
+  - length: { indices.analysis.synonyms_sets: 3 }
+  - match: { indices.analysis.synonyms_sets.0.name: a-synonym-set }
+  - match: { indices.analysis.synonyms_sets.0.count: 1 }
+  - match: { indices.analysis.synonyms_sets.0.index_count: 1 }
+  - match: { indices.analysis.synonyms_sets.1.name: b-reused-synonym-set }
+  - match: { indices.analysis.synonyms_sets.1.count: 3 }
+  - match: { indices.analysis.synonyms_sets.1.index_count: 2 }
+  - match: { indices.analysis.synonyms_sets.2.name: c-different-synonym-set }
+  - match: { indices.analysis.synonyms_sets.2.count: 1 }
+  - match: { indices.analysis.synonyms_sets.2.index_count: 1 }

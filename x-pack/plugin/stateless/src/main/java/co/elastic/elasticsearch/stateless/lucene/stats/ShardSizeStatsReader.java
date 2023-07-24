@@ -57,7 +57,7 @@ public class ShardSizeStatsReader {
     }
 
     public ShardSizeStatsReader(ClusterService clusterService, ThreadPool threadPool, IndicesService indicesService) {
-        this(clusterService.getClusterSettings(), threadPool::relativeTimeInMillis, indicesService);
+        this(clusterService.getClusterSettings(), threadPool::absoluteTimeInMillis, indicesService);
     }
 
     public Map<ShardId, ShardSize> getAllShardSizes() {

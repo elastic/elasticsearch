@@ -555,6 +555,10 @@ Period of time used to extend the life of the PIT.
 
 [[request-body-rank]]
 `rank`::
+preview:[]
+This param is in technical preview and may change in the future. The syntax will
+likely change before GA.
++
 (Optional, object) Defines a method for combining and ranking result sets from
 either:
 +

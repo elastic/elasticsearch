@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.TransportVersion.V_8_500_036;
+import static org.elasticsearch.TransportVersion.V_8_500_040;
 
 /**
  * Statistics about analysis usage.
@@ -44,7 +44,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
 
     private static final String[] SYNONYM_TYPES = { "synonyms_set", "synonyms_path", "synonyms" };
 
-    private static final TransportVersion SYNONYM_SETS_VERSION = V_8_500_036;
+    private static final TransportVersion SYNONYM_SETS_VERSION = V_8_500_040;
 
     /**
      * Create {@link AnalysisStats} from the given cluster state.

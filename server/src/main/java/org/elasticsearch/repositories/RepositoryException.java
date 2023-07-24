@@ -48,7 +48,7 @@ public class RepositoryException extends ElasticsearchException {
      * @param args       the arguments for the message
      */
     public RepositoryException(String repository, String msg, Throwable cause, Object... args) {
-        super("[" + (repository == null ? "_na" : repository) + "] " + LoggerMessageFormat.format(msg, args), cause);
+        super("[" + (repository == null ? "_na" : repository) + "] " + msg, cause, args);
         this.repository = repository;
     }
 

@@ -124,6 +124,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private final Predicate<DiscoveryNode> nodePredicate;
     private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
     private final String proxyAddress;
+    private final Executor managementExecutor;
 
     SniffConnectionStrategy(
         String clusterAlias,
@@ -185,6 +186,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         this.nodePredicate = nodePredicate;
         this.configuredSeedNodes = configuredSeedNodes;
         this.seedNodes = seedNodes;
+        this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
@@ -472,7 +474,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public Executor executor(ThreadPool threadPool) {
-            return threadPool.executor(ThreadPool.Names.MANAGEMENT);
+            return managementExecutor;
         }
     }
 

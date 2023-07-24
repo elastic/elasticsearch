@@ -62,7 +62,7 @@ final class ElasticServiceAccounts {
         "fleet-server",
         new RoleDescriptor(
             NAMESPACE + "/fleet-server",
-            new String[] { "monitor", "manage_own_api_key" },
+            new String[] { "monitor", "manage_own_api_key", "read_fleet_secrets" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -84,13 +84,45 @@ final class ElasticServiceAccounts {
                     .indices("traces-apm.sampled-*")
                     .privileges("read", "monitor", "maintenance")
                     .build(),
+                // Fleet secrets. Fleet Server can only read from this index.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-secrets*")
                     .privileges("read")
                     .allowRestrictedIndices(true)
                     .build(),
+                // Other Fleet indices. Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh".
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".fleet-*")
+                    .indices(".fleet-actions*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-agents*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-artifacts*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-enrollment-api-keys*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-policies*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-policies-leader*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-servers*")
                     // Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh"
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
                     .allowRestrictedIndices(true)

@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 
 public class DeleteSecretAction extends ActionType<DeleteSecretResponse> {
 
-    public static final String NAME = "cluster:admin/fleet/secrets/delete"; // TODO: check
+    public static final String NAME = "cluster:admin/fleet/secrets/delete";
 
     public static final DeleteSecretAction INSTANCE = new DeleteSecretAction();
 

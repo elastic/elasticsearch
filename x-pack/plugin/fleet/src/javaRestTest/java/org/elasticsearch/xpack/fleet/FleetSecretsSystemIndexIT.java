@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.fleet;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -21,7 +20,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class FleetSecretsSystemIndexIT extends ESRestTestCase {
@@ -32,9 +30,7 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 
     public void testFleetSecretsCRUD() throws Exception {
@@ -51,15 +47,15 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
         assertThat(postResponse.getStatusLine().getStatusCode(), is(201));
 
         // get secret
-//        Request getRequest = new Request("GET", "/fleet/secrets/123"); // will need actual id returned by POST request
-//        Response getResponse = client().performRequest(getRequest);
-//        assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
-//        assertThat(EntityUtils.toString(getResponse.getEntity()), containsString(secretJson));
+        // Request getRequest = new Request("GET", "/fleet/secrets/123"); // will need actual id returned by POST request
+        // Response getResponse = client().performRequest(getRequest);
+        // assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
+        // assertThat(EntityUtils.toString(getResponse.getEntity()), containsString(secretJson));
 
         // delete secret
-//        Request deleteRequest = new Request("DELETE", "/fleet/secrets/123"); // will need actual id returned by POST request
-//        Response deleteResponse = client().performRequest(deleteRequest);
-//        assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
+        // Request deleteRequest = new Request("DELETE", "/fleet/secrets/123"); // will need actual id returned by POST request
+        // Response deleteResponse = client().performRequest(deleteRequest);
+        // assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testGetNonExistingSecret() throws Exception {

@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 
 public class GetSecretAction extends ActionType<GetSecretResponse> {
 
-    public static final String NAME = "cluster:admin/fleet/secrets/get"; // TODO: check
+    public static final String NAME = "cluster:admin/fleet/secrets/get";
 
     public static final GetSecretAction INSTANCE = new GetSecretAction();
 

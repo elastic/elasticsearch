@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 
 public class PostSecretAction extends ActionType<PostSecretResponse> {
 
-    public static final String NAME = "cluster:admin/fleet/secrets/post"; // TODO: check
+    public static final String NAME = "cluster:admin/fleet/secrets/post";
 
     public static final PostSecretAction INSTANCE = new PostSecretAction();
 

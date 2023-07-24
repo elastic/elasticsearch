@@ -476,14 +476,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
+            1,
             true,
             executor
-        ) {
-            @Override
-            protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-                return slices(leaves, 1, 1);
-            }
-        };
+        );
         boolean[] thrown = new boolean[1];
         searcher.addQueryCancellation(() -> {
             if (randomIntBetween(0, 10) == 0) {

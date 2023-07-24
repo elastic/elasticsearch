@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -34,10 +35,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.TransportVersion.V_8_500_036;
+
 /**
  * Statistics about analysis usage.
  */
 public final class AnalysisStats implements ToXContentFragment, Writeable {
+
+    private static final String[] SYNONYM_TYPES = { "synonyms_set", "synonyms_path", "synonyms" };
+
+    private static final TransportVersion SYNONYM_SETS_VERSION = V_8_500_036;
 
     /**
      * Create {@link AnalysisStats} from the given cluster state.
@@ -51,6 +58,8 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         final Map<String, IndexFeatureStats> usedBuiltInTokenizers = new HashMap<>();
         final Map<String, IndexFeatureStats> usedBuiltInTokenFilters = new HashMap<>();
         final Map<String, IndexFeatureStats> usedBuiltInAnalyzers = new HashMap<>();
+        final Map<String, IndexFeatureStats> usedSynonymSets = new HashMap<>();
+        final Set<String> synonymSetIndices = new HashSet<>();
 
         final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(metadata.getMappingsByHash().size());
         for (IndexMetadata indexMetadata : metadata) {
@@ -118,6 +127,13 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             Map<String, Settings> tokenFilterSettings = indexSettings.getGroups("index.analysis.filter");
             usedBuiltInTokenFilters.keySet().removeAll(tokenFilterSettings.keySet());
             aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilterTypes, indexTokenFilterTypes);
+            aggregateSynonymFilterTypes(
+                tokenFilterSettings.values(),
+                usedSynonymSets,
+                "synonyms_set",
+                indexMetadata.getIndex().getName(),
+                synonymSetIndices
+            );
             countMapping(mappingCounts, indexMetadata);
         }
         for (Map.Entry<MappingMetadata, Integer> mappingAndCount : mappingCounts.entrySet()) {
@@ -147,7 +163,8 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             usedBuiltInCharFilters.values(),
             usedBuiltInTokenizers.values(),
             usedBuiltInTokenFilters.values(),
-            usedBuiltInAnalyzers.values()
+            usedBuiltInAnalyzers.values(),
+            usedSynonymSets.values()
         );
     }
 
@@ -176,6 +193,28 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         }
     }
 
+    private static void aggregateSynonymFilterTypes(
+        Collection<Settings> filterSettings,
+        Map<String, IndexFeatureStats> stats,
+        String synonymType,
+        String indexName,
+        Set<String> indicesAdded
+    ) {
+        for (Settings filterComponentSettings : filterSettings) {
+            final String type = filterComponentSettings.get("type");
+            if ((type != null) && type.startsWith("synonym")) {
+                String synonymContentName = filterComponentSettings.get(synonymType);
+                if (synonymContentName != null) {
+                    IndexFeatureStats s = stats.computeIfAbsent(synonymContentName, IndexFeatureStats::new);
+                    s.count++;
+                    if (indicesAdded.add(indexName + "|" + synonymContentName)) {
+                        s.indexCount++;
+                    }
+                }
+            }
+        }
+    }
+
     private static Set<IndexFeatureStats> sort(Collection<IndexFeatureStats> set) {
         List<IndexFeatureStats> list = new ArrayList<>(set);
         list.sort(Comparator.comparing(IndexFeatureStats::getName));
@@ -185,6 +224,8 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     private final Set<IndexFeatureStats> usedCharFilters, usedTokenizers, usedTokenFilters, usedAnalyzers;
     private final Set<IndexFeatureStats> usedBuiltInCharFilters, usedBuiltInTokenizers, usedBuiltInTokenFilters, usedBuiltInAnalyzers;
 
+    private final Set<IndexFeatureStats> usedSynonymsSets;
+
     AnalysisStats(
         Collection<IndexFeatureStats> usedCharFilters,
         Collection<IndexFeatureStats> usedTokenizers,
@@ -193,7 +234,8 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         Collection<IndexFeatureStats> usedBuiltInCharFilters,
         Collection<IndexFeatureStats> usedBuiltInTokenizers,
         Collection<IndexFeatureStats> usedBuiltInTokenFilters,
-        Collection<IndexFeatureStats> usedBuiltInAnalyzers
+        Collection<IndexFeatureStats> usedBuiltInAnalyzers,
+        Collection<IndexFeatureStats> usedSynonymSets
     ) {
         this.usedCharFilters = sort(usedCharFilters);
         this.usedTokenizers = sort(usedTokenizers);
@@ -203,6 +245,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         this.usedBuiltInTokenizers = sort(usedBuiltInTokenizers);
         this.usedBuiltInTokenFilters = sort(usedBuiltInTokenFilters);
         this.usedBuiltInAnalyzers = sort(usedBuiltInAnalyzers);
+        this.usedSynonymsSets = sort(usedSynonymSets);
     }
 
     public AnalysisStats(StreamInput input) throws IOException {
@@ -214,6 +257,11 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         usedBuiltInTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
         usedBuiltInTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
         usedBuiltInAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
+        if (input.getTransportVersion().onOrAfter(SYNONYM_SETS_VERSION)) {
+            usedSynonymsSets = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
+        } else {
+            usedSynonymsSets = Collections.emptySet();
+        }
     }
 
     @Override
@@ -226,6 +274,9 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         out.writeCollection(usedBuiltInTokenizers);
         out.writeCollection(usedBuiltInTokenFilters);
         out.writeCollection(usedBuiltInAnalyzers);
+        if (out.getTransportVersion().onOrAfter(SYNONYM_SETS_VERSION)) {
+            out.writeCollection(usedSynonymsSets);
+        }
     }
 
     /**
@@ -284,6 +335,10 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         return usedBuiltInAnalyzers;
     }
 
+    public Set<IndexFeatureStats> getUsedSynonymsSets() {
+        return usedSynonymsSets;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -333,6 +388,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         toXContentCollection(builder, params, "built_in_tokenizers", usedBuiltInTokenizers);
         toXContentCollection(builder, params, "built_in_filters", usedBuiltInTokenFilters);
         toXContentCollection(builder, params, "built_in_analyzers", usedBuiltInAnalyzers);
+        toXContentCollection(builder, params, "synonyms_sets", usedSynonymsSets);
         builder.endObject();
         return builder;
     }

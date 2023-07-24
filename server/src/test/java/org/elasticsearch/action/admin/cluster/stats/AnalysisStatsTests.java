@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -75,6 +76,10 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         if (randomBoolean()) {
             builtInAnalyzers.add(randomStats("french"));
         }
+        Set<IndexFeatureStats> usedSynonymsSets = new HashSet<>();
+        if (randomBoolean()) {
+            builtInAnalyzers.add(randomStats(randomIdentifier()));
+        }
         return new AnalysisStats(
             charFilters,
             tokenizers,
@@ -83,13 +88,14 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
             builtInCharFilters,
             builtInTokenizers,
             builtInTokenFilters,
-            builtInAnalyzers
+            builtInAnalyzers,
+            usedSynonymsSets
         );
     }
 
     @Override
     protected AnalysisStats mutateInstance(AnalysisStats instance) {
-        switch (randomInt(7)) {
+        switch (randomInt(8)) {
             case 0 -> {
                 Set<IndexFeatureStats> charFilters = new HashSet<>(instance.getUsedCharFilterTypes());
                 if (charFilters.removeIf(s -> s.getName().equals("pattern_replace")) == false) {
@@ -103,7 +109,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInCharFilters(),
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers()
+                    instance.getUsedBuiltInAnalyzers(),
+                    instance.getUsedSynonymsSets()
                 );
             }
             case 1 -> {
@@ -119,7 +126,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInCharFilters(),
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers()
+                    instance.getUsedBuiltInAnalyzers(),
+                    instance.getUsedSynonymsSets()
                 );
             }
             case 2 -> {
@@ -135,7 +143,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInCharFilters(),
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers()
+                    instance.getUsedBuiltInAnalyzers(),
+                    instance.getUsedSynonymsSets()
                 );
             }
             case 3 -> {
@@ -151,7 +160,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInCharFilters(),
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers()
+                    instance.getUsedBuiltInAnalyzers(),
+                    instance.getUsedSynonymsSets()
                 );
             }
             case 4 -> {
@@ -167,7 +177,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     builtInCharFilters,
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers()
+                    instance.getUsedBuiltInAnalyzers(),
+                    instance.getUsedSynonymsSets()
                 );
             }
             case 5 -> {
@@ -183,7 +194,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInCharFilters(),
                     builtInTokenizers,
                     instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers()
+                    instance.getUsedBuiltInAnalyzers(),
+                    instance.getUsedSynonymsSets()
                 );
             }
             case 6 -> {
@@ -199,7 +211,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInCharFilters(),
                     instance.getUsedBuiltInTokenizers(),
                     builtInTokenFilters,
-                    instance.getUsedBuiltInAnalyzers()
+                    instance.getUsedBuiltInAnalyzers(),
+                    instance.getUsedSynonymsSets()
                 );
             }
             case 7 -> {
@@ -215,7 +228,26 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInCharFilters(),
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
-                    builtInAnalyzers
+                    builtInAnalyzers,
+                    instance.getUsedSynonymsSets()
+                );
+            }
+            case 8 -> {
+                Set<IndexFeatureStats> usedSynonymsSets = new HashSet<>(instance.getUsedSynonymsSets());
+                String synonymSetName = randomIdentifier();
+                if (usedSynonymsSets.removeIf(s -> s.getName().equals(synonymSetName)) == false) {
+                    usedSynonymsSets.add(randomStats(synonymSetName));
+                }
+                return new AnalysisStats(
+                    instance.getUsedCharFilterTypes(),
+                    instance.getUsedTokenizerTypes(),
+                    instance.getUsedTokenFilterTypes(),
+                    instance.getUsedAnalyzerTypes(),
+                    instance.getUsedBuiltInCharFilters(),
+                    instance.getUsedBuiltInTokenizers(),
+                    instance.getUsedBuiltInTokenFilters(),
+                    instance.getUsedBuiltInAnalyzers(),
+                    usedSynonymsSets
                 );
             }
             default -> throw new AssertionError();
@@ -279,5 +311,87 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
             TaskCancelledException.class,
             () -> AnalysisStats.of(metadata, () -> { throw new TaskCancelledException("task cancelled"); })
         );
+    }
+
+    public void testSynonymsStats() {
+        final String settingsSourceIndex1 = """
+            {
+              "index": {
+                "analysis": {
+                  "filter": {
+                    "bigram_max_size": {
+                      "type": "length",
+                      "max": "16",
+                      "min": "0"
+                    },
+                    "en-stop-words-filter": {
+                      "type": "stop",
+                      "stopwords": "_english_"
+                    },
+                    "synonyms_filter": {
+                      "type": "synonym_graph",
+                      "updateable": "true",
+                      "synonyms_set": "b-reused-synonym-set"
+                    },
+                    "a_repeated_synonyms_filter": {
+                      "type": "synonym",
+                      "updateable": "true",
+                      "synonyms_set": "b-reused-synonym-set"
+                    },
+                    "other_synonyms_filter": {
+                      "type": "synonym",
+                      "updateable": "true",
+                      "synonyms_set": "a-synonym-set"
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        Settings settings = indexSettings(Version.CURRENT, 4, 1).loadFromSource(settingsSourceIndex1, XContentType.JSON).build();
+        IndexMetadata indexMetadata1 = new IndexMetadata.Builder("foo").settings(settings).build();
+
+        final String settingsSourceIndex2 = """
+            {
+              "index": {
+                "analysis": {
+                  "filter": {
+                    "en-stem-filter": {
+                      "name": "light_english",
+                      "type": "stemmer",
+                      "language": "light_english"
+                    },
+                    "synonyms_filter": {
+                      "type": "synonym",
+                      "updateable": "true",
+                      "synonyms_set": "b-reused-synonym-set"
+                    },
+                    "other_synonyms_filter": {
+                      "type": "synonym",
+                      "updateable": "true",
+                      "synonyms_set": "c-different-synonym-set"
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        Settings settings2 = indexSettings(Version.CURRENT, 4, 1).loadFromSource(settingsSourceIndex2, XContentType.JSON).build();
+        IndexMetadata indexMetadata2 = new IndexMetadata.Builder("bar").settings(settings2).build();
+
+        Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata1).withAddedIndex(indexMetadata2);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
+        IndexFeatureStats expectedStats1 = new IndexFeatureStats("a-synonym-set");
+        expectedStats1.count = 1;
+        expectedStats1.indexCount = 1;
+        IndexFeatureStats expectedStats2 = new IndexFeatureStats("b-reused-synonym-set");
+        expectedStats2.count = 3;
+        expectedStats2.indexCount = 2;
+        IndexFeatureStats expectedStats3 = new IndexFeatureStats("c-different-synonym-set");
+        expectedStats3.count = 1;
+        expectedStats3.indexCount = 1;
+        Set<IndexFeatureStats> expectedUsedSynonymsSets = Set.of(expectedStats1, expectedStats2, expectedStats3);
+
+        assertEquals(expectedUsedSynonymsSets, analysisStats.getUsedSynonymsSets());
     }
 }

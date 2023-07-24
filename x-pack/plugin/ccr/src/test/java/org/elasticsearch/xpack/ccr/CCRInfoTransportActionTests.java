@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -139,7 +140,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         var usageAction = new CCRUsageTransportAction(
             mock(TransportService.class),
             null,
-            null,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             Settings.EMPTY,

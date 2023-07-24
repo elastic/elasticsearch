@@ -18,6 +18,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -173,7 +174,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                     node,
                     SqlQueryAction.NAME,
                     request,
-                    new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, ThreadPool.Names.SAME)
+                    new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
                 ),
                 log
             );

@@ -20,8 +20,10 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
@@ -33,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventAction.Response> {
 
@@ -349,6 +352,20 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         @Override
         public RestStatus status() {
             return RestStatus.ACCEPTED;
+        }
+
+        private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
+            "post_analytics_event_response",
+            false,
+            (params) -> new Response((boolean) params[0])
+        );
+
+        static {
+            PARSER.declareBoolean(constructorArg(), Response.RESULT_FIELD);
+        }
+
+        public static Response parse(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
     }
 

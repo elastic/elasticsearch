@@ -85,7 +85,7 @@ public class PivotTests extends ESTestCase {
     private Client client;
 
     // exclude aggregations from the analytics module as we don't have parser for it here
-    private final Set<String> externalAggregations = Collections.singleton("top_metrics");
+    private final Set<String> externalAggregations = Set.of("top_metrics", "boxplot");
 
     private final Set<String> supportedAggregations = Stream.of(AggregationType.values())
         .map(AggregationType::getName)

@@ -841,6 +841,27 @@ Occurrences of the built-in analyzer in selected nodes.
 (integer)
 Number of indices using the built-in analyzer in selected nodes.
 ======
+
+`synonyms_sets`::
+(array of objects)
+Contains statistics about the synonyms sets used in
+selected nodes.
++
+.Properties of `synonyms_sets` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Synonym set used in selected nodes.
+
+`count`::
+(integer)
+Occurrences of the synonym set in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices using the synonym set in selected nodes.
+======
 =====
 
 `search`::

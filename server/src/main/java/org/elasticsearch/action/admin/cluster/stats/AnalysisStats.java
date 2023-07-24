@@ -17,6 +17,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.synonyms.SynonymsAPI;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -127,13 +129,15 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             Map<String, Settings> tokenFilterSettings = indexSettings.getGroups("index.analysis.filter");
             usedBuiltInTokenFilters.keySet().removeAll(tokenFilterSettings.keySet());
             aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilterTypes, indexTokenFilterTypes);
-            aggregateSynonymFilterTypes(
-                tokenFilterSettings.values(),
-                usedSynonymSets,
-                "synonyms_set",
-                indexMetadata.getIndex().getName(),
-                synonymSetIndices
-            );
+            if (SynonymsAPI.isEnabled()) {
+                aggregateSynonymFilterTypes(
+                    tokenFilterSettings.values(),
+                    usedSynonymSets,
+                    "synonyms_set",
+                    indexMetadata.getIndex().getName(),
+                    synonymSetIndices
+                );
+            }
             countMapping(mappingCounts, indexMetadata);
         }
         for (Map.Entry<MappingMetadata, Integer> mappingAndCount : mappingCounts.entrySet()) {
@@ -351,7 +355,8 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             && Objects.equals(usedBuiltInCharFilters, that.usedBuiltInCharFilters)
             && Objects.equals(usedBuiltInTokenizers, that.usedBuiltInTokenizers)
             && Objects.equals(usedBuiltInTokenFilters, that.usedBuiltInTokenFilters)
-            && Objects.equals(usedBuiltInAnalyzers, that.usedBuiltInAnalyzers);
+            && Objects.equals(usedBuiltInAnalyzers, that.usedBuiltInAnalyzers)
+            && Objects.equals(usedSynonymsSets, that.usedSynonymsSets);
     }
 
     @Override
@@ -364,7 +369,8 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             usedBuiltInCharFilters,
             usedBuiltInTokenizers,
             usedBuiltInTokenFilters,
-            usedBuiltInAnalyzers
+            usedBuiltInAnalyzers,
+            usedSynonymsSets
         );
     }
 
@@ -388,7 +394,9 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         toXContentCollection(builder, params, "built_in_tokenizers", usedBuiltInTokenizers);
         toXContentCollection(builder, params, "built_in_filters", usedBuiltInTokenFilters);
         toXContentCollection(builder, params, "built_in_analyzers", usedBuiltInAnalyzers);
-        toXContentCollection(builder, params, "synonyms_sets", usedSynonymsSets);
+        if (SynonymsAPI.isEnabled()) {
+            toXContentCollection(builder, params, "synonyms_sets", usedSynonymsSets);
+        }
         builder.endObject();
         return builder;
     }

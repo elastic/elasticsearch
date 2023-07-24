@@ -103,6 +103,11 @@ public class QueryRuleCriteriaTests extends ESTestCase {
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("elastic"));
         assertTrue(queryRuleCriteria.isMatch("elastic", type));
         assertFalse(queryRuleCriteria.isMatch("elasticc", type));
+
+        queryRuleCriteria = new QueryRuleCriteria(type, "zip_code", List.of("12345"));
+        assertTrue(queryRuleCriteria.isMatch(12345, type));
+        assertTrue(queryRuleCriteria.isMatch("12345", type));
+        assertFalse(queryRuleCriteria.isMatch("123456", type));
     }
 
     public void testFuzzyExactMatch() {

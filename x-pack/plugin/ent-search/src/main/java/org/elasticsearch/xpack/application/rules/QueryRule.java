@@ -298,7 +298,7 @@ public class QueryRule implements Writeable, ToXContentObject {
 
                 if (criteriaType == QueryRuleCriteria.CriteriaType.GLOBAL || (criteriaMetadata != null && criteriaMetadata.equals(match))) {
                     boolean singleCriterionMatches = criterion.isMatch(matchValue, criteriaType);
-                    isRuleMatch = (isRuleMatch == null) ? singleCriterionMatches : isRuleMatch & singleCriterionMatches;
+                    isRuleMatch = (isRuleMatch == null) ? singleCriterionMatches : isRuleMatch && singleCriterionMatches;
                 }
             }
         }

@@ -43,24 +43,84 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     private static final Logger logger = LogManager.getLogger(QueryRuleCriteria.class);
 
     public enum CriteriaType {
-        GLOBAL(true, true),
-        EXACT(true, true),
-        EXACT_FUZZY(true, false),
-        PREFIX(true, false),
-        SUFFIX(true, false),
-        CONTAINS(true, false),
-        LT(false, true),
-        LTE(false, true),
-        GT(false, true),
-        GTE(false, true);
+        GLOBAL {
+            @Override
+            public boolean inputMatchesCriteria(Object input, Object criteriaValue) {
+                return true;
+            }
+        },
+        EXACT {
+            @Override
+            public boolean inputMatchesCriteria(Object input, Object criteriaValue) {
+                if (input instanceof String && criteriaValue instanceof String) {
+                    return input.equals(criteriaValue);
+                } else {
+                    return parseDouble(input) == parseDouble(criteriaValue);
+                }
+            }
+        },
+        EXACT_FUZZY {
+            @Override
+            public boolean inputMatchesCriteria(Object input, Object criteriaValue) {
+                final LevenshteinDistance ld = new LevenshteinDistance();
+                if (input instanceof String && criteriaValue instanceof String) {
+                    return ld.getDistance((String) input, (String) criteriaValue) > 0.5f;
+                }
+                return false;
+            }
+        },
+        PREFIX {
+            @Override
+            public boolean inputMatchesCriteria(Object input, Object criteriaValue) {
+                return ((String) input).startsWith((String) criteriaValue);
+            }
+        },
+        SUFFIX {
+            @Override
+            public boolean inputMatchesCriteria(Object input, Object criteriaValue) {
+                return ((String) input).endsWith((String) criteriaValue);
+            }
+        },
+        CONTAINS {
+            @Override
+            public boolean inputMatchesCriteria(Object input, Object criteriaValue) {
+                return ((String) input).contains((String) criteriaValue);
+            }
+        },
+        LT {
+            @Override
+            public boolean inputMatchesCriteria(Object input, Object criteriaValue) {
+                return parseDouble(input) < parseDouble(criteriaValue);
+            }
+        },
+        LTE {
+            @Override
+            public boolean inputMatchesCriteria(Object input, Object criteriaValue) {
+                return parseDouble(input) <= parseDouble(criteriaValue);
+            }
+        },
+        GT {
+            @Override
+            public boolean inputMatchesCriteria(Object input, Object criteriaValue) {
+                return parseDouble(input) > parseDouble(criteriaValue);
+            }
+        },
+        GTE {
+            @Override
+            public boolean inputMatchesCriteria(Object input, Object criteriaValue) {
+                validateInput(input);
+                return parseDouble(input) >= parseDouble(criteriaValue);
+            }
+        };
 
-        final boolean supportsStringMatchInput;
-        final boolean supportsNumericMatchInput;
-
-        CriteriaType(boolean supportsStringMatchInput, boolean supportsNumericMatchInput) {
-            this.supportsStringMatchInput = supportsStringMatchInput;
-            this.supportsNumericMatchInput = supportsNumericMatchInput;
+        public void validateInput(Object input) {
+            boolean isValid = isValidForInput(input);
+            if (isValid == false) {
+                throw new IllegalArgumentException("Input [" + input + "] is not valid for CriteriaType [" + this + "]");
+            }
         }
+
+        public abstract boolean inputMatchesCriteria(Object input, Object criteriaValue);
 
         public static CriteriaType criteriaType(String criteriaType) {
             for (CriteriaType type : values()) {
@@ -74,6 +134,28 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         @Override
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
+        }
+
+        private boolean isValidForInput(Object input) {
+            if (this == EXACT) {
+                return input instanceof String || input instanceof Number;
+            } else if (List.of(EXACT_FUZZY, PREFIX, SUFFIX, CONTAINS).contains(this)) {
+                return input instanceof String;
+            } else if (List.of(LT, LTE, GT, GTE).contains(this)) {
+                try {
+                    if (input instanceof Number == false) {
+                        parseDouble(input.toString());
+                    }
+                    return true;
+                } catch (NumberFormatException e) {
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        private static double parseDouble(Object input) {
+            return (input instanceof Number) ? ((Number) input).doubleValue() : Double.parseDouble(input.toString());
         }
     }
 
@@ -214,61 +296,17 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     }
 
     public boolean isMatch(Object matchValue, CriteriaType matchType) {
-        if (criteriaType == GLOBAL) {
+        if (matchType == GLOBAL) {
             return true;
         }
-
-        final LevenshteinDistance ld = new LevenshteinDistance();
         final String matchString = matchValue.toString();
-        boolean matchFound = false;
-
-        if (matchType.supportsNumericMatchInput == false && matchValue instanceof Number) {
-            throw new IllegalArgumentException("Query rule criteria [" + criteriaValues + "] type mismatch against [" + matchString + "]");
-        }
-
         for (Object criteriaValue : criteriaValues) {
-            final String criteriaValueString = criteriaValue != null ? criteriaValue.toString() : null;
-            if (criteriaValueString != null && matchType.supportsStringMatchInput) {
-                matchFound = switch (matchType) {
-                    case EXACT -> matchString.equals(criteriaValueString);
-                    case EXACT_FUZZY -> ld.getDistance(matchString, criteriaValueString) > 0.75f; // TODO make configurable
-                    case PREFIX -> matchString.startsWith(criteriaValueString);
-                    case SUFFIX -> matchString.endsWith(criteriaValueString);
-                    case CONTAINS -> matchString.contains(criteriaValueString);
-                    default -> false;
-                };
-                if (matchFound) {
-                    return matchFound;
-                }
-            }
-            if (criteriaValueString != null && matchType.supportsNumericMatchInput) {
-                try {
-                    double matchDouble = (matchValue instanceof Number)
-                        ? ((Number) matchValue).doubleValue()
-                        : Double.parseDouble(matchString);
-                    double parsedCriteriaValue = Double.parseDouble(criteriaValue.toString());
-                    matchFound = switch (matchType) {
-                        case EXACT -> matchDouble == parsedCriteriaValue;
-                        case LT -> matchDouble < parsedCriteriaValue;
-                        case LTE -> matchDouble <= parsedCriteriaValue;
-                        case GT -> matchDouble > parsedCriteriaValue;
-                        case GTE -> matchDouble >= parsedCriteriaValue;
-                        default -> false;
-                    };
-                    if (matchFound) {
-                        return matchFound;
-                    }
-                } catch (NumberFormatException e) {
-                    if (matchType.supportsStringMatchInput == false) {
-                        throw new IllegalArgumentException(
-                            "Query rule criteria [" + criteriaValues + "] type mismatch against [" + matchString + "]",
-                            e
-                        );
-                    }
-                }
+            matchType.validateInput(matchValue);
+            boolean matchFound = matchType.inputMatchesCriteria(matchString, criteriaValue);
+            if (matchFound) {
+                return true;
             }
         }
-
-        return matchFound;
+        return false;
     }
 }

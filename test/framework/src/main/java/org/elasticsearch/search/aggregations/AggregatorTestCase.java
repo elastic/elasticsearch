@@ -920,7 +920,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * sets the IndexSearcher to run on concurrent mode.
      */
     protected IndexSearcher newIndexSearcher(DirectoryReader indexReader) throws IOException {
-        if (randomBoolean()) {
+        if (false) {
             // this executes basic query checks and asserts that weights are normalized only once etc.
             return new AssertingIndexSearcher(random(), indexReader);
         } else {

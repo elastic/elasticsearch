@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -65,6 +67,9 @@ import java.util.concurrent.ThreadPoolExecutor;
  * Context-aware extension of {@link IndexSearcher}.
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
+
+    private static final Logger logger = LogManager.getLogger(ContextIndexSearcher.class);
+
     /**
      * The interval at which we check for search cancellation when we cannot use
      * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
@@ -136,7 +141,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         boolean wrapWithExitableDirectoryReader,
         ThreadPoolExecutor executor
     ) throws IOException {
-        // we need to pass the executor up so it can potentially be used as a sliceExecutor
+        // we need to pass the executor up so it can potentially be used as a sliceExecutor by knn search
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
         setQueryCache(queryCache);
@@ -144,7 +149,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.cancellable = cancellable;
         this.queueSizeBasedExecutor = executor != null ? new QueueSizeBasedExecutor(executor) : null;
         this.minimumDocsPerSlice = minimumDocsPerSlice;
-        this.leafSlices = executor == null ? null : slices(leafContexts);
+        if (executor != null) {
+            this.leafSlices = computeSlices(
+                getLeafContexts(),
+                queueSizeBasedExecutor.threadPoolExecutor.getMaximumPoolSize(),
+                minimumDocsPerSlice
+            );
+            assert (this.leafSlices.length <= executor.getMaximumPoolSize());
+        } else {
+            this.leafSlices = null;
+        }
+
     }
 
     // package private for testing
@@ -228,7 +243,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return computeSlices(leaves, ((ThreadPoolExecutor) getExecutor()).getPoolSize(), minimumDocsPerSlice);
+        // needed for AbstractKnnVectorQuery#rewrite, to be changed in Lucene 9.8 which won't use slices for knn rewrite
+        return computeSlices(leaves, Math.max(1, leaves.size()), 1);
     }
 
     /**
@@ -246,10 +262,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // percentage of documents per slice, minumum 10%
         final double percentageDocsPerThread = Math.max(MINIMUM_DOCS_PERCENT_PER_SLICE, 1.0 / maxSliceNum);
         // compute slices
-        return computeSlices(leaves, Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs)));
+        return computeLeafSlices(leaves, Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs)), maxSliceNum);
     }
 
-    private static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int minDocsPerSlice) {
+    private static LeafSlice[] computeLeafSlices(List<LeafReaderContext> leaves, int minDocsPerSlice, int maxSliceNum) {
         // Make a copy so we can sort:
         List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
         // Sort by maxDoc, descending:
@@ -284,6 +300,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
 
+
         final LeafSlice[] slices = new LeafSlice[queue.size()];
         int upto = 0;
         for (List<LeafReaderContext> currentLeaf : queue) {
@@ -313,6 +330,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             search(leafContexts, weight, firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         } else {
+            //if (leafSlices.length > -1) throw new IllegalStateException("Concurrent path hit");
             final List<C> collectors = new ArrayList<>(leafSlices.length);
             collectors.add(firstCollector);
             final ScoreMode scoreMode = firstCollector.scoreMode();

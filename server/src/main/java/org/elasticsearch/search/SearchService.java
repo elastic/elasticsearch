@@ -69,6 +69,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -1090,9 +1091,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private static boolean concurrentSearchEnabled(ResultsType resultsType, SearchSourceBuilder source) {
-        // TODO this can be extended with more complex logic taking into account phase, builder properties etc...
-        // e.g. source.profile() == true;
-        return resultsType == ResultsType.DFS;
+        // TODO we don't have the SearchContext with the parsed Aggregation source available yet to call
+        // {@link AggregationBuilder#supportsConcurrentExecution()}
+        return true;// resultsType == ResultsType.DFS;// && supportsConcurrentExecution(source.aggregations());
+    }
+
+    private static boolean supportsConcurrentExecution(AggregatorFactories.Builder factoriesBuilder) {
+        for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
+            if (builder.supportsConcurrentExecution() == false || builder.isInSortOrderExecutionRequired()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void freeAllContextForIndex(Index index) {

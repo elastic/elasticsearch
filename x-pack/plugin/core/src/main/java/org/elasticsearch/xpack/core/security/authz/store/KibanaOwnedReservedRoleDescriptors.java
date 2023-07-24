@@ -90,7 +90,7 @@ class KibanaOwnedReservedRoleDescriptors {
             new RoleDescriptor.IndicesPrivileges[] {
                 // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".kibana*", ".reporting-*", ".kibana-reporting*")
+                    .indices(".kibana*", ".reporting-*")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),

@@ -249,14 +249,12 @@ public class ContextIndexSearcherTests extends ESTestCase {
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
+            1,
             randomBoolean(),
             executor
         ) {
             @Override
             protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-                if (leaves.size() == 1) {
-                    return super.slices(leaves);
-                }
                 return slices(leaves, 1, 1);
             }
         };

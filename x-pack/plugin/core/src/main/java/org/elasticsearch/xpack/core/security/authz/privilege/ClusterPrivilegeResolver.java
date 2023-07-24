@@ -154,7 +154,11 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
-    private static final Set<String> MANAGE_SEARCH_SYNONYMS_PATTERN = Set.of("cluster:admin/synonyms/*", "cluster:admin/synonyms_sets/*");
+    private static final Set<String> MANAGE_SEARCH_SYNONYMS_PATTERN = Set.of(
+        "cluster:admin/synonyms/*",
+        "cluster:admin/synonyms_sets/*",
+        "cluster:admin/synonym_rules/*"
+    );
 
     private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,

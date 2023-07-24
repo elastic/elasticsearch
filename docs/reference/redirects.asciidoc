@@ -1931,3 +1931,17 @@ coming::[8.10.0]
 === Create or update synonym sets API
 
 coming::[8.10.0]
+
+ifeval::["{release-state}"=="released"]
+
+[role="exclude",id="security-api-create-cross-cluster-api-key"]
+=== Create Cross-Cluster API key API
+
+{es-feature-flag}
+
+[role="exclude",id="security-api-update-cross-cluster-api-key"]
+=== Update Cross-Cluster API key API
+
+{es-feature-flag}
+
+endif::[]

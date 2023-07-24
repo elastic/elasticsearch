@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
@@ -56,7 +55,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-// This needs to be moved to internalClusterTest sourceSet
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
 public class DownsampleTransportFailureIT extends ESIntegTestCase {
 
@@ -72,12 +70,12 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         }
 
         private String randomCoordinator() {
-            return ESTestCase.randomFrom(nonMasterNodes());
+            return randomFrom(nonMasterNodes());
         }
 
         private String randomWorker() {
             assert this.coordinator != null;
-            return ESTestCase.randomFrom(
+            return randomFrom(
                 Arrays.stream(cluster.getNodeNames())
                     .filter(
                         nodeName -> this.cluster.getMasterName().equals(nodeName) == false && this.coordinator.equals(nodeName) == false

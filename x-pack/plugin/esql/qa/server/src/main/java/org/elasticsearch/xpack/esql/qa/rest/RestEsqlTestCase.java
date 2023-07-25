@@ -374,7 +374,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static Request prepareRequest() {
-        Request request = new Request("POST", "/_esql");
+        Request request = new Request("POST", "/_query");
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         return request;

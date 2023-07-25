@@ -15,7 +15,7 @@ POST /mv/_bulk?refresh
 { "index" : {} }
 { "a": 2, "b": 3 }
 
-POST /_esql
+POST /_query
 {
   "query": "FROM mv"
 }
@@ -63,7 +63,7 @@ POST /mv/_bulk?refresh
 { "index" : {} }
 { "a": 2, "b": ["bar", "bar"] }
 
-POST /_esql
+POST /_query
 {
   "query": "FROM mv"
 }
@@ -104,7 +104,7 @@ POST /mv/_bulk?refresh
 { "index" : {} }
 { "a": 2, "b": [1, 1] }
 
-POST /_esql
+POST /_query
 {
   "query": "FROM mv"
 }
@@ -146,7 +146,7 @@ POST /mv/_bulk?refresh
 { "index" : {} }
 { "a": 2, "b": [1, 1] }
 
-POST /_esql
+POST /_query
 {
   "query": "FROM mv | EVAL b=TO_STRING(b)"
 }
@@ -181,7 +181,7 @@ POST /mv/_bulk?refresh
 { "index" : {} }
 { "a": 2, "b": 3 }
 
-POST /_esql
+POST /_query
 {
   "query": "FROM mv | EVAL b + 2, a + b"
 }
@@ -215,7 +215,7 @@ Work around this limitation by converting the field to single value with one of:
 
 [source,console,esql-multivalued-fields-mv-into-null]
 ----
-POST /_esql
+POST /_query
 {
   "query": "FROM mv | EVAL b=MV_MIN(b) | EVAL b + 2, a + b"
 }

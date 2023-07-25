@@ -35,11 +35,11 @@ The result of a query is the table produced by the final processing command.
 [discrete]
 ==== The {esql} API
 
-Use the `_esql` endpoint to run an {esql} query:
+Use the `_query` endpoint to run an {esql} query:
 
 [source,console]
 ----
-POST /_esql
+POST /_query
 {
   "query": """
     FROM library
@@ -76,7 +76,7 @@ CSV, or TSV, use the `format` parameter:
 
 [source,console]
 ----
-POST /_esql?format=txt
+POST /_query?format=txt
 {
   "query": """
     FROM library

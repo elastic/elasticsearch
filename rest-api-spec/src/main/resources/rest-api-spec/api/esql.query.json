@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_esql",
+          "path":"/_query",
           "methods":[
             "POST"
           ]

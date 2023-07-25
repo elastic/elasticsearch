@@ -215,7 +215,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     private Response runESQLCommand(String user, String command) throws IOException {
-        Request request = new Request("POST", "_esql");
+        Request request = new Request("POST", "_query");
         request.setJsonEntity("{\"query\":\"" + command + "\"}");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
         return client().performRequest(request);

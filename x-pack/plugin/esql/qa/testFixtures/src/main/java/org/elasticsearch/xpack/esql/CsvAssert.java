@@ -158,9 +158,8 @@ public final class CsvAssert {
     ) {
         var expectedValues = expected.values();
 
-        int row = 0;
-        try {
-            for (row = 0; row < expectedValues.size(); row++) {
+        for (int row = 0; row < expectedValues.size(); row++) {
+            try {
                 assertTrue("Expected more data but no more entries found after [" + row + "]", row < actualValues.size());
 
                 if (logger != null) {
@@ -170,8 +169,7 @@ public final class CsvAssert {
                 var expectedRow = expectedValues.get(row);
                 var actualRow = actualValues.get(row);
 
-                int column = 0;
-                for (column = 0; column < expectedRow.size(); column++) {
+                for (int column = 0; column < expectedRow.size(); column++) {
                     var expectedValue = expectedRow.get(column);
                     var actualValue = actualRow.get(column);
 
@@ -197,17 +195,18 @@ public final class CsvAssert {
                 if (delta > 0) {
                     fail("Plan has extra columns, returned [" + actualRow.size() + "], expected [" + expectedRow.size() + "]");
                 }
+            } catch (AssertionError ae) {
+                if (logger != null && row + 1 < actualValues.size()) {
+                    logger.info("^^^ Assertion failure ^^^");
+                    logger.info(row(actualValues, row + 1));
+                }
+                throw ae;
             }
-
-        } catch (AssertionError ae) {
-            if (logger != null && row + 1 < actualValues.size()) {
-                logger.info("^^^ Assertion failure ^^^");
-                logger.info(row(actualValues, row + 1));
-            }
-            throw ae;
         }
-        if (row + 1 < actualValues.size()) {
-            fail("Elasticsearch still has data after [" + row + "] entries:\n" + row(actualValues, row));
+        if (expectedValues.size() < actualValues.size()) {
+            fail(
+                "Elasticsearch still has data after [" + expectedValues.size() + "] entries:\n" + row(actualValues, expectedValues.size())
+            );
         }
     }
 

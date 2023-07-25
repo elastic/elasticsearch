@@ -67,6 +67,7 @@ to_ulong                 |to_ulong(arg1)
 to_unsigned_long         |to_unsigned_long(arg1)
 to_ver                   |to_ver(arg1)
 to_version               |to_version(arg1)
+trim                     |trim(arg1)
 ;
 
 showFunctionsFiltered
@@ -76,4 +77,5 @@ show functions | where starts_with(name, "is_");
 is_finite                |is_finite(arg1)
 is_infinite              |is_infinite(arg1)
 is_nan                   |is_nan(arg1)
+is_null                  |is_null(arg1)
 ;

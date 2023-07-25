@@ -14,10 +14,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.core.esql.EsqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsResponse;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -42,15 +42,19 @@ import static org.mockito.Mockito.when;
 
 public class EsqlInfoTransportActionTests extends ESTestCase {
 
+    private ThreadPool threadPool;
     private Client client;
 
     @Before
-    public void init() throws Exception {
+    public void init() {
+        threadPool = new TestThreadPool(getTestName());
         client = mock(Client.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
+    }
+
+    @After
+    public void shutdown() {
+        threadPool.shutdown();
     }
 
     public void testAvailable() {
@@ -96,7 +100,7 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
         var usageAction = new EsqlUsageTransportAction(
             mock(TransportService.class),
             clusterService,
-            null,
+            threadPool,
             mock(ActionFilters.class),
             null,
             client

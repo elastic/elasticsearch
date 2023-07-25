@@ -353,6 +353,7 @@ emp_no:integer |job_positions:keyword
 10018          |Junior Developer
 10019          |Purchase Manager
 10020          |Tech Lead
+10021          |Support Engineer
 ;
 
 equalToMultivalue

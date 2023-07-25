@@ -177,10 +177,6 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             return allowOverwriting;
         }
 
-        void setAllowOverwriting(boolean allowOverwriting) {
-            this.allowOverwriting = allowOverwriting;
-        }
-
         public static class Builder {
             private BytesReference definition;
             private long totalDefinitionLength;

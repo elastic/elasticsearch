@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -26,7 +27,7 @@ import static org.mockito.Mockito.mock;
 
 public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
-    private static final String MAPPINGS = String.format("""
+    private static final String MAPPINGS = String.format(Locale.ROOT, """
         {
           "_doc": {
             "_meta": {

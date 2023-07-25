@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.fleet;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -79,6 +78,15 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private static final String VERSION_KEY = "version";
     private static final String MAPPING_VERSION_VARIABLE = "fleet.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
+    private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 1;
+    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 1;
+    private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 1;
+    private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
+    private static final int FLEET_POLICIES_MAPPINGS_VERSION = 1;
+    private static final int FLEET_POLICIES_LEADER_MAPPINGS_VERSION = 1;
+    private static final int FLEET_SERVERS_MAPPINGS_VERSION = 1;
+    private static final int FLEET_ARTIFACTS_MAPPINGS_VERSION = 1;
+    private static final int FLEET_ACTIONS_RESULTS_MAPPINGS_VERSION = 1;
 
     @Override
     public Collection<Object> createComponents(
@@ -139,7 +147,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     private SystemIndexDescriptor fleetActionsSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-actions.json"), XContentType.JSON);
+        request.source(loadTemplateSource("/fleet-actions.json", FLEET_ACTIONS_MAPPINGS_VERSION), XContentType.JSON);
 
         return SystemIndexDescriptor.builder()
             .setType(Type.EXTERNAL_MANAGED)
@@ -157,7 +165,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     private SystemIndexDescriptor fleetAgentsSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-agents.json"), XContentType.JSON);
+        request.source(loadTemplateSource("/fleet-agents.json", FLEET_AGENTS_MAPPINGS_VERSION), XContentType.JSON);
 
         return SystemIndexDescriptor.builder()
             .setType(Type.EXTERNAL_MANAGED)
@@ -175,7 +183,10 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     private SystemIndexDescriptor fleetEnrollmentApiKeysSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-enrollment-api-keys.json"), XContentType.JSON);
+        request.source(
+            loadTemplateSource("/fleet-enrollment-api-keys.json", FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION),
+            XContentType.JSON
+        );
 
         return SystemIndexDescriptor.builder()
             .setType(Type.EXTERNAL_MANAGED)
@@ -193,7 +204,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     private SystemIndexDescriptor fleetSecretsSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-secrets.json"), XContentType.JSON);
+        request.source(loadTemplateSource("/fleet-secrets.json", FLEET_SECRETS_MAPPINGS_VERSION), XContentType.JSON);
         return SystemIndexDescriptor.builder()
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
@@ -210,7 +221,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     private SystemIndexDescriptor fleetPoliciesSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-policies.json"), XContentType.JSON);
+        request.source(loadTemplateSource("/fleet-policies.json", FLEET_POLICIES_MAPPINGS_VERSION), XContentType.JSON);
 
         return SystemIndexDescriptor.builder()
             .setType(Type.EXTERNAL_MANAGED)
@@ -228,7 +239,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     private SystemIndexDescriptor fleetPoliciesLeaderSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-policies-leader.json"), XContentType.JSON);
+        request.source(loadTemplateSource("/fleet-policies-leader.json", FLEET_POLICIES_LEADER_MAPPINGS_VERSION), XContentType.JSON);
 
         return SystemIndexDescriptor.builder()
             .setType(Type.EXTERNAL_MANAGED)
@@ -246,7 +257,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     private SystemIndexDescriptor fleetServersSystemIndexDescriptors() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-servers.json"), XContentType.JSON);
+        request.source(loadTemplateSource("/fleet-servers.json", FLEET_SERVERS_MAPPINGS_VERSION), XContentType.JSON);
 
         return SystemIndexDescriptor.builder()
             .setType(Type.EXTERNAL_MANAGED)
@@ -264,7 +275,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     private SystemIndexDescriptor fleetArtifactsSystemIndexDescriptors() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-artifacts.json"), XContentType.JSON);
+        request.source(loadTemplateSource("/fleet-artifacts.json", FLEET_ARTIFACTS_MAPPINGS_VERSION), XContentType.JSON);
 
         return SystemIndexDescriptor.builder()
             .setType(Type.EXTERNAL_MANAGED)
@@ -281,7 +292,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private SystemDataStreamDescriptor fleetActionsResultsDescriptor() {
-        final String source = loadTemplateSource("/fleet-actions-results.json");
+        final String source = loadTemplateSource("/fleet-actions-results.json", FLEET_ACTIONS_RESULTS_MAPPINGS_VERSION);
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, source)) {
             ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.parse(parser);
             return new SystemDataStreamDescriptor(
@@ -336,8 +347,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         }
     }
 
-    private String loadTemplateSource(String resource) {
-        return TemplateUtils.loadTemplate(resource, Version.CURRENT.toString(), MAPPING_VERSION_VARIABLE);
+    private String loadTemplateSource(String resource, int mappingsVersion) {
+        return TemplateUtils.loadTemplate(resource, Integer.toString(mappingsVersion), MAPPING_VERSION_VARIABLE);
     }
 
     @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.indices.SystemIndexDescriptor.findDynamicMapping;
@@ -28,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SystemIndexDescriptorTests extends ESTestCase {
 
     // private static final String MAPPINGS = "{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }";
-    private static final String MAPPINGS = String.format("""
+    private static final String MAPPINGS = String.format(Locale.ROOT, """
         {
           "_doc": {
             "_meta": {

@@ -174,6 +174,9 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     private final SetOnce<ShardSizesCollector> shardSizesCollector = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
+
+    private final boolean sharedCacheMmapExplicitlySet;
+
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
 
@@ -190,6 +193,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         // It is dangerous to retain these settings because they will be further modified after this ctor due
         // to the call to #additionalSettings. We only parse out the components that has already been set.
         sharedCachedSettingExplicitlySet = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings);
+        sharedCacheMmapExplicitlySet = SharedBlobCacheService.SHARED_CACHE_MMAP.exists(settings);
         hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
     }
@@ -227,15 +231,16 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         var settings = Settings.builder().put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME);
         if (sharedCachedSettingExplicitlySet == false) {
             if (hasSearchRole) {
-                return settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "75%")
-                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "250GB")
-                    .build();
+                settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "75%")
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "250GB");
             }
             if (hasIndexRole) {
-                return settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "50%")
-                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "-1")
-                    .build();
+                settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "50%")
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "-1");
             }
+        }
+        if (sharedCacheMmapExplicitlySet == false) {
+            settings.put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true);
         }
 
         String nodeMemoryAttrName = "node.attr." + RefreshThrottlingService.MEMORY_NODE_ATTR;

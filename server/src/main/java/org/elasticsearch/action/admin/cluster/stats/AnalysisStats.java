@@ -203,7 +203,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     ) {
         for (Settings filterComponentSettings : filterSettings) {
             final String type = filterComponentSettings.get("type");
-            if (SYNONYM_FILTER_TYPES.contains (type)) {
+            if (SYNONYM_FILTER_TYPES.contains(type)) {
                 String synonymSetName = filterComponentSettings.get("synonyms_set");
                 if (synonymSetName != null) {
                     IndexFeatureStats s = stats.computeIfAbsent(synonymSetName, IndexFeatureStats::new);

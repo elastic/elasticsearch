@@ -66,7 +66,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
         /**
          * An internal flag to determining if the part can be overwritten when storing it
          */
-        private final boolean allowOverwriting;
+        private boolean allowOverwriting;
 
         public Request(
             String modelId,
@@ -91,7 +91,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             this.part = in.readVInt();
             this.totalDefinitionLength = in.readVLong();
             this.totalParts = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
                 this.allowOverwriting = in.readBoolean();
             } else {
                 this.allowOverwriting = false;
@@ -148,7 +148,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             out.writeVInt(part);
             out.writeVLong(totalDefinitionLength);
             out.writeVInt(totalParts);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
                 out.writeBoolean(allowOverwriting);
             }
         }
@@ -175,6 +175,10 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
 
         public boolean isOverwritingAllowed() {
             return allowOverwriting;
+        }
+
+        void setAllowOverwriting(boolean allowOverwriting) {
+            this.allowOverwriting = allowOverwriting;
         }
 
         public static class Builder {

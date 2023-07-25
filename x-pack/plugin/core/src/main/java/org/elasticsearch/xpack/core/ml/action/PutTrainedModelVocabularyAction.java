@@ -91,7 +91,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             } else {
                 this.scores = List.of();
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
                 this.allowOverwriting = in.readBoolean();
             } else {
                 this.allowOverwriting = false;
@@ -139,7 +139,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
                 out.writeCollection(scores, StreamOutput::writeDouble);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
                 out.writeBoolean(allowOverwriting);
             }
         }

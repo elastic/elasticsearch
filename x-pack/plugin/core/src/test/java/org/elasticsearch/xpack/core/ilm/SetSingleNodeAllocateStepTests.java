@@ -95,7 +95,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     public void testPerformActionNoAttrs() throws Exception {
         final int numNodes = randomIntBetween(1, 20);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, numNodes - 1))
             .build();
@@ -118,7 +118,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     public void testPerformActionAttrsAllNodesValid() throws Exception {
         final int numNodes = randomIntBetween(1, 20);
         var validAttrs = generateRandomValidAttributes(randomIntBetween(1, 10));
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Builder indexSettings = settings(IndexVersion.current());
         for (var attr : validAttrs) {
             indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr.getKey(), attr.getValue());
         }
@@ -152,7 +152,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         final int numNodes = randomIntBetween(1, 20);
         String[] validAttr = new String[] { "box_type", "valid" };
         String[] invalidAttr = new String[] { "box_type", "not_valid" };
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Builder indexSettings = settings(IndexVersion.current());
         indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + validAttr[0], validAttr[1]);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(indexSettings)
@@ -189,7 +189,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionWithClusterExcludeFilters() throws IOException {
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Builder indexSettings = settings(IndexVersion.current());
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(indexSettings)
             .numberOfShards(randomIntBetween(1, 5))
@@ -229,7 +229,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         final int numNodes = randomIntBetween(1, 20);
         String[] validAttr = new String[] { "box_type", "valid" };
         String[] invalidAttr = new String[] { "box_type", "not_valid" };
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Builder indexSettings = settings(IndexVersion.current());
         indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + validAttr[0], validAttr[1]);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(indexSettings)
@@ -259,7 +259,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     public void testPerformActionAttrsRequestFails() {
         final int numNodes = randomIntBetween(1, 20);
         var validAttrs = generateRandomValidAttributes(randomIntBetween(1, 10));
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Builder indexSettings = settings(IndexVersion.current());
         for (var attr : validAttrs) {
             indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr.getKey(), attr.getValue());
         }
@@ -329,7 +329,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     public void testPerformActionAttrsNoShard() {
         final int numNodes = randomIntBetween(1, 20);
         var validAttrs = generateRandomValidAttributes(randomIntBetween(1, 10), "na_");
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Builder indexSettings = settings(IndexVersion.current());
         for (var attr : validAttrs) {
             indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr.getKey(), attr.getValue());
         }

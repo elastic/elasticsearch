@@ -25,16 +25,16 @@ import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 
-public class GetProfilingRequestTests extends ESTestCase {
+public class GetStackTracesRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         Integer sampleSize = randomBoolean() ? randomIntBetween(0, Integer.MAX_VALUE) : null;
         QueryBuilder query = randomBoolean() ? new BoolQueryBuilder() : null;
 
-        GetProfilingRequest request = new GetProfilingRequest(sampleSize, query);
+        GetStackTracesRequest request = new GetStackTracesRequest(sampleSize, query);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
             try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
-                GetProfilingRequest deserialized = new GetProfilingRequest(in);
+                GetStackTracesRequest deserialized = new GetStackTracesRequest(in);
                 assertEquals(sampleSize, deserialized.getSampleSize());
                 assertEquals(query, deserialized.getQuery());
             }
@@ -57,12 +57,12 @@ public class GetProfilingRequestTests extends ESTestCase {
         //end::noformat
         )) {
 
-            GetProfilingRequest profilingRequest = new GetProfilingRequest();
-            profilingRequest.parseXContent(content);
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            request.parseXContent(content);
 
-            assertEquals(Integer.valueOf(500), profilingRequest.getSampleSize());
+            assertEquals(Integer.valueOf(500), request.getSampleSize());
             // a basic check suffices here
-            assertEquals("@timestamp", ((RangeQueryBuilder) profilingRequest.getQuery()).fieldName());
+            assertEquals("@timestamp", ((RangeQueryBuilder) request.getQuery()).fieldName());
         }
     }
 
@@ -83,8 +83,8 @@ public class GetProfilingRequestTests extends ESTestCase {
         //end::noformat
         )) {
 
-            GetProfilingRequest profilingRequest = new GetProfilingRequest();
-            ParsingException ex = expectThrows(ParsingException.class, () -> profilingRequest.parseXContent(content));
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            ParsingException ex = expectThrows(ParsingException.class, () -> request.parseXContent(content));
             assertEquals("Unknown key for a VALUE_NUMBER in [sample-size].", ex.getMessage());
         }
     }

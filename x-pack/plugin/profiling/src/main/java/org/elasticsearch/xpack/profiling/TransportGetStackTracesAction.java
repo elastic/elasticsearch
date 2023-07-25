@@ -52,8 +52,8 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class TransportGetProfilingAction extends HandledTransportAction<GetProfilingRequest, GetProfilingResponse> {
-    private static final Logger log = LogManager.getLogger(TransportGetProfilingAction.class);
+public class TransportGetStackTracesAction extends HandledTransportAction<GetStackTracesRequest, GetStackTracesResponse> {
+    private static final Logger log = LogManager.getLogger(TransportGetStackTracesAction.class);
 
     public static final Setting<Integer> PROFILING_MAX_STACKTRACE_QUERY_SLICES = Setting.intSetting(
         "xpack.profiling.query.stacktrace.max_slices",
@@ -98,7 +98,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     private final boolean realtime;
 
     @Inject
-    public TransportGetProfilingAction(
+    public TransportGetStackTracesAction(
         Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
@@ -107,7 +107,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         NodeClient nodeClient,
         IndexNameExpressionResolver resolver
     ) {
-        super(GetProfilingAction.NAME, transportService, actionFilters, GetProfilingRequest::new);
+        super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new);
         this.nodeClient = nodeClient;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -119,7 +119,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     }
 
     @Override
-    protected void doExecute(Task submitTask, GetProfilingRequest request, ActionListener<GetProfilingResponse> submitListener) {
+    protected void doExecute(Task submitTask, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
         long start = System.nanoTime();
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
@@ -149,12 +149,12 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
     private void searchEventGroupByStackTrace(
         Client client,
-        GetProfilingRequest request,
+        GetStackTracesRequest request,
         EventsIndex eventsIndex,
-        ActionListener<GetProfilingResponse> submitListener
+        ActionListener<GetStackTracesResponse> submitListener
     ) {
         long start = System.nanoTime();
-        GetProfilingResponseBuilder responseBuilder = new GetProfilingResponseBuilder();
+        GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
         int exp = eventsIndex.getExponent();
         responseBuilder.setSampleRate(eventsIndex.getSampleRate());
         client.prepareSearch(eventsIndex.getName())
@@ -216,8 +216,8 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
     private void retrieveStackTraces(
         Client client,
-        GetProfilingResponseBuilder responseBuilder,
-        ActionListener<GetProfilingResponse> submitListener
+        GetStackTracesResponseBuilder responseBuilder,
+        ActionListener<GetStackTracesResponse> submitListener
     ) {
         List<String> eventIds = new ArrayList<>(responseBuilder.getStackTraceEvents().keySet());
         List<List<String>> slicedEventIds = sliced(eventIds, desiredSlices);
@@ -256,8 +256,8 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private final AtomicInteger remainingSlices;
         private final ClusterState clusterState;
         private final Client client;
-        private final GetProfilingResponseBuilder responseBuilder;
-        private final ActionListener<GetProfilingResponse> submitListener;
+        private final GetStackTracesResponseBuilder responseBuilder;
+        private final ActionListener<GetStackTracesResponse> submitListener;
         private final Map<String, StackTrace> stackTracePerId;
         // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
         // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
@@ -270,8 +270,8 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private StackTraceHandler(
             ClusterState clusterState,
             Client client,
-            GetProfilingResponseBuilder responseBuilder,
-            ActionListener<GetProfilingResponse> submitListener,
+            GetStackTracesResponseBuilder responseBuilder,
+            ActionListener<GetStackTracesResponse> submitListener,
             int stackTraceCount,
             int slices
         ) {
@@ -322,10 +322,10 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     private void retrieveStackTraceDetails(
         ClusterState clusterState,
         Client client,
-        GetProfilingResponseBuilder responseBuilder,
+        GetStackTracesResponseBuilder responseBuilder,
         List<String> stackFrameIds,
         List<String> executableIds,
-        ActionListener<GetProfilingResponse> submitListener
+        ActionListener<GetStackTracesResponse> submitListener
     ) {
         List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, desiredDetailSlices);
         List<List<String>> slicedExecutableIds = sliced(executableIds, desiredDetailSlices);
@@ -381,7 +381,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
         private final double p;
 
-        Resampler(GetProfilingRequest request, double sampleRate, long totalCount) {
+        Resampler(GetStackTracesRequest request, double sampleRate, long totalCount) {
             // Manually reduce sample count if totalCount exceeds sampleSize by 10%.
             if (totalCount > request.getSampleSize() * 1.1) {
                 this.requiresResampling = true;
@@ -423,16 +423,16 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
      * Collects stack trace details which are retrieved concurrently and sends a response only when all details are known.
      */
     private static class DetailsHandler {
-        private final GetProfilingResponseBuilder builder;
-        private final ActionListener<GetProfilingResponse> submitListener;
+        private final GetStackTracesResponseBuilder builder;
+        private final ActionListener<GetStackTracesResponse> submitListener;
         private final Map<String, String> executables;
         private final Map<String, StackFrame> stackFrames;
         private final AtomicInteger expectedSlices;
         private final long start = System.nanoTime();
 
         private DetailsHandler(
-            GetProfilingResponseBuilder builder,
-            ActionListener<GetProfilingResponse> submitListener,
+            GetStackTracesResponseBuilder builder,
+            ActionListener<GetStackTracesResponse> submitListener,
             int executableCount,
             int stackFrameCount,
             int expectedExecutableSlices,
@@ -498,7 +498,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         }
     }
 
-    private static class GetProfilingResponseBuilder {
+    private static class GetStackTracesResponseBuilder {
         private Map<String, StackTrace> stackTraces;
         private Instant start;
         private Instant end;
@@ -552,8 +552,8 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             this.samplingRate = rate;
         }
 
-        public GetProfilingResponse build() {
-            return new GetProfilingResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
+        public GetStackTracesResponse build() {
+            return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
         }
     }
 }

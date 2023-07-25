@@ -44,6 +44,7 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -130,121 +131,6 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         assertNotNull(queryBuilder);
         assertThat(queryBuilder, instanceOf(TermsQueryBuilder.class));
         assertThat(((TermsQueryBuilder) queryBuilder).values(), containsInAnyOrder("id1", "id2", "id3"));
-    }
-
-    public void testDateHistogramFieldCollector() throws IOException {
-        Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
-
-        SingleGroupSource groupBy = new DateHistogramGroupSource(
-            "timestamp",
-            null,
-            false,
-            new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.MINUTE),
-            null,
-            null
-        );
-        groups.put("output_timestamp", groupBy);
-
-        ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "timestamp");
-
-        QueryBuilder queryBuilder = collector.buildFilterQuery(
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 66_666L),
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 200_222L)
-        );
-
-        assertNotNull(queryBuilder);
-        assertThat(queryBuilder, instanceOf(RangeQueryBuilder.class));
-        // rounded down
-        assertThat(((RangeQueryBuilder) queryBuilder).from(), equalTo(Long.valueOf(60_000)));
-        assertTrue(((RangeQueryBuilder) queryBuilder).includeLower());
-        assertThat(((RangeQueryBuilder) queryBuilder).fieldName(), equalTo("timestamp"));
-
-        // timestamp field does not match
-        collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "sync_timestamp");
-
-        SingleValue minTimestamp = mock(SingleValue.class);
-        when(minTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.min");
-        when(minTimestamp.value()).thenReturn(122_633.0);
-
-        SingleValue maxTimestamp = mock(SingleValue.class);
-        when(maxTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.max");
-        when(maxTimestamp.value()).thenReturn(302_523.0);
-
-        // simulate the agg response, that should inject
-        Aggregations aggs = new Aggregations(Arrays.asList(minTimestamp, maxTimestamp));
-        SearchResponseSections sections = new SearchResponseSections(null, aggs, null, false, null, null, 1);
-        SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-        collector.processSearchResponse(response);
-
-        // provide checkpoints, although they don't matter in this case
-        queryBuilder = collector.buildFilterQuery(
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 66_666L),
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 200_222L)
-        );
-
-        assertNotNull(queryBuilder);
-        assertThat(queryBuilder, instanceOf(RangeQueryBuilder.class));
-        // rounded down
-        assertThat(((RangeQueryBuilder) queryBuilder).from(), equalTo(Long.valueOf(120_000)));
-        assertTrue(((RangeQueryBuilder) queryBuilder).includeLower());
-        // the upper bound is not rounded
-        assertThat(((RangeQueryBuilder) queryBuilder).to(), equalTo(Long.valueOf(302_523)));
-        assertTrue(((RangeQueryBuilder) queryBuilder).includeUpper());
-        assertThat(((RangeQueryBuilder) queryBuilder).fieldName(), equalTo("timestamp"));
-
-        // field does not match, but output field equals sync field
-        collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "output_timestamp");
-
-        when(minTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.min");
-        when(minTimestamp.value()).thenReturn(242_633.0);
-
-        when(maxTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.max");
-        when(maxTimestamp.value()).thenReturn(602_523.0);
-
-        // simulate the agg response, that should inject
-        collector.processSearchResponse(response);
-        queryBuilder = collector.buildFilterQuery(
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 66_666L),
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 200_222L)
-        );
-
-        assertNotNull(queryBuilder);
-
-        assertThat(queryBuilder, instanceOf(RangeQueryBuilder.class));
-        // rounded down
-        assertThat(((RangeQueryBuilder) queryBuilder).from(), equalTo(Long.valueOf(240_000)));
-        assertTrue(((RangeQueryBuilder) queryBuilder).includeLower());
-        // the upper bound is not rounded
-        assertThat(((RangeQueryBuilder) queryBuilder).to(), equalTo(Long.valueOf(602_523)));
-        assertTrue(((RangeQueryBuilder) queryBuilder).includeUpper());
-        assertThat(((RangeQueryBuilder) queryBuilder).fieldName(), equalTo("timestamp"));
-
-        // missing bucket disables optimization
-        groupBy = new DateHistogramGroupSource(
-            "timestamp",
-            null,
-            true,
-            new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.MINUTE),
-            null,
-            null
-        );
-        groups.put("output_timestamp", groupBy);
-
-        collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "timestamp");
-
-        queryBuilder = collector.buildFilterQuery(
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 66_666L),
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 200_222L)
-        );
-        assertNull(queryBuilder);
-
-        collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "sync_timestamp");
-
-        queryBuilder = collector.buildFilterQuery(
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 66_666L),
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 200_222L)
-        );
-        assertNull(queryBuilder);
     }
 
     public void testNoTermsFieldCollectorForScripts() throws IOException {

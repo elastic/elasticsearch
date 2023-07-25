@@ -69,6 +69,7 @@ import static org.mockito.Mockito.when;
 public class ShardSizesCollectorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
+    private ClusterSettings clusterSettings;
     private ShardSizeStatsReader statsReader;
     private ShardSizesPublisher publisher;
 
@@ -79,13 +80,14 @@ public class ShardSizesCollectorTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(ShardSizesCollectorTests.class.getName());
-        var clusterSettings = new ClusterSettings(
+        clusterSettings = new ClusterSettings(
             Settings.builder()
                 .put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
                 .put(ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING.getKey(), ByteSizeValue.ofKb(10))
                 .build(),
             Sets.addToCopy(
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                ShardSizesCollector.BOOST_WINDOW_SETTING,
                 ShardSizesCollector.PUSH_INTERVAL_SETTING,
                 ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING
             )
@@ -111,7 +113,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var shardId = new ShardId("index-1", "_na_", 0);
         var size = new ShardSize(1024, 1024);
 
-        when(statsReader.getShardSize(shardId)).thenReturn(size);
+        when(statsReader.getShardSize(eq(shardId), any())).thenReturn(size);
         service.detectShardSize(shardId);
         service.doStart();
 
@@ -124,8 +126,8 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var shardId2 = new ShardId("index-2", "_na_", 0);
         var size = new ShardSize(1024, 1024);
 
-        when(statsReader.getShardSize(shardId1)).thenReturn(size);
-        when(statsReader.getShardSize(shardId2)).thenReturn(size);
+        when(statsReader.getShardSize(eq(shardId1), any())).thenReturn(size);
+        when(statsReader.getShardSize(eq(shardId2), any())).thenReturn(size);
         service.detectShardSize(shardId1);
         service.detectShardSize(shardId2);
         service.doStart();
@@ -140,7 +142,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var shardId = new ShardId("index-1", "_na_", 0);
         var size = new ShardSize(1024, 1024);
 
-        when(statsReader.getShardSize(shardId)).thenReturn(size);
+        when(statsReader.getShardSize(eq(shardId), any())).thenReturn(size);
         service.detectShardSize(shardId);
         service.doStart();
 
@@ -164,11 +166,11 @@ public class ShardSizesCollectorTests extends ESTestCase {
         }).when(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size)), any());
 
         service.doStart();
-        when(statsReader.getShardSize(shardId1)).thenReturn(size);
+        when(statsReader.getShardSize(eq(shardId1), any())).thenReturn(size);
         service.detectShardSize(shardId1);
         assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size)), any()));
 
-        when(statsReader.getShardSize(shardId2)).thenReturn(size);
+        when(statsReader.getShardSize(eq(shardId2), any())).thenReturn(size);
         service.detectShardSize(shardId2);
         assertBusy(
             () -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any())
@@ -183,11 +185,11 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var bigSize = new ShardSize(1024 * 1024, 1024);
 
         // scheduling is disabled to test immediate sending
-        when(statsReader.getShardSize(shardId1)).thenReturn(smallSize);
+        when(statsReader.getShardSize(eq(shardId1), any())).thenReturn(smallSize);
         service.detectShardSize(shardId1);
         verify(publisher, never()).publishSearchShardDiskUsage(eq("search_node_1"), any(), any());
 
-        when(statsReader.getShardSize(shardId2)).thenReturn(bigSize);
+        when(statsReader.getShardSize(eq(shardId2), any())).thenReturn(bigSize);
         service.detectShardSize(shardId2);
         verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, smallSize, shardId2, bigSize)), any());
     }
@@ -199,11 +201,34 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var size = new ShardSize(1024, 1024);
 
         // scheduling is disabled to test immediate sending
-        when(statsReader.getAllShardSizes()).thenReturn(Map.of(shardId1, size, shardId2, size));
+        when(statsReader.getAllShardSizes(any())).thenReturn(Map.of(shardId1, size, shardId2, size));
 
         var state1 = ClusterState.EMPTY_STATE;
         var state2 = createClusterStateWithNodes(2).build();
         service.clusterChanged(new ClusterChangedEvent("test", state2, state1));
+
+        assertBusy(
+            () -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any())
+        );
+    }
+
+    public void testPublishAllDataIfInteractiveDataAgeSettingChanges() throws Exception {
+
+        var shardId1 = new ShardId("index-1", "_na_", 0);
+        var shardId2 = new ShardId("index-2", "_na_", 0);
+        var size = new ShardSize(1024, 1024);
+
+        // scheduling is disabled to test immediate sending
+        when(statsReader.getAllShardSizes(any())).thenReturn(Map.of(shardId1, size, shardId2, size));
+
+        service.doStart();
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(ShardSizesCollector.BOOST_WINDOW_SETTING.getKey(), TimeValue.timeValueDays(14))
+                .put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
+                .put(ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING.getKey(), ByteSizeValue.ofKb(10))
+                .build()
+        );
 
         assertBusy(
             () -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any())
@@ -221,7 +246,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var state2 = ClusterState.builder(state1).metadata(Metadata.builder().put(indexMetadata1, false).build()).build();
 
         var size = new ShardSize(1024, 1024);
-        when(statsReader.getAllShardSizes()).thenReturn(
+        when(statsReader.getAllShardSizes(any())).thenReturn(
             Map.ofEntries(
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 0), size),
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 1), size),
@@ -293,7 +318,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
             .build();
 
         var size = new ShardSize(1024, 1024);
-        when(statsReader.getAllShardSizes()).thenReturn(
+        when(statsReader.getAllShardSizes(any())).thenReturn(
             Map.of(new ShardId(indexMetadata1.getIndex(), 0), size, new ShardId(indexMetadata2.getIndex(), 0), size)
         );
         var listenerWasCalled = new CountDownLatch(1);

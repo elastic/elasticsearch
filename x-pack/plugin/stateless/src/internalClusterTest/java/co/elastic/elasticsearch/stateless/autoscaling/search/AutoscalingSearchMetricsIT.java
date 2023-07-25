@@ -31,7 +31,8 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
 
-    private static final long BOOST_WINDOW = TimeValue.timeValueDays(7).millis();
+    private static final long DEFAULT_BOOST_WINDOW = TimeValue.timeValueDays(7).millis();
+    private static final long ONE_DAY = TimeValue.timeValueDays(1).millis();
 
     public void testSearchTierMetricsInteractiveMetrics() throws Exception {
 
@@ -45,12 +46,13 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 1).build());
 
         // new documents should count towards non-interactive part
+        var now = System.currentTimeMillis();
+        var boostWindow = now - DEFAULT_BOOST_WINDOW;
         indexDocumentsWithTimestamp(
             indexName,
             randomIntBetween(1, 100),
-            // ensure docs are not propagated to noninteractive during the test runtime
-            System.currentTimeMillis() - BOOST_WINDOW + TimeValue.timeValueDays(1).millis(),
-            System.currentTimeMillis()
+            boostWindow + ONE_DAY /* +1d to ensure docs are not leaving boost window during test run*/,
+            now
         );
         refresh(indexName);
         assertBusy(() -> {
@@ -73,12 +75,53 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 1).build());
 
         // old documents should count towards non-interactive part
-        indexDocumentsWithTimestamp(indexName, randomIntBetween(1, 100), 1L, System.currentTimeMillis() - BOOST_WINDOW - 1L);
+        var now = System.currentTimeMillis();
+        var boostWindow = now - DEFAULT_BOOST_WINDOW;
+        indexDocumentsWithTimestamp(indexName, randomIntBetween(1, 100), 1L, boostWindow - 1L);
         refresh(indexName);
         assertBusy(() -> {
             var metrics = searchMetricsService.getSearchTierMetrics();
             assertThat(metrics.maxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
             assertThat(metrics.storageMetrics().totalInteractiveDataSizeInBytes(), equalTo(0L));
+            assertThat(metrics.storageMetrics().totalDataSizeInBytes(), greaterThan(0L));
+        });
+    }
+
+    public void testSearchTierMetricsAfterChangingBoostWindow() throws Exception {
+
+        startMasterOnlyNode();
+        startIndexNode();
+        startSearchNode(Settings.builder().put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build());
+
+        var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).build());
+        var now = System.currentTimeMillis();
+        var boostWindow = now - DEFAULT_BOOST_WINDOW;
+        var extendedBoostWindow = now - 2 * DEFAULT_BOOST_WINDOW;
+        indexDocumentsWithTimestamp(
+            indexName,
+            randomIntBetween(1, 100),
+            extendedBoostWindow + ONE_DAY /* +1d to ensure docs are not leaving extended boost window during test run*/,
+            boostWindow
+        );
+        refresh(indexName);
+
+        assertBusy(() -> {
+            var metrics = searchMetricsService.getSearchTierMetrics();
+            assertThat(metrics.maxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
+            assertThat(metrics.storageMetrics().totalInteractiveDataSizeInBytes(), equalTo(0L));
+            assertThat(metrics.storageMetrics().totalDataSizeInBytes(), greaterThan(0L));
+        });
+
+        // extend boost window to 2 weeks
+        updateClusterSettings(Settings.builder().put(ShardSizesCollector.BOOST_WINDOW_SETTING.getKey(), TimeValue.timeValueDays(14)));
+
+        assertBusy(() -> {
+            var metrics = searchMetricsService.getSearchTierMetrics();
+            assertThat(metrics.maxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
+            assertThat(metrics.storageMetrics().totalInteractiveDataSizeInBytes(), greaterThan(0L));
             assertThat(metrics.storageMetrics().totalDataSizeInBytes(), greaterThan(0L));
         });
     }

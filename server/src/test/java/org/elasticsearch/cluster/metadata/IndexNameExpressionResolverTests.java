@@ -435,6 +435,19 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
         assertThat(infe.getResourceId().toString(), equalTo("[-*]"));
 
+        infe = expectThrows(
+            IndexNotFoundException.class,
+            // throws error because "-foobar" was not covered by a wildcard that included it
+            () -> indexNameExpressionResolver.concreteIndexNames(context2, "bar", "hidden", "-foobar")
+        );
+        assertThat(
+            infe.getMessage(),
+            containsString(
+                "if you intended to exclude this index, ensure that you use wildcards that include it " + "before explicitly excluding it"
+            )
+        );
+        assertThat(infe.getResourceId().toString(), equalTo("[-foobar]"));
+
         // open and hidden
         options = IndicesOptions.fromOptions(false, true, true, false, true);
         context = new IndexNameExpressionResolver.Context(state, options, SystemIndexAccessLevel.NONE);

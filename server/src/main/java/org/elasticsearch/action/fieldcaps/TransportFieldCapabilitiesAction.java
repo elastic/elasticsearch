@@ -193,7 +193,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
                 Client remoteClusterClient = transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(threadPool, clusterAlias, threadPool.executor(ThreadPool.Names.SEARCH));
+                    .getRemoteClusterClient(threadPool, clusterAlias, threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION));
                 FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
                 ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {

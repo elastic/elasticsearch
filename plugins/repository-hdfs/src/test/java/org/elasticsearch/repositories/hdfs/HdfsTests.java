@@ -209,13 +209,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
                 .cluster()
                 .preparePutRepository("test-repo")
                 .setType("hdfs")
-                .setSettings(
-                    Settings.builder()
-                        .put("uri", "hdfs:///")
-                        .put("replication_factor", "0")
-                        .put("path", "foo")
-                        .build()
-                )
+                .setSettings(Settings.builder().put("uri", "hdfs:///").put("replication_factor", "0").put("path", "foo").build())
                 .get();
             fail();
         } catch (RepositoryException e) {
@@ -230,13 +224,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
                 .cluster()
                 .preparePutRepository("test-repo")
                 .setType("hdfs")
-                .setSettings(
-                    Settings.builder()
-                        .put("uri", "hdfs:///")
-                        .put("replication_factor", "32768")
-                        .put("path", "foo")
-                        .build()
-                )
+                .setSettings(Settings.builder().put("uri", "hdfs:///").put("replication_factor", "32768").put("path", "foo").build())
                 .get();
             fail();
         } catch (RepositoryException e) {

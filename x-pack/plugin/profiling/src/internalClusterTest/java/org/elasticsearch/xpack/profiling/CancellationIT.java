@@ -84,7 +84,7 @@ public class CancellationIT extends ProfilingTestCase {
                   }
                 }
             """, ContentType.APPLICATION_JSON.withCharset(StandardCharsets.UTF_8)));
-        verifyCancellation(GetProfilingAction.NAME, restRequest);
+        verifyCancellation(GetStackTracesAction.NAME, restRequest);
     }
 
     void verifyCancellation(String action, Request restRequest) throws Exception {

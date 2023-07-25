@@ -365,7 +365,7 @@ public class IndexSettingsTests extends ESTestCase {
                 .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
                 .build()
         );
-        IndexSettings settings = new IndexSettings(metadata, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build());
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(STATELESS_DEFAULT_REFRESH_INTERVAL, settings.getRefreshInterval());
     }
 
@@ -379,10 +379,7 @@ public class IndexSettingsTests extends ESTestCase {
                 .put(SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.V_8_10_0.id() + 1)
                 .build()
         );
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new IndexSettings(metadata, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build())
-        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
         String expectedMessage = "[index.refresh_interval=2s] should be either -1 or equal to or greater than "
             + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL.toString();
         assertThat(e, hasToString(containsString(expectedMessage)));
@@ -397,7 +394,7 @@ public class IndexSettingsTests extends ESTestCase {
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                 .build()
         );
-        IndexSettings settings = new IndexSettings(metadata, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build());
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(TimeValue.MINUS_ONE, settings.getRefreshInterval());
     }
 

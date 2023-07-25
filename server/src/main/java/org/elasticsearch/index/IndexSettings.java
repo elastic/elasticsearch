@@ -290,7 +290,7 @@ public final class IndexSettings {
 
             if (existingShardsAllocator.equals("stateless")
                 && fastRefresh == false
-                && value.compareTo(TimeValue.ZERO) >= 0
+                && value.compareTo(TimeValue.ZERO) > 0
                 && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
                 && indexVersion.after(IndexVersion.V_8_10_0)) {
                 throw new IllegalArgumentException(
@@ -313,7 +313,6 @@ public final class IndexSettings {
     }
 
     private static final List<Setting<?>> REFRESH_INTERVAL_VALIDATOR_SETTINGS_LIST = List.of(
-        INDEX_REFRESH_INTERVAL_SETTING,
         EXISTING_SHARDS_ALLOCATOR_SETTING,
         INDEX_FAST_REFRESH_SETTING,
         SETTING_INDEX_VERSION_CREATED

@@ -9,7 +9,6 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -224,7 +223,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             builder.put(
                 IndexMetadata.builder(randomAlphaOfLength(10))
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfReplicas(randomIntBetween(0, 3))
                     .numberOfShards(randomIntBetween(1, 5))
             );
@@ -236,7 +235,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder();
         for (String template : templates) {
             IndexTemplateMetadata templateMetadata = IndexTemplateMetadata.builder(template)
-                .settings(indexSettings(Version.CURRENT, randomIntBetween(1, 5), randomIntBetween(0, 3)))
+                .settings(indexSettings(IndexVersion.current(), randomIntBetween(1, 5), randomIntBetween(0, 3)))
                 .patterns(randomIndexPatterns())
                 .build();
             builder.put(templateMetadata);
@@ -244,7 +243,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             builder.put(
                 IndexMetadata.builder(randomAlphaOfLength(10))
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfReplicas(randomIntBetween(0, 3))
                     .numberOfShards(randomIntBetween(1, 5))
             );

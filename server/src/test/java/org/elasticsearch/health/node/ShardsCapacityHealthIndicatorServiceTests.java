@@ -8,7 +8,6 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -411,7 +411,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     private static IndexMetadata.Builder createIndex(int shards, String group) {
         return IndexMetadata.builder("index-" + randomAlphaOfLength(20))
             .settings(
-                indexSettings(Version.CURRENT, shards, 1).put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                indexSettings(IndexVersion.current(), shards, 1).put(SETTING_CREATION_DATE, System.currentTimeMillis())
                     .put(INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), group)
             );
     }

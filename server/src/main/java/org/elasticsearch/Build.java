@@ -194,7 +194,7 @@ public record Build(
         final String minWireVersion;
         final String minIndexVersion;
         final String displayString;
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
             minWireVersion = in.readString();
             minIndexVersion = in.readString();
             displayString = in.readString();
@@ -219,7 +219,7 @@ public record Build(
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
         out.writeString(build.qualifiedVersion());
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
             out.writeString(build.minWireCompatVersion());
             out.writeString(build.minIndexCompatVersion());
             out.writeString(build.displayString());

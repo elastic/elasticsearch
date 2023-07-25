@@ -38,6 +38,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -206,7 +207,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     public void testCanDeleteShardContent() {
         IndicesService indicesService = getIndicesService();
         IndexMetadata meta = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
@@ -352,7 +353,7 @@ public class ClusterPrivilegeResolver {
             MANAGE_LOGSTASH_PIPELINES,
             CANCEL_TASK,
             MANAGE_SEARCH_APPLICATION,
-            MANAGE_SEARCH_SYNONYMS,
+            SynonymsAPI.isEnabled() ?  MANAGE_SEARCH_SYNONYMS : null,
             MANAGE_BEHAVIORAL_ANALYTICS,
             POST_BEHAVIORAL_ANALYTICS_EVENT,
             TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_SEARCH : null,

@@ -33,8 +33,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.StringTokenizer;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static java.util.Map.entry;
@@ -115,7 +118,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();
-    private long offset = 0;
+    private Offset offset = new SimpleOffset(0);
     private LongBounds extendedBounds;
     private LongBounds hardBounds;
     private BucketOrder order = BucketOrder.key(true);
@@ -154,7 +157,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
         dateHistogramInterval = new DateIntervalWrapper(in);
-        offset = in.readLong();
+        offset = new SimpleOffset(in.readLong());
         extendedBounds = in.readOptionalWriteable(LongBounds::new);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             hardBounds = in.readOptionalWriteable(LongBounds::new);
@@ -177,7 +180,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         out.writeBoolean(keyed);
         out.writeVLong(minDocCount);
         dateHistogramInterval.writeTo(out);
-        out.writeLong(offset);
+        out.writeLong(offset.millis());
         out.writeOptionalWriteable(extendedBounds);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeOptionalWriteable(hardBounds);
@@ -236,13 +239,14 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Get the offset to use when rounding, which is a number of milliseconds. */
     public long offset() {
-        return offset;
+        // TODO: Return the interface for external usage
+        return offset.millis();
     }
 
     /** Set the offset on this builder, which is a number of milliseconds, and
      *  return the builder so that calls can be chained. */
     public DateHistogramAggregationBuilder offset(long offset) {
-        this.offset = offset;
+        this.offset = new SimpleOffset(offset);
         return this;
     }
 
@@ -272,6 +276,202 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             null,
             DateHistogramAggregationBuilder.class.getSimpleName() + ".parseOffset"
         ).millis();
+    }
+
+    public interface Offset {
+        long millis();
+    }
+
+    private static class SimpleOffset implements Offset {
+        protected final long millis;
+
+        private SimpleOffset(long millis) {
+            this.millis = millis;
+        }
+
+        @Override
+        public long millis() {
+            return millis;
+        }
+
+        @Override
+        public String toString() {
+            return this.millis + "ms";
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other instanceof SimpleOffset simpleOffset) {
+                return millis == simpleOffset.millis;
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(this.millis);
+        }
+    }
+
+    private static class CompoundOffset extends SimpleOffset {
+        private final boolean calendarOffsetPositive;
+        private final ExtendedTimeValue calendarOffset;
+        private final long fixedOffsetMillis;
+
+        private CompoundOffset(boolean calendarOffsetPositive, ExtendedTimeValue calendarOffset, long fixedOffset) {
+            super(fixedOffset);
+            this.calendarOffsetPositive = calendarOffsetPositive;
+            this.calendarOffset = calendarOffset;
+            this.fixedOffsetMillis = fixedOffset;  // TODO: this is duplicated in parent class
+        }
+
+        private enum ExtendedTimeUnit {
+            WEEKS,
+            MONTHS,
+            YEARS
+        }
+
+        @Override
+        public String toString() {
+            if (calendarOffset == null) {
+                return this.fixedOffsetMillis + "ms";
+            } else {
+                return (calendarOffsetPositive ? "+" : "-") + calendarOffset + " " + fixedOffsetMillis + "ms";
+            }
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other instanceof CompoundOffset compoundOffset) {
+                if (calendarOffset == null) {
+                    return compoundOffset.calendarOffset == null && fixedOffsetMillis == compoundOffset.fixedOffsetMillis;
+                }
+                return compoundOffset.calendarOffset != null
+                    && this.fixedOffsetMillis == compoundOffset.fixedOffsetMillis
+                    && this.calendarOffsetPositive == compoundOffset.calendarOffsetPositive
+                    && this.calendarOffset.equals(compoundOffset.calendarOffset);
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            int hashcode = Long.hashCode(this.fixedOffsetMillis);
+            if (calendarOffset != null) {
+                hashcode = hashcode * 31 + Boolean.hashCode(calendarOffsetPositive);
+                hashcode = hashcode * 31 + calendarOffset.hashCode();
+            }
+            return hashcode;
+        }
+
+        // TODO: make this behave as TimeValue, but consider extended time units
+        private static class ExtendedTimeValue extends TimeValue {
+            private final ExtendedTimeUnit extendedTimeUnit;
+            private final long duration;
+
+            private ExtendedTimeValue(long duration, TimeUnit timeUnit) {
+                super(duration, timeUnit);
+                this.duration = duration;
+                this.extendedTimeUnit = null;
+            }
+
+            private ExtendedTimeValue(long duration, ExtendedTimeUnit extendedTimeUnit) {
+                super(duration, null);
+                this.duration = duration;
+                this.extendedTimeUnit = extendedTimeUnit;
+            }
+
+            @Override
+            public String toString() {
+                if (extendedTimeUnit != null) {
+                    return switch (extendedTimeUnit) {
+                        case WEEKS -> duration + "w";
+                        case MONTHS -> duration + "M";
+                        case YEARS -> duration + "Y";
+                    };
+                } else {
+                    return super.toString();
+                }
+            }
+
+            @Override
+            public boolean equals(Object other) {
+                if (other instanceof ExtendedTimeValue extendedTimeValue) {
+                    if (extendedTimeUnit == null) {
+                        return extendedTimeValue.extendedTimeUnit == null && super.equals(extendedTimeValue);
+                    }
+                    return extendedTimeValue.extendedTimeUnit == extendedTimeUnit && extendedTimeValue.duration == duration;
+                }
+                return super.equals(other);
+            }
+
+            @Override
+            public int hashCode() {
+                if (extendedTimeUnit == null) {
+                    return super.hashCode();
+                }
+                return Long.hashCode(duration) * 31 + extendedTimeUnit.hashCode();
+            }
+
+            public static ExtendedTimeValue parseTimeValue(String sValue, String settingName) {
+                settingName = Objects.requireNonNull(settingName);
+                if (sValue == null) {
+                    return null;
+                }
+                final String normalized = sValue.toLowerCase(Locale.ROOT).trim();
+                if (normalized.endsWith("w")) {
+                    return new ExtendedTimeValue(TimeValue.parse(sValue, normalized, "w", settingName), ExtendedTimeUnit.WEEKS);
+                } else if (sValue.endsWith("M")) {
+                    return new ExtendedTimeValue(parse(sValue, normalized, "m", settingName), ExtendedTimeUnit.MONTHS);
+                } else if (normalized.endsWith("y")) {
+                    return new ExtendedTimeValue(parse(sValue, normalized, "h", settingName), ExtendedTimeUnit.YEARS);
+                } else {
+                    TimeValue timeValue = TimeValue.parseTimeValue(sValue, settingName);
+                    return new ExtendedTimeValue(timeValue.duration(), timeValue.timeUnit());
+                }
+            }
+        }
+    }
+
+    static Offset parseStringCompoundOffset(String offset) {
+        StringTokenizer st = new StringTokenizer(offset, "+- ", true);
+        boolean positive = true;
+        boolean firstPositive = true;
+        boolean secondPositive = true;
+        CompoundOffset.ExtendedTimeValue first = null;
+        CompoundOffset.ExtendedTimeValue second = null;
+        for (int i = 0; st.hasMoreElements(); i++) {
+            String field = st.nextToken();
+            System.out.println("\tfield[" + i + "]:\t" + field);
+            switch (field) {
+                case "-" -> positive = false;
+                case "+" -> positive = true;
+                case " " -> {}
+                default -> {
+                    CompoundOffset.ExtendedTimeValue value = CompoundOffset.ExtendedTimeValue.parseTimeValue(
+                        field,
+                        DateHistogramAggregationBuilder.class.getSimpleName() + ".parseOffset"
+                    );
+                    if (first == null) {
+                        first = value;
+                        firstPositive = positive;
+                    } else if (second == null) {
+                        second = value;
+                        secondPositive = positive;
+                    } else {
+                        throw new IllegalArgumentException("CompoundOffset cannot have more than two components: " + offset);
+                    }
+                    positive = true;
+                }
+            }
+        }
+        if (second == null) {
+            // We only have simple, non-compound offset
+            return new SimpleOffset((firstPositive ? 1L : -1L) * first.millis());
+        } else {
+            // We have two component offset, with calendar and fixed components
+            return new CompoundOffset(firstPositive, first, (secondPositive ? 1L : -1L) * second.millis());
+        }
     }
 
     /** Return extended bounds for this histogram, or {@code null} if none are set. */
@@ -375,7 +575,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
 
         dateHistogramInterval.toXContent(builder, params);
-        builder.field(Histogram.OFFSET_FIELD.getPreferredName(), offset);
+        // TODO: Support compound offsets
+        builder.field(Histogram.OFFSET_FIELD.getPreferredName(), offset.millis());
 
         if (order != null) {
             builder.field(Histogram.ORDER_FIELD.getPreferredName());
@@ -439,7 +640,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         }
 
         DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
-        final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
+        // TODO: Support compound offset
+        final Rounding rounding = dateHistogramInterval.createRounding(tz, offset.millis());
 
         LongBounds roundedBounds = null;
         if (this.extendedBounds != null) {

@@ -1,0 +1,6 @@
+pr: 94163
+summary: Date-histogram calendar offset
+area: Aggregations
+type: feature
+issues:
+ - 93418

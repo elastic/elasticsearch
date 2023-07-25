@@ -49,6 +49,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
@@ -690,7 +691,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
-    public void testFixedWithCalendar() throws IOException {
+    public void testFixedWithCalendar() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
@@ -710,7 +711,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
-    public void testCalendarWithFixed() throws IOException {
+    public void testCalendarWithFixed() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
@@ -724,7 +725,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         assertThat(e.getMessage(), equalTo("The supplied interval [5d] could not be parsed as a calendar interval."));
     }
 
-    public void testCalendarAndThenFixed() throws IOException {
+    public void testCalendarAndThenFixed() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
@@ -740,7 +741,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         assertThat(e.getMessage(), equalTo("Cannot use [fixed_interval] with [calendar_interval] configuration option."));
     }
 
-    public void testFixedAndThenCalendar() throws IOException {
+    public void testFixedAndThenCalendar() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
@@ -1036,6 +1037,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         aggregationImplementationChoiceTestCase(ft, data, data, builder, usesFromRange);
     }
 
+    @SuppressWarnings("deprecation")
     private void aggregationImplementationChoiceTestCase(
         DateFieldMapper.DateFieldType ft,
         List<String> data,
@@ -1082,7 +1084,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         }
     }
 
-    public void testIllegalInterval() throws IOException {
+    public void testIllegalInterval() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
@@ -1122,12 +1124,12 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             (searcher, aggregator) -> {
                 InternalDateHistogram histo = (InternalDateHistogram) aggregator.buildEmptyAggregation();
                 /*
-                 * There was a time where we including the offset in the
+                 * There was a time when we included the offset in the
                  * rounding in the emptyBucketInfo which would cause us to
                  * include the offset twice. This verifies that we don't do
                  * that.
                  */
-                assertThat(histo.emptyBucketInfo.rounding.prepareForUnknown().round(0), equalTo(0L));
+                assertThat(Objects.requireNonNull(histo.emptyBucketInfo).rounding.prepareForUnknown().round(0), equalTo(0L));
             },
             aggregableDateFieldType(false, true)
         );
@@ -1143,6 +1145,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         testSearchCase(query, dataset, configure, verify, 10000, useNanosecondResolution);
     }
 
+    @SuppressWarnings("SameParameterValue")
     private void testSearchCase(
         Query query,
         List<String> dataset,

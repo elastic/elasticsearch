@@ -61,7 +61,7 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
         } else {
             field = fieldPrefix + randomAlphaOfLengthBetween(1, 20);
         }
-        boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
+        boolean missingBucket = version.onOrAfter(Version.V_7_10_0) && randomBoolean();
         Long offset = version.onOrAfter(Version.V_8_7_0) ? randomOffset() : null;
 
         DateHistogramGroupSource dateHistogramGroupSource;

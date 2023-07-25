@@ -368,7 +368,7 @@ public class TimeValue implements Comparable<TimeValue> {
         }
     }
 
-    private static long parse(final String initialInput, final String normalized, final String suffix, String settingName) {
+    protected static long parse(final String initialInput, final String normalized, final String suffix, String settingName) {
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
             final long value = Long.parseLong(s);

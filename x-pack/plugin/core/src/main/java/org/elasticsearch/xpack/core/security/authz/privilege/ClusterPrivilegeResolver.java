@@ -353,7 +353,7 @@ public class ClusterPrivilegeResolver {
             MANAGE_LOGSTASH_PIPELINES,
             CANCEL_TASK,
             MANAGE_SEARCH_APPLICATION,
-            SynonymsAPI.isEnabled() ?  MANAGE_SEARCH_SYNONYMS : null,
+            SynonymsAPI.isEnabled() ? MANAGE_SEARCH_SYNONYMS : null,
             MANAGE_BEHAVIORAL_ANALYTICS,
             POST_BEHAVIORAL_ANALYTICS_EVENT,
             TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_SEARCH : null,

@@ -89,21 +89,27 @@
         "output": {
           "type": "object",
           "properties": {
-            "error_code": {
-              "type": "keyword"
-            },
             "chunk": {
-              "type": "long"
-            },
-            "content_type": {
-              "type": "keyword"
-            },
-            "size": {
               "type": "long"
             },
             "content": {
               "type": "object",
               "enabled": false
+            },
+            "content_type": {
+              "type": "keyword"
+            },
+            "csv_contains_formulas": {
+              "type": "boolean"
+            },
+            "error_code": {
+              "type": "keyword"
+            },
+            "max_size_reached": {
+              "type": "boolean"
+            },
+            "size": {
+              "type": "long"
             }
           }
         },

@@ -26,16 +26,16 @@ import static org.mockito.Mockito.mock;
 
 public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
-    private static final String MAPPINGS = """
+    private static final String MAPPINGS = String.format("""
         {
           "_doc": {
             "_meta": {
               "version": "7.4.0",
-              "system-index-mapping-version": 0
+              "%s": 0
             }
           }
         }
-        """;
+        """, SystemIndexDescriptor.VERSION_META_KEY);
     private static final String SYSTEM_INDEX_NAME = ".myindex-1";
     private static final String SYSTEM_ALIAS_NAME = ".myindex-alias";
     private static final SystemIndexDescriptor DESCRIPTOR = SystemIndexDescriptor.builder()

@@ -28,16 +28,16 @@ import static org.hamcrest.Matchers.equalTo;
 public class SystemIndexDescriptorTests extends ESTestCase {
 
     // private static final String MAPPINGS = "{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }";
-    private static final String MAPPINGS = """
+    private static final String MAPPINGS = String.format("""
         {
           "_doc": {
             "_meta": {
               "version": "7.4.0",
-              "system-index-mapping-version": 1
+              "%s": 1
             }
           }
         }
-        """;
+        """, SystemIndexDescriptor.VERSION_META_KEY);
 
     /**
      * Tests the various validation rules that are applied when creating a new system index descriptor.

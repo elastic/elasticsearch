@@ -63,14 +63,14 @@ public class TransportCreateIndexActionTests extends ESTestCase {
                         .setPrimaryIndex(MANAGED_SYSTEM_INDEX_NAME + "-primary")
                         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
                         .setSettings(SystemIndexDescriptor.DEFAULT_SETTINGS)
-                        .setMappings("""
+                        .setMappings(String.format("""
                             {
                               "_meta": {
                                 "version": "1.0.0",
-                                "system-index-mapping-version": 0
+                                "%s": 0
                               }
                             }"
-                            """)
+                            """, SystemIndexDescriptor.VERSION_META_KEY))
                         .setVersionMetaKey("version")
                         .setOrigin("origin")
                         .build()

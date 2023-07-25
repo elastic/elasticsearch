@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -181,7 +182,7 @@ public class TaskCancellationService {
                 BAN_PARENT_ACTION_NAME,
                 banRequest,
                 TransportRequestOptions.EMPTY,
-                new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                new EmptyTransportResponseHandler(EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         logger.trace("sent ban for tasks with the parent [{}] for connection [{}]", taskId, connection);
@@ -228,7 +229,7 @@ public class TaskCancellationService {
                 BAN_PARENT_ACTION_NAME,
                 request,
                 TransportRequestOptions.EMPTY,
-                new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                new EmptyTransportResponseHandler(EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     @Override
                     public void handleException(TransportException exp) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(exp);

@@ -64,6 +64,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -828,9 +829,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
 
         @Override
-        public String executor() {
+        public Executor executor(ThreadPool threadPool) {
             // we do some heavy work like refreshes in the response so fork off to the generic threadpool
-            return ThreadPool.Names.GENERIC;
+            return threadPool.generic();
         }
 
         @Override

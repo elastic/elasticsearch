@@ -426,7 +426,8 @@ public final class DocumentParser {
             parseObjectOrField(context, objectMapper);
             context.path().remove();
         } else {
-            if (context.parent().subobjects()) {
+            DynamicTemplate dynamicTemplate = context.findDynamicTemplate(currentFieldName, DynamicTemplate.XContentFieldType.OBJECT);
+            if (context.parent().subobjects() || dynamicTemplate != null) {
                 parseObjectDynamic(context, currentFieldName);
             } else {
                 context.parser().nextToken(); // Skipping Object-start
@@ -630,7 +631,7 @@ public final class DocumentParser {
     // field name exists and if so returns a no-op mapper to prevent indexing
     private static Mapper getLeafMapper(final DocumentParserContext context, String fieldName) {
         Mapper mapper = context.getMapper(fieldName);
-        if (mapper != null && mapper instanceof ObjectMapper == false) {
+        if (mapper != null) {
             return mapper;
         }
         // concrete fields take precedence over runtime fields when parsing documents

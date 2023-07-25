@@ -262,10 +262,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // percentage of documents per slice, minumum 10%
         final double percentageDocsPerThread = Math.max(MINIMUM_DOCS_PERCENT_PER_SLICE, 1.0 / maxSliceNum);
         // compute slices
-        return computeLeafSlices(leaves, Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs)), maxSliceNum);
+        return computeSlices(leaves, Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs)));
     }
 
-    private static LeafSlice[] computeLeafSlices(List<LeafReaderContext> leaves, int minDocsPerSlice, int maxSliceNum) {
+    private static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int minDocsPerSlice) {
         // Make a copy so we can sort:
         List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
         // Sort by maxDoc, descending:
@@ -350,6 +350,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
                 listTasks.add(task);
             }
+            logger.trace("Collecting using " + listTasks.size() + " tasks.");
 
             queueSizeBasedExecutor.invokeAll(listTasks);
             RuntimeException exception = null;

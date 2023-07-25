@@ -1091,11 +1091,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private static boolean concurrentSearchEnabled(ResultsType resultsType, SearchSourceBuilder source) {
-        // TODO we don't have the SearchContext with the parsed Aggregation source available yet to call
-        // {@link AggregationBuilder#supportsConcurrentExecution()}
-        return true;// resultsType == ResultsType.DFS;// && supportsConcurrentExecution(source.aggregations());
+        // TODO enable concurrency for other phases as well. Currently blocked by e.g. SingleThreadCollectorManager still
+        // in use in QueryPhase
+        return resultsType == ResultsType.DFS && supportsConcurrentExecution(source.aggregations());
     }
 
+    // We don't have the SearchContext with the parsed Aggregation source available yet to call
+    // {@link AggregationBuilder#supportsConcurrentExecution()}, so simulate the same here
+    // TODO can we move {@link AggregationBuilder#supportsConcurrentExecution()} elsewhere?
     private static boolean supportsConcurrentExecution(AggregatorFactories.Builder factoriesBuilder) {
         for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
             if (builder.supportsConcurrentExecution() == false || builder.isInSortOrderExecutionRequired()) {

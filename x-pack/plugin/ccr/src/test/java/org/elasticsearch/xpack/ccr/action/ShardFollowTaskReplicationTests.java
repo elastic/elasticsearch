@@ -90,6 +90,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -296,6 +297,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     }
 
     public void testRetryBulkShardOperations() throws Exception {
+        final var threadpool = mock(ThreadPool.class);
+        final var transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadpool);
+
         try (ReplicationGroup leaderGroup = createLeaderGroup(between(0, 1))) {
             leaderGroup.startAll();
             try (ReplicationGroup followerGroup = createFollowGroup(leaderGroup, between(1, 3))) {
@@ -345,7 +350,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             followingPrimary,
                             logger,
-                            new PostWriteRefresh(mock(TransportService.class))
+                            new PostWriteRefresh(transportService)
                         );
                     for (IndexShard replica : randomSubsetOf(followerGroup.getReplicas())) {
                         final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
@@ -799,6 +804,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
             primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME);
             final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
+            final var threadpool = mock(ThreadPool.class);
+            final var transportService = mock(TransportService.class);
+            when(transportService.getThreadPool()).thenReturn(threadpool);
             try (Releasable ignored = permitFuture.get()) {
                 ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(
                     primary.shardId(),
@@ -807,7 +815,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     request.getMaxSeqNoOfUpdatesOrDeletes(),
                     primary,
                     logger,
-                    new PostWriteRefresh(mock(TransportService.class))
+                    new PostWriteRefresh(transportService)
                 );
                 TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
             } catch (InterruptedException | ExecutionException | IOException e) {

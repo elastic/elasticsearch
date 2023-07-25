@@ -59,6 +59,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -114,7 +115,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     @Before
     public void setupCreateIndexRequestAndAliasValidator() {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         searchExecutionContext = SearchExecutionContextHelper.createSimple(
             new IndexSettings(IndexMetadata.builder("test").settings(indexSettings).build(), indexSettings),
             parserConfig(),
@@ -126,7 +127,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         int numRoutingShards = settings.getAsInt(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), numShards);
         Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder(name)
-            .settings(settings(Version.CURRENT).put(settings))
+            .settings(settings(IndexVersion.current()).put(settings))
             .numberOfShards(numShards)
             .numberOfReplicas(numReplicas)
             .setRoutingNumShards(numRoutingShards)
@@ -945,7 +946,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testClusterStateCreateIndexThrowsWriteIndexValidationException() throws Exception {
         IndexMetadata existingWriteIndex = IndexMetadata.builder("test2")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .putAlias(AliasMetadata.builder("alias1").writeIndex(true).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -955,7 +956,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
 
         IndexMetadata newIndex = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("alias1").writeIndex(true).build())
@@ -980,7 +981,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         ClusterState currentClusterState = ClusterState.builder(ClusterState.EMPTY_STATE).build();
 
         IndexMetadata newIndexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT).put(SETTING_READ_ONLY, true))
+            .settings(settings(IndexVersion.current()).put(SETTING_READ_ONLY, true))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("alias1").writeIndex(true).build())
@@ -1011,7 +1012,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 Metadata.builder()
                     .put(
                         IndexMetadata.builder("my-index")
-                            .settings(settings(Version.CURRENT).put(SETTING_READ_ONLY, true))
+                            .settings(settings(IndexVersion.current()).put(SETTING_READ_ONLY, true))
                             .numberOfShards(1)
                             .numberOfReplicas(0)
                     )
@@ -1019,7 +1020,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
 
         IndexMetadata newIndexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT).put(SETTING_READ_ONLY, true))
+            .settings(settings(IndexVersion.current()).put(SETTING_READ_ONLY, true))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("alias1").writeIndex(true).build())
@@ -1094,7 +1095,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .primaryTerm(0, 3L)
             .build();
 
-        Settings indexSettings = indexSettings(Version.CURRENT, 1, 0).build();
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
         List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
         IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
 
@@ -1128,17 +1129,17 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testGetIndexNumberOfRoutingShardsNullVsNotDefined() {
         int numberOfPrimaryShards = randomIntBetween(1, 16);
-        Settings indexSettings = settings(Version.CURRENT).put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), (String) null)
+        Settings indexSettings = settings(IndexVersion.current()).put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), (String) null)
             .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numberOfPrimaryShards)
             .build();
         int targetRoutingNumberOfShardsWithNull = getIndexNumberOfRoutingShards(indexSettings, null);
-        indexSettings = settings(Version.CURRENT).put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numberOfPrimaryShards).build();
+        indexSettings = settings(IndexVersion.current()).put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numberOfPrimaryShards).build();
         int targetRoutingNumberOfShardsWithNotDefined = getIndexNumberOfRoutingShards(indexSettings, null);
         assertThat(targetRoutingNumberOfShardsWithNull, is(targetRoutingNumberOfShardsWithNotDefined));
     }
 
     public void testGetIndexNumberOfRoutingShardsNull() {
-        Settings indexSettings = settings(Version.CURRENT).put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), (String) null)
+        Settings indexSettings = settings(IndexVersion.current()).put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), (String) null)
             .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
             .build();
         int targetRoutingNumberOfShardsWithNull = getIndexNumberOfRoutingShards(indexSettings, null);
@@ -1298,7 +1299,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         } else {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
-        settings.put(SETTING_VERSION_CREATED, VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0));
+        settings.put(SETTING_VERSION_CREATED, IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0).id());
         request.settings(settings.build());
         aggregateIndexSettings(
             ClusterState.EMPTY_STATE,

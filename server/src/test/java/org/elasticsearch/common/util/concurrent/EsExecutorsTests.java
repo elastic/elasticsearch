@@ -21,6 +21,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DO_NOT_TRACK;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -51,7 +53,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -120,7 +122,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -273,7 +275,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             for (int i = 0; i < actions; i++) {
@@ -379,7 +381,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             executor.execute(() -> {
@@ -416,7 +418,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             Runnable r = () -> {

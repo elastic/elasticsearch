@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -461,11 +462,11 @@ public class DesiredBalanceReconciler {
             if (allAllocations > 0 && undesiredAllocations > undesiredAllocationsLogThreshold * allAllocations) {
                 undesiredAllocationLogInterval.maybeExecute(
                     () -> logger.warn(
-                        "[{}%] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}%]",
-                        100.0 * undesiredAllocations / allAllocations,
+                        "[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}]",
+                        Strings.format1Decimals(100.0 * undesiredAllocations / allAllocations, "%"),
                         undesiredAllocations,
                         allAllocations,
-                        100.0 * undesiredAllocationsLogThreshold
+                        Strings.format1Decimals(100.0 * undesiredAllocationsLogThreshold, "%")
                     )
                 );
             }

@@ -21,7 +21,6 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -42,12 +41,14 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -150,7 +151,14 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             // verify that both sending and receiving files can be completed with a single thread
             threadPool = new TestThreadPool(
                 getTestName(),
-                new FixedExecutorBuilder(Settings.EMPTY, "recovery_executor", between(1, 16), between(16, 128), "recovery_executor", false)
+                new FixedExecutorBuilder(
+                    Settings.EMPTY,
+                    "recovery_executor",
+                    between(1, 16),
+                    between(16, 128),
+                    "recovery_executor",
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                )
             );
             recoveryExecutor = threadPool.executor("recovery_executor");
         }
@@ -1130,7 +1138,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             writer.close();
             when(shard.state()).thenReturn(IndexShardState.STARTED);
             final var indexMetadata = IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE)
-                .settings(indexSettings(Version.CURRENT, 1, 0))
+                .settings(indexSettings(IndexVersion.current(), 1, 0))
                 .build();
             IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
             when(shard.indexSettings()).thenReturn(indexSettings);

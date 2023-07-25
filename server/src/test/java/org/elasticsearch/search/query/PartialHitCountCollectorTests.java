@@ -12,13 +12,13 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.test.ESTestCase;
@@ -36,7 +36,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
         super.setUp();
         dir = newDirectory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
-        numDocs = scaledRandomIntBetween(100, 200);
+        numDocs = scaledRandomIntBetween(900, 1000);
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
             doc.add(new StringField("string", "a" + i, Field.Store.NO));
@@ -61,56 +61,71 @@ public class PartialHitCountCollectorTests extends ESTestCase {
         dir.close();
     }
 
+    public void testEarlyTerminatesWithoutCollection() throws IOException {
+        Query query = new NonCountingTermQuery(new Term("string", "a1"));
+        PartialHitCountCollector hitCountCollector = new PartialHitCountCollector(0) {
+            @Override
+            public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                return new FilterLeafCollector(super.getLeafCollector(context)) {
+                    @Override
+                    public void collect(int doc) {
+                        throw new AssertionError("unexpected collection");
+                    }
+                };
+            }
+        };
+        searcher.search(query, hitCountCollector);
+        assertEquals(0, hitCountCollector.getTotalHits());
+        assertTrue(hitCountCollector.hasEarlyTerminated());
+    }
+
     public void testHitCountFromWeightNoTracking() throws IOException {
-        PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(0);
-        searcher.search(new MatchAllDocsQuery(), partialHitCountCollector);
-        assertEquals(0, partialHitCountCollector.getTotalHits());
-        assertTrue(partialHitCountCollector.hasEarlyTerminated());
+        PartialHitCountCollector.CollectorManager collectorManager = new PartialHitCountCollector.CollectorManager(0);
+        searcher.search(new MatchAllDocsQuery(), collectorManager);
+        assertEquals(0, collectorManager.getTotalHits());
+        assertTrue(collectorManager.hasEarlyTerminated());
     }
 
     public void testHitCountFromWeightDoesNotEarlyTerminate() throws IOException {
         {
-            PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(numDocs);
-            searcher.search(new MatchAllDocsQuery(), partialHitCountCollector);
-            assertEquals(numDocs, partialHitCountCollector.getTotalHits());
-            assertFalse(partialHitCountCollector.hasEarlyTerminated());
+            PartialHitCountCollector.CollectorManager collectorManager = new PartialHitCountCollector.CollectorManager(numDocs);
+            searcher.search(new MatchAllDocsQuery(), collectorManager);
+            assertEquals(numDocs, collectorManager.getTotalHits());
+            assertFalse(collectorManager.hasEarlyTerminated());
         }
         {
-            PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(randomIntBetween(1, numDocs - 1));
-            searcher.search(new MatchAllDocsQuery(), partialHitCountCollector);
-            assertEquals(numDocs, partialHitCountCollector.getTotalHits());
-            assertFalse(partialHitCountCollector.hasEarlyTerminated());
+            int threshold = randomIntBetween(1, numDocs - 1);
+            PartialHitCountCollector.CollectorManager collectorManager = new PartialHitCountCollector.CollectorManager(threshold);
+            searcher.search(new MatchAllDocsQuery(), collectorManager);
+            assertEquals(numDocs, collectorManager.getTotalHits());
+            assertFalse(collectorManager.hasEarlyTerminated());
         }
         {
-            PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(
-                randomIntBetween(numDocs + 1, Integer.MAX_VALUE)
-            );
-            searcher.search(new MatchAllDocsQuery(), partialHitCountCollector);
-            assertEquals(numDocs, partialHitCountCollector.getTotalHits());
-            assertFalse(partialHitCountCollector.hasEarlyTerminated());
+            int threshold = randomIntBetween(numDocs + 1, 10000);
+            PartialHitCountCollector.CollectorManager collectorManager = new PartialHitCountCollector.CollectorManager(threshold);
+            searcher.search(new MatchAllDocsQuery(), collectorManager);
+            assertEquals(numDocs, collectorManager.getTotalHits());
+            assertFalse(collectorManager.hasEarlyTerminated());
         }
     }
 
     public void testCollectedHitCount() throws Exception {
-        Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("string", "a1")), BooleanClause.Occur.SHOULD)
-            .add(new TermQuery(new Term("string", "a3")), BooleanClause.Occur.SHOULD)
-            .build();
-        // there's two docs matching the query: any totalHitsThreshold greater than or equal to 2 will non cause early termination
-        PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(randomIntBetween(2, Integer.MAX_VALUE));
-        searcher.search(query, partialHitCountCollector);
-        assertEquals(2, partialHitCountCollector.getTotalHits());
-        assertFalse(partialHitCountCollector.hasEarlyTerminated());
+        Query query = new NonCountingTermQuery(new Term("string", "a1"));
+        int threshold = randomIntBetween(1, 10000);
+        // there's one doc matching the query: any totalHitsThreshold greater than or equal to 1 will non cause early termination
+        PartialHitCountCollector.CollectorManager collectorManager = new PartialHitCountCollector.CollectorManager(threshold);
+        searcher.search(query, collectorManager);
+        assertEquals(1, collectorManager.getTotalHits());
+        assertFalse(collectorManager.hasEarlyTerminated());
     }
 
     public void testCollectedHitCountEarlyTerminated() throws Exception {
         Query query = new NonCountingTermQuery(new Term("string", "foo"));
         // there's three docs matching the query: any totalHitsThreshold lower than 3 will trigger early termination
         int totalHitsThreshold = randomInt(2);
-        PartialHitCountCollector partialHitCountCollector = new PartialHitCountCollector(totalHitsThreshold);
-        searcher.search(query, partialHitCountCollector);
-
-        assertEquals(totalHitsThreshold, partialHitCountCollector.getTotalHits());
-        assertTrue(partialHitCountCollector.hasEarlyTerminated());
+        PartialHitCountCollector.CollectorManager collectorManager = new PartialHitCountCollector.CollectorManager(totalHitsThreshold);
+        searcher.search(query, collectorManager);
+        assertEquals(totalHitsThreshold, collectorManager.getTotalHits());
+        assertTrue(collectorManager.hasEarlyTerminated());
     }
-
 }

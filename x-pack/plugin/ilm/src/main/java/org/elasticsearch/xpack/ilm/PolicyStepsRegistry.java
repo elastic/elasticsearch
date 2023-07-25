@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,6 +51,8 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VERSION_ONE;
+
 public class PolicyStepsRegistry {
     private static final Logger logger = LogManager.getLogger(PolicyStepsRegistry.class);
 
@@ -60,9 +63,11 @@ public class PolicyStepsRegistry {
     // keeps track of existing policies in the cluster state
     private final SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap;
     // keeps track of what the first step in a policy is, the key is policy name
-    private final Map<String, Step> firstStepMap;
+    private final Map<VersionedPolicyKey, Step> firstStepMap;
     // keeps track of a mapping from policy/step-name to respective Step, the key is policy name
-    private final Map<String, Map<Step.StepKey, Step>> stepMap;
+    private final Map<VersionedPolicyKey, Map<Step.StepKey, Step>> stepMap;
+
+    public record VersionedPolicyKey(int version, String policyName) {}
 
     // tracks an index->step cache, where the indexmetadata is also tracked for cache invalidation/eviction purposes.
     // for a given index, the step can be cached as long as the indexmetadata (and the policy!) hasn't changed. since
@@ -75,8 +80,8 @@ public class PolicyStepsRegistry {
 
     PolicyStepsRegistry(
         SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap,
-        Map<String, Step> firstStepMap,
-        Map<String, Map<Step.StepKey, Step>> stepMap,
+        Map<VersionedPolicyKey, Step> firstStepMap,
+        Map<VersionedPolicyKey, Map<Step.StepKey, Step>> stepMap,
         NamedXContentRegistry xContentRegistry,
         Client client,
         XPackLicenseState licenseState
@@ -93,11 +98,11 @@ public class PolicyStepsRegistry {
         return lifecyclePolicyMap;
     }
 
-    Map<String, Step> getFirstStepMap() {
+    Map<VersionedPolicyKey, Step> getFirstStepMap() {
         return firstStepMap;
     }
 
-    Map<String, Map<Step.StepKey, Step>> getStepMap() {
+    Map<VersionedPolicyKey, Map<Step.StepKey, Step>> getStepMap() {
         return stepMap;
     }
 
@@ -131,9 +136,17 @@ public class PolicyStepsRegistry {
         );
 
         for (String deletedPolicyName : mapDiff.getDeletes()) {
-            lifecyclePolicyMap.remove(deletedPolicyName);
-            firstStepMap.remove(deletedPolicyName);
-            stepMap.remove(deletedPolicyName);
+            LifecyclePolicyMetadata policyMetadataToRemove = lifecyclePolicyMap.remove(deletedPolicyName);
+            if (policyMetadataToRemove != null) {
+                for (int actionsOrderVersion = policyMetadataToRemove.getPolicy()
+                    .getType()
+                    .getLatestActionsOrderVersion(); actionsOrderVersion >= VERSION_ONE; actionsOrderVersion--) {
+                    // remove all versions for the deleted policy
+                    VersionedPolicyKey key = new VersionedPolicyKey(actionsOrderVersion, policyMetadataToRemove.getName());
+                    firstStepMap.remove(key);
+                    stepMap.remove(key);
+                }
+            }
         }
 
         if (mapDiff.getUpserts().isEmpty() == false) {
@@ -145,20 +158,25 @@ public class PolicyStepsRegistry {
                     policyMetadata.getHeaders()
                 );
                 lifecyclePolicyMap.put(policyMetadata.getName(), policyMetadata);
-                List<Step> policyAsSteps = policyMetadata.getPolicy().toSteps(policyClient, licenseState);
-                if (policyAsSteps.isEmpty() == false) {
-                    firstStepMap.put(policyMetadata.getName(), policyAsSteps.get(0));
-                    final Map<Step.StepKey, Step> stepMapForPolicy = new LinkedHashMap<>();
-                    for (Step step : policyAsSteps) {
-                        assert ErrorStep.NAME.equals(step.getKey().name()) == false : "unexpected error step in policy";
-                        stepMapForPolicy.put(step.getKey(), step);
+                LifecyclePolicy policy = policyMetadata.getPolicy();
+                for (int actionsOrderVersion = policy.getType()
+                    .getLatestActionsOrderVersion(); actionsOrderVersion >= VERSION_ONE; actionsOrderVersion--) {
+                    List<Step> policyAsSteps = policy.toSteps(policyClient, actionsOrderVersion, licenseState);
+                    if (policyAsSteps.isEmpty() == false) {
+                        VersionedPolicyKey key = new VersionedPolicyKey(actionsOrderVersion, policyMetadata.getName());
+                        firstStepMap.put(key, policyAsSteps.get(0));
+                        final Map<Step.StepKey, Step> stepMapForPolicy = new LinkedHashMap<>();
+                        for (Step step : policyAsSteps) {
+                            assert ErrorStep.NAME.equals(step.getKey().name()) == false : "unexpected error step in policy";
+                            stepMapForPolicy.put(step.getKey(), step);
+                        }
+                        logger.trace(
+                            "updating cached steps for [{}] policy, new steps: {}",
+                            policyMetadata.getName(),
+                            stepMapForPolicy.keySet()
+                        );
+                        stepMap.put(key, stepMapForPolicy);
                     }
-                    logger.trace(
-                        "updating cached steps for [{}] policy, new steps: {}",
-                        policyMetadata.getName(),
-                        stepMapForPolicy.keySet()
-                    );
-                    stepMap.put(policyMetadata.getName(), stepMapForPolicy);
                 }
             }
         }
@@ -214,7 +232,8 @@ public class PolicyStepsRegistry {
             ClientHelper.INDEX_LIFECYCLE_ORIGIN,
             policyMetadata.getHeaders()
         );
-        return policyMetadata.getPolicy().toSteps(policyClient, licenseState);
+        return policyMetadata.getPolicy()
+            .toSteps(policyClient, indexMetadata.getLifecycleExecutionState().actionsOrderVersion(), licenseState);
     }
 
     /**
@@ -262,10 +281,12 @@ public class PolicyStepsRegistry {
      * Returns null if there's a parsing error.
      */
     @Nullable
-    public Set<Step.StepKey> parseStepKeysFromPhase(String policy, String currentPhase, String phaseDef) {
+    public Set<Step.StepKey> parseStepKeysFromPhase(String policy, String currentPhase, int actionsOrderVersion, String phaseDef) {
         try {
             String phaseDefNonNull = Objects.requireNonNullElse(phaseDef, InitializePolicyContextStep.INITIALIZATION_PHASE);
-            return parseStepsFromPhase(policy, currentPhase, phaseDefNonNull).stream().map(Step::getKey).collect(Collectors.toSet());
+            return parseStepsFromPhase(policy, currentPhase, actionsOrderVersion, phaseDefNonNull).stream()
+                .map(Step::getKey)
+                .collect(Collectors.toSet());
         } catch (IOException e) {
             logger.trace(
                 () -> String.format(
@@ -290,7 +311,8 @@ public class PolicyStepsRegistry {
      * (note: this step exists only for BWC reasons as these days we move to the {@code PhaseCompleteStep} when reaching
      * the end of the phase)
      */
-    private List<Step> parseStepsFromPhase(String policy, String currentPhase, String phaseDef) throws IOException {
+    private List<Step> parseStepsFromPhase(String policy, String currentPhase, int actionsOrderVersion, String phaseDef)
+        throws IOException {
         final PhaseExecutionInfo phaseExecutionInfo;
         LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policy);
         if (policyMetadata == null) {
@@ -322,7 +344,7 @@ public class PolicyStepsRegistry {
             ClientHelper.INDEX_LIFECYCLE_ORIGIN,
             lifecyclePolicyMap.get(policy).getHeaders()
         );
-        final List<Step> steps = policyToExecute.toSteps(policyClient, licenseState);
+        final List<Step> steps = policyToExecute.toSteps(policyClient, actionsOrderVersion, licenseState);
         // Build a list of steps that correspond with the phase the index is currently in
         final List<Step> phaseSteps;
         if (steps == null) {
@@ -379,14 +401,15 @@ public class PolicyStepsRegistry {
         }
 
         // parse phase steps from the phase definition in the index settings
+        LifecycleExecutionState lifecycleExecutionState = indexMetadata.getLifecycleExecutionState();
         final String phaseJson = Objects.requireNonNullElse(
-            indexMetadata.getLifecycleExecutionState().phaseDefinition(),
+            lifecycleExecutionState.phaseDefinition(),
             InitializePolicyContextStep.INITIALIZATION_PHASE
         );
 
         final List<Step> phaseSteps;
         try {
-            phaseSteps = parseStepsFromPhase(policyName, phase, phaseJson);
+            phaseSteps = parseStepsFromPhase(policyName, phase, lifecycleExecutionState.actionsOrderVersion(), phaseJson);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to load cached steps for " + stepKey, e);
         } catch (XContentParseException parseErr) {
@@ -416,8 +439,8 @@ public class PolicyStepsRegistry {
     /**
      * Given a policy and stepkey, return true if a step exists, false otherwise
      */
-    public boolean stepExists(final String policy, final Step.StepKey stepKey) {
-        Map<Step.StepKey, Step> steps = stepMap.get(policy);
+    public boolean stepExists(final String policy, int actionsOrderVersion, final Step.StepKey stepKey) {
+        Map<Step.StepKey, Step> steps = stepMap.get(new VersionedPolicyKey(actionsOrderVersion, policy));
         if (steps == null) {
             return false;
         } else {
@@ -429,8 +452,8 @@ public class PolicyStepsRegistry {
         return lifecyclePolicyMap.containsKey(policy);
     }
 
-    public Step getFirstStep(String policy) {
-        return firstStepMap.get(policy);
+    public Step getFirstStep(String policy, int actionsOrderVersion) {
+        return firstStepMap.get(new VersionedPolicyKey(actionsOrderVersion, policy));
     }
 
     public TimeValue getIndexAgeForPhase(final String policy, final String phase) {

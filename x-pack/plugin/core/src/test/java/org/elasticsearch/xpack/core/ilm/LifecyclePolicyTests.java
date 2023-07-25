@@ -31,6 +31,12 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.CURRENT_VERSION;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_COLD_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_DELETE_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_FROZEN_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_HOT_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VALID_WARM_ACTIONS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -235,11 +241,11 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
 
     private static Function<String, Set<String>> getPhaseToValidActions() {
         return (phase) -> new HashSet<>(switch (phase) {
-            case "hot" -> TimeseriesLifecycleType.VALID_HOT_ACTIONS;
-            case "warm" -> TimeseriesLifecycleType.VALID_WARM_ACTIONS;
-            case "cold" -> TimeseriesLifecycleType.VALID_COLD_ACTIONS;
-            case "frozen" -> TimeseriesLifecycleType.VALID_FROZEN_ACTIONS;
-            case "delete" -> TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+            case "hot" -> VALID_HOT_ACTIONS;
+            case "warm" -> VALID_WARM_ACTIONS;
+            case "cold" -> VALID_COLD_ACTIONS;
+            case "frozen" -> VALID_FROZEN_ACTIONS;
+            case "delete" -> VALID_DELETE_ACTIONS;
             default -> throw new IllegalArgumentException("invalid phase [" + phase + "]");
         });
     }
@@ -318,7 +324,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
-        List<Step> steps = policy.toSteps(client, null);
+        List<Step> steps = policy.toSteps(client, CURRENT_VERSION, null);
         assertThat(steps.size(), equalTo(2));
         assertThat(steps.get(0), instanceOf(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(new StepKey("new", "init", "init")));
@@ -339,7 +345,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
         StepKey firstStepKey = InitializePolicyContextStep.KEY;
         StepKey secondStepKey = PhaseCompleteStep.finalStep("new").getKey();
-        List<Step> steps = policy.toSteps(client, null);
+        List<Step> steps = policy.toSteps(client, CURRENT_VERSION, null);
         assertThat(steps.size(), equalTo(4));
         assertSame(steps.get(0).getKey(), firstStepKey);
         assertThat(steps.get(0).getNextStepKey(), equalTo(secondStepKey));
@@ -377,7 +383,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         phases.put(secondPhase.getName(), secondPhase);
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
 
-        List<Step> steps = policy.toSteps(client, null);
+        List<Step> steps = policy.toSteps(client, CURRENT_VERSION, null);
         assertThat(steps.size(), equalTo(7));
         assertThat(steps.get(0).getClass(), equalTo(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(init.getKey()));

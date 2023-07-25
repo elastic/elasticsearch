@@ -27,6 +27,8 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.CURRENT_VERSION;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VERSION_ONE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -73,7 +75,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             stepNull ? null : randomAlphaOfLength(10),
             stepNull ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
-            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
+            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""),
+            randomIntBetween(VERSION_ONE, CURRENT_VERSION)
         );
     }
 
@@ -99,7 +102,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
-                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
+                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""),
+                randomIntBetween(VERSION_ONE, CURRENT_VERSION)
             )
         );
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
@@ -132,7 +136,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             null,
             null,
             null,
-            null
+            null,
+            randomIntBetween(VERSION_ONE, CURRENT_VERSION)
         );
         assertThat(managedExplainResponse.getLifecycleDate(), is(notNullValue()));
         Long now = 1_000_000L;
@@ -192,8 +197,9 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
         boolean managed = instance.managedByILM();
         BytesReference stepInfo = instance.getStepInfo();
         PhaseExecutionInfo phaseExecutionInfo = instance.getPhaseExecutionInfo();
+        Integer actionsOrderVersion = instance.getActionsOrderVersion();
         if (managed) {
-            switch (between(0, 14)) {
+            switch (between(0, 15)) {
                 case 0:
                     index = index + randomAlphaOfLengthBetween(1, 5);
                     break;
@@ -259,6 +265,9 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 case 14:
                     shrinkIndexName = randomValueOtherThan(shrinkIndexName, () -> randomAlphaOfLengthBetween(5, 10));
                     break;
+                case 15:
+                    actionsOrderVersion = randomValueOtherThan(actionsOrderVersion, () -> randomIntBetween(VERSION_ONE, CURRENT_VERSION));
+                    break;
                 default:
                     throw new AssertionError("Illegal randomisation branch");
             }
@@ -280,7 +289,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 snapshotName,
                 shrinkIndexName,
                 stepInfo,
-                phaseExecutionInfo
+                phaseExecutionInfo,
+                actionsOrderVersion
             );
         } else {
             return switch (between(0, 1)) {

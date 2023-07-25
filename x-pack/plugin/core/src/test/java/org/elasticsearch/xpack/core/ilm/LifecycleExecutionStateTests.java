@@ -23,8 +23,10 @@ public class LifecycleExecutionStateTests extends ESTestCase {
     }
 
     public void testEmptyValuesAreNotSerialized() {
+        // the actions order version defaults to 1 if missing
         LifecycleExecutionState empty = LifecycleExecutionState.builder().build();
-        assertEquals(new HashMap<String, String>().entrySet(), empty.asMap().entrySet());
+        Map<String, String> expected = Map.of("actions_order_version", "1");
+        assertEquals(expected, empty.asMap());
 
         Map<String, String> originalMap = createCustomMetadata();
         LifecycleExecutionState originalState = LifecycleExecutionState.fromCustomMetadata(originalMap);
@@ -135,7 +137,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
 
     private static LifecycleExecutionState mutate(LifecycleExecutionState toMutate) {
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder(toMutate);
-        switch (randomIntBetween(0, 17)) {
+        switch (randomIntBetween(0, 18)) {
             case 0:
                 newState.setPhase(randomValueOtherThan(toMutate.phase(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
@@ -192,6 +194,9 @@ public class LifecycleExecutionStateTests extends ESTestCase {
                 newState.setFailedStepRetryCount(randomValueOtherThan(toMutate.failedStepRetryCount(), ESTestCase::randomInt));
                 break;
             case 17:
+                newState.setActionsOrderVersion(randomValueOtherThan(toMutate.actionsOrderVersion(), ESTestCase::randomInt));
+                break;
+            case 18:
                 return LifecycleExecutionState.builder().build();
             default:
                 throw new IllegalStateException("unknown randomization branch");
@@ -213,6 +218,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         long phaseTime = randomLong();
         long actionTime = randomLong();
         long stepTime = randomLong();
+        int actionsOrderVersion = randomNonNegativeInt();
 
         Map<String, String> customMetadata = new HashMap<>();
         customMetadata.put("phase", phase);
@@ -232,6 +238,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         customMetadata.put("rollup_index_name", randomAlphaOfLengthBetween(5, 20));
         customMetadata.put("is_auto_retryable_error", String.valueOf(randomBoolean()));
         customMetadata.put("failed_step_retry_count", String.valueOf(randomInt()));
+        customMetadata.put("actions_order_version", String.valueOf(actionsOrderVersion));
         return customMetadata;
     }
 }

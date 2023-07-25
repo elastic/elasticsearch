@@ -14,6 +14,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.CURRENT_VERSION;
+
 public class TestLifecycleType implements LifecycleType {
     public static final TestLifecycleType INSTANCE = new TestLifecycleType();
 
@@ -35,12 +37,17 @@ public class TestLifecycleType implements LifecycleType {
     }
 
     @Override
+    public int getLatestActionsOrderVersion() {
+        return CURRENT_VERSION;
+    }
+
+    @Override
     public List<Phase> getOrderedPhases(Map<String, Phase> phases) {
         return new ArrayList<>(phases.values());
     }
 
     @Override
-    public List<LifecycleAction> getOrderedActions(Phase phase) {
+    public List<LifecycleAction> getOrderedActions(Phase phase, int orderVersion) {
         return new ArrayList<>(phase.getActions().values());
     }
 

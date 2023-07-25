@@ -112,7 +112,7 @@ class IndexLifecycleRunner {
         StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         logger.trace("[{}] retrieved current step key: {}", indexMetadata.getIndex().getName(), currentStepKey);
         if (currentStepKey == null) {
-            return stepRegistry.getFirstStep(policy);
+            return stepRegistry.getFirstStep(policy, lifecycleState.actionsOrderVersion());
         } else {
             return stepRegistry.getStep(indexMetadata, currentStepKey);
         }

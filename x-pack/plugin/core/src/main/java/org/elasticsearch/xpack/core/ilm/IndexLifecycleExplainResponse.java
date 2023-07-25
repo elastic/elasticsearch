@@ -26,6 +26,8 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.VERSION_ONE;
+
 public class IndexLifecycleExplainResponse implements ToXContentObject, Writeable {
 
     private static final ParseField INDEX_FIELD = new ParseField("index");
@@ -54,6 +56,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField REPOSITORY_NAME = new ParseField("repository_name");
     private static final ParseField SHRINK_INDEX_NAME = new ParseField("shrink_index_name");
     private static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
+    private static ParseField ACTIONS_ORDER_VERSION_FIELD = new ParseField("actions_order_version");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
         "index_lifecycle_explain_response",
@@ -76,9 +79,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             (String) a[17],
             (String) a[18],
             (BytesReference) a[11],
-            (PhaseExecutionInfo) a[12]
+            (PhaseExecutionInfo) a[12],
             // a[13] == "age"
             // a[20] == "time_since_index_creation"
+            (Integer) a[21]
         )
     );
     static {
@@ -111,6 +115,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SHRINK_INDEX_NAME);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), INDEX_CREATION_DATE_MILLIS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TIME_SINCE_INDEX_CREATION_FIELD);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), ACTIONS_ORDER_VERSION_FIELD);
     }
 
     private final String index;
@@ -132,6 +137,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private final String repositoryName;
     private final String snapshotName;
     private final String shrinkIndexName;
+    private final Integer actionsOrderVersion;
 
     Supplier<Long> nowSupplier = System::currentTimeMillis; // Can be changed for testing
 
@@ -153,7 +159,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         String snapshotName,
         String shrinkIndexName,
         BytesReference stepInfo,
-        PhaseExecutionInfo phaseExecutionInfo
+        PhaseExecutionInfo phaseExecutionInfo,
+        Integer actionsOrderVersion
     ) {
         return new IndexLifecycleExplainResponse(
             index,
@@ -174,7 +181,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             snapshotName,
             shrinkIndexName,
             stepInfo,
-            phaseExecutionInfo
+            phaseExecutionInfo,
+            actionsOrderVersion
         );
     }
 
@@ -183,6 +191,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             index,
             null,
             false,
+            null,
             null,
             null,
             null,
@@ -221,7 +230,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         String snapshotName,
         String shrinkIndexName,
         BytesReference stepInfo,
-        PhaseExecutionInfo phaseExecutionInfo
+        PhaseExecutionInfo phaseExecutionInfo,
+        Integer actionsOrderVersion
     ) {
         if (managedByILM) {
             if (policyName == null) {
@@ -283,6 +293,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         this.repositoryName = repositoryName;
         this.snapshotName = snapshotName;
         this.shrinkIndexName = shrinkIndexName;
+        this.actionsOrderVersion = actionsOrderVersion;
     }
 
     public IndexLifecycleExplainResponse(StreamInput in) throws IOException {
@@ -310,6 +321,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             } else {
                 indexCreationDate = null;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
+                actionsOrderVersion = in.readOptionalInt();
+            } else {
+                actionsOrderVersion = VERSION_ONE;
+            }
         } else {
             policyName = null;
             lifecycleDate = null;
@@ -328,6 +344,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             snapshotName = null;
             shrinkIndexName = null;
             indexCreationDate = null;
+            actionsOrderVersion = null;
         }
     }
 
@@ -354,6 +371,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalString(shrinkIndexName);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                 out.writeOptionalLong(indexCreationDate);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
+                out.writeOptionalInt(actionsOrderVersion);
             }
         }
     }
@@ -450,6 +470,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return shrinkIndexName;
     }
 
+    public Integer getActionsOrderVersion() {
+        return actionsOrderVersion;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -514,6 +538,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (phaseExecutionInfo != null) {
                 builder.field(PHASE_EXECUTION_INFO.getPreferredName(), phaseExecutionInfo);
             }
+            if (actionsOrderVersion != null) {
+                builder.field(ACTIONS_ORDER_VERSION_FIELD.getPreferredName(), actionsOrderVersion);
+            }
         }
         builder.endObject();
         return builder;
@@ -540,7 +567,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             snapshotName,
             shrinkIndexName,
             stepInfo,
-            phaseExecutionInfo
+            phaseExecutionInfo,
+            actionsOrderVersion
         );
     }
 
@@ -571,7 +599,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             && Objects.equals(snapshotName, other.snapshotName)
             && Objects.equals(shrinkIndexName, other.shrinkIndexName)
             && Objects.equals(stepInfo, other.stepInfo)
-            && Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo);
+            && Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo)
+            && Objects.equals(actionsOrderVersion, other.actionsOrderVersion);
     }
 
     @Override

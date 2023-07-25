@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.CURRENT_VERSION;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -83,7 +84,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
 
     public void testExecuteSuccessfullyMoved() throws Exception {
         long now = randomNonNegativeLong();
-        List<Step> steps = lifecyclePolicy.toSteps(null, null);
+        List<Step> steps = lifecyclePolicy.toSteps(null, CURRENT_VERSION, null);
         StepKey currentStepKey = steps.get(0).getKey();
         StepKey nextStepKey = steps.get(0).getNextStepKey();
 
@@ -157,7 +158,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
 
     public void testExecuteSuccessfulMoveWithInvalidNextStep() throws Exception {
         long now = randomNonNegativeLong();
-        List<Step> steps = lifecyclePolicy.toSteps(null, null);
+        List<Step> steps = lifecyclePolicy.toSteps(null, CURRENT_VERSION, null);
         StepKey currentStepKey = steps.get(0).getKey();
         StepKey invalidNextStep = new StepKey("next-invalid", "next-invalid", "next-invalid");
 
@@ -227,7 +228,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         }
 
         @Override
-        public boolean stepExists(String policy, StepKey stepKey) {
+        public boolean stepExists(String policy, int actionsOrderVersion, StepKey stepKey) {
             return true;
         }
     }

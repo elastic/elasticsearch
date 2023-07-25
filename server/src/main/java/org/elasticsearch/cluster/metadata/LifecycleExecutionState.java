@@ -36,8 +36,15 @@ public record LifecycleExecutionState(
     String snapshotName,
     String shrinkIndexName,
     String snapshotIndexName,
-    String downsampleIndexName
+    String downsampleIndexName,
+    Integer actionsOrderVersion
 ) {
+
+    public LifecycleExecutionState {
+        if (actionsOrderVersion == null) {
+            actionsOrderVersion = 1;
+        }
+    }
 
     public static final String ILM_CUSTOM_METADATA_KEY = "ilm";
 
@@ -58,6 +65,7 @@ public record LifecycleExecutionState(
     private static final String SNAPSHOT_INDEX_NAME = "snapshot_index_name";
     private static final String SHRINK_INDEX_NAME = "shrink_index_name";
     private static final String DOWNSAMPLE_INDEX_NAME = "rollup_index_name";
+    private static final String ACTIONS_ORDER_VERSION = "actions_order_version";
 
     public static final LifecycleExecutionState EMPTY_STATE = LifecycleExecutionState.builder().build();
 
@@ -82,7 +90,8 @@ public record LifecycleExecutionState(
             .setShrinkIndexName(state.shrinkIndexName)
             .setSnapshotIndexName(state.snapshotIndexName)
             .setDownsampleIndexName(state.downsampleIndexName)
-            .setStepTime(state.stepTime);
+            .setStepTime(state.stepTime)
+            .setActionsOrderVersion(state.actionsOrderVersion);
     }
 
     public static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
@@ -191,6 +200,10 @@ public record LifecycleExecutionState(
         if (downsampleIndexName != null) {
             builder.setDownsampleIndexName(downsampleIndexName);
         }
+        String actionsOrderVersion = customData.get(ACTIONS_ORDER_VERSION);
+        if (actionsOrderVersion != null) {
+            builder.setActionsOrderVersion(Integer.parseInt(actionsOrderVersion));
+        }
         return builder.build();
     }
 
@@ -253,6 +266,9 @@ public record LifecycleExecutionState(
         if (downsampleIndexName != null) {
             result.put(DOWNSAMPLE_INDEX_NAME, downsampleIndexName);
         }
+        if (actionsOrderVersion != null) {
+            result.put(ACTIONS_ORDER_VERSION, String.valueOf(actionsOrderVersion));
+        }
         return Collections.unmodifiableMap(result);
     }
 
@@ -274,6 +290,7 @@ public record LifecycleExecutionState(
         private String shrinkIndexName;
         private String snapshotIndexName;
         private String downsampleIndexName;
+        private Integer actionsOrderVersion;
 
         public Builder setPhase(String phase) {
             this.phase = phase;
@@ -360,6 +377,11 @@ public record LifecycleExecutionState(
             return this;
         }
 
+        public Builder setActionsOrderVersion(Integer actionsOrderVersion) {
+            this.actionsOrderVersion = actionsOrderVersion;
+            return this;
+        }
+
         public LifecycleExecutionState build() {
             return new LifecycleExecutionState(
                 phase,
@@ -378,7 +400,8 @@ public record LifecycleExecutionState(
                 snapshotName,
                 shrinkIndexName,
                 snapshotIndexName,
-                downsampleIndexName
+                downsampleIndexName,
+                actionsOrderVersion
             );
         }
     }

@@ -28,9 +28,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.ALLOWED_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.CURRENT_VERSION;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.ORDERED_VALID_COLD_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.ORDERED_VALID_DELETE_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.ORDERED_VALID_FROZEN_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.ORDERED_VALID_HOT_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleActionsRegistry.ORDERED_VALID_WARM_ACTIONS;
 
 /**
  * Represents the lifecycle of an index from creation to deletion. A
@@ -51,58 +57,6 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String FROZEN_PHASE = "frozen";
     static final String DELETE_PHASE = "delete";
     public static final List<String> ORDERED_VALID_PHASES = List.of(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
-
-    public static final List<String> ORDERED_VALID_HOT_ACTIONS = Stream.of(
-        SetPriorityAction.NAME,
-        UnfollowAction.NAME,
-        RolloverAction.NAME,
-        ReadOnlyAction.NAME,
-        DownsampleAction.NAME,
-        ShrinkAction.NAME,
-        ForceMergeAction.NAME,
-        SearchableSnapshotAction.NAME
-    ).filter(Objects::nonNull).toList();
-    public static final List<String> ORDERED_VALID_WARM_ACTIONS = Stream.of(
-        SetPriorityAction.NAME,
-        UnfollowAction.NAME,
-        ReadOnlyAction.NAME,
-        DownsampleAction.NAME,
-        AllocateAction.NAME,
-        MigrateAction.NAME,
-        ShrinkAction.NAME,
-        ForceMergeAction.NAME
-    ).filter(Objects::nonNull).toList();
-    public static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(
-        SetPriorityAction.NAME,
-        UnfollowAction.NAME,
-        ReadOnlyAction.NAME,
-        DownsampleAction.NAME,
-        SearchableSnapshotAction.NAME,
-        AllocateAction.NAME,
-        MigrateAction.NAME,
-        FreezeAction.NAME
-    ).filter(Objects::nonNull).toList();
-    public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
-    public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);
-
-    static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
-    static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
-    static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
-    static final Set<String> VALID_FROZEN_ACTIONS = Sets.newHashSet(ORDERED_VALID_FROZEN_ACTIONS);
-    static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
-
-    private static final Map<String, Set<String>> ALLOWED_ACTIONS = Map.of(
-        HOT_PHASE,
-        VALID_HOT_ACTIONS,
-        WARM_PHASE,
-        VALID_WARM_ACTIONS,
-        COLD_PHASE,
-        VALID_COLD_ACTIONS,
-        DELETE_PHASE,
-        VALID_DELETE_ACTIONS,
-        FROZEN_PHASE,
-        VALID_FROZEN_ACTIONS
-    );
 
     static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Set.of(
         ReadOnlyAction.NAME,
@@ -177,14 +131,40 @@ public class TimeseriesLifecycleType implements LifecycleType {
         return true;
     }
 
-    public List<LifecycleAction> getOrderedActions(Phase phase) {
+    @Override
+    public List<LifecycleAction> getOrderedActions(Phase phase, int actionsOrderVersion) {
+        if (actionsOrderVersion > getLatestActionsOrderVersion()) {
+            throw new IllegalArgumentException(
+                "invalid actions order requested [" + actionsOrderVersion + "]. Latest version is [" + getLatestActionsOrderVersion() + "]"
+            );
+        }
         Map<String, LifecycleAction> actions = phase.getActions();
         return switch (phase.getName()) {
-            case HOT_PHASE -> ORDERED_VALID_HOT_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            case WARM_PHASE -> ORDERED_VALID_WARM_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            case COLD_PHASE -> ORDERED_VALID_COLD_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            case FROZEN_PHASE -> ORDERED_VALID_FROZEN_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            case DELETE_PHASE -> ORDERED_VALID_DELETE_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
+            case HOT_PHASE -> ORDERED_VALID_HOT_ACTIONS.get(actionsOrderVersion)
+                .stream()
+                .map(actions::get)
+                .filter(Objects::nonNull)
+                .collect(toList());
+            case WARM_PHASE -> ORDERED_VALID_WARM_ACTIONS.get(actionsOrderVersion)
+                .stream()
+                .map(actions::get)
+                .filter(Objects::nonNull)
+                .collect(toList());
+            case COLD_PHASE -> ORDERED_VALID_COLD_ACTIONS.get(actionsOrderVersion)
+                .stream()
+                .map(actions::get)
+                .filter(Objects::nonNull)
+                .collect(toList());
+            case FROZEN_PHASE -> ORDERED_VALID_FROZEN_ACTIONS.get(actionsOrderVersion)
+                .stream()
+                .map(actions::get)
+                .filter(Objects::nonNull)
+                .collect(toList());
+            case DELETE_PHASE -> ORDERED_VALID_DELETE_ACTIONS.get(actionsOrderVersion)
+                .stream()
+                .map(actions::get)
+                .filter(Objects::nonNull)
+                .collect(toList());
             default -> throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
         };
     }
@@ -252,6 +232,11 @@ public class TimeseriesLifecycleType implements LifecycleType {
         validateAllSearchableSnapshotActionsUseSameRepository(phases);
         validateFrozenPhaseHasSearchableSnapshotAction(phases);
         validateDownsamplingIntervals(phases);
+    }
+
+    @Override
+    public int getLatestActionsOrderVersion() {
+        return CURRENT_VERSION;
     }
 
     static void validateActionsFollowingSearchableSnapshot(Collection<Phase> phases) {

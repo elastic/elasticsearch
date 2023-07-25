@@ -20,14 +20,14 @@ public class PostSecretResponseTests extends AbstractWireSerializingTestCase<Pos
 
     @Override
     protected PostSecretResponse createTestInstance() {
-        return new PostSecretResponse(randomFrom(RestStatus.OK, RestStatus.CREATED));
+        return new PostSecretResponse(randomFrom(RestStatus.OK, RestStatus.CREATED), randomAlphaOfLengthBetween(2, 10));
     }
 
     @Override
     protected PostSecretResponse mutateInstance(PostSecretResponse instance) {
         if (instance.status() == RestStatus.OK) {
-            return new PostSecretResponse(RestStatus.CREATED);
+            return new PostSecretResponse(RestStatus.CREATED, randomAlphaOfLengthBetween(2, 10));
         }
-        return new PostSecretResponse(RestStatus.OK);
+        return new PostSecretResponse(RestStatus.OK, randomAlphaOfLengthBetween(2, 10));
     }
 }

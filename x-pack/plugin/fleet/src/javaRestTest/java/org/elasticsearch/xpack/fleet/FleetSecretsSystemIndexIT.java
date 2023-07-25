@@ -35,25 +35,25 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
 
     public void testFleetSecretsCRUD() throws Exception {
         // post secret
-        // TODO: this currently fails with "this request accesses system indices"
         final String secretJson = getPostSecretJson();
         Request postRequest = new Request("POST", "/_fleet/secrets/");
         postRequest.setJsonEntity(secretJson);
-        System.out.println("----> request");
-        System.out.println(postRequest);
+        // System.out.println("----> request");
+        // System.out.println(postRequest);
         Response postResponse = client().performRequest(postRequest);
-        System.out.println("----> response");
-        System.out.println(postResponse);
+        // System.out.println("----> response");
+        // System.out.println(postResponse.toString());
         assertThat(postResponse.getStatusLine().getStatusCode(), is(201));
+        // final String id =
 
         // get secret
-        // Request getRequest = new Request("GET", "/fleet/secrets/123"); // will need actual id returned by POST request
+        // Request getRequest = new Request("GET", "/fleet/secrets/" + id);
         // Response getResponse = client().performRequest(getRequest);
         // assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
         // assertThat(EntityUtils.toString(getResponse.getEntity()), containsString(secretJson));
 
         // delete secret
-        // Request deleteRequest = new Request("DELETE", "/fleet/secrets/123"); // will need actual id returned by POST request
+        // Request deleteRequest = new Request("DELETE", "/fleet/secrets/" + id);
         // Response deleteResponse = client().performRequest(deleteRequest);
         // assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
     }

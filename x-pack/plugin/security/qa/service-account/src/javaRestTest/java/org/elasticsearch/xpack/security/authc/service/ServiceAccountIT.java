@@ -84,7 +84,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         {
               "cluster": [
                 "monitor",
-                "manage_own_api_key"
+                "manage_own_api_key",
+                "read_fleet_secrets"
               ],
               "indices": [
                 {

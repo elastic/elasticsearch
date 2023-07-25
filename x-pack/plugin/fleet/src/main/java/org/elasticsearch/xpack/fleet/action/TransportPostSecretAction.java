@@ -30,7 +30,7 @@ public class TransportPostSecretAction extends HandledTransportAction<PostSecret
             .setSource(request.source(), request.xContentType())
             .execute(
                 ActionListener.wrap(
-                    indexResponse -> listener.onResponse(new PostSecretResponse(indexResponse.status())),
+                    indexResponse -> listener.onResponse(new PostSecretResponse(indexResponse.status(), indexResponse.getId())),
                     listener::onFailure
                 )
             ); // TODO: check impl and failure handling

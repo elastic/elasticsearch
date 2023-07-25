@@ -247,6 +247,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
+            1,
             randomBoolean(),
             executor
         ) {
@@ -261,7 +262,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
             () -> searcher.search(new MatchAllDocsQuery(), collectorManager)
         );
         assertThat(exception.getMessage(), equalTo("fake exception"));
-
         assertThat(visitDocs.get() + missingDocs.get(), equalTo(numDocs));
         directoryReader.close();
         directory.close();

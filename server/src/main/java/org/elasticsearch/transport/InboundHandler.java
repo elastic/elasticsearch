@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -362,15 +363,15 @@ public class InboundHandler {
         final TransportResponseHandler<T> handler,
         final InboundMessage inboundMessage
     ) {
-        final String executor = handler.executor();
-        if (ThreadPool.Names.SAME.equals(executor)) {
+        final var executor = handler.executor(threadPool);
+        if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             // no need to provide a buffer release here, we never escape the buffer when handling directly
             doHandleResponse(handler, remoteAddress, stream, inboundMessage.getHeader(), () -> {});
         } else {
             inboundMessage.incRef();
             // release buffer once we deserialize the message, but have a fail-safe in #onAfter below in case that didn't work out
             final Releasable releaseBuffer = Releasables.releaseOnce(inboundMessage::decRef);
-            threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, null) {
+            executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {
                 @Override
                 protected void doRun() {
                     doHandleResponse(handler, remoteAddress, stream, inboundMessage.getHeader(), releaseBuffer);
@@ -443,11 +444,11 @@ public class InboundHandler {
     }
 
     private void handleException(final TransportResponseHandler<?> handler, TransportException transportException) {
-        final var executor = handler.executor();
-        if (ThreadPool.Names.SAME.equals(executor)) {
+        final var executor = handler.executor(threadPool);
+        if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             doHandleException(handler, transportException);
         } else {
-            threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, transportException) {
+            executor.execute(new ForkingResponseHandlerRunnable(handler, transportException, threadPool) {
                 @Override
                 protected void doRun() {
                     doHandleException(handler, transportException);

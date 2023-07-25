@@ -156,7 +156,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
         // One lifecycle results to this lifecycle as the final
         {
-            DataStreamLifecycle lifecycle = new DataStreamLifecycle(randomRetention(), randomDownsampling());
+            DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+                .dataRetention(randomRetention())
+                .downsampling(randomDownsampling())
+                .build();
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
             assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle.getEffectiveDataRetention()));
@@ -164,7 +167,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
         // If the last lifecycle is missing a property we keep the latest from the previous ones
         {
-            DataStreamLifecycle lifecycle = new DataStreamLifecycle(randomNonEmptyRetention(), randomNonEmptyDownsampling());
+            DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+                .dataRetention(randomNonEmptyRetention())
+                .downsampling(randomNonEmptyDownsampling())
+                .build();
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle, new DataStreamLifecycle());
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
             assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle.getEffectiveDataRetention()));
@@ -172,8 +178,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
         // If both lifecycle have all properties, then the latest one overwrites all the others
         {
-            DataStreamLifecycle lifecycle1 = new DataStreamLifecycle(randomNonEmptyRetention(), randomNonEmptyDownsampling());
-            DataStreamLifecycle lifecycle2 = new DataStreamLifecycle(randomNonEmptyRetention(), randomNonEmptyDownsampling());
+            DataStreamLifecycle lifecycle1 = DataStreamLifecycle.newBuilder()
+                .dataRetention(randomNonEmptyRetention())
+                .downsampling(randomNonEmptyDownsampling())
+                .build();
+            DataStreamLifecycle lifecycle2 = DataStreamLifecycle.newBuilder()
+                .dataRetention(randomNonEmptyRetention())
+                .downsampling(randomNonEmptyDownsampling())
+                .build();
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
             assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle2.getEffectiveDataRetention()));
@@ -181,8 +193,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
         // If the last lifecycle is explicitly null, the result is also null
         {
-            DataStreamLifecycle lifecycle1 = new DataStreamLifecycle(randomNonEmptyRetention(), randomNonEmptyDownsampling());
-            DataStreamLifecycle lifecycle2 = new DataStreamLifecycle(randomNonEmptyRetention(), randomNonEmptyDownsampling());
+            DataStreamLifecycle lifecycle1 = DataStreamLifecycle.newBuilder()
+                .dataRetention(randomNonEmptyRetention())
+                .downsampling(randomNonEmptyDownsampling())
+                .build();
+            DataStreamLifecycle lifecycle2 = DataStreamLifecycle.newBuilder()
+                .dataRetention(randomNonEmptyRetention())
+                .downsampling(randomNonEmptyDownsampling())
+                .build();
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle1, lifecycle2, Template.NO_LIFECYCLE);
             assertThat(composeDataLifecycles(lifecycles), nullValue());
         }

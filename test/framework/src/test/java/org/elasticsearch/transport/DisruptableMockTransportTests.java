@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -537,7 +538,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
                     new CleanableResponseHandler<>(
                         ActionListener.running(() -> assertFalse(responseHandlerCalled.getAndSet(true))),
                         TestResponse::new,
-                        ThreadPool.Names.SAME,
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         () -> assertFalse(responseHandlerReleased.getAndSet(true))
                     )
                 );

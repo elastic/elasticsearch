@@ -12,8 +12,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,12 +43,34 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
+import org.elasticsearch.license.DeleteLicenseAction;
+import org.elasticsearch.license.GetBasicStatusAction;
+import org.elasticsearch.license.GetLicenseAction;
+import org.elasticsearch.license.GetTrialStatusAction;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensesMetadata;
-import org.elasticsearch.license.Licensing;
+import org.elasticsearch.license.PostStartBasicAction;
+import org.elasticsearch.license.PostStartTrialAction;
+import org.elasticsearch.license.PutLicenseAction;
+import org.elasticsearch.license.RestDeleteLicenseAction;
+import org.elasticsearch.license.RestGetBasicStatus;
+import org.elasticsearch.license.RestGetFeatureUsageAction;
+import org.elasticsearch.license.RestGetLicenseAction;
+import org.elasticsearch.license.RestGetTrialStatus;
+import org.elasticsearch.license.RestPostStartBasicLicense;
+import org.elasticsearch.license.RestPostStartTrialLicense;
+import org.elasticsearch.license.RestPutLicenseAction;
+import org.elasticsearch.license.TransportDeleteLicenseAction;
+import org.elasticsearch.license.TransportGetBasicStatusAction;
+import org.elasticsearch.license.TransportGetFeatureUsageAction;
+import org.elasticsearch.license.TransportGetLicenseAction;
+import org.elasticsearch.license.TransportGetTrialStatusAction;
+import org.elasticsearch.license.TransportPostStartBasicAction;
+import org.elasticsearch.license.TransportPostStartTrialAction;
+import org.elasticsearch.license.TransportPutLicenseAction;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -160,8 +180,6 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     protected final Settings settings;
-    // private final Environment env;
-    protected final Licensing licensing;
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
     // non-final to allow for testing
@@ -177,8 +195,6 @@ public class XPackPlugin extends XPackClientPlugin
         licenseState = new SetOnce<>();
         licenseService = new SetOnce<>();
         epochMillisSupplier = new SetOnce<>();
-
-        this.licensing = new Licensing(settings);
     }
 
     // overridable by tests
@@ -347,7 +363,14 @@ public class XPackPlugin extends XPackClientPlugin
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, getInfoAction()));
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, getUsageAction()));
-        actions.addAll(licensing.getActions());
+        actions.add(new ActionHandler<>(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class));
+        actions.add(new ActionHandler<>(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class));
+        actions.add(new ActionHandler<>(DeleteLicenseAction.INSTANCE, TransportDeleteLicenseAction.class));
+        actions.add(new ActionHandler<>(PostStartTrialAction.INSTANCE, TransportPostStartTrialAction.class));
+        actions.add(new ActionHandler<>(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class));
+        actions.add(new ActionHandler<>(PostStartBasicAction.INSTANCE, TransportPostStartBasicAction.class));
+        actions.add(new ActionHandler<>(GetBasicStatusAction.INSTANCE, TransportGetBasicStatusAction.class));
+        actions.add(new ActionHandler<>(TransportGetFeatureUsageAction.TYPE, TransportGetFeatureUsageAction.class));
         actions.add(new ActionHandler<>(TermsEnumAction.INSTANCE, TransportTermsEnumAction.class));
         actions.add(new ActionHandler<>(DeleteAsyncResultAction.INSTANCE, TransportDeleteAsyncResultAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
@@ -371,21 +394,6 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public List<ActionType<? extends ActionResponse>> getClientActions() {
-        List<ActionType<? extends ActionResponse>> actions = new ArrayList<>();
-        actions.addAll(licensing.getClientActions());
-        actions.addAll(super.getClientActions());
-        return actions;
-    }
-
-    @Override
-    public List<ActionFilter> getActionFilters() {
-        List<ActionFilter> filters = new ArrayList<>();
-        filters.addAll(licensing.getActionFilters());
-        return filters;
-    }
-
-    @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
         RestController restController,
@@ -399,17 +407,14 @@ public class XPackPlugin extends XPackClientPlugin
         handlers.add(new RestXPackInfoAction());
         handlers.add(new RestXPackUsageAction());
         handlers.add(new RestTermsEnumAction());
-        handlers.addAll(
-            licensing.getRestHandlers(
-                settings,
-                restController,
-                clusterSettings,
-                indexScopedSettings,
-                settingsFilter,
-                indexNameExpressionResolver,
-                nodesInCluster
-            )
-        );
+        handlers.add(new RestGetLicenseAction());
+        handlers.add(new RestPutLicenseAction());
+        handlers.add(new RestDeleteLicenseAction());
+        handlers.add(new RestGetTrialStatus());
+        handlers.add(new RestGetBasicStatus());
+        handlers.add(new RestPostStartTrialLicense());
+        handlers.add(new RestPostStartBasicLicense());
+        handlers.add(new RestGetFeatureUsageAction());
         return handlers;
     }
 

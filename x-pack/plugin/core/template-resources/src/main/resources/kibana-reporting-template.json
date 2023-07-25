@@ -110,6 +110,9 @@
             },
             "size": {
               "type": "long"
+            },
+            "warnings": {
+              "type": "text"
             }
           }
         },

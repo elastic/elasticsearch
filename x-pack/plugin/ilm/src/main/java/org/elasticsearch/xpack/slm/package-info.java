@@ -27,10 +27,8 @@
  * is triggered for execution. It constructs a snapshot request and runs it as the user who originally set up the policy. The bulk of this
  * logic is contained in the
  * {@link org.elasticsearch.xpack.slm.SnapshotLifecycleTask#maybeTakeSnapshot(String, Client, ClusterService,
- * SnapshotHistoryStore)} method. After a snapshot request has been submitted, it persists the result (success or failure) in a history
- * store (an index), caching the latest success and failure information in the cluster state. It is important to note that this task
- * fires the snapshot request off and forgets it; It does not wait until the entire snapshot completes. Any success or failure that this
- * task sees will be from the initial submission of the snapshot request only.
+ * SnapshotHistoryStore)} method. After a snapshot request has been completed, it persists the result (success or failure) in a history
+ * store (an index), caching the latest success and failure information in the cluster state.
  */
 package org.elasticsearch.xpack.slm;
 

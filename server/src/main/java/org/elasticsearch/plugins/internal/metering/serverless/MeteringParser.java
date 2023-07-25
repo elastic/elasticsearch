@@ -18,8 +18,8 @@ import java.nio.CharBuffer;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class MeteringParser extends AbstractXContentParser {
-    private final XContentParser x;
-    private AtomicLong counter = new AtomicLong();
+    private final XContentParser delegate;
+    private final AtomicLong counter = new AtomicLong();
 
     private void charge(long value) {
         counter.addAndGet(value);
@@ -31,138 +31,138 @@ public class MeteringParser extends AbstractXContentParser {
 
     public MeteringParser(XContentParser xContentParser) {
         super(xContentParser.getXContentRegistry(), xContentParser.getDeprecationHandler(), xContentParser.getRestApiVersion());
-        this.x = xContentParser;
+        this.delegate = xContentParser;
     }
 
     @Override
     public XContentType contentType() {
-        return x.contentType();
+        return delegate.contentType();
     }
 
     @Override
     public void allowDuplicateKeys(boolean allowDuplicateKeys) {
-        x.allowDuplicateKeys(allowDuplicateKeys);
+        delegate.allowDuplicateKeys(allowDuplicateKeys);
     }
 
     @Override
     public Token nextToken() throws IOException {
         charge(1);
-        return x.nextToken();
+        return delegate.nextToken();
     }
 
     @Override
     public void skipChildren() throws IOException {
-        x.skipChildren();
+        delegate.skipChildren();
     }
 
     @Override
     public Token currentToken() {
-        return x.currentToken();
+        return delegate.currentToken();
     }
 
     @Override
     public String currentName() throws IOException {
-        return x.currentName();
+        return delegate.currentName();
     }
 
     @Override
     public String text() throws IOException {
-        return x.text();
+        return delegate.text();
     }
 
     @Override
     public CharBuffer charBuffer() throws IOException {
-        return x.charBuffer();
+        return delegate.charBuffer();
     }
 
     @Override
     public Object objectText() throws IOException {
-        return x.objectText();
+        return delegate.objectText();
     }
 
     @Override
     public Object objectBytes() throws IOException {
-        return x.objectBytes();
+        return delegate.objectBytes();
     }
 
     @Override
     public boolean hasTextCharacters() {
-        return x.hasTextCharacters();
+        return delegate.hasTextCharacters();
     }
 
     @Override
     public char[] textCharacters() throws IOException {
-        return x.textCharacters();
+        return delegate.textCharacters();
     }
 
     @Override
     public int textLength() throws IOException {
-        return x.textLength();
+        return delegate.textLength();
     }
 
     @Override
     public int textOffset() throws IOException {
-        return x.textOffset();
+        return delegate.textOffset();
     }
 
     @Override
     public Number numberValue() throws IOException {
-        return x.numberValue();
+        return delegate.numberValue();
     }
 
     @Override
     public NumberType numberType() throws IOException {
-        return x.numberType();
+        return delegate.numberType();
     }
 
     @Override
     public byte[] binaryValue() throws IOException {
-        return x.binaryValue();
+        return delegate.binaryValue();
     }
 
     @Override
     public XContentLocation getTokenLocation() {
-        return x.getTokenLocation();
+        return delegate.getTokenLocation();
     }
 
     @Override
     protected boolean doBooleanValue() throws IOException {
-        return x.booleanValue();
+        return delegate.booleanValue();
     }
 
     @Override
     protected short doShortValue() throws IOException {
-        return x.shortValue();
+        return delegate.shortValue();
     }
 
     @Override
     protected int doIntValue() throws IOException {
-        return x.intValue();
+        return delegate.intValue();
     }
 
     @Override
     protected long doLongValue() throws IOException {
-        return x.longValue();
+        return delegate.longValue();
     }
 
     @Override
     protected float doFloatValue() throws IOException {
-        return x.floatValue();
+        return delegate.floatValue();
     }
 
     @Override
     protected double doDoubleValue() throws IOException {
-        return x.doubleValue();
+        return delegate.doubleValue();
     }
 
     @Override
     public boolean isClosed() {
-        return x.isClosed();
+        return delegate.isClosed();
     }
 
     @Override
     public void close() throws IOException {
 
-        x.close();
+        delegate.close();
     }
 }

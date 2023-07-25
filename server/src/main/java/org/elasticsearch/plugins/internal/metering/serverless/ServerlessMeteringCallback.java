@@ -8,17 +8,18 @@
 
 package org.elasticsearch.plugins.internal.metering.serverless;
 
-import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.plugins.internal.metering.MeteringCallback;
 import org.elasticsearch.xcontent.XContentParser;
 
 public class ServerlessMeteringCallback implements MeteringCallback {
 
+    private final Logger logger = LogManager.getLogger(ServerlessMeteringCallback.class);
+
     @Override
     public XContentParser wrapParser(XContentParser parser) {
-        // return meteringContext(context.getParent(), context);
-        return new MeteringParser(parser);//
+        return new MeteringParser(parser);
     }
 
     @Override
@@ -26,12 +27,8 @@ public class ServerlessMeteringCallback implements MeteringCallback {
         // in serverless it should always be CountingDocumentParserContext
         assert context instanceof MeteringParser;
         MeteringParser counting = (MeteringParser) context;
-        System.out.println("REPORTING " + counting.getCounter());
+        logger.info("REPORTING " + counting.getCounter());
         // reportManager.report(index,counter)
     }
 
-    public static final DocumentParserContext meteringContext(ObjectMapper parent, DocumentParserContext context) {
-
-        return new CountingDocumentParserContext(parent, context);
-    }
 }

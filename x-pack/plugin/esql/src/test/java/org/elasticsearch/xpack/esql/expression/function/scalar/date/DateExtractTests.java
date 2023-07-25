@@ -47,13 +47,12 @@ public class DateExtractTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected List<Object> simpleData() {
-        return List.of(1687944333000L, new BytesRef("YEAR"));
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new DateExtract(Source.EMPTY, field("date", DataTypes.DATETIME), field("field", DataTypes.KEYWORD), EsqlTestUtils.TEST_CFG);
+    protected TestCase getSimpleTestCase() {
+        List<TypedData> typedData = List.of(
+            new TypedData(1687944333000L, DataTypes.DATETIME, "date"),
+            new TypedData(new BytesRef("YEAR"), DataTypes.KEYWORD, "field")
+        );
+        return new TestCase(Source.EMPTY, typedData, equalTo(2023L));
     }
 
     @Override
@@ -67,17 +66,7 @@ public class DateExtractTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return new DateExtract(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, data.get(0), DataTypes.DATETIME),
-            new Literal(Source.EMPTY, data.get(1), DataTypes.KEYWORD),
-            EsqlTestUtils.TEST_CFG
-        );
-    }
-
-    @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new DateExtract(source, args.get(0), args.get(1), EsqlTestUtils.TEST_CFG);
     }
 

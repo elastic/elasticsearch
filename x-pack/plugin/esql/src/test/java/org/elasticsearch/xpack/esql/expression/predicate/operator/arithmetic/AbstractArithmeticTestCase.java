@@ -40,6 +40,25 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    protected Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        Number lhs = (Number) typedData.get(0).data();
+        Number rhs = (Number) typedData.get(1).data();
+        if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.DOUBLE))) {
+            return equalTo(expectedValue(lhs.doubleValue(), rhs.doubleValue()));
+        }
+        if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.UNSIGNED_LONG))) {
+            return equalTo(expectedUnsignedLongValue(lhs.longValue(), rhs.longValue()));
+        }
+        if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.LONG))) {
+            return equalTo(expectedValue(lhs.longValue(), rhs.longValue()));
+        }
+        if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.INTEGER))) {
+            return equalTo(expectedValue(lhs.intValue(), rhs.intValue()));
+        }
+        throw new UnsupportedOperationException();
+    }
+
     protected abstract double expectedValue(double lhs, double rhs);
 
     protected abstract int expectedValue(int lhs, int rhs);

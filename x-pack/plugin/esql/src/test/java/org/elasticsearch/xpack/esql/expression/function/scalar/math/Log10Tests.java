@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.hamcrest.Matcher;
@@ -22,13 +21,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class Log10Tests extends AbstractScalarFunctionTestCase {
 
     @Override
-    protected List<Object> simpleData() {
-        return List.of(1000.0d);
+    protected TestCase getSimpleTestCase() {
+        List<TypedData> typedData = List.of(new TypedData(1000.0d, DOUBLE, "arg"));
+        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
     }
 
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new Log10(Source.EMPTY, field("arg", DOUBLE));
+    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        return equalTo(Math.log10((Double) typedData.get(0).data()));
     }
 
     @Override
@@ -47,12 +46,7 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return new Log10(Source.EMPTY, new Literal(Source.EMPTY, data.get(0), DOUBLE));
-    }
-
-    @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new Log10(source, args.get(0));
     }
 

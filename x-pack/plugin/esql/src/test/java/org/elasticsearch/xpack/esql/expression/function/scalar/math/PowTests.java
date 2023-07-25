@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -78,13 +77,12 @@ public class PowTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected List<Object> simpleData() {
-        return List.of(1 / randomDouble(), between(-30, 30));
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new Pow(Source.EMPTY, field("arg", DataTypes.DOUBLE), field("exp", DataTypes.INTEGER));
+    protected TestCase getSimpleTestCase() {
+        List<TypedData> typedData = List.of(
+            new TypedData(1 / randomDouble(), DataTypes.DOUBLE, "arg"),
+            new TypedData(between(-30, 30), DataTypes.INTEGER, "exp")
+        );
+        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
     }
 
     @Override
@@ -102,6 +100,10 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         }
     }
 
+    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        return resultMatcher(List.of(typedData.get(0).data(), typedData.get(1).data()), typedData.get(0).type());
+    }
+
     @Override
     protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         return equalTo(Math.pow(((Number) data.get(0)).doubleValue(), ((Number) data.get(1)).doubleValue()));
@@ -113,21 +115,12 @@ public class PowTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return new Pow(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, data.get(0), DataTypes.DOUBLE),
-            new Literal(Source.EMPTY, data.get(1), DataTypes.INTEGER)
-        );
-    }
-
-    @Override
     protected List<ArgumentSpec> argSpec() {
         return List.of(required(numerics()), required(numerics()));
     }
 
     @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new Pow(source, args.get(0), args.get(1));
     }
 }

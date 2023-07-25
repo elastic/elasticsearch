@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class NotEqualsTests extends AbstractBinaryComparisonTestCase {
     @Override
-    protected <T extends Comparable<T>> Matcher<Boolean> resultMatcher(T lhs, T rhs) {
+    protected <T extends Comparable<T>> Matcher<Object> resultMatcher(T lhs, T rhs) {
         return equalTo(false == lhs.equals(rhs));
     }
 

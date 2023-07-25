@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -86,13 +85,12 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected List<Object> simpleData() {
-        return List.of(1 / randomDouble(), between(-30, 30));
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new Round(Source.EMPTY, field("arg", DataTypes.DOUBLE), field("precision", DataTypes.INTEGER));
+    protected TestCase getSimpleTestCase() {
+        List<TypedData> typedData = List.of(
+            new TypedData(1 / randomDouble(), DataTypes.DOUBLE, "arg"),
+            new TypedData(between(-30, 30), DataTypes.INTEGER, "exp")
+        );
+        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
     }
 
     @Override
@@ -103,6 +101,10 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         return equalTo(Maths.round((Number) data.get(0), ((Number) data.get(1)).longValue()));
+    }
+
+    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        return equalTo(Maths.round((Number) typedData.get(0).data(), ((Number) typedData.get(1).data()).longValue()));
     }
 
     @Override
@@ -118,21 +120,12 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return new Round(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, data.get(0), DataTypes.DOUBLE),
-            new Literal(Source.EMPTY, data.get(1), DataTypes.INTEGER)
-        );
-    }
-
-    @Override
     protected List<ArgumentSpec> argSpec() {
         return List.of(required(numerics()), optional(integers()));
     }
 
     @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new Round(source, args.get(0), args.size() < 2 ? null : args.get(1));
     }
 }

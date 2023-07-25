@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -26,18 +25,28 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class MvConcatTests extends AbstractScalarFunctionTestCase {
     @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new MvConcat(source, args.get(0), args.get(1));
     }
 
     @Override
-    protected List<Object> simpleData() {
-        return List.of(List.of(new BytesRef("foo"), new BytesRef("bar"), new BytesRef("baz")), new BytesRef(", "));
+    protected TestCase getSimpleTestCase() {
+        List<TypedData> typedData = List.of(
+            new TypedData(List.of(new BytesRef("foo"), new BytesRef("bar"), new BytesRef("baz")), DataTypes.KEYWORD, "field"),
+            new TypedData(new BytesRef(", "), DataTypes.KEYWORD, "delim")
+        );
+        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
     }
 
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new MvConcat(Source.EMPTY, field("field", DataTypes.KEYWORD), field("delim", DataTypes.KEYWORD));
+    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        List<?> field = (List<?>) typedData.get(0).data();
+        BytesRef delim = (BytesRef) typedData.get(1).data();
+        if (field == null || delim == null) {
+            return nullValue();
+        }
+        return equalTo(
+            new BytesRef(field.stream().map(v -> ((BytesRef) v).utf8ToString()).collect(Collectors.joining(delim.utf8ToString())))
+        );
     }
 
     @Override
@@ -58,15 +67,6 @@ public class MvConcatTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return new MvConcat(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, data.get(0), DataTypes.KEYWORD),
-            new Literal(Source.EMPTY, data.get(1), DataTypes.KEYWORD)
-        );
-    }
-
-    @Override
     protected List<ArgumentSpec> argSpec() {
         return List.of(required(strings()), required(strings()));
     }
@@ -80,7 +80,7 @@ public class MvConcatTests extends AbstractScalarFunctionTestCase {
         BytesRef foo = new BytesRef("foo");
         BytesRef bar = new BytesRef("bar");
         BytesRef delim = new BytesRef(";");
-        Expression expression = expressionForSimpleData();
+        Expression expression = buildFieldExpression(getSimpleTestCase());
 
         assertThat(toJavaObject(evaluator(expression).get().eval(row(Arrays.asList(Arrays.asList(foo, bar), null))), 0), nullValue());
         assertThat(toJavaObject(evaluator(expression).get().eval(row(Arrays.asList(foo, null))), 0), nullValue());

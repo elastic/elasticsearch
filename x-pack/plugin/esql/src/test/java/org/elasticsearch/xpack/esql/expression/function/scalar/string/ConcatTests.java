@@ -26,13 +26,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ConcatTests extends AbstractScalarFunctionTestCase {
     @Override
-    protected List<Object> simpleData() {
-        return List.of(new BytesRef(randomAlphaOfLength(3)), new BytesRef(randomAlphaOfLength(3)));
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new Concat(Source.EMPTY, field("first", DataTypes.KEYWORD), List.of(field("second", DataTypes.KEYWORD)));
+    protected TestCase getSimpleTestCase() {
+        List<TypedData> data = List.of(
+            new TypedData(new BytesRef(randomAlphaOfLength(3)), DataTypes.KEYWORD, "first"),
+            new TypedData(new BytesRef(randomAlphaOfLength(3)), DataTypes.KEYWORD, "second")
+        );
+        return new TestCase(Source.EMPTY, data, resultsMatcher(data));
     }
 
     @Override
@@ -45,18 +44,13 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         return equalTo(new BytesRef(simpleData.stream().map(o -> ((BytesRef) o).utf8ToString()).collect(Collectors.joining())));
     }
 
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "ConcatEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]";
+    private Matcher<Object> resultsMatcher(List<TypedData> simpleData) {
+        return equalTo(new BytesRef(simpleData.stream().map(o -> ((BytesRef) o.data()).utf8ToString()).collect(Collectors.joining())));
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> simpleData) {
-        return new Concat(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, simpleData.get(0), DataTypes.KEYWORD),
-            List.of(new Literal(Source.EMPTY, simpleData.get(1), DataTypes.KEYWORD))
-        );
+    protected String expectedEvaluatorSimpleToString() {
+        return "ConcatEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]";
     }
 
     @Override
@@ -78,7 +72,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new Concat(source, args.get(0), args.subList(1, args.size()));
     }
 

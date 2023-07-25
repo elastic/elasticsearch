@@ -40,7 +40,27 @@ public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOpe
         return (Matcher<Object>) (Matcher<?>) resultMatcher(lhs, rhs);
     }
 
-    protected abstract <T extends Comparable<T>> Matcher<Boolean> resultMatcher(T lhs, T rhs);
+    @Override
+    protected Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        Number lhs = (Number) typedData.get(0).data();
+        Number rhs = (Number) typedData.get(1).data();
+        if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.DOUBLE))) {
+            return equalTo(resultMatcher(lhs.doubleValue(), rhs.doubleValue()));
+        }
+        if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.UNSIGNED_LONG))) {
+            // TODO: Is this correct behavior for unsigned long?
+            return resultMatcher(lhs.longValue(), rhs.longValue());
+        }
+        if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.LONG))) {
+            return resultMatcher(lhs.longValue(), rhs.longValue());
+        }
+        if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.INTEGER))) {
+            return resultMatcher(lhs.intValue(), rhs.intValue());
+        }
+        throw new UnsupportedOperationException();
+    }
+
+    protected abstract <T extends Comparable<T>> Matcher<Object> resultMatcher(T lhs, T rhs);
 
     @Override
     protected final DataType expressionForSimpleDataType() {

@@ -25,25 +25,28 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SubstringTests extends AbstractScalarFunctionTestCase {
     @Override
-    protected List<Object> simpleData() {
+    protected TestCase getSimpleTestCase() {
         int start = between(0, 8);
         int length = between(0, 10 - start);
-        return List.of(new BytesRef(randomAlphaOfLength(10)), start + 1, length);
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new Substring(
-            Source.EMPTY,
-            field("str", DataTypes.KEYWORD),
-            field("start", DataTypes.INTEGER),
-            field("end", DataTypes.INTEGER)
+        ;
+        List<TypedData> typedData = List.of(
+            new TypedData(new BytesRef(randomAlphaOfLength(10)), DataTypes.KEYWORD, "str"),
+            new TypedData(start + 1, DataTypes.INTEGER, "start"),
+            new TypedData(length, DataTypes.INTEGER, "end")
         );
+        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
     }
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.KEYWORD;
+    }
+
+    public Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
+        int start = (Integer) typedData.get(1).data();
+        int end = (Integer) typedData.get(2).data();
+        return equalTo(new BytesRef(str.substring(start - 1, start + end - 1)));
     }
 
     @Override
@@ -68,22 +71,12 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return new Substring(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, data.get(0), DataTypes.KEYWORD),
-            new Literal(Source.EMPTY, data.get(1), DataTypes.INTEGER),
-            new Literal(Source.EMPTY, data.get(2), DataTypes.INTEGER)
-        );
-    }
-
-    @Override
     protected List<AbstractScalarFunctionTestCase.ArgumentSpec> argSpec() {
         return List.of(required(strings()), required(integers()), optional(integers()));
     }
 
     @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new Substring(source, args.get(0), args.get(1), args.size() < 3 ? null : args.get(2));
     }
 

@@ -11,7 +11,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -23,13 +22,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TauTests extends AbstractScalarFunctionTestCase {
     @Override
-    protected List<Object> simpleData() {
-        return List.of(1); // Need to put some data in the input page or it'll fail to build
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new Tau(Source.EMPTY);
+    protected TestCase getSimpleTestCase() {
+        return new TestCase(Source.EMPTY, List.of(new TypedData(1, DataTypes.INTEGER, "foo")), equalTo(Tau.TAU));
     }
 
     @Override
@@ -43,13 +37,8 @@ public class TauTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return expressionForSimpleData();
-    }
-
-    @Override
-    protected Expression build(Source source, List<Literal> args) {
-        return expressionForSimpleData();
+    protected Expression build(Source source, List<Expression> args) {
+        return new Tau(Source.EMPTY);
     }
 
     @Override

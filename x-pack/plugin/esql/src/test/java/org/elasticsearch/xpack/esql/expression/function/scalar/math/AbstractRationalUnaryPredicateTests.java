@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -24,18 +23,14 @@ public abstract class AbstractRationalUnaryPredicateTests extends AbstractScalar
     protected abstract Matcher<Object> resultMatcher(double d);
 
     @Override
-    protected final List<Object> simpleData() {
-        return List.of(switch (between(0, 2)) {
+    protected TestCase getSimpleTestCase() {
+        List<TypedData> typedData = List.of(new TypedData(switch (between(0, 2)) {
             case 0 -> Double.NaN;
             case 1 -> randomBoolean() ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
             case 2 -> randomDouble();
             default -> throw new IllegalArgumentException();
-        });
-    }
-
-    @Override
-    protected final Expression expressionForSimpleData() {
-        return build(Source.EMPTY, field("v", DataTypes.DOUBLE));
+        }, DataTypes.DOUBLE, "v"));
+        return new TestCase(Source.EMPTY, typedData, resultMatcher((Double) typedData.get(0).data()));
     }
 
     @Override
@@ -50,22 +45,17 @@ public abstract class AbstractRationalUnaryPredicateTests extends AbstractScalar
     }
 
     @Override
-    protected final Expression constantFoldable(List<Object> data) {
-        return build(Source.EMPTY, new Literal(Source.EMPTY, data.get(0), DataTypes.DOUBLE));
-    }
-
-    @Override
     protected final List<ArgumentSpec> argSpec() {
         return List.of(required(rationals()));
     }
 
     @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return build(source, args.get(0));
     }
 
     private void testCase(double d) {
-        BooleanBlock block = (BooleanBlock) evaluator(expressionForSimpleData()).get().eval(row(List.of(d)));
+        BooleanBlock block = (BooleanBlock) evaluator(buildFieldExpression(getSimpleTestCase())).get().eval(row(List.of(d)));
         assertThat(block.getBoolean(0), resultMatcher(d));
     }
 

@@ -45,18 +45,19 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     @Override
-    protected final List<Object> simpleData() {
-        return dataForPosition(supportedTypes()[0]);
-    }
-
-    @Override
-    protected final Expression expressionForSimpleData() {
-        return build(Source.EMPTY, field("f", supportedTypes()[0]));
+    protected TestCase getSimpleTestCase() {
+        List<Object> data = dataForPosition(supportedTypes()[0]);
+        List<TypedData> typedData = List.of(new TypedData(data, supportedTypes()[0], "f"));
+        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
     }
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return argTypes.get(0);
+    }
+
+    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        return resultMatcherForInput((List<?>) typedData.get(0).data(), typedData.get(0).type());
     }
 
     @Override
@@ -65,13 +66,8 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     @Override
-    protected final Expression build(Source source, List<Literal> args) {
+    protected final Expression build(Source source, List<Expression> args) {
         return build(source, args.get(0));
-    }
-
-    @Override
-    protected final Expression constantFoldable(List<Object> data) {
-        return build(Source.EMPTY, new Literal(Source.EMPTY, data.get(0), DataTypes.fromJava(((List<?>) data.get(0)).get(0))));
     }
 
     public final void testVector() {
@@ -92,7 +88,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                 List<List<Object>> data = randomList(
                     1,
                     200,
-                    () -> type == DataTypes.NULL || (insertNulls && rarely()) ? singletonList(null) : dataForPosition(type)
+                    () -> type == DataTypes.NULL || (insertNulls && rarely()) ? singletonList(null) : List.of(dataForPosition(type))
                 );
                 Expression expression = build(Source.EMPTY, field("f", type));
                 Block result = evaluator(expression).get().eval(new Page(BlockUtils.fromList(data)));
@@ -127,6 +123,6 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     private List<Object> dataForPosition(DataType type) {
-        return List.of(randomList(1, 100, () -> randomLiteral(type).value()));
+        return randomList(1, 100, () -> randomLiteral(type).value());
     }
 }

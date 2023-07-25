@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class EqualsTests extends AbstractBinaryComparisonTestCase {
     @Override
-    protected <T extends Comparable<T>> Matcher<Boolean> resultMatcher(T lhs, T rhs) {
+    protected <T extends Comparable<T>> Matcher<Object> resultMatcher(T lhs, T rhs) {
         return equalTo(lhs.equals(rhs));
     }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.hamcrest.Matcher;
@@ -31,13 +30,10 @@ public class TrimTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected List<Object> simpleData() {
-        return List.of(addRandomLeadingOrTrailingWhitespaces(randomUnicodeOfLength(8)));
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new Trim(Source.EMPTY, field(randomUnicodeOfLength(8), randomType));
+    protected TestCase getSimpleTestCase() {
+        BytesRef sampleData = addRandomLeadingOrTrailingWhitespaces(randomUnicodeOfLength(8));
+        List<TypedData> typedData = List.of(new TypedData(sampleData, randomType, randomUnicodeOfLength(8)));
+        return new TestCase(Source.EMPTY, typedData, equalTo(new BytesRef(sampleData.utf8ToString().trim())));
     }
 
     @Override
@@ -51,12 +47,7 @@ public class TrimTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return new Trim(Source.EMPTY, new Literal(Source.EMPTY, data.get(0), randomType));
-    }
-
-    @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new Trim(source, args.get(0));
     }
 

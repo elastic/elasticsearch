@@ -26,13 +26,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IsNullTests extends AbstractScalarFunctionTestCase {
     @Override
-    protected List<Object> simpleData() {
-        return List.of(new BytesRef("cat"));
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new IsNull(Source.EMPTY, field("exp", DataTypes.KEYWORD));
+    protected TestCase getSimpleTestCase() {
+        return new TestCase(Source.EMPTY, List.of(new TypedData(new BytesRef("cat"), DataTypes.KEYWORD, "exp")), equalTo(false));
     }
 
     @Override
@@ -56,17 +51,12 @@ public class IsNullTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return new IsNull(Source.EMPTY, new Literal(Source.EMPTY, data.get(0), DataTypes.KEYWORD));
-    }
-
-    @Override
     protected List<ArgumentSpec> argSpec() {
         return List.of(required(EsqlDataTypes.types().toArray(DataType[]::new)));
     }
 
     @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new IsNull(Source.EMPTY, args.get(0));
     }
 

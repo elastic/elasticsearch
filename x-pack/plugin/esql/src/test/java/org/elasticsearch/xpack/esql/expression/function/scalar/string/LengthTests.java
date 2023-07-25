@@ -12,7 +12,6 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -25,18 +24,18 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LengthTests extends AbstractScalarFunctionTestCase {
     @Override
-    protected List<Object> simpleData() {
-        return List.of(new BytesRef(randomAlphaOfLength(between(0, 10000))));
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new Length(Source.EMPTY, field("f", DataTypes.KEYWORD));
+    protected TestCase getSimpleTestCase() {
+        List<TypedData> typedData = List.of(new TypedData(new BytesRef(randomAlphaOfLength(between(0, 10000))), DataTypes.KEYWORD, "f"));
+        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
     }
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.INTEGER;
+    }
+
+    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        return equalTo(UnicodeUtil.codePointCount((BytesRef) typedData.get(0).data()));
     }
 
     @Override
@@ -50,22 +49,17 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> simpleData) {
-        return new Length(Source.EMPTY, new Literal(Source.EMPTY, simpleData.get(0), DataTypes.KEYWORD));
-    }
-
-    @Override
     protected List<ArgumentSpec> argSpec() {
         return List.of(required(strings()));
     }
 
     @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new Length(source, args.get(0));
     }
 
     public void testExamples() {
-        EvalOperator.ExpressionEvaluator eval = evaluator(expressionForSimpleData()).get();
+        EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(getSimpleTestCase())).get();
         assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("")))), 0), equalTo(0));
         assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("a")))), 0), equalTo(1));
         assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("clump")))), 0), equalTo(5));

@@ -24,13 +24,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AutoBucketTests extends AbstractScalarFunctionTestCase {
     @Override
-    protected List<Object> simpleData() {
-        return List.of(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"));
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return build(Source.EMPTY, field("arg", DataTypes.DATETIME));
+    protected TestCase getSimpleTestCase() {
+        List<TypedData> typedData = List.of(
+            new TypedData(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"), DataTypes.DATETIME, "arg")
+        );
+        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
     }
 
     private Expression build(Source source, Expression arg) {
@@ -48,6 +46,10 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
         return argTypes.get(0);
     }
 
+    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        return resultMatcher(List.of(typedData.get(0).data()), typedData.get(0).type());
+    }
+
     @Override
     protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         long millis = ((Number) data.get(0)).longValue();
@@ -60,17 +62,12 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return build(Source.EMPTY, new Literal(Source.EMPTY, data.get(0), DataTypes.DATETIME));
-    }
-
-    @Override
     protected List<ArgumentSpec> argSpec() {
         return List.of(required(DataTypes.DATETIME));
     }
 
     @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return build(source, args.get(0));
     }
 

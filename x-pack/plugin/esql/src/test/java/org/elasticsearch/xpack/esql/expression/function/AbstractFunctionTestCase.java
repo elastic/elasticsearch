@@ -37,6 +37,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
@@ -47,6 +48,55 @@ import static org.hamcrest.Matchers.equalTo;
  * which can be automatically tested against several scenarios (null handling, concurrency, etc).
  */
 public abstract class AbstractFunctionTestCase extends ESTestCase {
+
+    /**
+     * Holds a data value and the intended parse type of that value
+     * @param data - value to test against
+     * @param type - type of the value, for building expressions
+     */
+    public record TypedData(Object data, DataType type, String name) {
+        public TypedData(Object data, String name) {
+            this(data, EsqlDataTypes.fromJava(data), name);
+        }
+    }
+
+    public class TestCase {
+        private Source source;
+        private List<TypedData> data;
+
+        private Matcher<Object> matcher;
+
+        public TestCase(Source source, List<TypedData> data, Matcher<Object> matcher) {
+            this.source = source;
+            this.data = data;
+            this.matcher = matcher;
+        }
+
+        public Source getSource() {
+            return source;
+        }
+
+        public List<TypedData> getData() {
+            return data;
+        }
+
+        public List<Expression> getDataAsFields() {
+            return data.stream().map(t -> field(t.name(), t.type())).collect(Collectors.toList());
+        }
+
+        public List<Expression> getDataAsLiterals() {
+            return data.stream().map(t -> new Literal(source, t.data(), t.type())).collect(Collectors.toList());
+        }
+
+        public List<Object> getDataValues() {
+            return data.stream().map(t -> t.data()).collect(Collectors.toList());
+        }
+
+        public Matcher<Object> getMatcher() {
+            return matcher;
+        }
+    }
+
     /**
      * Generate a random value of the appropriate type to fit into blocks of {@code e}.
      */
@@ -72,17 +122,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }, type);
     }
 
-    /**
-     * Used for constructing a sample data point for the function being tested.  This should return a
-     * List of arguments for the Expression, which will be used by {@link AbstractFunctionTestCase#expressionForSimpleData()}
-     * to build the actual expression
-     */
-    protected abstract List<Object> simpleData();
-
-    /**
-     * Return an {@link Expression} capable of parsing the data from {@link AbstractFunctionTestCase#simpleData()}
-     */
-    protected abstract Expression expressionForSimpleData();
+    protected abstract TestCase getSimpleTestCase();
 
     protected abstract DataType expressionForSimpleDataType();
 
@@ -100,20 +140,21 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     /**
      * The expected results for calling {@code toString} on the {@link Expression} created by
-     * {@link AbstractFunctionTestCase#expressionForSimpleData()}.  Generally speaking, this can be implemented by returning
+     * {@link AbstractFunctionTestCase#buildFieldExpression(TestCase)}.  Generally speaking, this can be implemented by returning
      * a string literal
      * @return The expected string representation
      */
     protected abstract String expectedEvaluatorSimpleToString();
 
-    /**
-     * Build an {@link Expression} that operates on {@link Literal} versions of the given data
-     * @param data a list of the parameters that were passed to the evaluator
-     * @return An {@link Expression} operating only on literals
-     */
-    protected abstract Expression constantFoldable(List<Object> data);
+    protected abstract Expression build(Source source, List<Expression> args);
 
-    protected abstract Expression build(Source source, List<Literal> args);
+    protected final Expression buildFieldExpression(TestCase testCase) {
+        return build(testCase.getSource(), testCase.getDataAsFields());
+    }
+
+    protected final Expression buildLiteralExpression(TestCase testCase) {
+        return build(testCase.getSource(), testCase.getDataAsLiterals());
+    }
 
     protected final Supplier<EvalOperator.ExpressionEvaluator> evaluator(Expression e) {
         if (e.foldable()) {
@@ -150,15 +191,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testSimple() {
-        List<Object> simpleData = simpleData();
-        Expression expression = expressionForSimpleData();
-        Object result = toJavaObject(evaluator(expression).get().eval(row(simpleData)), 0);
-        assertThat(result, resultMatcher(simpleData));
+        TestCase testCase = getSimpleTestCase();
+        Expression expression = buildFieldExpression(testCase);
+        Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
+        assertThat(result, testCase.getMatcher());
     }
 
     public final void testSimpleWithNulls() {
-        List<Object> simpleData = simpleData();
-        EvalOperator.ExpressionEvaluator eval = evaluator(expressionForSimpleData()).get();
+        TestCase testCase = getSimpleTestCase();
+        List<Object> simpleData = testCase.getDataValues();
+        EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get();
         Block[] orig = BlockUtils.fromListRow(simpleData);
         for (int i = 0; i < orig.length; i++) {
             List<Object> data = new ArrayList<>();
@@ -183,12 +225,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public final void testSimpleInManyThreads() throws ExecutionException, InterruptedException {
         int count = 10_000;
         int threads = 5;
-        Supplier<EvalOperator.ExpressionEvaluator> evalSupplier = evaluator(expressionForSimpleData());
+        TestCase testCase = getSimpleTestCase();
+        Supplier<EvalOperator.ExpressionEvaluator> evalSupplier = evaluator(buildFieldExpression(testCase));
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         try {
             List<Future<?>> futures = new ArrayList<>();
             for (int i = 0; i < threads; i++) {
-                List<Object> simpleData = simpleData();
+                List<Object> simpleData = testCase.getDataValues();
                 Page page = row(simpleData);
                 Matcher<Object> resultMatcher = resultMatcher(simpleData);
 
@@ -208,17 +251,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluatorSimpleToString() {
-        assertThat(evaluator(expressionForSimpleData()).get().toString(), equalTo(expectedEvaluatorSimpleToString()));
+        assertThat(evaluator(buildFieldExpression(getSimpleTestCase())).get().toString(), equalTo(expectedEvaluatorSimpleToString()));
     }
 
     public final void testSimpleConstantFolding() {
-        List<Object> simpleData = simpleData();
-        Expression e = constantFoldable(simpleData);
+        TestCase testCase = getSimpleTestCase();
+        Expression e = buildLiteralExpression(testCase);
         assertTrue(e.foldable());
-        assertThat(e.fold(), resultMatcher(simpleData));
+        assertThat(e.fold(), resultMatcher(testCase.getDataValues()));
     }
 
     public void testSerializationOfSimple() {
-        assertSerialization(expressionForSimpleData());
+        assertSerialization(buildFieldExpression(getSimpleTestCase()));
     }
 }

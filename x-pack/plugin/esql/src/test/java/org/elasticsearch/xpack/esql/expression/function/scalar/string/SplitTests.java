@@ -30,22 +30,28 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SplitTests extends AbstractScalarFunctionTestCase {
     @Override
-    protected List<Object> simpleData() {
+    protected TestCase getSimpleTestCase() {
         String delimiter = randomAlphaOfLength(1);
         String str = IntStream.range(0, between(1, 5))
             .mapToObj(i -> randomValueOtherThanMany(s -> s.contains(delimiter), () -> randomAlphaOfLength(4)))
             .collect(joining(delimiter));
-        return List.of(new BytesRef(str), new BytesRef(delimiter));
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), field("delim", DataTypes.KEYWORD));
+        List<TypedData> typedData = List.of(
+            new TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
+            new TypedData(new BytesRef(delimiter), DataTypes.KEYWORD, "delim")
+        );
+        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
     }
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.KEYWORD;
+    }
+
+    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
+        String delim = ((BytesRef) typedData.get(1).data()).utf8ToString();
+        List<BytesRef> split = Arrays.stream(str.split(Pattern.quote(delim))).map(BytesRef::new).toList();
+        return equalTo(split.size() == 1 ? split.get(0) : split);
     }
 
     @Override
@@ -62,21 +68,12 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return new Split(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, data.get(0), DataTypes.KEYWORD),
-            new Literal(Source.EMPTY, data.get(1), DataTypes.KEYWORD)
-        );
-    }
-
-    @Override
     protected List<ArgumentSpec> argSpec() {
         return List.of(required(strings()), required(strings()));
     }
 
     @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new Split(source, args.get(0), args.get(1));
     }
 

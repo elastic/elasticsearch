@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -22,13 +21,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DateParseTests extends AbstractScalarFunctionTestCase {
     @Override
-    protected List<Object> simpleData() {
-        return List.of(new BytesRef("2023-05-05"), new BytesRef("yyyy-MM-dd"));
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new DateParse(Source.EMPTY, field("first", DataTypes.KEYWORD), field("second", DataTypes.KEYWORD));
+    protected TestCase getSimpleTestCase() {
+        List<TypedData> typedData = List.of(
+            new TypedData(new BytesRef("2023-05-05"), DataTypes.KEYWORD, "first"),
+            new TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.KEYWORD, "second")
+        );
+        return new TestCase(Source.EMPTY, typedData, equalTo(1683244800000L));
     }
 
     @Override
@@ -42,16 +40,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return new DateParse(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, data.get(0), DataTypes.KEYWORD),
-            new Literal(Source.EMPTY, data.get(1), DataTypes.KEYWORD)
-        );
-    }
-
-    @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new DateParse(source, args.get(0), args.size() > 1 ? args.get(1) : null);
     }
 

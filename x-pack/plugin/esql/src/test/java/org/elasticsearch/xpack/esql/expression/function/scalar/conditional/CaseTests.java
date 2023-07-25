@@ -30,16 +30,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CaseTests extends AbstractFunctionTestCase {
     @Override
-    protected List<Object> simpleData() {
-        return List.of(true, new BytesRef("a"), new BytesRef("b"));
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new Case(
-            Source.EMPTY,
-            List.of(field("cond", DataTypes.BOOLEAN), field("a", DataTypes.KEYWORD), field("b", DataTypes.KEYWORD))
+    protected TestCase getSimpleTestCase() {
+        List<TypedData> typedData = List.of(
+            new TypedData(true, DataTypes.BOOLEAN, "cond"),
+            new TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
+            new TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
         );
+        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
     }
 
     @Override
@@ -51,11 +48,6 @@ public class CaseTests extends AbstractFunctionTestCase {
     protected String expectedEvaluatorSimpleToString() {
         return "CaseEvaluator[resultType=BYTES_REF, "
             + "conditions=[ConditionEvaluator[condition=Attribute[channel=0], value=Attribute[channel=1]]], elseVal=Attribute[channel=2]]";
-    }
-
-    @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return caseExpr(data.toArray());
     }
 
     @Override
@@ -93,9 +85,22 @@ public class CaseTests extends AbstractFunctionTestCase {
         return equalTo(data.get(data.size() - 1));
     }
 
+    protected Matcher<Object> resultsMatcher(List<TypedData> data) {
+        for (int i = 0; i < data.size() - 1; i += 2) {
+            TypedData cond = data.get(i);
+            if (cond != null && ((Boolean) cond.data()).booleanValue()) {
+                return equalTo(data.get(i + 1).data());
+            }
+        }
+        if (data.size() % 2 == 0) {
+            return null;
+        }
+        return equalTo(data.get(data.size() - 1).data());
+    }
+
     @Override
-    protected Expression build(Source source, List<Literal> args) {
-        return new Case(Source.EMPTY, args.stream().map(l -> (Expression) l).toList());
+    protected Expression build(Source source, List<Expression> args) {
+        return new Case(Source.EMPTY, args.stream().toList());
     }
 
     public void testEvalCase() {

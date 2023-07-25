@@ -105,18 +105,18 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     @Override
     protected final DataType expressionForSimpleDataType() {
-        return expectedType(expressionForSimpleData().children().stream().map(e -> e.dataType()).toList());
+        return expectedType(buildFieldExpression(getSimpleTestCase()).children().stream().map(e -> e.dataType()).toList());
     }
 
     public final void testSimpleResolveTypeValid() {
-        assertResolveTypeValid(expressionForSimpleData(), expressionForSimpleDataType());
+        assertResolveTypeValid(buildFieldExpression(getSimpleTestCase()), expressionForSimpleDataType());
     }
 
     public final void testResolveType() {
         List<ArgumentSpec> specs = argSpec();
         for (int mutArg = 0; mutArg < specs.size(); mutArg++) {
             for (DataType mutArgType : EsqlDataTypes.types()) {
-                List<Literal> args = new ArrayList<>(specs.size());
+                List<Expression> args = new ArrayList<>(specs.size());
                 for (int arg = 0; arg < specs.size(); arg++) {
                     if (mutArg == arg) {
                         args.add(new Literal(new Source(Location.EMPTY, "arg" + arg), "", mutArgType));
@@ -140,7 +140,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    private void assertResolution(List<ArgumentSpec> specs, List<Literal> args, int mutArg, DataType mutArgType, boolean shouldBeValid) {
+    private void assertResolution(List<ArgumentSpec> specs, List<Expression> args, int mutArg, DataType mutArgType, boolean shouldBeValid) {
         Expression exp = build(new Source(Location.EMPTY, "exp"), args);
         logger.info("checking {} is {}", exp.nodeString(), shouldBeValid ? "valid" : "invalid");
         if (shouldBeValid) {

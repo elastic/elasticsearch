@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -22,23 +21,28 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StartsWithTests extends AbstractScalarFunctionTestCase {
     @Override
-    protected List<Object> simpleData() {
+    protected TestCase getSimpleTestCase() {
         String str = randomAlphaOfLength(5);
         String prefix = randomAlphaOfLength(5);
         if (randomBoolean()) {
             str = prefix + str;
         }
-        return List.of(new BytesRef(str), new BytesRef(prefix));
-    }
-
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new StartsWith(Source.EMPTY, field("str", DataTypes.KEYWORD), field("prefix", DataTypes.KEYWORD));
+        List<TypedData> typedData = List.of(
+            new TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
+            new TypedData(new BytesRef(prefix), DataTypes.KEYWORD, "prefix")
+        );
+        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
     }
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.BOOLEAN;
+    }
+
+    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
+        String prefix = ((BytesRef) typedData.get(1).data()).utf8ToString();
+        return equalTo(str.startsWith(prefix));
     }
 
     @Override
@@ -54,21 +58,12 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return new StartsWith(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, (BytesRef) data.get(0), DataTypes.KEYWORD),
-            new Literal(Source.EMPTY, (BytesRef) data.get(1), DataTypes.KEYWORD)
-        );
-    }
-
-    @Override
     protected List<ArgumentSpec> argSpec() {
         return List.of(required(strings()), required(strings()));
     }
 
     @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new StartsWith(source, args.get(0), args.get(1));
     }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -22,13 +21,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AbsTests extends AbstractScalarFunctionTestCase {
     @Override
-    protected List<Object> simpleData() {
-        return List.of(randomInt());
+    protected TestCase getSimpleTestCase() {
+        List<TypedData> typedData = List.of(new TypedData(randomInt(), DataTypes.INTEGER, "arg"));
+        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
     }
 
-    @Override
-    protected Expression expressionForSimpleData() {
-        return new Abs(Source.EMPTY, field("arg", DataTypes.INTEGER));
+    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+        return resultMatcher(List.of(typedData.get(0).data()), typedData.get(0).type());
     }
 
     @Override
@@ -55,12 +54,7 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression constantFoldable(List<Object> data) {
-        return new Abs(Source.EMPTY, new Literal(Source.EMPTY, data.get(0), DataTypes.INTEGER));
-    }
-
-    @Override
-    protected Expression build(Source source, List<Literal> args) {
+    protected Expression build(Source source, List<Expression> args) {
         return new Abs(source, args.get(0));
     }
 

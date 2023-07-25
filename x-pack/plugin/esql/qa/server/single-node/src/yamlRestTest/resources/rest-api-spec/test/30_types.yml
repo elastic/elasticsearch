@@ -334,7 +334,7 @@ ip:
   - do:
       esql.query:
         body:
-          query: 'from test | where keyword == "127.0.0.2" | rename IP = ip | drop keyword'
+          query: 'from test | where keyword == "127.0.0.2" | rename ip as IP | drop keyword'
 
   - match: {columns.0.name: IP }
   - match: {columns.0.type: ip }

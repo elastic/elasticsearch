@@ -75,7 +75,7 @@ lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:f
 ;
 
 aggAndSort
-from hosts | stats c=count(ip0) by ip0 | sort ip0 | rename ip=ip0;
+from hosts | stats c=count(ip0) by ip0 | sort ip0 | rename ip0 as ip;
 
 c:long         |ip:ip
 1              |::1

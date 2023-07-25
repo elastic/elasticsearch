@@ -5,7 +5,7 @@ Use `RENAME` to rename a column using the following syntax:
 
 [source,esql]
 ----
-RENAME <new-name> = <old-name>
+RENAME <old-name> AS <new-name>
 ----
 
 For example:

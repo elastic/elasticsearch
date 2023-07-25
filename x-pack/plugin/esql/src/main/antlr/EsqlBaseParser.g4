@@ -171,7 +171,7 @@ renameCommand
     ;
 
 renameClause:
-    newName=sourceIdentifier ASSIGN oldName=sourceIdentifier
+    oldName=sourceIdentifier AS newName=sourceIdentifier
     ;
 
 dissectCommand

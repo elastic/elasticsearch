@@ -87,27 +87,27 @@ public class VerifierTests extends ESTestCase {
 
     public void testDoubleRenamingField() {
         assertEquals(
-            "1:47: Column [emp_no] renamed to [r1] and is no longer available [r3 = emp_no]",
-            error("from test | rename r1 = emp_no, r2 = r1, r3 = emp_no | keep r3")
+            "1:44: Column [emp_no] renamed to [r1] and is no longer available [emp_no as r3]",
+            error("from test | rename emp_no as r1, r1 as r2, emp_no as r3 | keep r3")
         );
     }
 
     public void testDuplicateRenaming() {
         assertEquals(
-            "1:38: Column [emp_no] renamed to [r1] and is no longer available [r1 = emp_no]",
-            error("from test | rename r1 = emp_no, r1 = emp_no | keep r1")
+            "1:34: Column [emp_no] renamed to [r1] and is no longer available [emp_no as r1]",
+            error("from test | rename emp_no as r1, emp_no as r1 | keep r1")
         );
     }
 
     public void testDoubleRenamingReference() {
         assertEquals(
-            "1:63: Column [r1] renamed to [r2] and is no longer available [r3 = r1]",
-            error("from test | rename r1 = emp_no, r2 = r1, x = first_name, r3 = r1 | keep r3")
+            "1:61: Column [r1] renamed to [r2] and is no longer available [r1 as r3]",
+            error("from test | rename emp_no as r1, r1 as r2, first_name as x, r1 as r3 | keep r3")
         );
     }
 
     public void testDropAfterRenaming() {
-        assertEquals("1:39: Unknown column [emp_no]", error("from test | rename r1 = emp_no | drop emp_no"));
+        assertEquals("1:40: Unknown column [emp_no]", error("from test | rename emp_no as r1 | drop emp_no"));
     }
 
     public void testNonStringFieldsInDissect() {

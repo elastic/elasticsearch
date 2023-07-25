@@ -455,7 +455,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRename() {
         assertProjection("""
             from test
-            | rename e = emp_no
+            | rename emp_no as e
             | keep first_name, e
             """, "first_name", "e");
     }
@@ -463,7 +463,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testChainedRename() {
         assertProjection("""
             from test
-            | rename r1 = emp_no, r2 = r1, r3 = r2
+            | rename emp_no as r1, r1 as r2, r2 as r3
             | keep first_name, r3
             """, "first_name", "r3");
     }
@@ -471,7 +471,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testChainedRenameReuse() {
         assertProjection("""
             from test
-            | rename r1 = emp_no, r2 = r1, r3 = r2, r1 = first_name
+            | rename emp_no as r1, r1 as r2, r2 as r3, first_name as r1
             | keep r1, r3
             """, "r1", "r3");
     }
@@ -479,7 +479,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRenameBackAndForth() {
         assertProjection("""
             from test
-            | rename r1 = emp_no, emp_no = r1
+            | rename emp_no as r1, r1 as emp_no
             | keep emp_no
             """, "emp_no");
     }
@@ -487,14 +487,14 @@ public class AnalyzerTests extends ESTestCase {
     public void testRenameReuseAlias() {
         assertProjection("""
             from test
-            | rename e = emp_no, e = first_name
+            | rename emp_no as e, first_name as e
             """, "_meta_field", "e", "gender", "languages", "last_name", "salary");
     }
 
     public void testRenameUnsupportedField() {
         assertProjectionWithMapping("""
             from test
-            | rename u = unsupported
+            | rename unsupported as u
             | keep int, u, float
             """, "mapping-multi-field-variation.json", "int", "u", "float");
     }
@@ -502,7 +502,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRenameUnsupportedFieldChained() {
         assertProjectionWithMapping("""
             from test
-            | rename u1 = unsupported, u2 = u1
+            | rename unsupported as u1, u1 as u2
             | keep int, u2, float
             """, "mapping-multi-field-variation.json", "int", "u2", "float");
     }
@@ -510,7 +510,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRenameUnsupportedAndResolved() {
         assertProjectionWithMapping("""
             from test
-            | rename u = unsupported, f = float
+            | rename unsupported as u, float as f
             | keep int, u, f
             """, "mapping-multi-field-variation.json", "int", "u", "f");
     }
@@ -518,7 +518,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRenameUnsupportedSubFieldAndResolved() {
         assertProjectionWithMapping("""
             from test
-            | rename ss = some.string, f = float
+            | rename some.string as ss, float as f
             | keep int, ss, f
             """, "mapping-multi-field-variation.json", "int", "ss", "f");
     }
@@ -526,15 +526,15 @@ public class AnalyzerTests extends ESTestCase {
     public void testRenameUnsupportedAndUnknown() {
         verifyUnsupported("""
             from test
-            | rename t = text, d = doesnotexist
-            """, "Found 1 problem\n" + "line 2:24: Unknown column [doesnotexist]");
+            | rename text as t, doesnotexist as d
+            """, "Found 1 problem\n" + "line 2:21: Unknown column [doesnotexist]");
     }
 
     public void testRenameResolvedAndUnknown() {
         verifyUnsupported("""
             from test
-            | rename i = int, d = doesnotexist
-            """, "Found 1 problem\n" + "line 2:23: Unknown column [doesnotexist]");
+            | rename int as i, doesnotexist as d
+            """, "Found 1 problem\n" + "line 2:20: Unknown column [doesnotexist]");
     }
 
     public void testUnsupportedFieldUsedExplicitly() {

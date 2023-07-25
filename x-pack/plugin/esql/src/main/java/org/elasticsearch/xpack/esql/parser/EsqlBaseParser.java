@@ -27,9 +27,9 @@ public class EsqlBaseParser extends Parser {
     RP=49, TRUE=50, INFO=51, FUNCTIONS=52, EQ=53, NEQ=54, LT=55, LTE=56, GT=57, 
     GTE=58, PLUS=59, MINUS=60, ASTERISK=61, SLASH=62, PERCENT=63, OPENING_BRACKET=64, 
     CLOSING_BRACKET=65, UNQUOTED_IDENTIFIER=66, QUOTED_IDENTIFIER=67, EXPR_LINE_COMMENT=68, 
-    EXPR_MULTILINE_COMMENT=69, EXPR_WS=70, METADATA=71, ON=72, WITH=73, SRC_UNQUOTED_IDENTIFIER=74, 
-    SRC_QUOTED_IDENTIFIER=75, SRC_LINE_COMMENT=76, SRC_MULTILINE_COMMENT=77, 
-    SRC_WS=78, EXPLAIN_PIPE=79;
+    EXPR_MULTILINE_COMMENT=69, EXPR_WS=70, AS=71, METADATA=72, ON=73, WITH=74, 
+    SRC_UNQUOTED_IDENTIFIER=75, SRC_QUOTED_IDENTIFIER=76, SRC_LINE_COMMENT=77, 
+    SRC_MULTILINE_COMMENT=78, SRC_WS=79, EXPLAIN_PIPE=80;
   public static final int
     RULE_singleStatement = 0, RULE_query = 1, RULE_sourceCommand = 2, RULE_processingCommand = 3, 
     RULE_whereCommand = 4, RULE_booleanExpression = 5, RULE_regexBooleanExpression = 6, 
@@ -71,7 +71,7 @@ public class EsqlBaseParser extends Parser {
       "'('", "'in'", "'like'", "'not'", "'null'", "'nulls'", "'or'", "'?'", 
       "'rlike'", "')'", "'true'", "'info'", "'functions'", "'=='", "'!='", 
       "'<'", "'<='", "'>'", "'>='", "'+'", "'-'", "'*'", "'/'", "'%'", null, 
-      "']'", null, null, null, null, null, "'metadata'", "'on'", "'with'"
+      "']'", null, null, null, null, null, "'as'", "'metadata'", "'on'", "'with'"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
@@ -87,8 +87,9 @@ public class EsqlBaseParser extends Parser {
       "INFO", "FUNCTIONS", "EQ", "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", 
       "ASTERISK", "SLASH", "PERCENT", "OPENING_BRACKET", "CLOSING_BRACKET", 
       "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", "EXPR_MULTILINE_COMMENT", 
-      "EXPR_WS", "METADATA", "ON", "WITH", "SRC_UNQUOTED_IDENTIFIER", "SRC_QUOTED_IDENTIFIER", 
-      "SRC_LINE_COMMENT", "SRC_MULTILINE_COMMENT", "SRC_WS", "EXPLAIN_PIPE"
+      "EXPR_WS", "AS", "METADATA", "ON", "WITH", "SRC_UNQUOTED_IDENTIFIER", 
+      "SRC_QUOTED_IDENTIFIER", "SRC_LINE_COMMENT", "SRC_MULTILINE_COMMENT", 
+      "SRC_WS", "EXPLAIN_PIPE"
     };
   }
   private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -3168,9 +3169,9 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class RenameClauseContext extends ParserRuleContext {
-    public SourceIdentifierContext newName;
     public SourceIdentifierContext oldName;
-    public TerminalNode ASSIGN() { return getToken(EsqlBaseParser.ASSIGN, 0); }
+    public SourceIdentifierContext newName;
+    public TerminalNode AS() { return getToken(EsqlBaseParser.AS, 0); }
     public List<SourceIdentifierContext> sourceIdentifier() {
       return getRuleContexts(SourceIdentifierContext.class);
     }
@@ -3203,11 +3204,11 @@ public class EsqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(407);
-      ((RenameClauseContext)_localctx).newName = sourceIdentifier();
-      setState(408);
-      match(ASSIGN);
-      setState(409);
       ((RenameClauseContext)_localctx).oldName = sourceIdentifier();
+      setState(408);
+      match(AS);
+      setState(409);
+      ((RenameClauseContext)_localctx).newName = sourceIdentifier();
       }
     }
     catch (RecognitionException re) {
@@ -4213,7 +4214,7 @@ public class EsqlBaseParser extends Parser {
   }
 
   public static final String _serializedATN =
-    "\u0004\u0001O\u01e8\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001\u0002"+
+    "\u0004\u0001P\u01e8\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001\u0002"+
     "\u0002\u0007\u0002\u0002\u0003\u0007\u0003\u0002\u0004\u0007\u0004\u0002"+
     "\u0005\u0007\u0005\u0002\u0006\u0007\u0006\u0002\u0007\u0007\u0007\u0002"+
     "\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0002\u000b\u0007\u000b\u0002"+
@@ -4285,7 +4286,7 @@ public class EsqlBaseParser extends Parser {
     ",\f,\u01dd\t,\u0003,\u01df\b,\u0001-\u0001-\u0001-\u0003-\u01e4\b-\u0001"+
     "-\u0001-\u0001-\u0000\u0003\u0002\n\u0010.\u0000\u0002\u0004\u0006\b\n"+
     "\f\u000e\u0010\u0012\u0014\u0016\u0018\u001a\u001c\u001e \"$&(*,.0246"+
-    "8:<>@BDFHJLNPRTVXZ\u0000\b\u0001\u0000;<\u0001\u0000=?\u0001\u0000JK\u0001"+
+    "8:<>@BDFHJLNPRTVXZ\u0000\b\u0001\u0000;<\u0001\u0000=?\u0001\u0000KL\u0001"+
     "\u0000BC\u0002\u0000  ##\u0001\u0000&\'\u0002\u0000%%22\u0001\u00005:"+
     "\u0202\u0000\\\u0001\u0000\u0000\u0000\u0002_\u0001\u0000\u0000\u0000"+
     "\u0004n\u0001\u0000\u0000\u0000\u0006}\u0001\u0000\u0000\u0000\b\u007f"+
@@ -4398,7 +4399,7 @@ public class EsqlBaseParser extends Parser {
     "\u00fe\u0001\u0000\u0000\u0000\u00fc\u00fa\u0001\u0000\u0000\u0000\u00fd"+
     "\u00ff\u0003\u001c\u000e\u0000\u00fe\u00fd\u0001\u0000\u0000\u0000\u00fe"+
     "\u00ff\u0001\u0000\u0000\u0000\u00ff\u001b\u0001\u0000\u0000\u0000\u0100"+
-    "\u0101\u0005@\u0000\u0000\u0101\u0102\u0005G\u0000\u0000\u0102\u0107\u0003"+
+    "\u0101\u0005@\u0000\u0000\u0101\u0102\u0005H\u0000\u0000\u0102\u0107\u0003"+
     "&\u0013\u0000\u0103\u0104\u0005\"\u0000\u0000\u0104\u0106\u0003&\u0013"+
     "\u0000\u0105\u0103\u0001\u0000\u0000\u0000\u0106\u0109\u0001\u0000\u0000"+
     "\u0000\u0107\u0105\u0001\u0000\u0000\u0000\u0107\u0108\u0001\u0000\u0000"+
@@ -4481,7 +4482,7 @@ public class EsqlBaseParser extends Parser {
     ":\u001d\u0000\u0192\u0190\u0001\u0000\u0000\u0000\u0193\u0196\u0001\u0000"+
     "\u0000\u0000\u0194\u0192\u0001\u0000\u0000\u0000\u0194\u0195\u0001\u0000"+
     "\u0000\u0000\u01959\u0001\u0000\u0000\u0000\u0196\u0194\u0001\u0000\u0000"+
-    "\u0000\u0197\u0198\u0003&\u0013\u0000\u0198\u0199\u0005!\u0000\u0000\u0199"+
+    "\u0000\u0197\u0198\u0003&\u0013\u0000\u0198\u0199\u0005G\u0000\u0000\u0199"+
     "\u019a\u0003&\u0013\u0000\u019a;\u0001\u0000\u0000\u0000\u019b\u019c\u0005"+
     "\u0001\u0000\u0000\u019c\u019d\u0003\u0012\t\u0000\u019d\u019f\u0003N"+
     "\'\u0000\u019e\u01a0\u0003B!\u0000\u019f\u019e\u0001\u0000\u0000\u0000"+
@@ -4509,9 +4510,9 @@ public class EsqlBaseParser extends Parser {
     "\u0000\u01cc\u01ce\u00054\u0000\u0000\u01cd\u01c9\u0001\u0000\u0000\u0000"+
     "\u01cd\u01cb\u0001\u0000\u0000\u0000\u01ceW\u0001\u0000\u0000\u0000\u01cf"+
     "\u01d0\u0005\u0003\u0000\u0000\u01d0\u01d3\u0003&\u0013\u0000\u01d1\u01d2"+
-    "\u0005H\u0000\u0000\u01d2\u01d4\u0003&\u0013\u0000\u01d3\u01d1\u0001\u0000"+
+    "\u0005I\u0000\u0000\u01d2\u01d4\u0003&\u0013\u0000\u01d3\u01d1\u0001\u0000"+
     "\u0000\u0000\u01d3\u01d4\u0001\u0000\u0000\u0000\u01d4\u01de\u0001\u0000"+
-    "\u0000\u0000\u01d5\u01d6\u0005I\u0000\u0000\u01d6\u01db\u0003Z-\u0000"+
+    "\u0000\u0000\u01d5\u01d6\u0005J\u0000\u0000\u01d6\u01db\u0003Z-\u0000"+
     "\u01d7\u01d8\u0005\"\u0000\u0000\u01d8\u01da\u0003Z-\u0000\u01d9\u01d7"+
     "\u0001\u0000\u0000\u0000\u01da\u01dd\u0001\u0000\u0000\u0000\u01db\u01d9"+
     "\u0001\u0000\u0000\u0000\u01db\u01dc\u0001\u0000\u0000\u0000\u01dc\u01df"+

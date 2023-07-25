@@ -436,12 +436,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             int renamingsCount = rename.renamings().size();
             List<NamedExpression> unresolved = new ArrayList<>(renamingsCount);
-            Map<String, String> reverseAliasing = new HashMap<>(renamingsCount); // `| rename x = a` => map(a: x)
+            Map<String, String> reverseAliasing = new HashMap<>(renamingsCount); // `| rename a as x` => map(a: x)
 
             rename.renamings().forEach(alias -> {
-                // skip NOPs: `| rename a = a`
+                // skip NOPs: `| rename a as a`
                 if (alias.child() instanceof UnresolvedAttribute ua && alias.name().equals(ua.name()) == false) {
-                    // remove attributes overwritten by a renaming: `| keep a, b, c | rename b = a`
+                    // remove attributes overwritten by a renaming: `| keep a, b, c | rename a as b`
                     projections.removeIf(x -> x.name().equals(alias.name()));
 
                     var resolved = resolveAttribute(ua, childrenOutput);
@@ -455,7 +455,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         boolean updated = false;
                         if (reverseAliasing.containsValue(resolved.name())) {
                             for (var li = projections.listIterator(); li.hasNext();) {
-                                // does alias still exist? i.e. it hasn't been renamed again (`| rename b=a, c=b, d=b`)
+                                // does alias still exist? i.e. it hasn't been renamed again (`| rename a as b, b as c, b as d`)
                                 if (li.next() instanceof Alias a && a.name().equals(resolved.name())) {
                                     reverseAliasing.put(resolved.name(), alias.name());
                                     // update aliased projection in place

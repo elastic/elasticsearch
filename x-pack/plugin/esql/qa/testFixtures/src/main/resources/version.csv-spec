@@ -159,7 +159,7 @@ id:i           |name:s         |version:v      |o:v
 ;
 
 countVersion
-FROM apps | RENAME k = name | STATS v = COUNT(version) BY k | SORT k;
+FROM apps | RENAME name AS k | STATS v = COUNT(version) BY k | SORT k;
 
 v:l     | k:s
 2       | aaaaa

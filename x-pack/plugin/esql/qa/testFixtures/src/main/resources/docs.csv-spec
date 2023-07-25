@@ -108,7 +108,7 @@ docsRename
 // tag::rename[]
 FROM employees
 | KEEP first_name, last_name, still_hired
-| RENAME employed = still_hired
+| RENAME  still_hired AS employed
 // end::rename[]
 | LIMIT 0;
 
@@ -119,7 +119,7 @@ docsRenameMultipleColumns
 // tag::renameMultipleColumns[]
 FROM employees
 | KEEP first_name, last_name
-| RENAME fn = first_name, ln = last_name
+| RENAME first_name AS fn, last_name AS ln
 // end::renameMultipleColumns[]
 | LIMIT 0;
 

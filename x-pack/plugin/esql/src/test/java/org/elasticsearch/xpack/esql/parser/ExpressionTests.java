@@ -526,7 +526,7 @@ public class ExpressionTests extends ESTestCase {
         String[] oldName = new String[] { "b", "a.c", "x.y", "a" };
         List<?> renamings;
         for (int i = 0; i < newName.length; i++) {
-            Rename r = renameExpression(newName[i] + "=" + oldName[i]);
+            Rename r = renameExpression(oldName[i] + " AS " + newName[i]);
             renamings = r.renamings();
             assertThat(renamings.size(), equalTo(1));
             assertThat(renamings.get(0), instanceOf(Alias.class));
@@ -539,7 +539,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testMultipleProjectPatterns() {
-        LogicalPlan plan = parse("from a | rename x = y | keep abc, xyz*, x, *");
+        LogicalPlan plan = parse("from a | rename y as x | keep abc, xyz*, x, *");
         Project p = as(plan, Project.class);
         List<?> projections = p.projections();
         assertThat(projections.size(), equalTo(4));
@@ -553,8 +553,8 @@ public class ExpressionTests extends ESTestCase {
 
     public void testForbidWildcardProjectRename() {
         assertParsingException(
-            () -> renameExpression("a*=b*"),
-            "line 1:18: Using wildcards (*) in renaming projections is not allowed [a*=b*]"
+            () -> renameExpression("b* AS a*"),
+            "line 1:18: Using wildcards (*) in renaming projections is not allowed [b* AS a*]"
         );
     }
 

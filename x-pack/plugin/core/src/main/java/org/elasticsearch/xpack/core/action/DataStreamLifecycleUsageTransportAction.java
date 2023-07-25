@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsa
 
 import java.util.Collection;
 import java.util.LongSummaryStatistics;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
@@ -61,7 +63,9 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         final Collection<DataStream> dataStreams = state.metadata().dataStreams().values();
         LongSummaryStatistics retentionStats = dataStreams.stream()
             .filter(ds -> ds.getLifecycle() != null && ds.getLifecycle().isEnabled())
-            .collect(Collectors.summarizingLong(ds -> ds.getLifecycle().getEffectiveDataRetention().getMillis()));
+            .map(ds -> ds.getLifecycle().getEffectiveDataRetention())
+            .filter(Objects::nonNull)
+            .collect(Collectors.summarizingLong(TimeValue::getMillis));
         long dataStreamsWithLifecycles = retentionStats.getCount();
         long minRetention = dataStreamsWithLifecycles == 0 ? 0 : retentionStats.getMin();
         long maxRetention = dataStreamsWithLifecycles == 0 ? 0 : retentionStats.getMax();

@@ -318,8 +318,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     @Override
                     public void onFailure(Exception e) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        if (cause instanceof IndexNotFoundException) {
-                            indicesThatCannotBeCreated.put(index, (IndexNotFoundException) cause);
+                        if (cause instanceof IndexNotFoundException indexNotFoundException) {
+                            synchronized (indicesThatCannotBeCreated) {
+                                indicesThatCannotBeCreated.put(index, indexNotFoundException);
+                            }
                         } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
                             // fail all requests involving this index, if create didn't work
                             for (int i = 0; i < bulkRequest.requests.size(); i++) {

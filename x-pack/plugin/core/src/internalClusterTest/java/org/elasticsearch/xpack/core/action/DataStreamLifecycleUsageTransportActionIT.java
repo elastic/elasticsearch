@@ -68,6 +68,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97924")
     @SuppressWarnings("unchecked")
     public void testAction() throws Exception {
         assertUsageResults(0, 0, 0, 0.0, true);
@@ -120,7 +121,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     systemDataStream,
                     randomBoolean(),
                     IndexMode.STANDARD,
-                    hasLifecycle ? new DataStreamLifecycle(retentionMillis) : null
+                    hasLifecycle ? DataStreamLifecycle.newBuilder().dataRetention(retentionMillis).build() : null
                 );
                 dataStreamMap.put(dataStream.getName(), dataStream);
             }

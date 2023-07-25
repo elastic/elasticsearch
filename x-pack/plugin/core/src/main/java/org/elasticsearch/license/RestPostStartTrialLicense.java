@@ -23,7 +23,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartTrialLicense extends BaseRestHandler {
 
-    RestPostStartTrialLicense() {}
+    public RestPostStartTrialLicense() {}
 
     @Override
     public List<Route> routes() {

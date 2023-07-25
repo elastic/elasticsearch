@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -95,7 +94,7 @@ public class SearchApplicationIndexService {
     public static final String SEARCH_APPLICATION_ALIAS_NAME = ".search-app";
     public static final String SEARCH_APPLICATION_CONCRETE_INDEX_NAME = ".search-app-1";
     public static final String SEARCH_APPLICATION_INDEX_NAME_PATTERN = ".search-app-*";
-    private static final int SEARCH_APPLICATION_INDEX_MAPPINGS_VERSION = 0;
+    private static final int SEARCH_APPLICATION_INDEX_MAPPINGS_VERSION = 1;
     private static final String INCONSISTENT_INDICES_NOT_IN_ALIAS_MSG = "index is in search application but not in associated alias";
     private static final String INCONSISTENT_ALIAS_NOT_IN_INDICES_MSG = "index is in alias but not associcated with search application";
 
@@ -155,7 +154,7 @@ public class SearchApplicationIndexService {
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field("version", Version.CURRENT.toString());
+                builder.field("version", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION);
                 builder.field(SystemIndexDescriptor.VERSION_META_KEY, SEARCH_APPLICATION_INDEX_MAPPINGS_VERSION);
                 builder.endObject();
 

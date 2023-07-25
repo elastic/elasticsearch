@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.logstash;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -58,7 +57,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
 
     public static final String LOGSTASH_CONCRETE_INDEX_NAME = ".logstash";
     public static final String LOGSTASH_INDEX_NAME_PATTERN = LOGSTASH_CONCRETE_INDEX_NAME + "*";
-    public static final int LOGSTASH_INDEX_MAPPINGS_VERSION = 0;
+    public static final int LOGSTASH_INDEX_MAPPINGS_VERSION = 1;
 
     static final LicensedFeature.Momentary LOGSTASH_FEATURE = LicensedFeature.momentary(null, "logstash", License.OperationMode.STANDARD);
 
@@ -121,7 +120,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
                     builder.field("dynamic", "strict");
                     {
                         builder.startObject("_meta");
-                        builder.field("logstash-version", Version.CURRENT);
+                        builder.field("logstash-version", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION);
                         builder.field(SystemIndexDescriptor.VERSION_META_KEY, LOGSTASH_INDEX_MAPPINGS_VERSION);
                         builder.endObject();
                     }

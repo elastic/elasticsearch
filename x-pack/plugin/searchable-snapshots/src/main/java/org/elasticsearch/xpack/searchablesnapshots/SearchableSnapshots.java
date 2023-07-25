@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -251,7 +250,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
      * This affects the system searchable snapshot cache index (not the searchable snapshot index itself)
      */
     public static final String DATA_TIERS_CACHE_INDEX_PREFERENCE = String.join(",", DataTier.DATA_CONTENT, DataTier.DATA_HOT);
-    private static final int SEARCHABLE_SNAPSHOTS_INDEX_MAPPINGS_VERSION = 0;
+    private static final int SEARCHABLE_SNAPSHOTS_INDEX_MAPPINGS_VERSION = 1;
 
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
@@ -613,7 +612,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                     builder.field("dynamic", "strict");
                     {
                         builder.startObject("_meta");
-                        builder.field("version", Version.CURRENT);
+                        builder.field("version", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION);
                         builder.field(SystemIndexDescriptor.VERSION_META_KEY, SEARCHABLE_SNAPSHOTS_INDEX_MAPPINGS_VERSION);
                         builder.endObject();
                     }

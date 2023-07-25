@@ -9,7 +9,6 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -73,7 +72,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemIndexPlugin, Closeable, PersistentTaskPlugin, ActionPlugin {
     public static final Setting<Long> CACHE_SIZE = Setting.longSetting("ingest.geoip.cache_size", 1000, 0, Setting.Property.NodeScope);
-    private static final int GEOIP_INDEX_MAPPINGS_VERSION = 0;
+    private static final int GEOIP_INDEX_MAPPINGS_VERSION = 1;
 
     static Set<String> DEFAULT_DATABASE_FILENAMES = Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb");
 
@@ -225,7 +224,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", Version.CURRENT)
+                .field("version", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION)
                 .field(SystemIndexDescriptor.VERSION_META_KEY, GEOIP_INDEX_MAPPINGS_VERSION)
                 .endObject()
                 .field("dynamic", "strict")

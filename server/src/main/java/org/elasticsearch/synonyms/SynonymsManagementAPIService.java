@@ -11,7 +11,6 @@ package org.elasticsearch.synonyms;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -81,7 +80,7 @@ public class SynonymsManagementAPIService {
     public static final int MAX_SYNONYMS_SETS = 10_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
-    private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 0;
+    private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 1;
 
     private final Client client;
 
@@ -123,7 +122,7 @@ public class SynonymsManagementAPIService {
                 {
                     builder.startObject("_meta");
                     {
-                        builder.field("version", Version.CURRENT.toString());
+                        builder.field("version", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION);
                         builder.field(SystemIndexDescriptor.VERSION_META_KEY, SYNONYMS_INDEX_MAPPINGS_VERSION);
                     }
                     builder.endObject();

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -276,8 +275,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     );
 
     private static final Logger logger = LogManager.getLogger(Watcher.class);
-    private static final int WATCHES_INDEX_MAPPINGS_VERSION = 0;
-    private static final int TRIGGERED_WATCHES_INDEX_MAPPINGS_VERSION = 0;
+    private static final int WATCHES_INDEX_MAPPINGS_VERSION = 1;
+    private static final int TRIGGERED_WATCHES_INDEX_MAPPINGS_VERSION = 1;
     private WatcherIndexingListener listener;
     private HttpClient httpClient;
     private BulkProcessor2 bulkProcessor;
@@ -877,7 +876,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 builder.field("dynamic", "strict");
                 {
                     builder.startObject("_meta");
-                    builder.field("version", Version.CURRENT);
+                    builder.field("version", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION);
                     builder.field(SystemIndexDescriptor.VERSION_META_KEY, WATCHES_INDEX_MAPPINGS_VERSION);
                     builder.endObject();
                 }
@@ -969,7 +968,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 builder.field("dynamic", "strict");
                 {
                     builder.startObject("_meta");
-                    builder.field("version", Version.CURRENT);
+                    builder.field("version", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION);
                     builder.field(SystemIndexDescriptor.VERSION_META_KEY, TRIGGERED_WATCHES_INDEX_MAPPINGS_VERSION);
                     builder.endObject();
                 }

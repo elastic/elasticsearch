@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.notifications;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 public final class NotificationsIndex {
@@ -15,13 +14,14 @@ public final class NotificationsIndex {
 
     private static final String RESOURCE_PATH = "/ml/";
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
+    private static final int NOTIFICATIONS_INDEX_MAPPINGS_VERSION = 1;
 
     private NotificationsIndex() {}
 
     public static String mapping() {
         return TemplateUtils.loadTemplate(
             RESOURCE_PATH + "notifications_index_mappings.json",
-            Version.CURRENT.toString(),
+            Integer.toString(NOTIFICATIONS_INDEX_MAPPINGS_VERSION),
             MAPPINGS_VERSION_VARIABLE
         );
     }

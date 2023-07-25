@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,6 +24,7 @@ public class MlStatsIndex {
     public static final String TEMPLATE_NAME = ".ml-stats";
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
+    private static final int STATS_INDEX_MAPPINGS_VERSION = 1;
 
     private MlStatsIndex() {}
 
@@ -36,7 +36,11 @@ public class MlStatsIndex {
     }
 
     public static String mapping() {
-        return TemplateUtils.loadTemplate("/ml/stats_index_mappings.json", Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(
+            "/ml/stats_index_mappings.json",
+            Integer.toString(STATS_INDEX_MAPPINGS_VERSION),
+            MAPPINGS_VERSION_VARIABLE
+        );
     }
 
     public static String indexPattern() {

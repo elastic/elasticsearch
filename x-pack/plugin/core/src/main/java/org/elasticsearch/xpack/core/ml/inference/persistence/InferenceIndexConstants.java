@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.persistence;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ParseField;
@@ -44,9 +43,14 @@ public final class InferenceIndexConstants {
     private static final String NATIVE_LATEST_INDEX = NATIVE_INDEX_PREFIX + NATIVE_INDEX_VERSION;
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
+    private static final int INFERENCE_INDEX_MAPPINGS_VERSION = 1;
 
     public static String mapping() {
-        return TemplateUtils.loadTemplate("/ml/inference_index_mappings.json", Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(
+            "/ml/inference_index_mappings.json",
+            Integer.toString(INFERENCE_INDEX_MAPPINGS_VERSION),
+            MAPPINGS_VERSION_VARIABLE
+        );
     }
 
     public static String nativeDefinitionStore() {

@@ -44,7 +44,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     public static final String NAME = "terms_set";
 
-    public static final TransportVersion MINIMUM_SHOULD_MATCH_ADDED_VERSION = TransportVersion.V_8_500_040;
+    public static final TransportVersion MINIMUM_SHOULD_MATCH_ADDED_VERSION = TransportVersion.V_8_500_041;
 
     static final ParseField TERMS_FIELD = new ParseField("terms");
     static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match_field");
@@ -109,7 +109,9 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     public TermsSetQueryBuilder setMinimumShouldMatchField(String minimumShouldMatchField) {
         if (minimumShouldMatchScript != null || minimumShouldMatch != null) {
-            throw new IllegalArgumentException("A script has already been specified. Cannot specify both a field and script");
+            throw new IllegalArgumentException(
+                "A script or value has already been specified. Cannot specify both a field and a script or value"
+            );
         }
         this.minimumShouldMatchField = minimumShouldMatchField;
         return this;
@@ -121,7 +123,9 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     public TermsSetQueryBuilder setMinimumShouldMatchScript(Script minimumShouldMatchScript) {
         if (minimumShouldMatchField != null || minimumShouldMatch != null) {
-            throw new IllegalArgumentException("A field has already been specified. Cannot specify both a field and script");
+            throw new IllegalArgumentException(
+                "A field or value has already been specified. Cannot specify both a script and a field or value"
+            );
         }
         this.minimumShouldMatchScript = minimumShouldMatchScript;
         return this;
@@ -133,7 +137,9 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     public TermsSetQueryBuilder setMinimumShouldMatch(String minimumShouldMatch) {
         if (minimumShouldMatchField != null || minimumShouldMatchScript != null) {
-            throw new IllegalArgumentException("A field has already been specified. Cannot specify both a field and script");
+            throw new IllegalArgumentException(
+                "A field or script has already been specified. Cannot specify both a value and a script or field"
+            );
         }
         this.minimumShouldMatch = minimumShouldMatch;
         return this;

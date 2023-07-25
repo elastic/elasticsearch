@@ -1,0 +1,5 @@
+pr: 97939
+summary: Add forcemerge as an internal API for serverless
+area: Indices APIs
+type: enhancement
+issues: []

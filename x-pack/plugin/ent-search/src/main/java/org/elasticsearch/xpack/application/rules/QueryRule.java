@@ -34,6 +34,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.GLOBAL;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.DOCS_FIELD;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.IDS_FIELD;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item.INDEX_FIELD;
@@ -293,10 +294,10 @@ public class QueryRule implements Writeable, ToXContentObject {
         for (QueryRuleCriteria criterion : criteria) {
             for (String match : matchCriteria.keySet()) {
                 final Object matchValue = matchCriteria.get(match);
-                final QueryRuleCriteria.CriteriaType criteriaType = criterion.criteriaType();
+                final QueryRuleCriteriaType criteriaType = criterion.criteriaType();
                 final String criteriaMetadata = criterion.criteriaMetadata();
 
-                if (criteriaType == QueryRuleCriteria.CriteriaType.GLOBAL || (criteriaMetadata != null && criteriaMetadata.equals(match))) {
+                if (criteriaType == GLOBAL || (criteriaMetadata != null && criteriaMetadata.equals(match))) {
                     boolean singleCriterionMatches = criterion.isMatch(matchValue, criteriaType);
                     isRuleMatch = (isRuleMatch == null) ? singleCriterionMatches : isRuleMatch && singleCriterionMatches;
                 }

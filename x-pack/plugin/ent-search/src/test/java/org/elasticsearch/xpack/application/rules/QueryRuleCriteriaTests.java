@@ -26,15 +26,16 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType.CONTAINS;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType.EXACT_FUZZY;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType.GLOBAL;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType.GT;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType.GTE;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType.LT;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType.LTE;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType.PREFIX;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType.SUFFIX;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.CONTAINS;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT_FUZZY;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.GLOBAL;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.GT;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.GTE;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.LT;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.LTE;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRuleCriteriaTests extends ESTestCase {
@@ -99,7 +100,7 @@ public class QueryRuleCriteriaTests extends ESTestCase {
     }
 
     public void testExactMatch() {
-        QueryRuleCriteria.CriteriaType type = QueryRuleCriteria.CriteriaType.EXACT;
+        QueryRuleCriteriaType type = EXACT;
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("elastic"));
         assertTrue(queryRuleCriteria.isMatch("elastic", type));
         assertFalse(queryRuleCriteria.isMatch("elasticc", type));
@@ -111,7 +112,7 @@ public class QueryRuleCriteriaTests extends ESTestCase {
     }
 
     public void testFuzzyExactMatch() {
-        QueryRuleCriteria.CriteriaType type = EXACT_FUZZY;
+        QueryRuleCriteriaType type = EXACT_FUZZY;
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("elastic"));
         assertTrue(queryRuleCriteria.isMatch("elastic", type));
         assertTrue(queryRuleCriteria.isMatch("elasticc", type));
@@ -119,7 +120,7 @@ public class QueryRuleCriteriaTests extends ESTestCase {
     }
 
     public void testPrefixMatch() {
-        QueryRuleCriteria.CriteriaType type = PREFIX;
+        QueryRuleCriteriaType type = PREFIX;
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("elastic", "kibana"));
         assertTrue(queryRuleCriteria.isMatch("elastic", type));
         assertTrue(queryRuleCriteria.isMatch("kibana", type));
@@ -129,7 +130,7 @@ public class QueryRuleCriteriaTests extends ESTestCase {
     }
 
     public void testSuffixMatch() {
-        QueryRuleCriteria.CriteriaType type = SUFFIX;
+        QueryRuleCriteriaType type = SUFFIX;
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("search", "lucene"));
         assertTrue(queryRuleCriteria.isMatch("search", type));
         assertTrue(queryRuleCriteria.isMatch("lucene", type));
@@ -140,7 +141,7 @@ public class QueryRuleCriteriaTests extends ESTestCase {
     }
 
     public void testContainsMatch() {
-        QueryRuleCriteria.CriteriaType type = CONTAINS;
+        QueryRuleCriteriaType type = CONTAINS;
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("elastic"));
         assertTrue(queryRuleCriteria.isMatch("elastic", type));
         assertTrue(queryRuleCriteria.isMatch("I use elastic for search", type));
@@ -148,7 +149,7 @@ public class QueryRuleCriteriaTests extends ESTestCase {
     }
 
     public void testLtMatch() {
-        QueryRuleCriteria.CriteriaType type = LT;
+        QueryRuleCriteriaType type = LT;
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "age", List.of("10"));
         assertTrue(queryRuleCriteria.isMatch(5, type));
         assertFalse(queryRuleCriteria.isMatch(10, type));
@@ -156,7 +157,7 @@ public class QueryRuleCriteriaTests extends ESTestCase {
     }
 
     public void testLteMatch() {
-        QueryRuleCriteria.CriteriaType type = LTE;
+        QueryRuleCriteriaType type = LTE;
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "age", List.of("10"));
         assertTrue(queryRuleCriteria.isMatch(5, type));
         assertTrue(queryRuleCriteria.isMatch(10, type));
@@ -164,7 +165,7 @@ public class QueryRuleCriteriaTests extends ESTestCase {
     }
 
     public void testGtMatch() {
-        QueryRuleCriteria.CriteriaType type = GT;
+        QueryRuleCriteriaType type = GT;
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "age", List.of("10"));
         assertTrue(queryRuleCriteria.isMatch(20, type));
         assertFalse(queryRuleCriteria.isMatch(10, type));
@@ -172,7 +173,7 @@ public class QueryRuleCriteriaTests extends ESTestCase {
     }
 
     public void testGteMatch() {
-        QueryRuleCriteria.CriteriaType type = GTE;
+        QueryRuleCriteriaType type = GTE;
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "age", List.of("10"));
         assertTrue(queryRuleCriteria.isMatch(20, type));
         assertTrue(queryRuleCriteria.isMatch(10, type));
@@ -180,19 +181,19 @@ public class QueryRuleCriteriaTests extends ESTestCase {
     }
 
     public void testGlobalMatch() {
-        QueryRuleCriteria.CriteriaType type = GLOBAL;
+        QueryRuleCriteriaType type = GLOBAL;
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, null, null);
         assertTrue(queryRuleCriteria.isMatch("elastic", type));
         assertTrue(queryRuleCriteria.isMatch(42, type));
     }
 
     public void testInvalidCriteriaInput() {
-        for (QueryRuleCriteria.CriteriaType type : List.of(EXACT_FUZZY, PREFIX, SUFFIX, CONTAINS)) {
+        for (QueryRuleCriteriaType type : List.of(EXACT_FUZZY, PREFIX, SUFFIX, CONTAINS)) {
             QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "foo", List.of("bar"));
             expectThrows(IllegalArgumentException.class, () -> queryRuleCriteria.isMatch(42, type));
         }
 
-        for (QueryRuleCriteria.CriteriaType type : List.of(LT, LTE, GT, GTE)) {
+        for (QueryRuleCriteriaType type : List.of(LT, LTE, GT, GTE)) {
             QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "foo", List.of(42));
             expectThrows(IllegalArgumentException.class, () -> queryRuleCriteria.isMatch("puggles", type));
         }

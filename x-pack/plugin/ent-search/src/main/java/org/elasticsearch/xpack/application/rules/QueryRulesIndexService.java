@@ -201,7 +201,7 @@ public class QueryRulesIndexService {
         for (Map<String, Object> entry : rawCriteria) {
             criteria.add(
                 new QueryRuleCriteria(
-                    QueryRuleCriteria.CriteriaType.criteriaType((String) entry.get(QueryRuleCriteria.TYPE_FIELD.getPreferredName())),
+                    QueryRuleCriteriaType.type((String) entry.get(QueryRuleCriteria.TYPE_FIELD.getPreferredName())),
                     (String) entry.get(QueryRuleCriteria.METADATA_FIELD.getPreferredName()),
                     (List<Object>) entry.get(QueryRuleCriteria.VALUES_FIELD.getPreferredName())
                 )

@@ -28,6 +28,9 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRuleTests extends ESTestCase {
@@ -166,7 +169,7 @@ public class QueryRuleTests extends ESTestCase {
         QueryRule rule = new QueryRule(
             randomAlphaOfLength(10),
             QueryRule.QueryRuleType.PINNED,
-            List.of(new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.EXACT, "query", List.of("elastic"))),
+            List.of(new QueryRuleCriteria(EXACT, "query", List.of("elastic"))),
             Map.of("ids", List.of("id1", "id2"))
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
@@ -182,10 +185,7 @@ public class QueryRuleTests extends ESTestCase {
         QueryRule rule = new QueryRule(
             randomAlphaOfLength(10),
             QueryRule.QueryRuleType.PINNED,
-            List.of(
-                new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.PREFIX, "query", List.of("elastic")),
-                new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.SUFFIX, "query", List.of("search"))
-            ),
+            List.of(new QueryRuleCriteria(PREFIX, "query", List.of("elastic")), new QueryRuleCriteria(SUFFIX, "query", List.of("search"))),
             Map.of("ids", List.of("id1", "id2"))
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();

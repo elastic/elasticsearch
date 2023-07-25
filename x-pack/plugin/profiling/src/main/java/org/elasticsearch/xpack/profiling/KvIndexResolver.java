@@ -35,7 +35,7 @@ public class KvIndexResolver {
     private final IndexNameExpressionResolver resolver;
     /**
      * Specifies the time period for which K/V indices should be considered to overlap. See
-     * also @{@link TransportGetProfilingAction#PROFILING_KV_INDEX_OVERLAP}.
+     * also @{@link TransportGetStackTracesAction#PROFILING_KV_INDEX_OVERLAP}.
      */
     private final TimeValue kvIndexOverlapPeriod;
 

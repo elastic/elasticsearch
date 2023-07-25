@@ -556,7 +556,8 @@ Period of time used to extend the life of the PIT.
 [[request-body-rank]]
 `rank`::
 preview:[]
-This param is in technical preview and may change in the future.
+This param is in technical preview and may change in the future. The syntax will
+likely change before GA.
 +
 (Optional, object)
 Defines a method for combining and ranking result sets from
@@ -722,7 +723,8 @@ aggregation for its associated searches. You can retrieve these stats using the
 [[request-body-sub-searches]]
 `sub_searches`::
 preview:[]
-This param is in technical preview and may change in the future.
+This param is in technical preview and may change in the future. The syntax will
+likely change before GA.
 +
 (Optional, array of objects)
 An array of `sub_search` objects where each `sub_search` is evaluated

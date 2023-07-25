@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public final class AnomalyDetectorsIndex {
 
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
-    private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";
+    private static final String RESOURCE_PATH = "/ml/anomalydetection/";
 
     private AnomalyDetectorsIndex() {}
 

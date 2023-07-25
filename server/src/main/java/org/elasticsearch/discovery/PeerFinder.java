@@ -24,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.Strings.format;
@@ -80,6 +82,7 @@ public abstract class PeerFinder {
 
     private final Object mutex = new Object();
     private final TransportService transportService;
+    private final Executor clusterCoordinationExecutor;
     private final TransportAddressConnector transportAddressConnector;
     private final ConfiguredHostsResolver configuredHostsResolver;
 
@@ -101,6 +104,7 @@ public abstract class PeerFinder {
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         verbosityIncreaseTimeout = VERBOSITY_INCREASE_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
+        this.clusterCoordinationExecutor = transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION);
         this.transportAddressConnector = transportAddressConnector;
         this.configuredHostsResolver = configuredHostsResolver;
 
@@ -494,8 +498,8 @@ public abstract class PeerFinder {
                 }
 
                 @Override
-                public String executor() {
-                    return Names.CLUSTER_COORDINATION;
+                public Executor executor(ThreadPool threadPool) {
+                    return clusterCoordinationExecutor;
                 }
             };
             transportService.sendRequest(

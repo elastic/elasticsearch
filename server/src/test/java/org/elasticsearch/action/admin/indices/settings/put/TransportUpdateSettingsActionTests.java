@@ -25,6 +25,7 @@ import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -70,7 +71,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
         this.action = new TransportUpdateSettingsAction(
             mock(TransportService.class),
             mock(ClusterService.class),
-            null,
+            mock(ThreadPool.class),
             metadataUpdateSettingsService,
             mock(ActionFilters.class),
             indexNameExpressionResolver,

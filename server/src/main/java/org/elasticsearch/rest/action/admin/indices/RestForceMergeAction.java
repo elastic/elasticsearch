@@ -30,6 +30,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+// no @ServerlessScope on purpose, not available
 public class RestForceMergeAction extends BaseRestHandler {
 
     @Override

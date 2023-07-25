@@ -292,7 +292,7 @@ public final class IndexSettings {
                 && fastRefresh == false
                 && value.compareTo(TimeValue.ZERO) > 0
                 && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
-                && indexVersion.after(IndexVersion.V_8_10_0)) {
+                && indexVersion.onOrAfter(IndexVersion.V_8_10_0)) {
                 throw new IllegalArgumentException(
                     "index setting ["
                         + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()

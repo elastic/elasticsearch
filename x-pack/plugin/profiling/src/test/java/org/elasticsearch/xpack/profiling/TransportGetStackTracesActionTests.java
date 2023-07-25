@@ -12,15 +12,15 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.List;
 
-public class TransportGetProfilingActionTests extends ESTestCase {
+public class TransportGetStackTracesActionTests extends ESTestCase {
     public void testSliceEmptyList() {
-        assertEquals(List.of(List.of()), TransportGetProfilingAction.sliced(Collections.emptyList(), 4));
+        assertEquals(List.of(List.of()), TransportGetStackTracesAction.sliced(Collections.emptyList(), 4));
     }
 
     public void testSliceListSmallerOrEqualToSliceCount() {
         int slices = 7;
         List<String> input = randomList(0, slices, () -> randomAlphaOfLength(3));
-        List<List<String>> sliced = TransportGetProfilingAction.sliced(input, slices);
+        List<List<String>> sliced = TransportGetStackTracesAction.sliced(input, slices);
         assertEquals(1, sliced.size());
         assertEquals(input, sliced.get(0));
     }
@@ -28,7 +28,7 @@ public class TransportGetProfilingActionTests extends ESTestCase {
     public void testSliceListMultipleOfSliceCount() {
         int slices = 2;
         List<String> input = List.of("a", "b", "c", "d");
-        List<List<String>> sliced = TransportGetProfilingAction.sliced(input, slices);
+        List<List<String>> sliced = TransportGetStackTracesAction.sliced(input, slices);
         assertEquals(slices, sliced.size());
         assertEquals(List.of("a", "b"), sliced.get(0));
         assertEquals(List.of("c", "d"), sliced.get(1));
@@ -37,7 +37,7 @@ public class TransportGetProfilingActionTests extends ESTestCase {
     public void testSliceListGreaterThanSliceCount() {
         int slices = 3;
         List<String> input = List.of("a", "b", "c", "d", "e", "f", "g", "h", "i", "j");
-        List<List<String>> sliced = TransportGetProfilingAction.sliced(input, slices);
+        List<List<String>> sliced = TransportGetStackTracesAction.sliced(input, slices);
         assertEquals(slices, sliced.size());
         assertEquals(List.of("a", "b", "c"), sliced.get(0));
         assertEquals(List.of("d", "e", "f"), sliced.get(1));
@@ -48,7 +48,7 @@ public class TransportGetProfilingActionTests extends ESTestCase {
         int slices = randomIntBetween(1, 16);
         // To ensure that we can actually slice the list
         List<String> input = randomList(slices + 1, 20000, () -> "s");
-        List<List<String>> sliced = TransportGetProfilingAction.sliced(input, slices);
+        List<List<String>> sliced = TransportGetStackTracesAction.sliced(input, slices);
         assertEquals(slices, sliced.size());
     }
 }

@@ -14,13 +14,13 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.util.List;
 import java.util.Map;
 
-public class GetProfilingResponseTests extends AbstractWireSerializingTestCase<GetProfilingResponse> {
+public class GetStackTracesResponseTests extends AbstractWireSerializingTestCase<GetStackTracesResponse> {
     private <T> T randomNullable(T v) {
         return randomBoolean() ? v : null;
     }
 
     @Override
-    protected GetProfilingResponse createTestInstance() {
+    protected GetStackTracesResponse createTestInstance() {
         int totalFrames = randomIntBetween(1, 100);
 
         Map<String, StackTrace> stackTraces = randomNullable(
@@ -44,17 +44,17 @@ public class GetProfilingResponseTests extends AbstractWireSerializingTestCase<G
         Map<String, String> executables = randomNullable(Map.of("QCCDqjSg3bMK1C4YRK6Tiw", "libc.so.6"));
         Map<String, Integer> stackTraceEvents = randomNullable(Map.of(randomAlphaOfLength(12), randomIntBetween(1, 200)));
 
-        return new GetProfilingResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, 1.0);
+        return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, 1.0);
     }
 
     @Override
-    protected GetProfilingResponse mutateInstance(GetProfilingResponse instance) {
+    protected GetStackTracesResponse mutateInstance(GetStackTracesResponse instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected Writeable.Reader<GetProfilingResponse> instanceReader() {
-        return GetProfilingResponse::new;
+    protected Writeable.Reader<GetStackTracesResponse> instanceReader() {
+        return GetStackTracesResponse::new;
     }
 
     public void testChunking() {

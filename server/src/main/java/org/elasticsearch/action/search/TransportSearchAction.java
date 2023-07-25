@@ -466,6 +466,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer
     ) {
+        final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         if (localIndices == null && remoteIndices.size() == 1) {
             // if we are searching against a single remote cluster, we simply forward the original search request to such cluster
             // and we directly perform final reduction in the remote cluster
@@ -481,7 +482,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider.absoluteStartMillis(),
                 true
             );
-            Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
+            Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                threadPool,
+                clusterAlias,
+                remoteClientResponseExecutor
+            );
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
@@ -554,7 +559,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     totalClusters,
                     listener
                 );
-                Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
+                Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                    threadPool,
+                    clusterAlias,
+                    remoteClientResponseExecutor
+                );
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
             }
             if (localIndices != null) {

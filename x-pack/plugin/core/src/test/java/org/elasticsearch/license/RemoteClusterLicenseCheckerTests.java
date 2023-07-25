@@ -469,13 +469,13 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
     }
 
     private Client createMockClient(final ThreadPool threadPool) {
-        return createMockClient(threadPool, client -> when(client.getRemoteClusterClient(anyString())).thenReturn(client));
+        return createMockClient(threadPool, client -> when(client.getRemoteClusterClient(anyString(), any())).thenReturn(client));
     }
 
     private Client createMockClientThatThrowsOnGetRemoteClusterClient(final ThreadPool threadPool, final String clusterAlias) {
         return createMockClient(threadPool, client -> {
-            when(client.getRemoteClusterClient(clusterAlias)).thenThrow(new IllegalArgumentException());
-            when(client.getRemoteClusterClient(argThat(a -> not(clusterAlias).matches(a)))).thenReturn(client);
+            when(client.getRemoteClusterClient(clusterAlias, any())).thenThrow(new IllegalArgumentException());
+            when(client.getRemoteClusterClient(argThat(a -> not(clusterAlias).matches(a)), any())).thenReturn(client);
         });
     }
 

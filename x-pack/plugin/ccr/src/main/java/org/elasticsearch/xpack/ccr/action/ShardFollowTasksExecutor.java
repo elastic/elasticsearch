@@ -75,6 +75,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -92,6 +93,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     private final Client client;
     private final ThreadPool threadPool;
+    private final Executor remoteClientResponseExecutor;
     private final ClusterService clusterService;
     private final IndexScopedSettings indexScopedSettings;
     private final TimeValue retentionLeaseRenewInterval;
@@ -101,6 +103,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;
         this.threadPool = threadPool;
+        this.remoteClientResponseExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
         this.clusterService = clusterService;
         this.indexScopedSettings = settingsModule.getIndexScopedSettings();
         this.retentionLeaseRenewInterval = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(settingsModule.getSettings());
@@ -556,7 +559,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     private Client remoteClient(ShardFollowTask params) {
         // TODO: do we need minNodeVersion here since it is for remote cluster
-        return wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders(), clusterService.state());
+        return wrapClient(
+            client.getRemoteClusterClient(params.getRemoteCluster(), remoteClientResponseExecutor),
+            params.getHeaders(),
+            clusterService.state()
+        );
     }
 
     interface FollowerStatsInfoHandler {

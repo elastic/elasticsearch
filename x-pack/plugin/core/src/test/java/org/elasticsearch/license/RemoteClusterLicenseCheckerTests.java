@@ -43,6 +43,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -474,7 +475,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
     private Client createMockClientThatThrowsOnGetRemoteClusterClient(final ThreadPool threadPool, final String clusterAlias) {
         return createMockClient(threadPool, client -> {
-            when(client.getRemoteClusterClient(clusterAlias, any())).thenThrow(new IllegalArgumentException());
+            when(client.getRemoteClusterClient(eq(clusterAlias), any())).thenThrow(new IllegalArgumentException());
             when(client.getRemoteClusterClient(argThat(a -> not(clusterAlias).matches(a)), any())).thenReturn(client);
         });
     }

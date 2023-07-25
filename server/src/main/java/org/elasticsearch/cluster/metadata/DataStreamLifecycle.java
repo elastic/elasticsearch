@@ -54,6 +54,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         Setting.Property.NodeScope
     );
 
+    public static final DataStreamLifecycle DEFAULT = new DataStreamLifecycle();
+
     private static final FeatureFlag DATA_STREAM_LIFECYCLE_FEATURE_FLAG = new FeatureFlag("dlm");
 
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";

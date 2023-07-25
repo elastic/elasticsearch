@@ -305,6 +305,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
 
         Settings settings = Settings.builder().put(templateSettings).put(additionalSettings.build()).build();
         DataStreamLifecycle lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
+        if (DataStreamLifecycle.isFeatureEnabled() && template.getDataStreamTemplate() != null && lifecycle == null) {
+            lifecycle = DataStreamLifecycle.DEFAULT;
+        }
         return new Template(settings, mergedMapping, aliasesByName, lifecycle);
     }
 }

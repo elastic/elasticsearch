@@ -50,6 +50,16 @@ setup:
   - match: { data_streams.0.lifecycle.enabled: true}
 
 ---
+"Get data stream with default lifecycle":
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "simple-data-stream1"
+  - length: { data_streams: 1}
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.lifecycle.enabled: true}
+
+---
 "Put data stream lifecycle":
 
   - do:

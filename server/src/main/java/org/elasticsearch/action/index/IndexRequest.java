@@ -162,6 +162,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             dynamicTemplates = in.readMap(StreamInput::readString);
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
+            pipelinesHaveRune = in.readBoolean();
+        }
     }
 
     public IndexRequest() {
@@ -718,6 +721,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             if (dynamicTemplates.isEmpty() == false) {
                 throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later");
             }
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
+            out.writeBoolean(pipelinesHaveRune);
         }
     }
 

@@ -162,6 +162,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_038 = registerTransportVersion(8_500_038, "9ef93580-feae-409f-9989-b49e411ca7a9");
     public static final TransportVersion V_8_500_039 = registerTransportVersion(8_500_039, "c23722d7-6139-4cf2-b8a1-600fbd4ec359");
     public static final TransportVersion V_8_500_040 = registerTransportVersion(8_500_040, "8F3AA068-A608-4A16-9683-2412A75BF2DD");
+    public static final TransportVersion V_8_500_041 = registerTransportVersion(8_500_041, "AD930683-4247-48C9-AF7F-93DFC2F9F110");
 
     private static class CurrentHolder {
         private static final TransportVersion CURRENT = findCurrent(V_8_500_040);

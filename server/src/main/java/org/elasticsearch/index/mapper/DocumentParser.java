@@ -772,7 +772,7 @@ public final class DocumentParser {
      * Internal version of {@link DocumentParserContext} that is aware of implementation details like nested documents
      * and how they are stored in the lucene index.
      */
-    public static class RootDocumentParserContext extends DocumentParserContext {
+    private static class RootDocumentParserContext extends DocumentParserContext {
         private final ContentPath path = new ContentPath();
         private final XContentParser parser;
         private final LuceneDocument document;
@@ -781,7 +781,7 @@ public final class DocumentParser {
         private long numNestedDocs;
         private boolean docsReversed = false;
 
-        public RootDocumentParserContext(
+        private RootDocumentParserContext(
             MappingLookup mappingLookup,
             MappingParserContext mappingParserContext,
             SourceToParse source,

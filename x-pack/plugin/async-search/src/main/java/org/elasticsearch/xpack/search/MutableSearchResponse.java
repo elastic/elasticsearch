@@ -66,6 +66,14 @@ class MutableSearchResponse {
     private ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
 
+    /**
+     * Set to true for a cross-cluster search when a fatal error occurs (in a
+     * cluster marked as skip_unavailable=false) and we want to cancel and
+     * immediately return an error to the user. This flag (in conjunction with frozen=true)
+     * indicates that we should expect late arriving responses and to ignore them rather
+     * than throw an Exception.
+     */
+    private boolean failFast;
     private boolean frozen;
 
     /**
@@ -101,7 +109,12 @@ class MutableSearchResponse {
         int reducePhase,
         boolean isFinalLocalReduce
     ) {
-        failIfFrozen();
+        if (frozen) {
+            if (failFast) {
+                return;
+            }
+            failSinceFrozen();
+        }
         if (reducePhase < this.reducePhase) {
             // should never happen since partial response are updated under a lock
             // in the search phase controller
@@ -133,7 +146,12 @@ class MutableSearchResponse {
      * search is complete.
      */
     synchronized void updateFinalResponse(SearchResponse response, boolean ccsMinimizeRoundtrips) {
-        failIfFrozen();
+        if (frozen) {
+            if (failFast) {
+                return;
+            }
+            failSinceFrozen();
+        }
 
         assert shardsInResponseMatchExpected(response, ccsMinimizeRoundtrips)
             : getShardsInResponseMismatchInfo(response, ccsMinimizeRoundtrips);
@@ -148,13 +166,19 @@ class MutableSearchResponse {
      * Updates the response with a fatal failure. This method preserves the partial response
      * received from previous updates
      */
-    synchronized void updateWithFailure(ElasticsearchException exc) {
-        failIfFrozen();
+    synchronized void updateWithFailure(ElasticsearchException exc, boolean failImmediately) {
+        if (frozen) {
+            if (failFast) {
+                return;
+            }
+            failSinceFrozen();
+        }
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
         // note that when search fails, we may have gotten partial results before the failure. In that case async
         // search will return an error plus the last partial results that were collected.
         this.isPartial = true;
+        this.failFast = failImmediately;
         this.failure = exc;
         this.frozen = true;
     }
@@ -164,7 +188,12 @@ class MutableSearchResponse {
      */
     void addQueryFailure(int shardIndex, ShardSearchFailure shardSearchFailure) {
         synchronized (this) {
-            failIfFrozen();
+            if (frozen) {
+                if (failFast) {
+                    return;
+                }
+                failSinceFrozen();
+            }
         }
         queryFailures.set(shardIndex, shardSearchFailure);
     }
@@ -313,10 +342,8 @@ class MutableSearchResponse {
         );
     }
 
-    private void failIfFrozen() {
-        if (frozen) {
-            throw new IllegalStateException("invalid update received after the completion of the request");
-        }
+    private void failSinceFrozen() {
+        throw new IllegalStateException("invalid update received after the completion of the request");
     }
 
     private ShardSearchFailure[] buildQueryFailures() {

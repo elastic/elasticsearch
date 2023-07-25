@@ -22,35 +22,43 @@ import java.net.InetSocketAddress;
 public class RemoteTransportException extends ActionTransportException implements ElasticsearchWrapperException {
 
     // not Writeable, since it is only needed on a coordinator node for an active CCS search
+    private final String clusterAlias;
+    // not Writeable, since it is only needed on a coordinator node for an active CCS search
     private final Boolean skipUnavailable;
 
     public RemoteTransportException(String msg, Throwable cause) {
         super(msg, null, null, cause);
+        this.clusterAlias = null;
         this.skipUnavailable = null;
     }
 
     /**
      * @param msg error message
      * @param cause underlying cause
+     * @param clusterAlias cluster alias (from local cluster settings) for cluster with this Exception
      * @param skipUnavailable whether the remote cluster is marked with skip_unavailable in the cluster settings
      */
-    public RemoteTransportException(String msg, Throwable cause, boolean skipUnavailable) {
+    public RemoteTransportException(String msg, Throwable cause, String clusterAlias, boolean skipUnavailable) {
         super(msg, null, null, cause);
+        this.clusterAlias = clusterAlias;
         this.skipUnavailable = skipUnavailable;
     }
 
     public RemoteTransportException(String name, TransportAddress address, String action, Throwable cause) {
         super(name, address, action, cause);
+        this.clusterAlias = null;
         this.skipUnavailable = null;
     }
 
     public RemoteTransportException(String name, InetSocketAddress address, String action, Throwable cause) {
         super(name, address, action, null, cause);
+        this.clusterAlias = null;
         this.skipUnavailable = null;
     }
 
     public RemoteTransportException(StreamInput in) throws IOException {
         super(in);
+        this.clusterAlias = null;
         this.skipUnavailable = null;
     }
 
@@ -61,8 +69,16 @@ public class RemoteTransportException extends ActionTransportException implement
     }
 
     /**
+     * @return cluster alias of cluster with remote transport exception, if set.
+     * If not set, returns null.
+     */
+    public String getClusterAlias() {
+        return clusterAlias;
+    }
+
+    /**
      * @return If skipUnavailable flag was set on the Exception, returns that value.
-     * Otherwise returns null (unknown/not-set)
+     * Otherwise, returns null (unknown/not-set)
      */
     public Boolean getSkipUnavailable() {
         return skipUnavailable;

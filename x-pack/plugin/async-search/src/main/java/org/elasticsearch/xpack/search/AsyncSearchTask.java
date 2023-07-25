@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -29,6 +30,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -457,8 +459,27 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         public void onFailure(Exception exc) {
             // if the failure occurred before calling onListShards
             searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
-            searchResponse.get()
-                .updateWithFailure(new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc));
+
+            ElasticsearchStatusException statusExc;
+            boolean failImmediately = false;
+
+            // clusterAlias (and skipUnavailable) are only set on the RemoteTransportException during CCS searches
+            if (exc instanceof RemoteTransportException remoteException && remoteException.getClusterAlias() != null) {
+                assert remoteException.getSkipUnavailable() != null
+                    : "skipUnavailable must be set when clusterAlias is set on RemoteTransportException";
+                statusExc = new ElasticsearchStatusException(
+                    Strings.format("error while executing search on cluster [%s]", remoteException.getClusterAlias()),
+                    ExceptionsHelper.status(exc),
+                    exc.getCause()
+                );
+                failImmediately = remoteException.getSkipUnavailable() == false;
+            } else {
+                statusExc = new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc);
+            }
+            if (failImmediately) {
+                cancelTask(() -> {}, "fatal error has occurred in a cross-cluster search - cancelling the search");
+            }
+            searchResponse.get().updateWithFailure(statusExc, failImmediately);
             executeInitListeners();
             executeCompletionListeners();
         }

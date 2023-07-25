@@ -1318,7 +1318,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     private static RemoteTransportException wrapRemoteClusterFailure(String clusterAlias, Exception e, boolean skipUnavailable) {
-        return new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e, skipUnavailable);
+        return new RemoteTransportException(
+            "error while communicating with remote cluster [" + clusterAlias + "]",
+            e,
+            clusterAlias,
+            skipUnavailable
+        );
     }
 
     static Map<String, OriginalIndices> getIndicesFromSearchContexts(SearchContextId searchContext, IndicesOptions indicesOptions) {

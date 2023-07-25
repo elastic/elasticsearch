@@ -38,11 +38,11 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
         final String secretJson = getPostSecretJson();
         Request postRequest = new Request("POST", "/_fleet/secrets/");
         postRequest.setJsonEntity(secretJson);
-        // System.out.println("----> request");
-        // System.out.println(postRequest);
+        System.out.println("----> request");
+        System.out.println(postRequest);
         Response postResponse = client().performRequest(postRequest);
-        // System.out.println("----> response");
-        // System.out.println(postResponse.toString());
+        System.out.println("----> response");
+        System.out.println(postResponse.toString());
         assertThat(postResponse.getStatusLine().getStatusCode(), is(201));
         // final String id =
 

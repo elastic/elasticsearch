@@ -43,9 +43,9 @@ import static org.elasticsearch.TransportVersion.V_8_500_040;
  */
 public final class AnalysisStats implements ToXContentFragment, Writeable {
 
-    private static final String[] SYNONYM_TYPES = { "synonyms_set", "synonyms_path", "synonyms" };
-
     private static final TransportVersion SYNONYM_SETS_VERSION = V_8_500_040;
+
+    private static final Set<String> SYNONYM_FILTER_TYPES = Set.of("synonym", "synonym_graph");
 
     /**
      * Create {@link AnalysisStats} from the given cluster state.
@@ -129,10 +129,9 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             usedBuiltInTokenFilters.keySet().removeAll(tokenFilterSettings.keySet());
             aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilterTypes, indexTokenFilterTypes);
             if (SynonymsAPI.isEnabled()) {
-                aggregateSynonymFilterTypes(
+                aggregateSynonymsSetStats(
                     tokenFilterSettings.values(),
                     usedSynonymSets,
-                    "synonyms_set",
                     indexMetadata.getIndex().getName(),
                     synonymSetIndices
                 );
@@ -196,21 +195,20 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         }
     }
 
-    private static void aggregateSynonymFilterTypes(
+    private static void aggregateSynonymsSetStats(
         Collection<Settings> filterSettings,
         Map<String, IndexFeatureStats> stats,
-        String synonymType,
         String indexName,
         Set<String> indicesAdded
     ) {
         for (Settings filterComponentSettings : filterSettings) {
             final String type = filterComponentSettings.get("type");
-            if ((type != null) && type.startsWith("synonym")) {
-                String synonymContentName = filterComponentSettings.get(synonymType);
-                if (synonymContentName != null) {
-                    IndexFeatureStats s = stats.computeIfAbsent(synonymContentName, IndexFeatureStats::new);
+            if (SYNONYM_FILTER_TYPES.contains (type)) {
+                String synonymSetName = filterComponentSettings.get("synonyms_set");
+                if (synonymSetName != null) {
+                    IndexFeatureStats s = stats.computeIfAbsent(synonymSetName, IndexFeatureStats::new);
                     s.count++;
-                    if (indicesAdded.add(indexName + "|" + synonymContentName)) {
+                    if (indicesAdded.add(indexName + "|" + synonymSetName)) {
                         s.indexCount++;
                     }
                 }

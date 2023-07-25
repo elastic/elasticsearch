@@ -165,7 +165,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_041 = registerTransportVersion(8_500_041, "AD930683-4247-48C9-AF7F-93DFC2F9F110");
 
     private static class CurrentHolder {
-        private static final TransportVersion CURRENT = findCurrent(V_8_500_040);
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_041);
 
         // finds the pluggable current version, or uses the given fallback
         private static TransportVersion findCurrent(TransportVersion fallback) {

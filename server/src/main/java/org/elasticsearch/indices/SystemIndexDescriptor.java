@@ -140,6 +140,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     /** The version meta key for the integer system index mapping version */
     public static final String VERSION_META_KEY = "system-index-mapping-version";
 
+    // semantically valid version that will be greater than anything in the field
+    // older nodes will parse this version as "in the future"
+    public static final String LEGACY_PLACEHOLDER_VERSION = "8.99.99";
+
     /** For internally-managed indices, specifies the origin to use when creating or updating the index */
     private final String origin;
 
@@ -281,6 +285,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             // TODO[wrb]: extract version int and non-metadata hash something different
             this.oldMappingVersion = extractLegacyVersionFromMappings(mappings, versionMetaKey);
             this.mappingVersion = extractVersionFromMappings(mappings);
+            assert mappingVersion.version >= 0;
         } else {
             assert Objects.isNull(settings) : "Unmanaged index descriptors should not have settings";
             assert Objects.isNull(mappings) : "Unmanaged index descriptors should not have mappings";
@@ -521,7 +526,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return allowsTemplates;
     }
 
-    // TODO[wrb]: return something different
     public Version getOldMappingVersion() {
         if (isAutomaticallyManaged() == false) {
             throw new IllegalStateException(this + " is not managed so there are no mappings or version");
@@ -872,6 +876,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return new MappingVersion(value, Objects.hash(properties));
     }
 
+    // TODO[wrb]: remove method
     @SuppressWarnings("unchecked")
     private static Version extractLegacyVersionFromMappings(String mappings, String versionMetaKey) {
         final Map<String, Object> mappingsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings, false);

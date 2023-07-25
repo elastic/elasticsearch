@@ -31,23 +31,12 @@ public class AggregationPhase {
         if (context.aggregations() == null) {
             return;
         }
-        final Supplier<BucketCollector> bucketCollectorSupplier = () -> {
-            try {
-                Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators();
-                context.aggregations().aggregators(aggregators);
-                BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregators));
-                bucketCollector.preCollection();
-                return bucketCollector;
-            } catch (IOException e) {
-                throw new AggregationInitializationException("Could not initialize aggregators", e);
-            }
-        };
         final Supplier<Collector> collectorSupplier;
         if (context.aggregations().isInSortOrderExecutionRequired()) {
-            executeInSortOrder(context, bucketCollectorSupplier.get());
+            executeInSortOrder(context, newBucketCollector(context));
             collectorSupplier = () -> BucketCollector.NO_OP_COLLECTOR;
         } else {
-            collectorSupplier = () -> bucketCollectorSupplier.get().asCollector();
+            collectorSupplier = () -> newBucketCollector(context).asCollector();
         }
         context.aggregations().registerAggsCollectorManager(new CollectorManager<>() {
             @Override
@@ -63,6 +52,18 @@ public class AggregationPhase {
                 return null;
             }
         });
+    }
+
+    private static BucketCollector newBucketCollector(SearchContext context) {
+        try {
+            Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators();
+            context.aggregations().aggregators(aggregators);
+            BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregators));
+            bucketCollector.preCollection();
+            return bucketCollector;
+        } catch (IOException e) {
+            throw new AggregationInitializationException("Could not initialize aggregators", e);
+        }
     }
 
     private static void executeInSortOrder(SearchContext context, BucketCollector collector) {

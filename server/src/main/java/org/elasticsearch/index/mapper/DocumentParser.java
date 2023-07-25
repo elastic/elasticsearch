@@ -77,7 +77,6 @@ public final class DocumentParser {
             // IOException from jackson, we don't have any useful location information here
             throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error parsing document", e);
         }
-
         assert context.path.pathAsText("").isEmpty() : "found leftover path elements: " + context.path.pathAsText("");
 
         return new ParsedDocument(
@@ -262,7 +261,6 @@ public final class DocumentParser {
         }
 
         innerParseObject(context);
-
         // restore the enable path flag
         if (context.parent().isNested()) {
             copyNestedFields(context, (NestedObjectMapper) context.parent());

@@ -88,10 +88,6 @@ public final class ContentPath {
         return sb.toString();
     }
 
-    public boolean hasDottedFieldName() {
-        return dottedFieldNameIndex > 0;
-    }
-
     public int length() {
         return index;
     }

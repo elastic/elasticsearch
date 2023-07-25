@@ -300,7 +300,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
 
-
         final LeafSlice[] slices = new LeafSlice[queue.size()];
         int upto = 0;
         for (List<LeafReaderContext> currentLeaf : queue) {
@@ -330,7 +329,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             search(leafContexts, weight, firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         } else {
-            //if (leafSlices.length > -1) throw new IllegalStateException("Concurrent path hit");
             final List<C> collectors = new ArrayList<>(leafSlices.length);
             collectors.add(firstCollector);
             final ScoreMode scoreMode = firstCollector.scoreMode();

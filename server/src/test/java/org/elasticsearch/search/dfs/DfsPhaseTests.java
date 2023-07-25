@@ -39,7 +39,7 @@ public class DfsPhaseTests extends ESTestCase {
 
     @Before
     public final void init() {
-        int numThreads = randomIntBetween(2, 2);// , 4);
+        int numThreads = randomIntBetween(2, 4);
         threadPool = new TestThreadPool(DfsPhaseTests.class.getName());
         threadPoolExecutor = EsExecutors.newFixed(
             "test",

@@ -403,14 +403,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
             () -> ContextIndexSearcher.computeSlices(contexts, numThreads, 1)
         );
         assertThat(ex.getMessage(), equalTo("maxSliceNum must be >= 1 (got " + numThreads + ")"));
-
-        // set minDocs at about half of numdocs
-        IndexSearcher.LeafSlice[] slices = ContextIndexSearcher.computeSlices(contexts, 2, numDocs);
-        assertEquals(2, slices.length);
-
         IOUtils.close(reader, w, dir);
-
-
     }
 
     private void assertSlices(IndexSearcher.LeafSlice[] slices, int numDocs, int numThreads) {

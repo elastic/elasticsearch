@@ -186,26 +186,29 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         boolean skipUnavailable = skipUnavailableForRemoteClusters().containsKey(clusterAlias)
             ? skipUnavailableForRemoteClusters().get(clusterAlias)
             : DEFAULT_SKIP_UNAVAILABLE;
+        Settings.Builder builder;
         if (randomBoolean()) {
             LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", Collectors.joining(","), seedNodes);
-            settings.putNull(remoteClusterSettingPrefix + "proxy_address")
+            builder = settings.putNull(remoteClusterSettingPrefix + "proxy_address")
                 .put(remoteClusterSettingPrefix + "mode", "sniff")
-                .put(remoteClusterSettingPrefix + "seeds", String.join(",", seedAddresses))
-                .put(remoteClusterSettingPrefix + "skip_unavailable", String.valueOf(skipUnavailable))
-                .build();
+                .put(remoteClusterSettingPrefix + "seeds", String.join(",", seedAddresses));
         } else {
             final String proxyNode = randomFrom(seedAddresses);
             LOGGER.info("--> use proxy node [{}], remote nodes [{}]", proxyNode, seedNodes);
-            settings.putNull(remoteClusterSettingPrefix + "seeds")
+            builder = settings.putNull(remoteClusterSettingPrefix + "seeds")
                 .put(remoteClusterSettingPrefix + "mode", "proxy")
-                .put(remoteClusterSettingPrefix + "proxy_address", proxyNode)
-                .put(remoteClusterSettingPrefix + "skip_unavailable", String.valueOf(skipUnavailable))
-                .build();
+                .put(remoteClusterSettingPrefix + "proxy_address", proxyNode);
         }
+        if (skipUnavailable != DEFAULT_SKIP_UNAVAILABLE) {
+            builder.put(remoteClusterSettingPrefix + "skip_unavailable", String.valueOf(skipUnavailable));
+        }
+        builder.build();
 
         ClusterUpdateSettingsResponse resp = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
-        String key = Strings.format("cluster.remote.%s.skip_unavailable", clusterAlias);
-        assertEquals(String.valueOf(skipUnavailable), resp.getPersistentSettings().get(key));
+        if (skipUnavailable != DEFAULT_SKIP_UNAVAILABLE) {
+            String key = Strings.format("cluster.remote.%s.skip_unavailable", clusterAlias);
+            assertEquals(String.valueOf(skipUnavailable), resp.getPersistentSettings().get(key));
+        }
 
         assertBusy(() -> {
             List<RemoteConnectionInfo> remoteConnectionInfos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest())

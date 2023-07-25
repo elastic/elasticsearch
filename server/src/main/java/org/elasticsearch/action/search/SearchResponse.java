@@ -481,8 +481,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         static final ParseField TOTAL_FIELD = new ParseField("total");
 
         private final int total;
-        private final int successful;  // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
-        private final int skipped;  // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
+        private final int successful; // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
+        private final int skipped;    // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
 
         // key to map is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
         private final Map<String, Cluster> clusterInfo;
@@ -586,6 +586,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 builder.field(TOTAL_FIELD.getPreferredName(), total);
                 builder.field(SUCCESSFUL_FIELD.getPreferredName(), getSuccessful());
                 builder.field(SKIPPED_FIELD.getPreferredName(), getSkipped());
+                // builder.field(FAILED_FIELD.getPreferredName(), getFailed());
                 if (clusterInfo.size() > 0) {
                     builder.startObject("details");
                     for (Cluster cluster : clusterInfo.values()) {
@@ -708,17 +709,17 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private Integer successfulShards;
         private Integer skippedShards;
         private Integer failedShards;
-        private Long searchLatencyMillis;
+        private Long took;  // search latency in millis for this cluster sub-search
 
         /**
          * Marks the status of a Cluster search involved in a Cross-Cluster search.
          */
         public enum Status {
-            RUNNING,  // still running
+            RUNNING,     // still running
             SUCCESSFUL,  // all shards completed search
-            PARTIAL,  // only some shards completed the search, partial results from cluster
-            SKIPPED,  // entire cluster was skipped
-            FAILED;   // search was failed due to errors on this cluster
+            PARTIAL,     // only some shards completed the search, partial results from cluster
+            SKIPPED,     // entire cluster was skipped
+            FAILED;      // search was failed due to errors on this cluster
 
             @Override
             public String toString() {
@@ -739,7 +740,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.successfulShards = in.readOptionalVInt();
             this.skippedShards = in.readOptionalVInt();
             this.failedShards = in.readOptionalVInt();
-            this.searchLatencyMillis = in.readOptionalVLong();
+            this.took = in.readOptionalVLong();
             this.failures = in.readList(ShardSearchFailure::readShardSearchFailure);
         }
 
@@ -751,7 +752,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeOptionalVInt(successfulShards);
             out.writeOptionalVInt(skippedShards);
             out.writeOptionalVInt(failedShards);
-            out.writeOptionalVLong(searchLatencyMillis);
+            out.writeOptionalVLong(took);
             out.writeList(failures);
         }
 
@@ -764,24 +765,22 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             builder.startObject(name);
             {
                 builder.field("status", status.toString());
+                if (took != null) {
+                    builder.field("took", took.doubleValue());
+                }
                 if (totalShards != null) {
-                    builder.field("total_shards", totalShards);
-                }
-                if (successfulShards != null) {
-                    builder.field("successful_shards", successfulShards);
-                }
-                if (skippedShards != null) {
-                    builder.field("skipped_shards", skippedShards);
-                }
-                if (failedShards != null) {
-                    builder.field("failed_shards", failedShards);
-                }
-                if (totalShards != null && successfulShards != null) {
-                    String percentSuccessful = Strings.format("%.2f", (successfulShards.floatValue() / totalShards.floatValue()) * 100);
-                    builder.field("percent_shards_successful", percentSuccessful);
-                }
-                if (searchLatencyMillis != null) {
-                    builder.field("search_duration", searchLatencyMillis.doubleValue());
+                    builder.startObject("_shards");
+                    builder.field("total", totalShards);
+                    if (successfulShards != null) {
+                        builder.field("successful", successfulShards);
+                    }
+                    if (skippedShards != null) {
+                        builder.field("skipped", skippedShards);
+                    }
+                    if (failedShards != null) {
+                        builder.field("failed", failedShards);
+                    }
+                    builder.endObject();
                 }
                 if (failures != null && failures.isEmpty() == false) {
                     builder.startArray("errors");
@@ -815,12 +814,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.failures.add(f);
         }
 
-        public Long getSearchLatencyMillis() {
-            return searchLatencyMillis;
+        public Long getTook() {
+            return took;
         }
 
-        public void setSearchLatencyMillis(Long searchLatencyMillis) {
-            this.searchLatencyMillis = searchLatencyMillis;
+        public void setTook(Long took) {
+            this.took = took;
         }
 
         public Integer getTotalShards() {
@@ -874,7 +873,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 + ", failedShards="
                 + failedShards
                 + ", searchLatencyMillis="
-                + searchLatencyMillis
+                + took
                 + '}';
         }
     }

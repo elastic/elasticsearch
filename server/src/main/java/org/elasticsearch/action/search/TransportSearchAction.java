@@ -540,7 +540,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     cluster.setSuccessfulShards(searchResponse.getSuccessfulShards());
                     cluster.setSkippedShards(searchResponse.getSkippedShards());
                     cluster.setFailedShards(searchResponse.getFailedShards());
-                    cluster.setSearchLatencyMillis(timeProvider.buildTookInMillis());
+                    cluster.setTook(timeProvider.buildTookInMillis());
 
                     listener.onResponse(
                         new SearchResponse(
@@ -565,7 +565,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     logCCSError(f, clusterAlias, skipUnavailable);
                     if (skipUnavailable) {
                         cluster.setStatus(SearchResponse.Cluster.Status.SKIPPED);
-                        cluster.setSearchLatencyMillis(timeProvider.buildTookInMillis());
+                        cluster.setTook(timeProvider.buildTookInMillis());
                         listener.onResponse(SearchResponse.empty(timeProvider::buildTookInMillis, clusters));
                     } else {
                         cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
@@ -781,7 +781,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
                 Instant now = Instant.now();
                 Instant start = Instant.ofEpochMilli(startTime);
-                cluster.setSearchLatencyMillis(Duration.between(start, now).toMillis());
+                cluster.setTook(Duration.between(start, now).toMillis());
 
                 if (total > success) {
                     if (success == 0) {

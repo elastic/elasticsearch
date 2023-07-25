@@ -18,6 +18,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -46,6 +47,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
     private final long searchIdleTime;
 
     public ShardStats(StreamInput in) throws IOException {
+        assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         shardRouting = new ShardRouting(in);
         commonStats = new CommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);

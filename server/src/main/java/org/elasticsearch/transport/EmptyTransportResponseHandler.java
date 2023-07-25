@@ -9,15 +9,20 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.concurrent.Executor;
 
 public class EmptyTransportResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
 
-    public static final EmptyTransportResponseHandler INSTANCE_SAME = new EmptyTransportResponseHandler(ThreadPool.Names.SAME);
+    public static final EmptyTransportResponseHandler INSTANCE_SAME = new EmptyTransportResponseHandler(
+        EsExecutors.DIRECT_EXECUTOR_SERVICE
+    );
 
-    private final String executor;
+    private final Executor executor;
 
-    public EmptyTransportResponseHandler(String executor) {
+    public EmptyTransportResponseHandler(Executor executor) {
         this.executor = executor;
     }
 
@@ -33,7 +38,7 @@ public class EmptyTransportResponseHandler implements TransportResponseHandler<T
     public void handleException(TransportException exp) {}
 
     @Override
-    public String executor() {
+    public Executor executor(ThreadPool threadPool) {
         return executor;
     }
 }

@@ -1846,6 +1846,96 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals("business_3", actual);
     }
 
+    public void testPivotWithBoxplot() throws Exception {
+        String transformId = "boxplot_transform";
+        String transformIndex = "boxplot_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "stars_boxplot": {
+                    "boxplot": {
+                       "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", REVIEWS_INDEX_NAME, transformIndex);
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(transformIndex));
+
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.min", searchResult)).get(0),
+            is(equalTo(1.0))
+        );
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.max", searchResult)).get(0),
+            is(equalTo(5.0))
+        );
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q1", searchResult)).get(0), is(equalTo(3.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q2", searchResult)).get(0), is(equalTo(5.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q3", searchResult)).get(0), is(equalTo(5.0)));
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.lower", searchResult)).get(0),
+            is(equalTo(1.0))
+        );
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.upper", searchResult)).get(0),
+            is(equalTo(5.0))
+        );
+
+        searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_1");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.min", searchResult)).get(0),
+            is(equalTo(1.0))
+        );
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.max", searchResult)).get(0),
+            is(equalTo(5.0))
+        );
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q1", searchResult)).get(0), is(equalTo(3.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q2", searchResult)).get(0), is(equalTo(5.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q3", searchResult)).get(0), is(equalTo(5.0)));
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.lower", searchResult)).get(0),
+            is(equalTo(1.0))
+        );
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.upper", searchResult)).get(0),
+            is(equalTo(5.0))
+        );
+
+    }
+
     public void testPivotWithAggregateMetricDouble() throws Exception {
         String transformId = "aggregate_metric_double_transform";
         String transformIndex = "aggregate_metric_double_pivot_reviews";

@@ -215,12 +215,10 @@ public class XContentHelper {
             )
         ) {
             Tuple<XContentType, T> xContentTypeTTuple = new Tuple<>(parser.contentType(), extractor.apply(parser));
-            // documentReporter.reportDocumentParsed(parser);
             return xContentTypeTTuple;
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to type", e);
         }
-
     }
 
     /**

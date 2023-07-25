@@ -36,7 +36,7 @@ public class DocumentMapper {
             mapperService.documentParser(),
             mapping,
             mapping.toCompressedXContent(),
-            mapperService.getMeteringCallback()
+            mapperService.getDocumentReporter()
         );
     }
 

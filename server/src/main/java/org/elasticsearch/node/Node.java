@@ -522,7 +522,7 @@ public class Node implements Closeable {
                 );
             }
 
-            DocumentReporter documentReporter = getMeteringCallback();
+            DocumentReporter documentReporter = getDocumentReporter();
 
             final IngestService ingestService = new IngestService(
                 clusterService,
@@ -837,7 +837,6 @@ public class Node implements Closeable {
                 settingsModule.getIndexScopedSettings(),
                 scriptService
             );
-            ;
             if (DiscoveryNode.isMasterNode(settings)) {
                 clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             }
@@ -1150,7 +1149,6 @@ public class Node implements Closeable {
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
                 b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
                 b.bind(DocumentReporter.class).toInstance(documentReporter);
-
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1208,7 +1206,7 @@ public class Node implements Closeable {
         }
     }
 
-    private DocumentReporter getMeteringCallback() {
+    private DocumentReporter getDocumentReporter() {
         List<DocumentReporterPlugin> plugins = pluginsService.filterPlugins(DocumentReporterPlugin.class);
         if (plugins.size() == 1) {
             return plugins.get(0).getDocumentReporter();

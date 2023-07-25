@@ -198,7 +198,7 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        DocumentReporter documentReporter
+        final DocumentReporter documentReporter
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;

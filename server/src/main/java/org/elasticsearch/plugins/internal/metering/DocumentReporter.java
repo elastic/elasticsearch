@@ -9,6 +9,7 @@
 package org.elasticsearch.plugins.internal.metering;
 
 public interface DocumentReporter {
+    DocumentReporter EMPTY_INSTANCE = () -> DocumentReporterExtension.EMPTY_INSTANCE;
 
     DocumentReporterExtension createExtension();
 }

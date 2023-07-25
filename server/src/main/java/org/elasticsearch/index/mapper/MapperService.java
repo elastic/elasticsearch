@@ -28,7 +28,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.internal.metering.DocumentReporter;
-import org.elasticsearch.plugins.internal.metering.EmptyDocumentReporter;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -382,7 +381,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, EmptyDocumentReporter.INSTANCE);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, DocumentReporter.EMPTY_INSTANCE);
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
@@ -558,7 +557,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return documentMapper().mapping().getRoot().dynamicTemplates();
     }
 
-    public DocumentReporter getMeteringCallback() {
+    public DocumentReporter getDocumentReporter() {
         return documentReporter;
     }
 }

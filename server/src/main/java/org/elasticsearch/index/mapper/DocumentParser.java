@@ -83,9 +83,7 @@ public final class DocumentParser {
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
-
             validateEnd(context.parser());
-
         } catch (XContentParseException e) {
             throw new DocumentParsingException(e.getLocation(), e.getMessage(), e);
         } catch (IOException e) {
@@ -772,7 +770,7 @@ public final class DocumentParser {
      * Internal version of {@link DocumentParserContext} that is aware of implementation details like nested documents
      * and how they are stored in the lucene index.
      */
-    private static class RootDocumentParserContext extends DocumentParserContext {
+    static class RootDocumentParserContext extends DocumentParserContext {
         private final ContentPath path = new ContentPath();
         private final XContentParser parser;
         private final LuceneDocument document;
@@ -781,7 +779,7 @@ public final class DocumentParser {
         private long numNestedDocs;
         private boolean docsReversed = false;
 
-        private RootDocumentParserContext(
+        RootDocumentParserContext(
             MappingLookup mappingLookup,
             MappingParserContext mappingParserContext,
             SourceToParse source,
@@ -794,18 +792,15 @@ public final class DocumentParser {
                 mappingLookup.getMapping().getRoot(),
                 ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
             );
-            this.parser = createParser(mappingLookup, parser);
+            if (mappingLookup.getMapping().getRoot().subobjects()) {
+                this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
+            } else {
+                this.parser = parser;
+            }
             this.document = new LuceneDocument();
             this.documents.add(document);
             this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
-        }
-
-        private XContentParser createParser(MappingLookup mappingLookup, XContentParser parser) throws IOException {
-            if (mappingLookup.getMapping().getRoot().subobjects()) {
-                parser = DotExpandingXContentParser.expandDots(parser, this.path);
-            }
-            return parser;
         }
 
         @Override

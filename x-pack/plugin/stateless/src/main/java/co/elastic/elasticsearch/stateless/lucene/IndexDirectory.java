@@ -20,7 +20,6 @@ package co.elastic.elasticsearch.stateless.lucene;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexInput;
@@ -372,7 +371,7 @@ public class IndexDirectory extends FilterDirectory {
      * cache directory. When it reopens an IndexInput it takes care of restoring the position in the file as well as the clone or slice
      * state.
      */
-    private class ReopeningIndexInput extends BufferedIndexInput {
+    private class ReopeningIndexInput extends StatelessBufferedIndexInput {
 
         private final String name;
         private final long length;
@@ -466,14 +465,14 @@ public class IndexDirectory extends FilterDirectory {
         }
 
         @Override
-        public BufferedIndexInput clone() {
+        public StatelessBufferedIndexInput clone() {
             // Note: Lucene can clone a slice or a clone
             var currentDelegate = this.delegate;
             // We clone the actual delegate input. No need to clone our wrapper with the isReopened marker.
             IndexInput inputToClone = currentDelegate.getDelegate();
             if (currentDelegate.isReopened()) {
                 assert inputToClone instanceof SearchIndexInput : toString();
-                return ((BufferedIndexInput) inputToClone).clone();
+                return ((StatelessBufferedIndexInput) inputToClone).clone();
             }
             if (localFile.tryIncRef()) {
                 try {
@@ -488,7 +487,7 @@ public class IndexDirectory extends FilterDirectory {
 
             try {
                 // We clone the actual delegate input. No need to clone our wrapper with the isReopened marker.
-                return (BufferedIndexInput) reopenInputFromCache().getDelegate().clone();
+                return (StatelessBufferedIndexInput) reopenInputFromCache().getDelegate().clone();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

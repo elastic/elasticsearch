@@ -141,7 +141,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         pluginSettings.add(TIME_SERIES_POLL_INTERVAL);
         pluginSettings.add(LOOK_AHEAD_TIME);
 
-        if (DataStreamLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isFeatureEnabled()) {
             pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
             pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
             pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
@@ -172,7 +172,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         this.updateTimeSeriesRangeService.set(updateTimeSeriesRangeService);
         components.add(this.updateTimeSeriesRangeService.get());
 
-        if (DataStreamLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isFeatureEnabled()) {
             errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore());
             dataLifecycleInitialisationService.set(
                 new DataStreamLifecycleService(
@@ -203,7 +203,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         actions.add(new ActionHandler<>(PromoteDataStreamAction.INSTANCE, PromoteDataStreamTransportAction.class));
         actions.add(new ActionHandler<>(ModifyDataStreamsAction.INSTANCE, ModifyDataStreamsTransportAction.class));
 
-        if (DataStreamLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isFeatureEnabled()) {
             actions.add(new ActionHandler<>(PutDataStreamLifecycleAction.INSTANCE, TransportPutDataStreamLifecycleAction.class));
             actions.add(new ActionHandler<>(GetDataStreamLifecycleAction.INSTANCE, TransportGetDataStreamLifecycleAction.class));
             actions.add(new ActionHandler<>(DeleteDataStreamLifecycleAction.INSTANCE, TransportDeleteDataStreamLifecycleAction.class));
@@ -235,7 +235,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         handlers.add(new RestPromoteDataStreamAction());
         handlers.add(new RestModifyDataStreamsAction());
 
-        if (DataStreamLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isFeatureEnabled()) {
             handlers.add(new RestPutDataStreamLifecycleAction());
             handlers.add(new RestGetDataStreamLifecycleAction());
             handlers.add(new RestDeleteDataStreamLifecycleAction());

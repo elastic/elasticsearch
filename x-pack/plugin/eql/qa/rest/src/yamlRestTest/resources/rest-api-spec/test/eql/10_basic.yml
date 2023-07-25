@@ -436,9 +436,7 @@ setup:
 
 ---
 "Sequence with missing events.":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/97644"
+
   - do:
       eql.search:
         index: eql_test

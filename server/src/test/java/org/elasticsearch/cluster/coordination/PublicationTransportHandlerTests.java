@@ -86,6 +86,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
         when(transportService.getConnection(any())).thenReturn(connection);
+        when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
 
         final PublicationTransportHandler handler = new PublicationTransportHandler(transportService, writableRegistry(), pu -> null);
 

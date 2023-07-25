@@ -929,15 +929,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 IndexSearcher.getDefaultSimilarity(),
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
+                1, // forces multiple slices
                 randomBoolean(),
                 this.threadPoolExecutor
-            ) {
-                @Override
-                protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-                    // get a thread per segment
-                    return slices(leaves, 1, 1);
-                }
-            };
+            );
         }
     }
 

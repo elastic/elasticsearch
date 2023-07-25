@@ -127,7 +127,6 @@ import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.plugins.internal.metering.MeteringCallback;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -291,7 +290,8 @@ public class IndicesService extends AbstractLifecycleComponent
         List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners,
         Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
         CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator,
-        MeteringCallback meteringCallback) {
+        MeteringCallback meteringCallback
+    ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -761,7 +761,8 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            meteringCallback);
+            meteringCallback
+        );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -837,7 +838,8 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            meteringCallback);
+            meteringCallback
+        );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
     }

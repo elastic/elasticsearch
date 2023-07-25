@@ -11,8 +11,6 @@ package org.elasticsearch.plugins.internal.metering;
 public class EmptyMeteringCallback implements MeteringCallback {
     public static final MeteringCallback INSTANCE = new EmptyMeteringCallback();
 
-    private EmptyMeteringCallback() {
-    }
-
+    private EmptyMeteringCallback() {}
 
 }

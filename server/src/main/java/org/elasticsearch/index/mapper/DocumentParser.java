@@ -19,7 +19,6 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.plugins.internal.metering.MeteringCallback;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -49,7 +48,11 @@ public final class DocumentParser {
     private final MeteringCallback meteringCallback;
     private final MappingParserContext mappingParserContext;
 
-    DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext, MeteringCallback meteringCallback) {
+    DocumentParser(
+        XContentParserConfiguration parserConfiguration,
+        MappingParserContext mappingParserContext,
+        MeteringCallback meteringCallback
+    ) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
         this.meteringCallback = meteringCallback;
@@ -74,7 +77,7 @@ public final class DocumentParser {
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
-            if(source.isAlreadyReported() == false){
+            if (source.isAlreadyReported() == false) {
                 meteringCallback.reportDocumentParsed(context.parser());
             }
             validateEnd(context.parser());
@@ -774,7 +777,8 @@ public final class DocumentParser {
             MappingParserContext mappingParserContext,
             SourceToParse source,
             XContentParser parser,
-            MeteringCallback meteringCallback) throws IOException {
+            MeteringCallback meteringCallback
+        ) throws IOException {
             super(
                 mappingLookup,
                 mappingParserContext,

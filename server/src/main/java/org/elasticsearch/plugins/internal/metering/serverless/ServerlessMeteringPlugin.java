@@ -8,12 +8,8 @@
 
 package org.elasticsearch.plugins.internal.metering.serverless;
 
-
-import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.plugins.internal.metering.MeteringCallback;
 import org.elasticsearch.plugins.internal.metering.MeteringPlugin;
-import org.elasticsearch.xcontent.XContentParser;
 
 //to live in serverless
 public class ServerlessMeteringPlugin implements MeteringPlugin {

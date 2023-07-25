@@ -56,7 +56,8 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             () -> null,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             null,
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
     }
 
     private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
@@ -89,7 +90,14 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final Translog.Index index = (Translog.Index) operation;
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
                     mapperService,
-                    new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing(), Map.of(), false),
+                    new SourceToParse(
+                        index.id(),
+                        index.source(),
+                        XContentHelper.xContentType(index.source()),
+                        index.routing(),
+                        Map.of(),
+                        false
+                    ),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),

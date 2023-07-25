@@ -21,15 +21,16 @@ public class MeteringParser extends AbstractXContentParser {
     private final XContentParser x;
     private AtomicLong counter = new AtomicLong();
 
-    private void charge(long value){
+    private void charge(long value) {
         counter.addAndGet(value);
     }
+
     public AtomicLong getCounter() {
         return counter;
     }
 
     public MeteringParser(XContentParser xContentParser) {
-        super(xContentParser.getXContentRegistry(),xContentParser.getDeprecationHandler(),xContentParser.getRestApiVersion());
+        super(xContentParser.getXContentRegistry(), xContentParser.getDeprecationHandler(), xContentParser.getRestApiVersion());
         this.x = xContentParser;
     }
 

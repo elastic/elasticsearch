@@ -150,7 +150,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
         assertEquals(1, factories.size());
@@ -169,7 +170,8 @@ public class IngestServiceTests extends ESTestCase {
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
                 null,
-                    EmptyMeteringCallback.INSTANCE)
+                EmptyMeteringCallback.INSTANCE
+            )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
     }
@@ -185,7 +187,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
             .setPipeline("_id")
@@ -1904,7 +1907,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(testPlugin),
             client,
             null,
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
         // Create pipeline and apply the resulting cluster state, which should update the counter in the right order:
@@ -2231,7 +2235,17 @@ public class IngestServiceTests extends ESTestCase {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        IngestService ingestService = new IngestService(clusterService, threadPool, null, null, null, List.of(DUMMY_PLUGIN), client, null, EmptyMeteringCallback.INSTANCE);
+        IngestService ingestService = new IngestService(
+            clusterService,
+            threadPool,
+            null,
+            null,
+            null,
+            List.of(DUMMY_PLUGIN),
+            client,
+            null,
+            EmptyMeteringCallback.INSTANCE
+        );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
         CountDownLatch latch = new CountDownLatch(1);

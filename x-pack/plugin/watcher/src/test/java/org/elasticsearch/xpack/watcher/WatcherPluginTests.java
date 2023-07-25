@@ -68,7 +68,8 @@ public class WatcherPluginTests extends ESTestCase {
             () -> true,
             TestIndexNameExpressionResolver.newInstance(),
             Collections.emptyMap(),
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);
 

@@ -2531,7 +2531,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         // merge without going through toXContent and reparsing, otherwise the potential leaf path issue gets fixed on its own
         Mapping newMapping = MapperService.mergeMappings(mapperService.documentMapper(), mapping, MapperService.MergeReason.MAPPING_UPDATE);
-        DocumentMapper newDocMapper = new DocumentMapper(mapperService.documentParser(), newMapping, newMapping.toCompressedXContent(), EmptyMeteringCallback.INSTANCE);
+        DocumentMapper newDocMapper = new DocumentMapper(
+            mapperService.documentParser(),
+            newMapping,
+            newMapping.toCompressedXContent(),
+            EmptyMeteringCallback.INSTANCE
+        );
         ParsedDocument doc2 = newDocMapper.parse(source("""
             {
               "foo" : {

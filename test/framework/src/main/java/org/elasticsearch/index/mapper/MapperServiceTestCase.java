@@ -217,7 +217,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
             this::compileScript,
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
     }
 
     /**

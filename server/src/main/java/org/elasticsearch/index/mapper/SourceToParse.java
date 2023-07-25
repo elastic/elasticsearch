@@ -35,7 +35,8 @@ public class SourceToParse {
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
-        boolean alreadyReported) {
+        boolean alreadyReported
+    ) {
         this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays

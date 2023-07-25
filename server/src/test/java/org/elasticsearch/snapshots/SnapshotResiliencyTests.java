@@ -1799,7 +1799,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     List.of(),
                     emptyMap(),
                     null,
-                        EmptyMeteringCallback.INSTANCE);
+                    EmptyMeteringCallback.INSTANCE
+                );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
                     settings,
@@ -1939,7 +1940,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(),
                             client,
                             null,
-                                EmptyMeteringCallback.INSTANCE),
+                            EmptyMeteringCallback.INSTANCE
+                        ),
                         client,
                         actionFilters,
                         indexNameExpressionResolver,
@@ -1973,8 +1975,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,
-                        ScriptCompiler.NONE,
-                            EmptyMeteringCallback.INSTANCE),
+                        ScriptCompiler.NONE
+                    ),
                     shardLimitValidator,
                     EmptySystemIndices.INSTANCE,
                     indicesService,

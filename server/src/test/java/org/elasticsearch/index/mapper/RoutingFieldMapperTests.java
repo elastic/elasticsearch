@@ -54,7 +54,8 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 XContentType.JSON,
                 "routing_value",
                 Map.of(),
-                    false)
+                false
+            )
         );
 
         assertThat(doc.rootDoc().get("_routing"), equalTo("routing_value"));

@@ -57,7 +57,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.plugins.internal.metering.MeteringCallback;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -199,7 +198,8 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        MeteringCallback meteringCallback) {
+        MeteringCallback meteringCallback
+    ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
@@ -541,7 +541,8 @@ public final class IndexModule {
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
-                meteringCallback);
+                meteringCallback
+            );
             success = true;
             return indexService;
         } finally {
@@ -651,7 +652,8 @@ public final class IndexModule {
             },
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             scriptService,
-            meteringCallback);
+            meteringCallback
+        );
     }
 
     /**

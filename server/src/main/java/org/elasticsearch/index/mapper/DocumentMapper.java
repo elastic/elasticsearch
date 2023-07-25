@@ -32,7 +32,12 @@ public class DocumentMapper {
         );
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
         Mapping mapping = new Mapping(root, metadata, null);
-        return new DocumentMapper(mapperService.documentParser(), mapping, mapping.toCompressedXContent(), mapperService.getMeteringCallback());
+        return new DocumentMapper(
+            mapperService.documentParser(),
+            mapping,
+            mapping.toCompressedXContent(),
+            mapperService.getMeteringCallback()
+        );
     }
 
     DocumentMapper(DocumentParser documentParser, Mapping mapping, CompressedXContent source, MeteringCallback meteringCallback) {

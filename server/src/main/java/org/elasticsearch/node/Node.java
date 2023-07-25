@@ -179,7 +179,6 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
-import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.plugins.internal.metering.MeteringCallback;
 import org.elasticsearch.plugins.internal.metering.MeteringPlugin;
 import org.elasticsearch.plugins.internal.metering.serverless.ServerlessMeteringPlugin;
@@ -534,7 +533,8 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(IngestPlugin.class),
                 client,
                 IngestService.createGrokThreadWatchdog(this.environment, threadPool),
-                meteringCallback);
+                meteringCallback
+            );
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
@@ -693,7 +693,8 @@ public class Node implements Closeable {
                 indexFoldersDeletionListeners,
                 snapshotCommitSuppliers,
                 searchModule.getRequestCacheKeyDifferentiator(),
-                meteringCallback);
+                meteringCallback
+            );
 
             final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
             IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
@@ -834,8 +835,8 @@ public class Node implements Closeable {
                 xContentRegistry,
                 indicesModule.getMapperRegistry(),
                 settingsModule.getIndexScopedSettings(),
-                scriptService,
-                meteringCallback);//perhaps we don't care here
+                scriptService
+            );
             ;
             if (DiscoveryNode.isMasterNode(settings)) {
                 clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
@@ -1213,7 +1214,7 @@ public class Node implements Closeable {
             return plugins.get(0).getMeteringCallback();
         } else if (plugins.size() == 0) {
             return new ServerlessMeteringPlugin().getMeteringCallback();
-//            return EmptyMeteringCallback.INSTANCE;
+            // return EmptyMeteringCallback.INSTANCE;
         }
         throw new IllegalStateException("too many metering plugins");
     }

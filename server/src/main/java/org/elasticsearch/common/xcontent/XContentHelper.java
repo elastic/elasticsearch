@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.plugins.internal.metering.MeteringCallback;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -139,7 +140,12 @@ public class XContentHelper {
      * Exactly the same as {@link XContentHelper#convertToMap(BytesReference, boolean, XContentType, Set, Set)} but
      * none of the fields are filtered
      */
-    public static Tuple<XContentType, Map<String, Object>> convertToMapAndMeter(BytesReference bytes, boolean ordered, XContentType xContentType, MeteringCallback meteringCallback) {
+    public static Tuple<XContentType, Map<String, Object>> convertToMapAndMeter(
+        BytesReference bytes,
+        boolean ordered,
+        XContentType xContentType,
+        MeteringCallback meteringCallback
+    ) {
         return parseToType(
             ordered ? XContentParser::mapOrdered : XContentParser::map,
             bytes,
@@ -193,12 +199,7 @@ public class XContentHelper {
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config
     ) throws ElasticsearchParseException {
-        config = config != null ? config : XContentParserConfiguration.EMPTY;
-        try (XContentParser parser = xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)) {
-            return new Tuple<>(parser.contentType(), extractor.apply(parser));
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to type", e);
-        }
+        return parseToType(extractor, bytes, xContentType, config, EmptyMeteringCallback.INSTANCE);
     }
 
     public static <T> Tuple<XContentType, T> parseToType(
@@ -209,7 +210,11 @@ public class XContentHelper {
         MeteringCallback meteringCallback
     ) throws ElasticsearchParseException {
         config = config != null ? config : XContentParserConfiguration.EMPTY;
-        try (XContentParser parser = meteringCallback.wrapParser(xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes))) {
+        try (
+            XContentParser parser = meteringCallback.wrapParser(
+                xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)
+            )
+        ) {
             Tuple<XContentType, T> xContentTypeTTuple = new Tuple<>(parser.contentType(), extractor.apply(parser));
             meteringCallback.reportDocumentParsed(parser);
             return xContentTypeTTuple;

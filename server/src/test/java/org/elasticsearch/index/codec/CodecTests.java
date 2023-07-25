@@ -96,7 +96,8 @@ public class CodecTests extends ESTestCase {
             () -> null,
             settings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE,
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
         return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
     }
 

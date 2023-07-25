@@ -8,16 +8,9 @@
 
 package org.elasticsearch.plugins.internal.metering;
 
-import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.xcontent.XContentParser;
 
-import java.util.List;
-import java.util.function.Function;
-
 public interface MeteringCallback {
-
 
     default XContentParser wrapParser(XContentParser context) {
         return context;

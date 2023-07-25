@@ -235,7 +235,8 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
         module.setReaderWrapper(s -> new Wrapper());
 
         IndexService indexService = newIndexService(module);
@@ -260,7 +261,8 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
 
         final IndexService indexService = newIndexService(module);
         assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
@@ -283,7 +285,8 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
 
@@ -634,7 +637,8 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             recoveryStateFactories,
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
 
         final IndexService indexService = newIndexService(module);
 
@@ -654,7 +658,8 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
         final AtomicReference<Engine.IndexCommitRef> lastAcquiredCommit = new AtomicReference<>();
@@ -754,7 +759,8 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
     }
 
     class CustomQueryCache implements QueryCache {

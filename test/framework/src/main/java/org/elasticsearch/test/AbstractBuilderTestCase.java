@@ -471,7 +471,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> createShardContext(null, clusterService.getClusterSettings()),
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
                 ScriptCompiler.NONE,
-                    EmptyMeteringCallback.INSTANCE);
+                EmptyMeteringCallback.INSTANCE
+            );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });
             indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache, new NoneCircuitBreakerService());

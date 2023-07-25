@@ -17,21 +17,21 @@ public class ServerlessMeteringCallback implements MeteringCallback {
 
     @Override
     public XContentParser wrapParser(XContentParser parser) {
-//        return meteringContext(context.getParent(), context);
+        // return meteringContext(context.getParent(), context);
         return new MeteringParser(parser);//
     }
 
     @Override
     public void reportDocumentParsed(XContentParser context) {
-        //in serverless it should always be CountingDocumentParserContext
+        // in serverless it should always be CountingDocumentParserContext
         assert context instanceof MeteringParser;
         MeteringParser counting = (MeteringParser) context;
-        System.out.println("REPORTING "+counting.getCounter());
-        //reportManager.report(index,counter)
+        System.out.println("REPORTING " + counting.getCounter());
+        // reportManager.report(index,counter)
     }
 
     public static final DocumentParserContext meteringContext(ObjectMapper parent, DocumentParserContext context) {
 
-        return new CountingDocumentParserContext(parent,context);
+        return new CountingDocumentParserContext(parent, context);
     }
 }

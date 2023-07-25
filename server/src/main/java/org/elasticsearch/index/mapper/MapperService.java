@@ -139,7 +139,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
-        MeteringCallback meteringCallback) {
+        MeteringCallback meteringCallback
+    ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
             indexSettings,
@@ -150,7 +151,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             searchExecutionContextSupplier,
             idFieldMapper,
             scriptCompiler,
-            meteringCallback);
+            meteringCallback
+        );
     }
 
     public MapperService(
@@ -163,7 +165,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
-        MeteringCallback meteringCallback) {
+        MeteringCallback meteringCallback
+    ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;

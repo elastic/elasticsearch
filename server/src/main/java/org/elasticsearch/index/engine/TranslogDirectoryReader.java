@@ -257,7 +257,8 @@ final class TranslogDirectoryReader extends DirectoryReader {
                     XContentHelper.xContentType(operation.source()),
                     operation.routing(),
                     Map.of(),
-                        false),
+                    false
+                ),
                 mappingLookup
             );
 

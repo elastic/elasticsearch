@@ -14,7 +14,6 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.plugins.internal.metering.serverless.MeteringParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
 

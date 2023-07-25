@@ -41,7 +41,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -190,7 +189,8 @@ public class QueryParserHelperBenchmark {
                     throw new UnsupportedOperationException();
                 }
             },
-                null);
+            null
+        );
 
         try {
             mapperService.merge("_doc", new CompressedXContent(mappings), MapperService.MergeReason.MAPPING_UPDATE);

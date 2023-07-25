@@ -26,7 +26,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -73,7 +72,8 @@ public class MapperServiceFactory {
                     throw new UnsupportedOperationException();
                 }
             },
-                /*EmptyMeteringCallback.INSTANCE*/null);
+            /*EmptyMeteringCallback.INSTANCE*/null
+        );
 
         try {
             mapperService.merge("_doc", new CompressedXContent(mappings), MapperService.MergeReason.MAPPING_UPDATE);

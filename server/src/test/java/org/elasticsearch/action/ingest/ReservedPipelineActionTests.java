@@ -90,7 +90,8 @@ public class ReservedPipelineActionTests extends ESTestCase {
             Collections.singletonList(DUMMY_PLUGIN),
             client,
             null,
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("set"));
         assertEquals(1, factories.size());

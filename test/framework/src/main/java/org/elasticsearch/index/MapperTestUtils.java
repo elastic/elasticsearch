@@ -69,6 +69,7 @@ public class MapperTestUtils {
             () -> null,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE,
-                EmptyMeteringCallback.INSTANCE);
+            EmptyMeteringCallback.INSTANCE
+        );
     }
 }

@@ -358,9 +358,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public Map<String, Object> sourceAsMap() {
         return XContentHelper.convertToMap(source, false, contentType).v2();
     }
+
     public Map<String, Object> sourceAsMap(MeteringCallback meteringCallback) {
         return XContentHelper.convertToMapAndMeter(source, false, contentType, meteringCallback).v2();
     }
+
     /**
      * Index the Map in {@link Requests#INDEX_CONTENT_TYPE} format
      *

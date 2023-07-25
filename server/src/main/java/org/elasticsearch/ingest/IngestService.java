@@ -180,7 +180,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
-        MeteringCallback meteringCallback) {
+        MeteringCallback meteringCallback
+    ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.meteringCallback = meteringCallback;
@@ -713,9 +714,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             ref.close();
                         });
 
-                        IngestDocument ingestDocument = newIngestDocument(indexRequest,meteringCallback);
-
+                        IngestDocument ingestDocument = newIngestDocument(indexRequest, meteringCallback);
                         indexRequest.setAlreadyReported();
+
                         executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
                         i++;
                     }

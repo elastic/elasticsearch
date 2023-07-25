@@ -78,7 +78,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         Settings.builder().build();
         Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();

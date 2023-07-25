@@ -801,13 +801,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             assert rangeToRead.length() > 0;
             Releasable resource = null;
             try {
-                ensureOpen();
                 incRef();
                 resource = Releasables.releaseOnce(this::decRef);
-
                 ensureOpen();
-                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
-
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                     rangeToWrite,
                     rangeToRead,
@@ -815,7 +811,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         final long physicalStartOffset = physicalStartOffset();
                         assert regionOwners.get(sharedBytesPos) == this;
                         final int read = reader.onRangeAvailable(
-                            fileChannel,
+                            sharedBytes.getFileChannel(sharedBytesPos),
                             physicalStartOffset + rangeToRead.start(),
                             rangeToRead.start(),
                             rangeToRead.length()
@@ -834,14 +830,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 );
 
                 if (gaps.isEmpty() == false) {
-                    fillGaps(writer, fileChannel, gaps);
+                    fillGaps(writer, gaps);
                 }
             } catch (Exception e) {
                 releaseAndFail(listener, resource, e);
             }
         }
 
-        private void fillGaps(RangeMissingHandler writer, SharedBytes.IO fileChannel, List<SparseFileTracker.Gap> gaps) {
+        private void fillGaps(RangeMissingHandler writer, List<SparseFileTracker.Gap> gaps) {
+            SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
             for (SparseFileTracker.Gap gap : gaps) {
                 ioExecutor.execute(new AbstractRunnable() {
 

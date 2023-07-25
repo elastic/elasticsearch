@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService.UpgradeStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -400,7 +401,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     }
 
     private static Settings getSettings() {
-        return indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6).build();
+        return indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6).build();
     }
 
     private static XContentBuilder getMappings() {

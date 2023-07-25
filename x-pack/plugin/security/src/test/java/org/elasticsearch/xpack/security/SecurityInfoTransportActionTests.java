@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -376,7 +377,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         return new SecurityUsageTransportAction(
             mock(TransportService.class),
             null,
-            null,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             settings,

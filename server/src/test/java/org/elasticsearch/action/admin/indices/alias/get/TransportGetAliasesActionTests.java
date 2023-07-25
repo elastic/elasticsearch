@@ -274,7 +274,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .setAliasName(".y")
             .setPrimaryIndex(".b")
             .setDescription(this.getTestName())
-            .setMappings("{\"_meta\":  {\"version\":  \"1.0.0\"}}")
+            .setMappings("{\"_meta\":  {\"version\":  \"1.0.0\", \"system-index-mapping-version\": 0}}")
             .setSettings(Settings.EMPTY)
             .setVersionMetaKey("version")
             .setOrigin(this.getTestName())

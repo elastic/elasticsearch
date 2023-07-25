@@ -86,7 +86,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
+import org.elasticsearch.plugins.internal.metering.EmptyDocumentReporter;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -235,7 +235,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            EmptyMeteringCallback.INSTANCE
+            EmptyDocumentReporter.INSTANCE
         );
         module.setReaderWrapper(s -> new Wrapper());
 
@@ -261,7 +261,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            EmptyMeteringCallback.INSTANCE
+            EmptyDocumentReporter.INSTANCE
         );
 
         final IndexService indexService = newIndexService(module);
@@ -285,7 +285,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            EmptyMeteringCallback.INSTANCE
+            EmptyDocumentReporter.INSTANCE
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -637,7 +637,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            EmptyMeteringCallback.INSTANCE
+            EmptyDocumentReporter.INSTANCE
         );
 
         final IndexService indexService = newIndexService(module);
@@ -658,7 +658,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            EmptyMeteringCallback.INSTANCE
+            EmptyDocumentReporter.INSTANCE
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -759,7 +759,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            EmptyMeteringCallback.INSTANCE
+            EmptyDocumentReporter.INSTANCE
         );
     }
 

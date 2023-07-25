@@ -57,7 +57,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.metering.MeteringCallback;
+import org.elasticsearch.plugins.internal.metering.DocumentReporter;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -164,7 +164,7 @@ public final class IndexModule {
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
-    private MeteringCallback meteringCallback;
+    private DocumentReporter documentReporter;
     private final SetOnce<DirectoryWrapper> indexDirectoryWrapper = new SetOnce<>();
     private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
         new SetOnce<>();
@@ -188,7 +188,7 @@ public final class IndexModule {
      * @param analysisRegistry   the analysis registry
      * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
-     * @param meteringCallback
+     * @param documentReporter
      */
     public IndexModule(
         final IndexSettings indexSettings,
@@ -198,12 +198,12 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        MeteringCallback meteringCallback
+        DocumentReporter documentReporter
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
-        this.meteringCallback = meteringCallback;
+        this.documentReporter = documentReporter;
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
@@ -541,7 +541,7 @@ public final class IndexModule {
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
-                meteringCallback
+                documentReporter
             );
             success = true;
             return indexService;
@@ -652,7 +652,7 @@ public final class IndexModule {
             },
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             scriptService,
-            meteringCallback
+            documentReporter
         );
     }
 

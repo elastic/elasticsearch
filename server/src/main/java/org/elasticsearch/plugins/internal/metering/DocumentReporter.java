@@ -8,7 +8,7 @@
 
 package org.elasticsearch.plugins.internal.metering;
 
-public interface MeteringPlugin {
+public interface DocumentReporter {
 
-    MeteringCallback getMeteringCallback();
+    DocumentReporterExtension createExtension();
 }

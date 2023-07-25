@@ -179,9 +179,9 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
-import org.elasticsearch.plugins.internal.metering.MeteringCallback;
-import org.elasticsearch.plugins.internal.metering.MeteringPlugin;
-import org.elasticsearch.plugins.internal.metering.serverless.ServerlessMeteringPlugin;
+import org.elasticsearch.plugins.internal.metering.DocumentReporter;
+import org.elasticsearch.plugins.internal.metering.DocumentReporterPlugin;
+import org.elasticsearch.plugins.internal.metering.serverless.ServerlessDocumentReporterPlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -522,7 +522,7 @@ public class Node implements Closeable {
                 );
             }
 
-            MeteringCallback meteringCallback = getMeteringCallback();
+            DocumentReporter documentReporter = getMeteringCallback();
 
             final IngestService ingestService = new IngestService(
                 clusterService,
@@ -533,7 +533,7 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(IngestPlugin.class),
                 client,
                 IngestService.createGrokThreadWatchdog(this.environment, threadPool),
-                meteringCallback
+                documentReporter
             );
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
@@ -693,7 +693,7 @@ public class Node implements Closeable {
                 indexFoldersDeletionListeners,
                 snapshotCommitSuppliers,
                 searchModule.getRequestCacheKeyDifferentiator(),
-                meteringCallback
+                documentReporter
             );
 
             final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
@@ -1149,7 +1149,7 @@ public class Node implements Closeable {
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
                 b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
-                b.bind(MeteringCallback.class).toInstance(meteringCallback);
+                b.bind(DocumentReporter.class).toInstance(documentReporter);
 
             });
 
@@ -1208,12 +1208,12 @@ public class Node implements Closeable {
         }
     }
 
-    private MeteringCallback getMeteringCallback() {
-        List<MeteringPlugin> plugins = pluginsService.filterPlugins(MeteringPlugin.class);
+    private DocumentReporter getMeteringCallback() {
+        List<DocumentReporterPlugin> plugins = pluginsService.filterPlugins(DocumentReporterPlugin.class);
         if (plugins.size() == 1) {
-            return plugins.get(0).getMeteringCallback();
+            return plugins.get(0).getDocumentReporter();
         } else if (plugins.size() == 0) {
-            return new ServerlessMeteringPlugin().getMeteringCallback();
+            return new ServerlessDocumentReporterPlugin().getDocumentReporter();
             // return EmptyMeteringCallback.INSTANCE;
         }
         throw new IllegalStateException("too many metering plugins");

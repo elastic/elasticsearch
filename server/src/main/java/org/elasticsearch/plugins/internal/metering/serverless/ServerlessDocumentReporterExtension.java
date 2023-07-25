@@ -10,24 +10,26 @@ package org.elasticsearch.plugins.internal.metering.serverless;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.plugins.internal.metering.MeteringCallback;
+import org.elasticsearch.plugins.internal.metering.DocumentReporterExtension;
 import org.elasticsearch.xcontent.XContentParser;
 
-public class ServerlessMeteringCallback implements MeteringCallback {
+import java.util.concurrent.atomic.AtomicLong;
 
-    private final Logger logger = LogManager.getLogger(ServerlessMeteringCallback.class);
+public class ServerlessDocumentReporterExtension implements DocumentReporterExtension {
+    private final Logger logger = LogManager.getLogger(ServerlessDocumentReporter.class);
+
+    private AtomicLong counter = new AtomicLong();
+    private String index = null;
 
     @Override
     public XContentParser wrapParser(XContentParser parser) {
-        return new MeteringParser(parser);
+        return new MeteringParser(parser, counter);
     }
 
     @Override
-    public void reportDocumentParsed(XContentParser context) {
+    public void reportDocumentParsed(String index) {
         // in serverless it should always be CountingDocumentParserContext
-        assert context instanceof MeteringParser;
-        MeteringParser counting = (MeteringParser) context;
-        logger.info("REPORTING " + counting.getCounter());
+        logger.error("REPORTING " + counter + " on index " + index, new RuntimeException());
         // reportManager.report(index,counter)
     }
 

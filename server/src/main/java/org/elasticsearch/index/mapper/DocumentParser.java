@@ -19,7 +19,8 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.internal.metering.MeteringCallback;
+import org.elasticsearch.plugins.internal.metering.DocumentReporter;
+import org.elasticsearch.plugins.internal.metering.DocumentReporterExtension;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,17 +46,17 @@ import java.util.function.Consumer;
 public final class DocumentParser {
 
     private final XContentParserConfiguration parserConfiguration;
-    private final MeteringCallback meteringCallback;
+    private final DocumentReporter documentReporter;
     private final MappingParserContext mappingParserContext;
 
     DocumentParser(
         XContentParserConfiguration parserConfiguration,
         MappingParserContext mappingParserContext,
-        MeteringCallback meteringCallback
+        DocumentReporter documentReporter
     ) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
-        this.meteringCallback = meteringCallback;
+        this.documentReporter = documentReporter;
     }
 
     /**
@@ -72,14 +73,17 @@ public final class DocumentParser {
         }
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
-        try (XContentParser parser = XContentHelper.createParser(parserConfiguration, source.source(), xContentType)) {
-            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser, meteringCallback);
+        DocumentReporterExtension documentReporterExtension = documentReporter.createExtension();
+        try (
+            XContentParser parser = documentReporterExtension.wrapParser(
+                XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
+            )
+        ) {
+            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
-            if (source.isAlreadyReported() == false) {
-                meteringCallback.reportDocumentParsed(context.parser());
-            }
+
             validateEnd(context.parser());
 
         } catch (XContentParseException e) {
@@ -90,6 +94,12 @@ public final class DocumentParser {
         }
         assert context.path.pathAsText("").isEmpty() : "found leftover path elements: " + context.path.pathAsText("");
 
+        Mapping dynamicUpdate = createDynamicUpdate(context);
+        if (source.isAlreadyReported() == false // metering was done in ingestService
+            && dynamicUpdate == null// if a mappingUpdate is required, the parsing will be triggered again
+        ) {
+            documentReporterExtension.reportDocumentParsed(mappingParserContext.getIndexSettings().getIndex().getName());
+        }
         return new ParsedDocument(
             context.version(),
             context.seqID(),
@@ -98,7 +108,7 @@ public final class DocumentParser {
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
-            createDynamicUpdate(context)
+            dynamicUpdate
         ) {
             @Override
             public String documentDescription() {
@@ -770,14 +780,12 @@ public final class DocumentParser {
         private final long maxAllowedNumNestedDocs;
         private long numNestedDocs;
         private boolean docsReversed = false;
-        private MeteringCallback meteringCallback;
 
         public RootDocumentParserContext(
             MappingLookup mappingLookup,
             MappingParserContext mappingParserContext,
             SourceToParse source,
-            XContentParser parser,
-            MeteringCallback meteringCallback
+            XContentParser parser
         ) throws IOException {
             super(
                 mappingLookup,
@@ -786,7 +794,6 @@ public final class DocumentParser {
                 mappingLookup.getMapping().getRoot(),
                 ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
             );
-            this.meteringCallback = meteringCallback;
             this.parser = createParser(mappingLookup, parser);
             this.document = new LuceneDocument();
             this.documents.add(document);
@@ -798,7 +805,7 @@ public final class DocumentParser {
             if (mappingLookup.getMapping().getRoot().subobjects()) {
                 parser = DotExpandingXContentParser.expandDots(parser, this.path);
             }
-            return meteringCallback.wrapParser(parser);
+            return parser;
         }
 
         @Override

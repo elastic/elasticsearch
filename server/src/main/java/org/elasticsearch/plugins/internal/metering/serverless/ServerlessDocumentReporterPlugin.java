@@ -8,14 +8,14 @@
 
 package org.elasticsearch.plugins.internal.metering.serverless;
 
-import org.elasticsearch.plugins.internal.metering.MeteringCallback;
-import org.elasticsearch.plugins.internal.metering.MeteringPlugin;
+import org.elasticsearch.plugins.internal.metering.DocumentReporter;
+import org.elasticsearch.plugins.internal.metering.DocumentReporterPlugin;
 
 //to live in serverless
-public class ServerlessMeteringPlugin implements MeteringPlugin {
+public class ServerlessDocumentReporterPlugin implements DocumentReporterPlugin {
     @Override
-    public MeteringCallback getMeteringCallback() {
-        return new ServerlessMeteringCallback();
+    public DocumentReporter getDocumentReporter() {
+        return new ServerlessDocumentReporter();
     }
 
 }

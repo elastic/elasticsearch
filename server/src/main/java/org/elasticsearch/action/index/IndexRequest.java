@@ -34,7 +34,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.internal.metering.MeteringCallback;
+import org.elasticsearch.plugins.internal.metering.DocumentReporterExtension;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -120,7 +120,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
      */
     private Object rawTimestamp;
-    private boolean alreadyReported = false;
+    private boolean pipelinesHaveRune = false;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -359,8 +359,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return XContentHelper.convertToMap(source, false, contentType).v2();
     }
 
-    public Map<String, Object> sourceAsMap(MeteringCallback meteringCallback) {
-        return XContentHelper.convertToMapAndMeter(source, false, contentType, meteringCallback).v2();
+    public Map<String, Object> sourceAsMap(DocumentReporterExtension documentReporterExtension) {
+        return XContentHelper.convertToMapAndMeter(source, false, contentType, documentReporterExtension).v2();
     }
 
     /**
@@ -815,11 +815,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.rawTimestamp = rawTimestamp;
     }
 
-    public void setAlreadyReported() {
-        alreadyReported = true;
+    public void setPipelinesHaveRun() {
+        pipelinesHaveRune = true;
     }
 
-    public boolean isAlreadyReported() {
-        return alreadyReported;
+    public boolean havePipelinesRun() {
+        return pipelinesHaveRune;
     }
 }

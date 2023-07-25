@@ -10,13 +10,18 @@ package org.elasticsearch.plugins.internal.metering;
 
 import org.elasticsearch.xcontent.XContentParser;
 
-public interface MeteringCallback {
+public class EmptyDocumentReporter implements DocumentReporter {
+    public static final DocumentReporter INSTANCE = new EmptyDocumentReporter();
 
-    default XContentParser wrapParser(XContentParser context) {
-        return context;
-    }
+    private EmptyDocumentReporter() {}
 
-    default void reportDocumentParsed(XContentParser context) {
-
+    @Override
+    public DocumentReporterExtension createExtension() {
+        return new DocumentReporterExtension() {
+            @Override
+            public XContentParser wrapParser(XContentParser context) {
+                return context;
+            }
+        };
     }
 }

@@ -20,8 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
-import org.elasticsearch.plugins.internal.metering.MeteringCallback;
+import org.elasticsearch.plugins.internal.metering.DocumentReporterExtension;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -144,14 +143,14 @@ public class XContentHelper {
         BytesReference bytes,
         boolean ordered,
         XContentType xContentType,
-        MeteringCallback meteringCallback
+        DocumentReporterExtension convertToMapAndMeter
     ) {
         return parseToType(
             ordered ? XContentParser::mapOrdered : XContentParser::map,
             bytes,
             xContentType,
             XContentParserConfiguration.EMPTY,
-            meteringCallback
+            convertToMapAndMeter
         );
     }
 
@@ -199,7 +198,7 @@ public class XContentHelper {
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config
     ) throws ElasticsearchParseException {
-        return parseToType(extractor, bytes, xContentType, config, EmptyMeteringCallback.INSTANCE);
+        return parseToType(extractor, bytes, xContentType, config, DocumentReporterExtension.EMPTY_INSTANCE);
     }
 
     public static <T> Tuple<XContentType, T> parseToType(
@@ -207,16 +206,16 @@ public class XContentHelper {
         BytesReference bytes,
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config,
-        MeteringCallback meteringCallback
+        DocumentReporterExtension documentReporterExtension
     ) throws ElasticsearchParseException {
         config = config != null ? config : XContentParserConfiguration.EMPTY;
         try (
-            XContentParser parser = meteringCallback.wrapParser(
+            XContentParser parser = documentReporterExtension.wrapParser(
                 xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)
             )
         ) {
             Tuple<XContentType, T> xContentTypeTTuple = new Tuple<>(parser.contentType(), extractor.apply(parser));
-            meteringCallback.reportDocumentParsed(parser);
+            // documentReporter.reportDocumentParsed(parser);
             return xContentTypeTTuple;
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to type", e);

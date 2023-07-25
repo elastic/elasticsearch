@@ -57,7 +57,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.internal.metering.EmptyMeteringCallback;
+import org.elasticsearch.plugins.internal.metering.EmptyDocumentReporter;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -217,7 +217,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
             this::compileScript,
-            EmptyMeteringCallback.INSTANCE
+            EmptyDocumentReporter.INSTANCE
         );
     }
 

@@ -19,21 +19,19 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class MeteringParser extends AbstractXContentParser {
     private final XContentParser delegate;
-    private final AtomicLong counter = new AtomicLong();
+    private final AtomicLong counter;
 
     private void charge(long value) {
         counter.addAndGet(value);
     }
 
-    public AtomicLong getCounter() {
-        return counter;
-    }
-
-    public MeteringParser(XContentParser xContentParser) {
+    public MeteringParser(XContentParser xContentParser, AtomicLong counter) {
         super(xContentParser.getXContentRegistry(), xContentParser.getDeprecationHandler(), xContentParser.getRestApiVersion());
         this.delegate = xContentParser;
+        this.counter = counter;
     }
 
+    // generated of AbstractXContentParser methods delegation below
     @Override
     public XContentType contentType() {
         return delegate.contentType();
@@ -137,6 +135,7 @@ public class MeteringParser extends AbstractXContentParser {
 
     @Override
     protected int doIntValue() throws IOException {
+
         return delegate.intValue();
     }
 

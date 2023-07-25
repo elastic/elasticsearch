@@ -8,9 +8,7 @@
 
 package org.elasticsearch.plugins.internal.metering;
 
-public class EmptyMeteringCallback implements MeteringCallback {
-    public static final MeteringCallback INSTANCE = new EmptyMeteringCallback();
+public interface DocumentReporterPlugin {
 
-    private EmptyMeteringCallback() {}
-
+    DocumentReporter getDocumentReporter();
 }

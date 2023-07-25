@@ -350,7 +350,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
-                request.isAlreadyReported()
+                request.havePipelinesRun()
             );
             result = primary.applyIndexOperationOnPrimary(
                 version,

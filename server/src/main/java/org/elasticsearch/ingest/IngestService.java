@@ -59,7 +59,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.metering.MeteringCallback;
+import org.elasticsearch.plugins.internal.metering.DocumentReporter;
+import org.elasticsearch.plugins.internal.metering.DocumentReporterExtension;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -104,7 +105,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
     private final ScriptService scriptService;
-    private MeteringCallback meteringCallback;
+    private DocumentReporter documentReporter;
     private final Map<String, Processor.Factory> processorFactories;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -180,11 +181,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
-        MeteringCallback meteringCallback
+        DocumentReporter documentReporter
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
-        this.meteringCallback = meteringCallback;
+        this.documentReporter = documentReporter;
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -713,11 +714,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             totalMetrics.postIngest(ingestTimeInNanos);
                             ref.close();
                         });
+                        DocumentReporterExtension documentReporterExtension = documentReporter.createExtension();
 
-                        IngestDocument ingestDocument = newIngestDocument(indexRequest, meteringCallback);
-                        indexRequest.setAlreadyReported();
+                        IngestDocument ingestDocument = newIngestDocument(indexRequest, documentReporterExtension);
 
                         executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
+                        indexRequest.setPipelinesHaveRun();
+                        documentReporterExtension.reportDocumentParsed(indexRequest.index());
+
                         i++;
                     }
                 }
@@ -1005,14 +1009,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Builds a new ingest document from the passed-in index request.
      */
-    private static IngestDocument newIngestDocument(final IndexRequest request, MeteringCallback meteringCallback) {
+    private static IngestDocument newIngestDocument(final IndexRequest request, DocumentReporterExtension documentReporterExtension) {
         return new IngestDocument(
             request.index(),
             request.id(),
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap(meteringCallback)
+            request.sourceAsMap(documentReporterExtension)
         );
     }
 

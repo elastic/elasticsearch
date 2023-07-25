@@ -1092,7 +1092,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         executed.clear();
         context.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
-        context.aggregations(new SearchContextAggregations(AggregatorFactories.EMPTY));
+        context.aggregations(new SearchContextAggregations(AggregatorFactories.EMPTY, () -> null));
         QueryPhase.executeRank(context);
         assertEquals(context.rewrittenQuery(), executed.get(0));
         assertEquals(queries, executed.subList(1, executed.size()));

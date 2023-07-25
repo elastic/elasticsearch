@@ -2167,7 +2167,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // * A relocation will retry the reroute phase.
                 // * Allocation ids protect against spurious requests towards old allocations.
                 // * We apply the cluster state on IndexShard instances before making it available for routing
-                assert state == IndexShardState.STARTED : "must be started to do primary indexing";
+                assert assertStartedForPrimaryIndexing();
             } else if (origin == Engine.Operation.Origin.REPLICA) {
                 assert assertReplicationTarget();
             } else {
@@ -2183,6 +2183,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
             }
         }
+    }
+
+    private boolean assertStartedForPrimaryIndexing() {
+        final var state = this.state;
+        assert state == IndexShardState.STARTED : "primary indexing unexpected in state [" + state + "]";
+        return true;
     }
 
     private boolean assertPrimaryMode() {

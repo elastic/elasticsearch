@@ -11,7 +11,6 @@ package org.elasticsearch.search.dfs;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
@@ -74,15 +73,10 @@ public class DfsPhaseTests extends ESTestCase {
                 IndexSearcher.getDefaultSimilarity(),
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
+                1,
                 randomBoolean(),
                 this.threadPoolExecutor
-            ) {
-                @Override
-                protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-                    // get a thread per segment
-                    return slices(leaves, 1, 1);
-                }
-            };
+            );
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);
 

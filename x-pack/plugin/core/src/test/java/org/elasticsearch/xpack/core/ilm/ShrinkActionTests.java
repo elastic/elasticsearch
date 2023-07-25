@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
@@ -112,7 +112,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         );
         String indexName = randomAlphaOfLength(5);
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(0);
         assertPerformAction(lifecycleName, indexName, indexMetadataBuilder, action, nextStepKey, true, false);
@@ -130,7 +130,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         String indexName = randomAlphaOfLength(5);
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
             .settings(
-                settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+                settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
                     .put(LifecycleSettings.SNAPSHOT_INDEX_NAME, randomAlphaOfLength(10))
             )
             .numberOfShards(numberOfShards * 2)
@@ -151,7 +151,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         );
         String indexName = randomAlphaOfLength(5);
         IndexMetadata.Builder indexMetadatBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(numShards)
             .numberOfReplicas(0);
         assertPerformAction(lifecycleName, indexName, indexMetadatBuilder, action, nextStepKey, false, false);
@@ -168,7 +168,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         );
         String indexName = randomAlphaOfLength(5);
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(0);
         assertPerformAction(lifecycleName, indexName, indexMetadataBuilder, action, nextStepKey, true, true);

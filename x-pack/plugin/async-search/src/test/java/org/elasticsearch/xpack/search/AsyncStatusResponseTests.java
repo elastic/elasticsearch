@@ -40,6 +40,10 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int skippedShards = randomIntBetween(0, 5);
         int failedShards = totalShards - successfulShards - skippedShards;
         RestStatus completionStatus = isRunning ? null : randomBoolean() ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
+        Long completionTimeMillis = null;
+        if (isRunning == false && completionStatus == RestStatus.OK) {
+            completionTimeMillis = startTimeMillis + 25000;
+        }
         SearchResponse.Clusters clusters = switch (randomIntBetween(0, 3)) {
             case 1 -> SearchResponse.Clusters.EMPTY;
             case 2 -> new SearchResponse.Clusters(1, 1, 0);
@@ -52,6 +56,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             isPartial,
             startTimeMillis,
             expirationTimeMillis,
+            completionTimeMillis,
             totalShards,
             successfulShards,
             skippedShards,
@@ -84,6 +89,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             isPartial,
             instance.getStartTime(),
             instance.getExpirationTime(),
+            isRunning ? null : instance.getStartTime() + 25000,
             instance.getTotalShards(),
             instance.getSuccessfulShards(),
             instance.getSkippedShards(),
@@ -95,6 +101,10 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
 
     public void testToXContent() throws IOException {
         AsyncStatusResponse response = createTestInstance();
+        String completionTimeEntry = "";
+        if (response.isRunning() == false && response.getCompletionStatus() == RestStatus.OK) {
+            completionTimeEntry = Strings.format("\"completion_time_in_millis\" : %s,", response.getCompletionTime());
+        }
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             String expectedJson;
             SearchResponse.Clusters clusters = response.getClusters();
@@ -105,6 +115,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                     response.isPartial(),
                     response.getStartTime(),
                     response.getExpirationTime(),
+                    completionTimeEntry,
                     response.getTotalShards(),
                     response.getSuccessfulShards(),
                     response.getSkippedShards(),
@@ -119,6 +130,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                       "is_partial" : %s,
                       "start_time_in_millis" : %s,
                       "expiration_time_in_millis" : %s,
+                      %s
                       "_shards" : {
                         "total" : %s,
                         "successful" : %s,
@@ -135,6 +147,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                     response.isPartial(),
                     response.getStartTime(),
                     response.getExpirationTime(),
+                    completionTimeEntry,
                     response.getTotalShards(),
                     response.getSuccessfulShards(),
                     response.getSkippedShards(),
@@ -152,6 +165,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                       "is_partial" : %s,
                       "start_time_in_millis" : %s,
                       "expiration_time_in_millis" : %s,
+                      %s
                       "_shards" : {
                         "total" : %s,
                         "successful" : %s,

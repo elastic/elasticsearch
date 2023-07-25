@@ -61,14 +61,15 @@ NLP models, the field name is `text_field`.
 
 //Begin inference_config
 `inference_config`::
-(Required, object)
+(Optional, object)
 The default configuration for inference. This can be: `regression`,
 `classification`, `fill_mask`, `ner`, `question_answering`,
 `text_classification`, `text_embedding` or `zero_shot_classification`.
 If `regression` or `classification`, it must match the `target_type` of the
 underlying `definition.trained_model`. If `fill_mask`, `ner`,
 `question_answering`, `text_classification`, or `text_embedding`; the
-`model_type` must be `pytorch`.
+`model_type` must be `pytorch`. If not specified, the `inference_config`
+from when the model was created is used.
 +
 .Properties of `inference_config`
 [%collapsible%open]

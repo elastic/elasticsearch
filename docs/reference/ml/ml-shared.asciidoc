@@ -955,7 +955,7 @@ BERT-style tokenization is to be performed with the enclosed settings.
 end::inference-config-nlp-tokenization-bert[]
 
 tag::inference-config-nlp-tokenization-bert-ja[]
-experimental:[] BERT-style tokenization for Japanese text is to be performed 
+experimental:[] BERT-style tokenization for Japanese text is to be performed
 with the enclosed settings.
 end::inference-config-nlp-tokenization-bert-ja[]
 
@@ -1124,6 +1124,10 @@ tag::inference-config-results-field[]
 The field that is added to incoming documents to contain the inference
 prediction. Defaults to `predicted_value`.
 end::inference-config-results-field[]
+
+tag::inference-config-mask-token[]
+The string/token which will be removed from incoming documents and replaced with the inference prediction(s). In a response, this field contains the mask token for the specified model/tokenizer. Each model and tokenizer has a predefined mask token which cannot be changed. Thus, it is recommended not to set this value in requests. However, if this field is present in a request, its value must match the predefined value for that model/tokenizer, otherwise the request will fail.
+end::inference-config-mask-token[]
 
 tag::inference-config-results-field-processor[]
 The field that is added to incoming documents to contain the inference

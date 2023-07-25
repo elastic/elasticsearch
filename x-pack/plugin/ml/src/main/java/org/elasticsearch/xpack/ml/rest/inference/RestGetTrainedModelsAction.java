@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -135,6 +136,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
             Map<String, String> params = new HashMap<>(channel.request().params());
             defaultToXContentParamValues.forEach((k, v) -> params.computeIfAbsent(k, defaultToXContentParamValues::get));
             includes.forEach(include -> params.put(include, "true"));
+            params.put(ToXContentParams.FOR_INTERNAL_STORAGE, "false");
             response.toXContent(builder, new ToXContent.MapParams(params));
             return new RestResponse(getStatus(response), builder);
         }

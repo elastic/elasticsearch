@@ -1685,7 +1685,7 @@ setting, which defaults to 5 seconds.
 +
 If a URL is provided, then it must begin with `https://`  or `http://`.
 {es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
-requests, but will attempt to refresh the JWK upon signature verification
+requests but will attempt to refresh the JWK upon signature verification
 failure, as this might indicate that the OpenID Connect Provider has
 rotated the signing keys.
 // end::oidc-op-jwkset-path-tag[]

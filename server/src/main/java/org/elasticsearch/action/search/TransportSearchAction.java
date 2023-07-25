@@ -518,7 +518,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     if (skipUnavailable) {
                         listener.onResponse(SearchResponse.empty(timeProvider::buildTookInMillis, new SearchResponse.Clusters(1, 0, 1)));
                     } else {
-                        listener.onFailure(wrapRemoteClusterFailure(clusterAlias, e));
+                        listener.onFailure(wrapRemoteClusterFailure(clusterAlias, e, false));
                     }
                 }
             });
@@ -1272,7 +1272,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public final void onResponse(Response response) {
             innerOnResponse(response);
-            maybeFinish();
+            maybeFinish(false);
         }
 
         abstract void innerOnResponse(Response response);
@@ -1284,7 +1284,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             } else {
                 Exception exception = e;
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
-                    exception = wrapRemoteClusterFailure(clusterAlias, e);
+                    exception = wrapRemoteClusterFailure(clusterAlias, e, false);
                 }
                 if (exceptions.compareAndSet(null, exception) == false) {
                     exceptions.accumulateAndGet(exception, (previous, current) -> {
@@ -1293,11 +1293,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     });
                 }
             }
-            maybeFinish();
+            maybeFinish(skipUnavailable == false);
         }
 
-        private void maybeFinish() {
-            if (countDown.countDown()) {
+        private void maybeFinish(boolean failImmediately) {
+            if (countDown.countDown() || failImmediately) {
                 Exception exception = exceptions.get();
                 if (exception == null) {
                     FinalResponse response;
@@ -1317,8 +1317,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         abstract FinalResponse createFinalResponse();
     }
 
-    private static RemoteTransportException wrapRemoteClusterFailure(String clusterAlias, Exception e) {
-        return new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
+    private static RemoteTransportException wrapRemoteClusterFailure(String clusterAlias, Exception e, boolean skipUnavailable) {
+        return new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e, skipUnavailable);
     }
 
     static Map<String, OriginalIndices> getIndicesFromSearchContexts(SearchContextId searchContext, IndicesOptions indicesOptions) {

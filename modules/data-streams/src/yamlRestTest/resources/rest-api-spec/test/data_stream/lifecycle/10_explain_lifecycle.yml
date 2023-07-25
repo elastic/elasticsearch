@@ -37,6 +37,7 @@
         index: $backing_index
   - match: { indices.$backing_index.managed_by_lifecycle: true }
   - match: { indices.$backing_index.lifecycle.data_retention: '30d' }
+  - match: { indices.$backing_index.lifecycle.enabled: true }
   - is_false: indices.$backing_index.lifecycle.rollover
 
 

@@ -162,17 +162,22 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build();
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
+            // Defaults to true
+            assertThat(result.isEnabled(), equalTo(true));
             assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle.getEffectiveDataRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
         }
-        // If the last lifecycle is missing a property we keep the latest from the previous ones
+        // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
+        // Enabled is always true unless it's explicitly set to false
         {
             DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+                .enabled(false)
                 .dataRetention(randomNonEmptyRetention())
                 .downsampling(randomNonEmptyDownsampling())
                 .build();
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle, new DataStreamLifecycle());
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
+            assertThat(result.isEnabled(), equalTo(true));
             assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle.getEffectiveDataRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
         }

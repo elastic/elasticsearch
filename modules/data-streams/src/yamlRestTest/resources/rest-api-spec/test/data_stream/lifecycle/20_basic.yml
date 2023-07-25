@@ -71,6 +71,27 @@ setup:
   - match: { data_streams.1.lifecycle.data_retention: '30d' }
   - match: { data_streams.1.lifecycle.enabled: false}
 
+---
+"Enable lifecycle":
+
+  - do:
+      indices.put_data_lifecycle:
+        name: "*"
+        body:
+          data_retention: '30d'
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "*"
+  - length: { data_streams: 2 }
+  - match: { data_streams.0.name: data-stream-with-lifecycle }
+  - match: { data_streams.0.lifecycle.data_retention: '30d' }
+  - match: { data_streams.0.lifecycle.enabled: true}
+  - match: { data_streams.1.name: simple-data-stream1 }
+  - match: { data_streams.1.lifecycle.data_retention: '30d' }
+  - match: { data_streams.1.lifecycle.enabled: true}
+
 
 ---
 "Get data stream lifecycle with defaults":

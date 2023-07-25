@@ -737,9 +737,9 @@ public class TokenServiceTests extends ESTestCase {
         for (int numBytes = 1; numBytes < TokenService.MINIMUM_BYTES + 32; numBytes++) {
             final byte[] randomBytes = new byte[numBytes];
             random().nextBytes(randomBytes);
+            String testAccessToken = Base64.getEncoder().encodeToString(randomBytes);
+            assumeFalse("Test token must be different from mock", mockedAccessToken.equals(testAccessToken));
             try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
-                String testAccessToken = Base64.getEncoder().encodeToString(randomBytes);
-                assumeFalse("Test token must be different from mock", mockedAccessToken.equals(testAccessToken));
                 storeTokenHeader(requestContext, testAccessToken);
                 PlainActionFuture<UserToken> future = new PlainActionFuture<>();
                 final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
@@ -751,12 +751,11 @@ public class TokenServiceTests extends ESTestCase {
         for (int garbledByteIdx = 0; garbledByteIdx < accessTokenBytes.length; garbledByteIdx++) {
             final byte[] garbledAccessToken = new byte[accessTokenBytes.length];
             System.arraycopy(accessTokenBytes, 0, garbledAccessToken, 0, accessTokenBytes.length);
-            garbledAccessToken[garbledByteIdx] = (byte) (garbledAccessToken[garbledByteIdx] ^ (byte) random().nextInt(255));
+            garbledAccessToken[garbledByteIdx] = (byte) (garbledAccessToken[garbledByteIdx] ^ (byte) (random().nextInt(255) + 1));
             String testAccessToken = tokenService.prependVersionAndEncodeAccessToken(
                 tokenService.getTokenVersionCompatibility(),
                 garbledAccessToken
             );
-            assumeFalse("Test token must be different from mock", mockedAccessToken.equals(testAccessToken));
             try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
                 storeTokenHeader(requestContext, testAccessToken);
                 PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -798,12 +797,11 @@ public class TokenServiceTests extends ESTestCase {
         for (int garbledByteIdx = 0; garbledByteIdx < mockedRawRefreshToken.length; garbledByteIdx++) {
             final byte[] garbledRefreshToken = new byte[mockedRawRefreshToken.length];
             System.arraycopy(mockedRawRefreshToken, 0, garbledRefreshToken, 0, mockedRawRefreshToken.length);
-            garbledRefreshToken[garbledByteIdx] = (byte) (garbledRefreshToken[garbledByteIdx] ^ (byte) random().nextInt(255));
+            garbledRefreshToken[garbledByteIdx] = (byte) (garbledRefreshToken[garbledByteIdx] ^ (byte) (random().nextInt(255) + 1));
             String testRefreshToken = TokenService.prependVersionAndEncodeRefreshToken(
                 tokenService.getTokenVersionCompatibility(),
                 garbledRefreshToken
             );
-            assumeFalse("Test token must be different from mock", mockedClientRefreshToken.equals(testRefreshToken));
             PlainActionFuture<TokensInvalidationResult> future = new PlainActionFuture<>();
             tokenService.invalidateRefreshToken(testRefreshToken, future);
             final TokensInvalidationResult result = future.get();

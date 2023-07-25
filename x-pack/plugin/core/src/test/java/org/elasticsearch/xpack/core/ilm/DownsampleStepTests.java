@@ -42,7 +42,14 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        return new DownsampleStep(stepKey, nextStepKey, null, client, fixedInterval, DownsampleAction.DEFAULT_TIMEOUT);
+        return new DownsampleStep(
+            stepKey,
+            nextStepKey,
+            null,
+            client,
+            fixedInterval,
+            TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m"), "timeout")
+        );
     }
 
     @Override
@@ -50,15 +57,20 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         DateHistogramInterval fixedInterval = instance.getFixedInterval();
+        TimeValue timeout = instance.getTimeout();
 
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
             case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> fixedInterval = randomValueOtherThan(instance.getFixedInterval(), ConfigTestHelpers::randomInterval);
+            case 3 -> timeout = randomValueOtherThan(
+                instance.getTimeout(),
+                () -> TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m"), "timeout")
+            );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new DownsampleStep(key, nextKey, null, instance.getClient(), fixedInterval, DownsampleAction.DEFAULT_TIMEOUT);
+        return new DownsampleStep(key, nextKey, null, instance.getClient(), fixedInterval, timeout);
     }
 
     @Override

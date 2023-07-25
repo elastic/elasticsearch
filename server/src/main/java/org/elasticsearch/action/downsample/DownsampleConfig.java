@@ -205,7 +205,7 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         if (this == other) {
             return true;
         }
-        if (other instanceof DownsampleConfig == false) {
+        if (other == null || other instanceof DownsampleConfig == false) {
             return false;
         }
         final DownsampleConfig that = (DownsampleConfig) other;

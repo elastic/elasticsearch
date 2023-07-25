@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
+import java.util.Objects;
 import java.util.function.BiFunction;
 
 public class GenerateDownsampleIndexNameStep extends GenerateUniqueIndexNameStep {
@@ -39,5 +40,23 @@ public class GenerateDownsampleIndexNameStep extends GenerateUniqueIndexNameStep
         final String indexName
     ) {
         return prefix + "-" + indexName + "-" + interval;
+    }
+
+    public DateHistogramInterval getInterval() {
+        return interval;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+        GenerateDownsampleIndexNameStep that = (GenerateDownsampleIndexNameStep) o;
+        return Objects.equals(interval, that.interval);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), interval);
     }
 }

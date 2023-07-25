@@ -153,7 +153,7 @@ public class DownsampleStep extends AsyncActionStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fixedInterval, nextStepOnSuccess, nextStepOnFailure);
+        return Objects.hash(super.hashCode(), fixedInterval, nextStepOnSuccess, nextStepOnFailure, timeout);
     }
 
     @Override
@@ -171,6 +171,7 @@ public class DownsampleStep extends AsyncActionStep {
         return super.equals(obj)
             && Objects.equals(fixedInterval, other.fixedInterval)
             && Objects.equals(nextStepOnSuccess, other.nextStepOnSuccess)
-            && Objects.equals(nextStepOnFailure, other.nextStepOnFailure);
+            && Objects.equals(nextStepOnFailure, other.nextStepOnFailure)
+            && Objects.equals(timeout, other.timeout);
     }
 }

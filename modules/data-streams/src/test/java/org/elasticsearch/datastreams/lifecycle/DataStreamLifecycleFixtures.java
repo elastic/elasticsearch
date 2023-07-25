@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
@@ -46,8 +45,6 @@ import static org.junit.Assert.assertTrue;
  * - creating a data stream model
  */
 public class DataStreamLifecycleFixtures {
-
-    public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     static DataStream createDataStream(
         Metadata.Builder builder,

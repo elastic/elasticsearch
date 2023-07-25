@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -100,26 +99,25 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
 
         public Client coordinatorClient() {
             assert this.coordinator != null;
-            return ESIntegTestCase.client(this.coordinator);
+            return client(this.coordinator);
         }
 
         public Client masterClient() {
-            return ESIntegTestCase.client(this.cluster.getMasterName());
+            return client(this.cluster.getMasterName());
         }
 
         public MockTransportService masterMockTransportService() {
-            return (MockTransportService) ESIntegTestCase.internalCluster()
-                .getInstance(TransportService.class, ESIntegTestCase.internalCluster().getMasterName());
+            return (MockTransportService) internalCluster().getInstance(TransportService.class, internalCluster().getMasterName());
         }
 
         public MockTransportService coordinatorMockTransportService() {
             assert this.coordinator != null;
-            return (MockTransportService) ESIntegTestCase.internalCluster().getInstance(TransportService.class, this.coordinator);
+            return (MockTransportService) internalCluster().getInstance(TransportService.class, this.coordinator);
         }
 
         public List<MockTransportService> allMockTransportServices() {
             return Arrays.stream(cluster.getNodeNames())
-                .map(nodeName -> (MockTransportService) ESIntegTestCase.internalCluster().getInstance(TransportService.class, nodeName))
+                .map(nodeName -> (MockTransportService) internalCluster().getInstance(TransportService.class, nodeName))
                 .collect(Collectors.toList());
         }
 
@@ -173,9 +171,9 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     public void setup() throws IOException, ExecutionException, InterruptedException {
         startTime = LocalDateTime.parse("2020-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
         endTime = LocalDateTime.parse("2020-09-09T18:59:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
-        testCluster = new TestClusterHelper(ESIntegTestCase.internalCluster());
+        testCluster = new TestClusterHelper(internalCluster());
         assert testCluster.size() == 3;
-        ensureStableCluster(ESIntegTestCase.internalCluster().size());
+        ensureStableCluster(internalCluster().size());
         createTimeSeriesIndex(SOURCE_INDEX_NAME);
         ensureGreen(SOURCE_INDEX_NAME);
         indexDocuments(SOURCE_INDEX_NAME, DOCUMENTS);
@@ -221,7 +219,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     }
 
     public void indexDocuments(final String indexName, final List<String> documentsJson) {
-        final BulkRequestBuilder bulkRequestBuilder = ESIntegTestCase.client().prepareBulk();
+        final BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         documentsJson.forEach(document -> bulkRequestBuilder.add(new IndexRequest(indexName).source(document, XContentType.JSON)));
         Assert.assertFalse(bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get().hasFailures());
     }
@@ -229,12 +227,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     public void blockIndexWrites(final String indexName) throws ExecutionException, InterruptedException {
         final Settings blockWritesSetting = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
         Assert.assertTrue(
-            ESIntegTestCase.client()
-                .admin()
-                .indices()
-                .updateSettings(new UpdateSettingsRequest(blockWritesSetting, indexName))
-                .get()
-                .isAcknowledged()
+            client().admin().indices().updateSettings(new UpdateSettingsRequest(blockWritesSetting, indexName)).get().isAcknowledged()
         );
     }
 
@@ -249,8 +242,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     }
 
     private void assertDocumentsExist(final String nodeName, final String indexName) {
-        final SearchResponse searchResponse = ESIntegTestCase.client(nodeName)
-            .prepareSearch(indexName)
+        final SearchResponse searchResponse = client(nodeName).prepareSearch(indexName)
             .setQuery(new MatchAllQueryBuilder())
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
             .setSize(DOCUMENTS.size())
@@ -259,8 +251,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     }
 
     private void assertIndexExists(final String nodeName, final String indexName) {
-        final GetIndexResponse getIndexResponse = ESIntegTestCase.client(nodeName)
-            .admin()
+        final GetIndexResponse getIndexResponse = client(nodeName).admin()
             .indices()
             .prepareGetIndex()
             .addIndices(indexName)
@@ -270,11 +261,10 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     }
 
     private void assertIndexDoesNotExist(final String nodeName, final String indexName) {
-        final IndexNotFoundException targetIndexNotFoundException = LuceneTestCase.expectThrows(
+        final IndexNotFoundException targetIndexNotFoundException = expectThrows(
             IndexNotFoundException.class,
             "Index [" + indexName + "] was not deleted",
-            () -> ESIntegTestCase.client(nodeName)
-                .admin()
+            () -> client(nodeName).admin()
                 .indices()
                 .prepareGetIndex()
                 .addIndices(indexName)
@@ -308,7 +298,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         // NOTE: the target downsample index `fixed_interval` matches the source index @timestamp interval.
         // As a result, the target index includes the same number of documents of the source index.
         assertDocumentsExist(testCluster.coordinatorName(), TARGET_INDEX_NAME);
-        ensureStableCluster(ESIntegTestCase.internalCluster().size());
+        ensureStableCluster(internalCluster().size());
     }
 
     public void testDownsampleActionExceptionDisruption() {
@@ -339,7 +329,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
             );
 
         // THEN
-        LuceneTestCase.expectThrows(
+        expectThrows(
             ElasticsearchException.class,
             () -> testCluster.coordinatorClient()
                 .execute(DownsampleAction.INSTANCE, downsampleRequest)

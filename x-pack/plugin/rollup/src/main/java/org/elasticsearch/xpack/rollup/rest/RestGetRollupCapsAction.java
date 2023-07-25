@@ -12,6 +12,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 
@@ -33,7 +34,9 @@ public class RestGetRollupCapsAction extends BaseRestHandler {
         String id = restRequest.param(ID.getPreferredName());
         GetRollupCapsAction.Request request = new GetRollupCapsAction.Request(id);
 
-        return channel -> client.execute(GetRollupCapsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.threadPool()
+            .executor(ThreadPool.Names.MANAGEMENT)
+            .execute(() -> client.execute(GetRollupCapsAction.INSTANCE, request, new RestToXContentListener<>(channel)));
     }
 
     @Override

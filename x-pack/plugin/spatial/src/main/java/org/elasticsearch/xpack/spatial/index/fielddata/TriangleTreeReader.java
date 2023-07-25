@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.apache.lucene.store.ByteArrayDataInput;
 
 import java.io.IOException;
 
@@ -30,12 +30,12 @@ class TriangleTreeReader {
     /**
      * Visit the Triangle tree using the {@link TriangleTreeVisitor} provided.
      */
-    public static void visit(ByteArrayStreamInput input, TriangleTreeVisitor visitor, int thisMaxX, int thisMaxY) throws IOException {
+    public static void visit(ByteArrayDataInput input, TriangleTreeVisitor visitor, int thisMaxX, int thisMaxY) throws IOException {
         visit(input, visitor, true, thisMaxX, thisMaxY, true);
     }
 
     private static boolean visit(
-        ByteArrayStreamInput input,
+        ByteArrayDataInput input,
         TriangleTreeVisitor visitor,
         boolean splitX,
         int thisMaxX,
@@ -94,7 +94,7 @@ class TriangleTreeReader {
         return visitor.push();
     }
 
-    private static boolean pushLeft(ByteArrayStreamInput input, TriangleTreeVisitor visitor, int thisMaxX, int thisMaxY, boolean splitX)
+    private static boolean pushLeft(ByteArrayDataInput input, TriangleTreeVisitor visitor, int thisMaxX, int thisMaxY, boolean splitX)
         throws IOException {
         int nextMaxX = Math.toIntExact(thisMaxX - input.readVLong());
         int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
@@ -108,7 +108,7 @@ class TriangleTreeReader {
     }
 
     private static boolean pushRight(
-        ByteArrayStreamInput input,
+        ByteArrayDataInput input,
         TriangleTreeVisitor visitor,
         int thisMaxX,
         int thisMaxY,

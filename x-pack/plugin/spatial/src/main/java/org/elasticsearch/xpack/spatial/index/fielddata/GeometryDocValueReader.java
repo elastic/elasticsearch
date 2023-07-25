@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 
 import java.io.IOException;
 
@@ -36,14 +36,14 @@ import java.io.IOException;
  * -----------------------------------------
  */
 public class GeometryDocValueReader {
-    private final ByteArrayStreamInput input;
+    private final ByteArrayDataInput input;
     private final Extent extent;
     private int treeOffset;
     private int docValueOffset;
 
     public GeometryDocValueReader() {
         this.extent = new Extent();
-        this.input = new ByteArrayStreamInput();
+        this.input = new ByteArrayDataInput();
     }
 
     /**
@@ -80,7 +80,7 @@ public class GeometryDocValueReader {
     /**
      * returns the encoded Y coordinate of the centroid.
      */
-    protected int getCentroidY() throws IOException {
+    protected int getCentroidY() {
         input.setPosition(docValueOffset + 4);
         return input.readInt();
     }
@@ -90,7 +90,7 @@ public class GeometryDocValueReader {
         return DimensionalShapeType.readFrom(input);
     }
 
-    protected double getSumCentroidWeight() throws IOException {
+    protected double getSumCentroidWeight() {
         input.setPosition(docValueOffset + 9);
         return Double.longBitsToDouble(input.readVLong());
     }

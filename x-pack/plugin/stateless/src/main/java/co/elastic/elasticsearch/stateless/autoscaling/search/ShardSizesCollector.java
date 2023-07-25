@@ -50,6 +50,15 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class ShardSizesCollector implements ClusterStateListener {
 
+    public static final Setting<TimeValue> BOOST_WINDOW_SETTING = Setting.timeSetting(
+        "serverless.autoscaling.search_metrics.boost_window",
+        TimeValue.timeValueDays(7),
+        TimeValue.timeValueDays(1),
+        TimeValue.timeValueDays(365),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<TimeValue> PUSH_INTERVAL_SETTING = Setting.timeSetting(
         "serverless.autoscaling.search_metrics.push_interval",
         TimeValue.timeValueSeconds(30),
@@ -77,8 +86,9 @@ public class ShardSizesCollector implements ClusterStateListener {
     private final ShardSizesPublisher shardSizesPublisher;
     private final boolean isSearchNode;
 
-    private volatile TimeValue publishInterval = TimeValue.timeValueSeconds(1);
-    private volatile ByteSizeValue significantSizeChangeThreshold = ByteSizeValue.ofMb(1);
+    private volatile TimeValue boostWindowInterval;
+    private volatile TimeValue publishInterval;
+    private volatile ByteSizeValue significantSizeChangeThreshold;
 
     private volatile PublishTask publishTask;
 
@@ -151,6 +161,12 @@ public class ShardSizesCollector implements ClusterStateListener {
         this.shardSizeStatsReader = shardSizeStatsReader;
         this.shardSizesPublisher = shardSizesPublisher;
         this.isSearchNode = isSearchNode;
+        clusterSettings.initializeAndWatch(BOOST_WINDOW_SETTING, value -> {
+            this.boostWindowInterval = value;
+            if (isSearchNode && isStarted()) {
+                threadPool.generic().submit(this::publishAllNow);
+            }
+        });
         clusterSettings.initializeAndWatch(PUSH_INTERVAL_SETTING, value -> this.publishInterval = value);
         clusterSettings.initializeAndWatch(PUSH_DELTA_THRESHOLD_SETTING, value -> this.significantSizeChangeThreshold = value);
     }
@@ -163,6 +179,10 @@ public class ShardSizesCollector implements ClusterStateListener {
 
     protected void doStop() {
         publishTask = null;
+    }
+
+    private boolean isStarted() {
+        return publishTask != null;
     }
 
     @Override
@@ -205,13 +225,14 @@ public class ShardSizesCollector implements ClusterStateListener {
 
     public void detectShardSize(ShardId shardId) {
         assert isSearchNode : "Should be executed only on search nodes";
-        var shardSize = shardSizeStatsReader.getShardSize(shardId);
+        var shardSize = shardSizeStatsReader.getShardSize(shardId, boostWindowInterval);
         if (shardSize != null && pendingPublication.add(shardId, shardSize)) {
             publishDiffNow();
         }
     }
 
     private void publishAllNow() {
+        assert isSearchNode : "Should be executed only on search nodes";
         if (nodeId == null) {
             return;
         }
@@ -219,11 +240,10 @@ public class ShardSizesCollector implements ClusterStateListener {
             logger.warn("Cannot publish shard sizes until cluster is: [{}], found: [{}]", REQUIRED_VERSION, minTransportVersion);
             return;
         }
-
         pendingPublication.drain(); // all shards are going to be published from scratch
         pastPublications.clear();
 
-        var allShardSizes = shardSizeStatsReader.getAllShardSizes();
+        var allShardSizes = shardSizeStatsReader.getAllShardSizes(boostWindowInterval);
         shardSizesPublisher.publishSearchShardDiskUsage(nodeId, allShardSizes, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {

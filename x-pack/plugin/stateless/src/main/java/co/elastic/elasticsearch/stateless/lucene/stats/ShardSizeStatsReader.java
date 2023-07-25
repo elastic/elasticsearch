@@ -22,9 +22,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
@@ -47,24 +45,20 @@ public class ShardSizeStatsReader {
     private final IndicesService indicesService;
     private final LongSupplier currentTimeMillsSupplier;
 
-    private long interactiveDataAge = TimeValue.timeValueDays(7).millis();// TODO ES-6224 make it a cluster setting
-
-    public ShardSizeStatsReader(ClusterSettings clusterSettings, LongSupplier currentTimeMillsSupplier, IndicesService indicesService) {
-        // TODO ES-6224 listen for a changes to interactive data age via clusterSettings
-        // Make sure all sizes are pushed to elected master when this value changes
+    public ShardSizeStatsReader(LongSupplier currentTimeMillsSupplier, IndicesService indicesService) {
         this.indicesService = indicesService;
         this.currentTimeMillsSupplier = currentTimeMillsSupplier;
     }
 
-    public ShardSizeStatsReader(ClusterService clusterService, ThreadPool threadPool, IndicesService indicesService) {
-        this(clusterService.getClusterSettings(), threadPool::absoluteTimeInMillis, indicesService);
+    public ShardSizeStatsReader(ThreadPool threadPool, IndicesService indicesService) {
+        this(threadPool::absoluteTimeInMillis, indicesService);
     }
 
-    public Map<ShardId, ShardSize> getAllShardSizes() {
+    public Map<ShardId, ShardSize> getAllShardSizes(TimeValue interactiveDataAge) {
         var sizes = new HashMap<ShardId, ShardSize>();
         for (var indexService : indicesService) {
             for (var indexShard : indexService) {
-                var shardSize = getShardSize(indexShard);
+                var shardSize = getShardSize(indexShard, interactiveDataAge);
                 if (shardSize != null) {
                     sizes.put(indexShard.shardId(), shardSize);
                 }
@@ -77,12 +71,12 @@ public class ShardSizeStatsReader {
      * @return the ShardSize of the shard or {@code null} if operation could not be performed
      */
     @Nullable
-    public ShardSize getShardSize(ShardId shardId) {
-        return getShardSize(indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id()));
+    public ShardSize getShardSize(ShardId shardId, TimeValue interactiveDataAge) {
+        return getShardSize(indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id()), interactiveDataAge);
     }
 
     @Nullable
-    public ShardSize getShardSize(IndexShard indexShard) {
+    public ShardSize getShardSize(IndexShard indexShard, TimeValue interactiveDataAge) {
         if (isSizeAvailable(indexShard.state()) == false) {
             return null;
         }
@@ -93,10 +87,9 @@ public class ShardSizeStatsReader {
                 var nonInteractiveSize = 0L;
 
                 final long currentTimeMillis = currentTimeMillsSupplier.getAsLong();
-                final long currentInteractiveDataAge = interactiveDataAge;
                 for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
                     var segmentSize = Lucene.segmentReader(ctx.reader()).getSegmentInfo().sizeInBytes();
-                    if (isInteractive(ctx.reader(), currentTimeMillis, currentInteractiveDataAge)) {
+                    if (isInteractive(ctx.reader(), currentTimeMillis, interactiveDataAge)) {
                         interactiveSize += segmentSize;
                     } else {
                         nonInteractiveSize += segmentSize;
@@ -113,14 +106,15 @@ public class ShardSizeStatsReader {
         }
     }
 
-    private static boolean isInteractive(LeafReader segmentReader, long currentTimeMillis, long interactiveDataAge) throws IOException {
+    private static boolean isInteractive(LeafReader segmentReader, long currentTimeMillis, TimeValue interactiveDataAge)
+        throws IOException {
         PointValues values = segmentReader.getPointValues(DataStream.TIMESTAMP_FIELD_NAME);
         if (values == null || values.getMaxPackedValue() == null) {
             // no timestamp field, entire segment is considered interactive
             return true;
         }
         var maxTimestamp = LongPoint.decodeDimension(values.getMaxPackedValue(), 0);
-        return currentTimeMillis - maxTimestamp <= interactiveDataAge;
+        return currentTimeMillis - maxTimestamp <= interactiveDataAge.millis();
     }
 
     private static boolean isSizeAvailable(IndexShardState state) {

@@ -29,7 +29,6 @@ import java.util.Arrays;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD_NAME;
-import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -58,11 +57,10 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
         startSearchNode();
 
         var now = System.currentTimeMillis();
-        var interactiveAge = TimeValue.timeValueDays(7).millis();
 
         var index = randomIdentifier();
         createIndex(index, indexSettings(1, 1).build());
-        indexRandom(index, builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(now - interactiveAge + 1, now)));
+        indexRandom(index, builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(now - INTERACTIVE_AGE.millis() + 1, now)));
 
         var shardId = resolveShardId(index);
         var shard = findSearchShard(shardId.getIndex(), shardId.id());
@@ -78,11 +76,10 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
         startSearchNode();
 
         var now = System.currentTimeMillis();
-        var interactiveAge = TimeValue.timeValueDays(7).millis();
 
         var index = randomIdentifier();
         createIndex(index, indexSettings(1, 1).build());
-        indexRandom(index, builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(0, now - interactiveAge - 1)));
+        indexRandom(index, builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(0, now - INTERACTIVE_AGE.millis() - 1)));
 
         var shardId = resolveShardId(index);
         var shard = findSearchShard(shardId.getIndex(), shardId.id());
@@ -106,6 +103,8 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
     }
 
     private static ShardSize getShardSize(IndexShard shard, long currentTimeMillis) {
-        return new ShardSizeStatsReader(createBuiltInClusterSettings(), () -> currentTimeMillis, null).getShardSize(shard);
+        return new ShardSizeStatsReader(() -> currentTimeMillis, null).getShardSize(shard, INTERACTIVE_AGE);
     }
+
+    private static final TimeValue INTERACTIVE_AGE = TimeValue.timeValueDays(7);
 }

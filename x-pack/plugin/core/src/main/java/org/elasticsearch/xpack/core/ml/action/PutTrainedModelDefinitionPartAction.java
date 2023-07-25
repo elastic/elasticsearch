@@ -66,7 +66,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
         /**
          * An internal flag to determining if the part can be overwritten when storing it
          */
-        private boolean allowOverwriting;
+        private final boolean allowOverwriting;
 
         public Request(
             String modelId,

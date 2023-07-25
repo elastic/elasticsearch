@@ -47,13 +47,12 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
     /**
      * A helper method for creating a random {@link TrainedModelDefinitionDoc}.
      *
-     * @param modelId a string specifying the model id
      * @return a random {@link TrainedModelDefinitionDoc} instance
      */
-    public static TrainedModelDefinitionDoc createDefinitionDocInstance(String modelId) {
+    public static TrainedModelDefinitionDoc createDefinitionDocInstance() {
         int length = randomIntBetween(4, 10);
 
-        return new TrainedModelDefinitionDoc.Builder().setModelId(modelId)
+        return new TrainedModelDefinitionDoc.Builder().setModelId(randomAlphaOfLength(6))
             .setDefinitionLength(length)
             .setTotalDefinitionLength(randomIntBetween(length, length * 2))
             .setBinaryData(new BytesArray(randomByteArrayOfLength(length)))
@@ -75,6 +74,6 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
 
     @Override
     protected TrainedModelDefinitionDoc createTestInstance() {
-        return createDefinitionDocInstance(randomAlphaOfLength(6));
+        return createDefinitionDocInstance();
     }
 }

@@ -413,7 +413,7 @@ public class TrainedModelProviderTests extends ESTestCase {
 
     public void testStoreTrainedModelDefinitionDocCallsClientExecuteWithOperationCreate() {
         try (var client = createMockClient()) {
-            var config = TrainedModelDefinitionDocTests.createDefinitionDocInstance("modelId");
+            var config = TrainedModelDefinitionDocTests.createDefinitionDocInstance();
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
@@ -424,7 +424,7 @@ public class TrainedModelProviderTests extends ESTestCase {
 
     public void testStoreTrainedModelDefinitionDocCallsClientExecuteWithOperationCreateWhenAllowOverwriteIsFalse() {
         try (var client = createMockClient()) {
-            var config = TrainedModelDefinitionDocTests.createDefinitionDocInstance("modelId");
+            var config = TrainedModelDefinitionDocTests.createDefinitionDocInstance();
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
@@ -435,7 +435,7 @@ public class TrainedModelProviderTests extends ESTestCase {
 
     public void testStoreTrainedModelDefinitionDocCallsClientExecuteWithOperationIndex() {
         try (var client = createMockClient()) {
-            var config = TrainedModelDefinitionDocTests.createDefinitionDocInstance("modelId");
+            var config = TrainedModelDefinitionDocTests.createDefinitionDocInstance();
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
@@ -479,7 +479,7 @@ public class TrainedModelProviderTests extends ESTestCase {
 
     public void testStoreTrainedModelMetadataCallsClientExecuteWithOperationCreate() {
         try (var client = createMockClient()) {
-            var metadata = TrainedModelMetadataTests.randomInstance("modelId");
+            var metadata = TrainedModelMetadataTests.randomInstance();
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
@@ -490,7 +490,7 @@ public class TrainedModelProviderTests extends ESTestCase {
 
     public void testStoreTrainedModelMetadataCallsClientExecuteWithOperationCreateWhenAllowOverwritingIsFalse() {
         try (var client = createMockClient()) {
-            var metadata = TrainedModelMetadataTests.randomInstance("modelId");
+            var metadata = TrainedModelMetadataTests.randomInstance();
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
@@ -501,7 +501,7 @@ public class TrainedModelProviderTests extends ESTestCase {
 
     public void testStoreTrainedModelMetadataCallsClientExecuteWithOperationIndex() {
         try (var client = createMockClient()) {
-            var metadata = TrainedModelMetadataTests.randomInstance("modelId");
+            var metadata = TrainedModelMetadataTests.randomInstance();
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Void>();
 

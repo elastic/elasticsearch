@@ -232,7 +232,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertTrue(statusResponseAfterCompletion.isPartial());
         assertFalse(statusResponseAfterCompletion.isRunning());
         assertThat(statusResponseAfterCompletion.getClusters().getTotal(), equalTo(2));
-        assertThat(statusResponseAfterCompletion.getFailedShards(), greaterThan(0));
         assertThat(statusResponseAfterCompletion.getCompletionStatus(), equalTo(RestStatus.BAD_REQUEST));
 
         AsyncSearchResponse searchResponseAfterCompletion = getAsyncSearch(response.getId());
@@ -246,7 +245,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         ShardSearchFailure[] shardFailures = searchResponseAfterCompletion.getSearchResponse().getShardFailures();
         assertThat(shardFailures.length, greaterThan(0));
         String json = Strings.toString(searchResponseAfterCompletion.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
-        assertThat(json, containsString("task cancelled [by user request]"));
+        assertThat(json, containsString("cancelled [by user request]"));
+        assertThat(json, containsString("task_cancelled_exception"));
     }
 
     public void testCancelViaAsyncSearchDelete() throws Exception {

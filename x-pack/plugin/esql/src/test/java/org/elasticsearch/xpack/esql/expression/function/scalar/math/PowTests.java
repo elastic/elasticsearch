@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -30,12 +31,12 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         // Test with Integers
         assertEquals(1, process(1, 1));
         assertEquals(1, process(randomIntBetween(-1000, 1000), 0));
-        int baseInt = randomIntBetween(-10, 10);
+        int baseInt = randomIntBetween(-1000, 1000);
         assertEquals(baseInt, process(baseInt, 1));
         assertEquals((int) Math.pow(baseInt, 2), process(baseInt, 2));
         assertEquals(0, process(123, -1));
         double exponentDouble = randomDoubleBetween(-10.0, 10.0, true);
-        assertEquals(Math.pow(baseInt, exponentDouble), process(baseInt, exponentDouble));
+        assertWithNanCheck(Math.pow(baseInt, exponentDouble), baseInt, exponentDouble);
 
         // Test with Longs
         assertEquals(1L, process(1L, 1));
@@ -44,7 +45,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         assertEquals(baseLong, process(baseLong, 1));
         assertEquals((long) Math.pow(baseLong, 2), process(baseLong, 2));
         assertEquals(0, process(123, -1));
-        assertEquals(Math.pow(baseLong, exponentDouble), process(baseLong, exponentDouble));
+        assertWithNanCheck(Math.pow(baseLong, exponentDouble), baseLong, exponentDouble);
 
         // Test with Doubles
         assertEquals(1.0, process(1.0, 1));
@@ -53,7 +54,16 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         assertEquals(baseDouble, process(baseDouble, 1));
         assertEquals(Math.pow(baseDouble, 2), process(baseDouble, 2));
         assertEquals(0, process(123, -1));
-        assertEquals(Math.pow(baseDouble, exponentDouble), process(baseDouble, exponentDouble));
+        assertWithNanCheck(Math.pow(baseDouble, exponentDouble), baseDouble, exponentDouble);
+    }
+
+    private void assertWithNanCheck(double expected, Number base, double exponent) {
+        if (Double.isNaN(expected)) {
+            ignoreWarning("java.lang.ArithmeticException: invalid result: pow(" + base.doubleValue() + ", " + exponent + ")");
+            assertNull("pow(" + base + "," + exponent + ") yields NaN, so we expect NULL", process(base, exponent));
+        } else {
+            assertEquals("pow(" + base + "," + exponent + ")", expected, process(base, exponent));
+        }
     }
 
     private Object process(Number base, Number exponent) {
@@ -129,6 +139,20 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         return new Pow(source, args.get(0), args.get(1));
     }
 
+    private List<String> ignoreWarnings = new ArrayList<>();
+
+    private void ignoreWarning(String warning) {
+        System.out.println("Adding warning: " + warning);
+        ignoreWarnings.add(warning);
+    }
+
+    @Override
+    public void ensureNoWarnings() {
+        super.ensureNoWarnings();
+        ignoreWarnings.clear();
+        System.out.println("Cleared warnings");
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         // TODO: This avoids failing the tests for ArithmeticExceptions, but it would be better to assert on the expected warnings
@@ -137,6 +161,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         filteredWarnings.add("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.");
         filteredWarnings.add("java.lang.ArithmeticException: invalid result: pow(NaN, 1.0)");
         filteredWarnings.add("java.lang.ArithmeticException: invalid result: pow(1.0, NaN)");
+        filteredWarnings.addAll(ignoreWarnings);
+        System.out.println("Using filtered warnings:");
+        for (String warning : filteredWarnings) {
+            System.out.println("\t" + warning);
+        }
         return filteredWarnings;
     }
 }

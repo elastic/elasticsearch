@@ -1037,7 +1037,66 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         FieldAttribute fa = (FieldAttribute) in.list().get(0);
         assertThat(fa.field().getName(), is("last_name"));
         as(filter.child(), EsRelation.class);
+    }
 
+    public void testFoldInKeyword() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where "foo" in ("bar", "baz")
+            """);
+        assertThat(plan, instanceOf(LocalRelation.class));
+
+        plan = optimizedPlan("""
+            from test
+            | where "foo" in ("bar", "foo", "baz")
+            """);
+        var limit = as(plan, Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    public void testFoldInIP() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where to_ip("1.1.1.1") in (to_ip("1.1.1.2"), to_ip("1.1.1.2"))
+            """);
+        assertThat(plan, instanceOf(LocalRelation.class));
+
+        plan = optimizedPlan("""
+            from test
+            | where to_ip("1.1.1.1") in (to_ip("1.1.1.1"), to_ip("1.1.1.2"))
+            """);
+        var limit = as(plan, Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    public void testFoldInVersion() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where to_version("1.2.3") in (to_version("1"), to_version("1.2.4"))
+            """);
+        assertThat(plan, instanceOf(LocalRelation.class));
+
+        plan = optimizedPlan("""
+            from test
+            | where to_version("1.2.3") in (to_version("1"), to_version("1.2.3"))
+            """);
+        var limit = as(plan, Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    public void testFoldInNumerics() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where 3 in (4.0, 5, 2147483648)
+            """);
+        assertThat(plan, instanceOf(LocalRelation.class));
+
+        plan = optimizedPlan("""
+            from test
+            | where 3 in (4.0, 3.0, to_long(3))
+            """);
+        var limit = as(plan, Limit.class);
+        as(limit.child(), EsRelation.class);
     }
 
     public void testEnrich() {

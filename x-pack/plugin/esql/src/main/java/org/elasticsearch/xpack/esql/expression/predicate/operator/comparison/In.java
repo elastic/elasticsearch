@@ -11,9 +11,11 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
@@ -44,7 +46,19 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
     }
 
     @Override
+    public Boolean fold() {
+        // QL's `In` fold() doesn't handle BytesRef and can't know if this is Keyword/Text, Version or IP anyway.
+        // `In` allows comparisons of same type only (safe for numerics), so it's safe to apply InProcessor directly with no implicit
+        // (non-numerical) conversions.
+        return InProcessor.apply(value().fold(), list().stream().map(Expression::fold).toList());
+    }
+
+    @Override
     protected boolean areCompatible(DataType left, DataType right) {
+        if (left == DataTypes.UNSIGNED_LONG || right == DataTypes.UNSIGNED_LONG) {
+            // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
+            return left == right;
+        }
         return EsqlDataTypes.areCompatible(left, right);
     }
 

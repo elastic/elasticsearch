@@ -142,7 +142,6 @@ public class PowTests extends AbstractScalarFunctionTestCase {
     private List<String> ignoreWarnings = new ArrayList<>();
 
     private void ignoreWarning(String warning) {
-        System.out.println("Adding warning: " + warning);
         ignoreWarnings.add(warning);
     }
 
@@ -150,7 +149,6 @@ public class PowTests extends AbstractScalarFunctionTestCase {
     public void ensureNoWarnings() {
         super.ensureNoWarnings();
         ignoreWarnings.clear();
-        System.out.println("Cleared warnings");
     }
 
     @Override
@@ -162,10 +160,6 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         filteredWarnings.add("java.lang.ArithmeticException: invalid result: pow(NaN, 1.0)");
         filteredWarnings.add("java.lang.ArithmeticException: invalid result: pow(1.0, NaN)");
         filteredWarnings.addAll(ignoreWarnings);
-        System.out.println("Using filtered warnings:");
-        for (String warning : filteredWarnings) {
-            System.out.println("\t" + warning);
-        }
         return filteredWarnings;
     }
 }

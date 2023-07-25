@@ -299,7 +299,8 @@ public class ClusterPrivilegeResolver {
     );
 
     public static final NamedClusterPrivilege MANAGE_SEARCH_QUERY_RULES = new ActionClusterPrivilege(
-        "manage_search_query_rules", MANAGE_SEARCH_QUERY_RULES_PATTERN
+        "manage_search_query_rules",
+        MANAGE_SEARCH_QUERY_RULES_PATTERN
     );
     public static final NamedClusterPrivilege CROSS_CLUSTER_SEARCH = new ActionClusterPrivilege(
         "cross_cluster_search",

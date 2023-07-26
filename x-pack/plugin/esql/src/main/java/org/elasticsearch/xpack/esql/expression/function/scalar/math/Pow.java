@@ -66,19 +66,63 @@ public class Pow extends ScalarFunction implements OptionalArgument, Mappable {
         return Mappable.super.fold();
     }
 
-    @Evaluator(extraName = "Double")
+    @Evaluator(extraName = "Double", warnExceptions = { ArithmeticException.class })
     static double process(double base, double exponent) {
-        return Math.pow(base, exponent);
+        return validateAsDouble(base, exponent);
     }
 
-    @Evaluator(extraName = "Long")
-    static long process(long base, long exponent) {
-        return (long) Math.pow(base, exponent);
+    @Evaluator(extraName = "Long", warnExceptions = { ArithmeticException.class })
+    static long processLong(double base, double exponent) {
+        return exponent == 1 ? validateAsLong(base) : validateAsLong(base, exponent);
     }
 
-    @Evaluator(extraName = "Int")
-    static int process(int base, int exponent) {
-        return (int) Math.pow(base, exponent);
+    @Evaluator(extraName = "Int", warnExceptions = { ArithmeticException.class })
+    static int processInt(double base, double exponent) {
+        return exponent == 1 ? validateAsInt(base) : validateAsInt(base, exponent);
+    }
+
+    private static double validateAsDouble(double base, double exponent) {
+        double result = Math.pow(base, exponent);
+        if (Double.isNaN(result)) {
+            throw new ArithmeticException("invalid result: pow(" + base + ", " + exponent + ")");
+        }
+        return result;
+    }
+
+    private static long validateAsLong(double base, double exponent) {
+        double result = Math.pow(base, exponent);
+        if (Double.isNaN(result)) {
+            throw new ArithmeticException("invalid result: pow(" + base + ", " + exponent + ")");
+        }
+        return validateAsLong(result);
+    }
+
+    private static long validateAsLong(double value) {
+        if (Double.compare(value, Long.MAX_VALUE) > 0) {
+            throw new ArithmeticException("long overflow");
+        }
+        if (Double.compare(value, Long.MIN_VALUE) < 0) {
+            throw new ArithmeticException("long overflow");
+        }
+        return (long) value;
+    }
+
+    private static int validateAsInt(double base, double exponent) {
+        double result = Math.pow(base, exponent);
+        if (Double.isNaN(result)) {
+            throw new ArithmeticException("invalid result: pow(" + base + ", " + exponent + ")");
+        }
+        return validateAsInt(result);
+    }
+
+    private static int validateAsInt(double value) {
+        if (Double.compare(value, Integer.MAX_VALUE) > 0) {
+            throw new ArithmeticException("integer overflow");
+        }
+        if (Double.compare(value, Integer.MIN_VALUE) < 0) {
+            throw new ArithmeticException("integer overflow");
+        }
+        return (int) value;
     }
 
     @Override
@@ -108,10 +152,7 @@ public class Pow extends ScalarFunction implements OptionalArgument, Mappable {
         if (base.dataType().isRational() || exponent.dataType().isRational()) {
             return DataTypes.DOUBLE;
         }
-        if (base.dataType() == DataTypes.UNSIGNED_LONG || exponent.dataType() == DataTypes.UNSIGNED_LONG) {
-            return DataTypes.DOUBLE;
-        }
-        if (base.dataType() == DataTypes.LONG || exponent.dataType() == DataTypes.LONG) {
+        if (base.dataType().size() == Long.BYTES || exponent.dataType().size() == Long.BYTES) {
             return DataTypes.LONG;
         }
         return DataTypes.INTEGER;
@@ -128,20 +169,23 @@ public class Pow extends ScalarFunction implements OptionalArgument, Mappable {
     ) {
         var baseEvaluator = toEvaluator.apply(base);
         var exponentEvaluator = toEvaluator.apply(exponent);
-        if (dataType == DataTypes.DOUBLE || dataType == DataTypes.UNSIGNED_LONG) {
+        if (dataType == DataTypes.DOUBLE) {
             return () -> new PowDoubleEvaluator(
+                source(),
                 cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(),
                 cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get()
             );
         } else if (dataType == DataTypes.LONG) {
             return () -> new PowLongEvaluator(
-                cast(base.dataType(), DataTypes.LONG, baseEvaluator).get(),
-                cast(exponent.dataType(), DataTypes.LONG, exponentEvaluator).get()
+                source(),
+                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(),
+                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get()
             );
         } else {
             return () -> new PowIntEvaluator(
-                cast(base.dataType(), DataTypes.INTEGER, baseEvaluator).get(),
-                cast(exponent.dataType(), DataTypes.INTEGER, exponentEvaluator).get()
+                source(),
+                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(),
+                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get()
             );
         }
     }

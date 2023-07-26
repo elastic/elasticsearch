@@ -115,9 +115,9 @@ height:double | s:double
 ;
 
 powSalarySquared
-from employees | eval s = pow(salary - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
+from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
-salary:integer | s:integer
+salary:integer | s:long
 74999          | 10001
 74970          | 10900
 74572          | 193184
@@ -222,30 +222,66 @@ d:i | l:double
 ;
 
 powDoubleDouble
-// tag::pow[]
 ROW base = 2.0, exponent = 2.0
 | EVAL s = POW(base, exponent)
-// end::pow[]
 ;
 
-// tag::pow-result[]
 base:double | exponent:double | s:double
 2.0         | 2.0             | 4.0
-// end::pow-result[]
+;
+
+powIntDouble
+// tag::powID-sqrt[]
+ROW base = 4, exponent = 0.5
+| EVAL s = POW(base, exponent)
+// end::powID-sqrt[]
+;
+
+// tag::powID-sqrt-result[]
+base:integer | exponent:double | s:double
+4            | 0.5             | 2.0
+// end::powID-sqrt-result[]
+;
+
+powSqrtNeg
+// tag::powNeg-sqrt[]
+ROW base = -4, exponent = 0.5
+| EVAL s = POW(base, exponent)
+// end::powNeg-sqrt[]
+;
+warning:Line 2:12: evaluation of [POW(base, exponent)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: invalid result: pow(-4.0, 0.5)
+
+// tag::powNeg-sqrt-result[]
+base:integer | exponent:double | s:double
+-4           | 0.5             | null
+// end::powNeg-sqrt-result[]
 ;
 
 powDoubleInt
-row base = 2.0, exponent = 2 | eval s = pow(base, exponent);
+// tag::powDI[]
+ROW base = 2.0, exponent = 2
+| EVAL result = POW(base, exponent)
+// end::powDI[]
+;
 
-base:double | exponent:integer | s:double
+// tag::powDI-result[]
+base:double | exponent:integer | result:double
 2.0         | 2                | 4.0
+// end::powDI-result[]
 ;
 
 powIntInt
-row base = 2, exponent = 2 | eval s = pow(base, exponent);
+// tag::powII[]
+ROW base = 2, exponent = 2
+| EVAL s = POW(base, exponent)
+// end::powII[]
+;
 
+// tag::powII-result[]
 base:integer | exponent:integer | s:integer
 2            | 2                | 4
+// end::powII-result[]
 ;
 
 powIntIntPlusInt
@@ -265,22 +301,22 @@ s:double
 powIntUL
 row x = pow(1, 9223372036854775808);
 
-x:double
-1.0
+x:long
+1
 ;
 
 powLongUL
 row x = to_long(1) | eval x = pow(x, 9223372036854775808);
 
-x:double
-1.0
+x:long
+1
 ;
 
 powUnsignedLongUL
 row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
 
-x:double
-1.0
+x:long
+1
 ;
 
 powDoubleUL
@@ -290,25 +326,64 @@ x:double
 1.0
 ;
 
-powIntULInfinity
+powIntULOverrun
 row x = pow(2, 9223372036854775808);
+warning:Line 1:9: evaluation of [pow(2, 9223372036854775808)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: long overflow
 
-x:double
-Infinity
+x:long
+null
 ;
 
 powULInt
-row x = pow(9223372036854775808, 1);
+row x = pow(to_unsigned_long(9223372036854775807), 1);
 
+x:long
+9223372036854775807
+;
+
+powULIntOverrun
+// tag::powULOverrun[]
+ROW x = POW(9223372036854775808, 2)
+// end::powULOverrun[]
+;
+// tag::powULOverrun-warning[]
+warning:Line 1:9: evaluation of [POW(9223372036854775808, 2)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: long overflow
+// end::powULOverrun-warning[]
+
+// tag::powULOverrun-result[]
+x:long
+null
+// end::powULOverrun-result[]
+;
+
+powULInt_2d
+// tag::pow2d[]
+ROW x = POW(9223372036854775808, TO_DOUBLE(1))
+// end::pow2d[]
+;
+
+// tag::pow2d-result[]
 x:double
 9.223372036854776E18
+// end::pow2d-result[]
 ;
 
 powULLong
-row x = to_long(1) | eval x = pow(9223372036854775808, x);
+row x = to_long(10) | eval x = pow(to_unsigned_long(10), x);
 
-x:double
-9.223372036854776E18
+x:long
+10000000000
+;
+
+powULLongOverrun
+row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
+warning:Line 1:33: evaluation of [pow(to_unsigned_long(10), x)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: long overflow
+
+x:long
+null
 ;
 
 powULDouble

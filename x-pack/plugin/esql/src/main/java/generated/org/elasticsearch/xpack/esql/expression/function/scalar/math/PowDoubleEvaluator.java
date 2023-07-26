@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -11,18 +12,23 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Pow}.
  * This class is generated. Do not edit it.
  */
 public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator base;
 
   private final EvalOperator.ExpressionEvaluator exponent;
 
-  public PowDoubleEvaluator(EvalOperator.ExpressionEvaluator base,
+  public PowDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator base,
       EvalOperator.ExpressionEvaluator exponent) {
+    this.warnings = new Warnings(source);
     this.base = base;
     this.exponent = exponent;
   }
@@ -47,7 +53,7 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
     if (exponentVector == null) {
       return eval(page.getPositionCount(), baseBlock, exponentBlock);
     }
-    return eval(page.getPositionCount(), baseVector, exponentVector).asBlock();
+    return eval(page.getPositionCount(), baseVector, exponentVector);
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
@@ -61,16 +67,25 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
         result.appendNull();
         continue position;
       }
-      result.appendDouble(Pow.process(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p))));
+      try {
+        result.appendDouble(Pow.process(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p))));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }
 
-  public DoubleVector eval(int positionCount, DoubleVector baseVector,
-      DoubleVector exponentVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
+  public DoubleBlock eval(int positionCount, DoubleVector baseVector, DoubleVector exponentVector) {
+    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Pow.process(baseVector.getDouble(p), exponentVector.getDouble(p)));
+      try {
+        result.appendDouble(Pow.process(baseVector.getDouble(p), exponentVector.getDouble(p)));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }

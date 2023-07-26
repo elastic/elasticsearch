@@ -13,16 +13,22 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
 public abstract class ApiFilteringActionFilter<Res extends ActionResponse> implements ActionFilter {
 
     private final ThreadContext threadContext;
+    private final String actionName;
+    private final Class<Res> responseClass;
 
-    public ApiFilteringActionFilter(ThreadContext threadContext) {
+    protected ApiFilteringActionFilter(ThreadContext threadContext, String actionName, Class<Res> responseClass) {
+        assert threadContext != null : "threadContext cannot be null";
+        assert actionName != null : "actionName cannot be null";
+        assert responseClass != null : "responseClass cannot be null";
         this.threadContext = threadContext;
+        this.actionName = actionName;
+        this.responseClass = responseClass;
     }
 
     @Override
@@ -39,7 +45,7 @@ public abstract class ApiFilteringActionFilter<Res extends ActionResponse> imple
         ActionFilterChain<Request, Response> chain
     ) {
         final ActionListener<Response> responseFilteringListener;
-        if (isOperator() == false && getActionName().equals(action)) {
+        if (isOperator() == false && actionName.equals(action)) {
             responseFilteringListener = listener.map(this::filter);
         } else {
             responseFilteringListener = listener;
@@ -49,8 +55,8 @@ public abstract class ApiFilteringActionFilter<Res extends ActionResponse> imple
 
     @SuppressWarnings("unchecked")
     private <Response extends ActionResponse> Response filter(Response response) throws Exception {
-        if (response.getClass().equals(getResponseClass())) {
-            return (Response) getFilteringFunction().apply((Res) response);
+        if (response.getClass().equals(responseClass)) {
+            return (Response) filterResponse((Res) response);
         } else {
             return response;
         }
@@ -62,9 +68,5 @@ public abstract class ApiFilteringActionFilter<Res extends ActionResponse> imple
         );
     }
 
-    public abstract String getActionName();
-
-    public abstract Class<Res> getResponseClass();
-
-    public abstract CheckedFunction<Res, Res, Exception> getFilteringFunction();
+    protected abstract Res filterResponse(Res response) throws Exception;
 }

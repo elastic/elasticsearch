@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -56,7 +55,6 @@ public class ApiFilteringActionFilterTests extends ESTestCase {
         assertThat(responseModified.get(), equalTo(false));
         filter.apply(task, action, request, listener, chain);
         assertThat(listenerCalled.get(), equalTo(true));
-        assertThat(responseModified.get(), equalTo(true));
         // The response should only have been modified if we are not an operator user
         assertThat(responseModified.get(), equalTo(isOperator == false));
     }
@@ -97,47 +95,25 @@ public class ApiFilteringActionFilterTests extends ESTestCase {
     private static class TestFilter extends ApiFilteringActionFilter<TestResponse> {
 
         TestFilter(ThreadContext threadContext) {
-            super(threadContext);
+            super(threadContext, "test.action", TestResponse.class);
         }
 
         @Override
-        public String getActionName() {
-            return "test.action";
-        }
-
-        @Override
-        public Class<TestResponse> getResponseClass() {
-            return TestResponse.class;
-        }
-
-        @Override
-        public CheckedFunction<TestResponse, TestResponse, Exception> getFilteringFunction() {
-            return testResponse -> {
-                testResponse.modified = true;
-                return testResponse;
-            };
+        protected TestResponse filterResponse(TestResponse response) {
+            response.modified = true;
+            return response;
         }
     }
 
     private static class ExceptionTestFilter extends ApiFilteringActionFilter<TestResponse> {
 
         ExceptionTestFilter(ThreadContext threadContext) {
-            super(threadContext);
+            super(threadContext, "test.exception.action", TestResponse.class);
         }
 
         @Override
-        public String getActionName() {
-            return "test.exception.action";
-        }
-
-        @Override
-        public Class<TestResponse> getResponseClass() {
-            return TestResponse.class;
-        }
-
-        @Override
-        public CheckedFunction<TestResponse, TestResponse, Exception> getFilteringFunction() {
-            return testResponse -> { throw new RuntimeException("Throwing expected exception"); };
+        protected TestResponse filterResponse(TestResponse response) {
+            throw new RuntimeException("Throwing expected exception");
         }
     }
 

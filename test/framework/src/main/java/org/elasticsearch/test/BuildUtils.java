@@ -22,7 +22,11 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomValueOtherThan;
 
+/**
+ * Utilities for copying and mutating Build instances in tests.
+ */
 public class BuildUtils {
+
     private static final MethodHandle buildCtor;
     static {
         try {
@@ -33,6 +37,14 @@ public class BuildUtils {
     }
 
     // creates a new Build instance with the same members, except those in extraArgs are substituted
+
+    /**
+     * Creates a new Build instance, using and existing build instance as a template.
+     *
+     * @param existing A Build instance which will be copied
+     * @param extraArgs A map of arguments to the Build constructor which will override values in the {@code existing} instance
+     * @return A new Build instance
+     */
     public static Build newBuild(Build existing, Map<String, Object> extraArgs) {
         var argsOverrides = new HashMap<>(extraArgs);
         RecordComponent[] argsComponents = Build.class.getRecordComponents();
@@ -57,6 +69,13 @@ public class BuildUtils {
         }
     }
 
+    /**
+     * Creates a random mutation of the given Build instance.
+     *
+     * The existing build instance is copied with a single field randomly changed. The value for the field is randomized.
+     * @param existing The existing instance to mutate
+     * @return A new Build instance
+     */
     public static Build mutateBuild(Build existing) {
         RecordComponent[] argsComponents = Build.class.getRecordComponents();
         var argToChange = argsComponents[randomInt(argsComponents.length - 1)];

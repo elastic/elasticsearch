@@ -2141,6 +2141,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 // to be able to build a temporary instance
                 tierPreference = null;
             }
+            if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings)
+                && (tierPreference == null || tierPreference.size() != 1 || tierPreference.get(0).equals(DataTier.DATA_FROZEN) == false)) {
+                settings = Settings.builder().put(settings).put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN).build();
+                tierPreference = List.of(DataTier.DATA_FROZEN);
+            }
 
             ImmutableOpenMap<String, DiffableStringMap> newCustomMetadata = customMetadata.build();
             Map<String, String> custom = newCustomMetadata.get(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);

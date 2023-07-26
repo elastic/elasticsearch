@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.allocation.decider;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -80,9 +79,7 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
             return Decision.ALWAYS;
         }
 
-        FrozenCacheInfoService.NodeState nodeState = frozenCacheService.getNodeState(discoveryNode);
-        LogManager.getLogger(HasFrozenCacheAllocationDecider.class).info("Node {} status {}", discoveryNode.getName(), nodeState);
-        return switch (nodeState) {
+        return switch (frozenCacheService.getNodeState(discoveryNode)) {
             case HAS_CACHE -> HAS_FROZEN_CACHE;
             case NO_CACHE -> NO_FROZEN_CACHE;
             case FAILED -> UNKNOWN_FROZEN_CACHE;

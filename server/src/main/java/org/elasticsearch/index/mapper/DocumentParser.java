@@ -93,9 +93,7 @@ public final class DocumentParser {
         assert context.path.pathAsText("").isEmpty() : "found leftover path elements: " + context.path.pathAsText("");
 
         Mapping dynamicUpdate = createDynamicUpdate(context);
-        if (source.isAlreadyReported() == false // metering was done in ingestService
-            && dynamicUpdate == null// if a mappingUpdate is required, the parsing will be triggered again
-        ) {
+        if (shouldReportDocumentParsed(source, dynamicUpdate)) {
             documentReporter.reportDocumentParsed(mappingParserContext.getIndexSettings().getIndex().getName());
         }
         return new ParsedDocument(
@@ -114,6 +112,12 @@ public final class DocumentParser {
                 return idMapper.documentDescription(this);
             }
         };
+    }
+
+    // only report a document if it was not already reported (ingestService) or there will be no mapping update (requires a second parsing)
+    private static boolean shouldReportDocumentParsed(SourceToParse source, Mapping dynamicUpdate) {
+        return source.isAlreadyReported() == false // metering was done in ingestService
+            && dynamicUpdate == null; // if a mappingUpdate is required, the parsing will be triggered again
     }
 
     private static void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
@@ -770,7 +774,7 @@ public final class DocumentParser {
      * Internal version of {@link DocumentParserContext} that is aware of implementation details like nested documents
      * and how they are stored in the lucene index.
      */
-    static class RootDocumentParserContext extends DocumentParserContext {
+    private static class RootDocumentParserContext extends DocumentParserContext {
         private final ContentPath path = new ContentPath();
         private final XContentParser parser;
         private final LuceneDocument document;

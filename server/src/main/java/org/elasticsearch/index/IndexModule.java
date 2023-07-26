@@ -164,7 +164,7 @@ public final class IndexModule {
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
-    private DocumentReporterFactory documentReporterFactory;
+    private final DocumentReporterFactory documentReporterFactory;
     private final SetOnce<DirectoryWrapper> indexDirectoryWrapper = new SetOnce<>();
     private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
         new SetOnce<>();
@@ -188,7 +188,7 @@ public final class IndexModule {
      * @param analysisRegistry   the analysis registry
      * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
-     * @param documentReporterFactory
+     * @param documentReporterFactory the document reporter factory
      */
     public IndexModule(
         final IndexSettings indexSettings,

@@ -124,7 +124,15 @@ public class Iterators {
         }
     }
 
-    private record MapIterator<T, U>(Iterator<? extends T> input, Function<T, U> fn) implements Iterator<U> {
+    private static final class MapIterator<T, U> implements Iterator<U> {
+        private final Iterator<? extends T> input;
+        private final Function<T, U> fn;
+
+        MapIterator(Iterator<? extends T> input, Function<T, U> fn) {
+            this.input = input;
+            this.fn = fn;
+        }
+
         @Override
         public boolean hasNext() {
             return input.hasNext();
@@ -132,9 +140,6 @@ public class Iterators {
 
         @Override
         public U next() {
-            if (hasNext() == false) {
-                throw new NoSuchElementException();
-            }
             return fn.apply(input.next());
         }
     }

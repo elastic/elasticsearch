@@ -25,6 +25,7 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
+import org.mockito.AdditionalMatchers;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -40,7 +41,6 @@ import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
-
 import javax.security.auth.Subject;
 
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
@@ -177,7 +177,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         Mockito.verify(fileContext.getDefaultFileSystem(), Mockito.atLeastOnce())
             .createInternal(
                 Mockito.any(Path.class),
-                Mockito.nullable(EnumSet.class),
+                AdditionalMatchers.or(Mockito.isNull(), Mockito.any()),
                 Mockito.nullable(FsPermission.class),
                 Mockito.anyInt(),
                 Mockito.eq(replicationFactor),

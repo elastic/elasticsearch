@@ -29,7 +29,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class DeleteQueryRulesetAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteQueryRulesetAction INSTANCE = new DeleteQueryRulesetAction();
-    public static final String NAME = "cluster:admin/search/query_rules/delete";
+    public static final String NAME = "cluster:admin/xpack/query_rules/delete";
 
     private DeleteQueryRulesetAction() {
         super(NAME, AcknowledgedResponse::readFrom);

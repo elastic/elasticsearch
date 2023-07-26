@@ -37,7 +37,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Response> {
 
     public static final PutQueryRulesetAction INSTANCE = new PutQueryRulesetAction();
-    public static final String NAME = "cluster:admin/search/query_rules/put";
+    public static final String NAME = "cluster:admin/xpack/query_rules/put";
 
     public PutQueryRulesetAction() {
         super(NAME, PutQueryRulesetAction.Response::new);

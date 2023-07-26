@@ -24,6 +24,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -154,7 +155,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Metadata.Builder builder = Metadata.builder();
         for (int k = 1; k <= numConflictingIndices; k++) {
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + k, 0L))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
@@ -301,7 +302,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Metadata.Builder builder = Metadata.builder();
         for (int k = 1; k <= numBackingIndices; k++) {
             IndexMetadata im = IndexMetadata.builder(indices.get(k - 1).getName())
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
@@ -311,7 +312,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(original);
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
         builder.put(
-            IndexMetadata.builder(indexToAdd.getName()).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build(),
+            IndexMetadata.builder(indexToAdd.getName())
+                .settings(settings(IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build(),
             false
         );
 
@@ -342,13 +347,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Metadata.Builder builder = Metadata.builder();
         for (int k = 1; k <= numBackingIndices; k++) {
             IndexMetadata im = IndexMetadata.builder(indices1.get(k - 1).getName())
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
             builder.put(im, false);
             im = IndexMetadata.builder(indices2.get(k - 1).getName())
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
@@ -389,7 +394,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Metadata.Builder builder = Metadata.builder();
         for (int k = 1; k <= numBackingIndices; k++) {
             IndexMetadata im = IndexMetadata.builder(indices.get(k - 1).getName())
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
@@ -421,7 +426,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Metadata.Builder builder = Metadata.builder();
         for (int k = 1; k <= numBackingIndices; k++) {
             IndexMetadata im = IndexMetadata.builder(indices.get(k - 1).getName())
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
@@ -432,7 +437,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
         IndexMetadata.Builder b = IndexMetadata.builder(indexToAdd.getName())
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         final int numAliases = randomIntBetween(1, 3);
@@ -823,7 +828,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // for the write index we get the null
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
@@ -845,12 +850,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // for rolled indices we get the rollover info for the specified data stream
             IndexMetadata.Builder writeIndexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .creationDate(now - 3000L);
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .creationDate(now - 3000L);
@@ -875,12 +880,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // for rolled indices on other targets than the data stream name we get the creation date
             IndexMetadata.Builder writeIndexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .creationDate(now - 3000L);
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
@@ -905,7 +910,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             // for a write index that has not been rolled over yet, we get null even if the index has an origination date
             long originTimeMillis = creationTimeMillis - 3000L;
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-                .settings(settings(Version.CURRENT).put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis))
+                .settings(settings(IndexVersion.current()).put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
@@ -928,13 +933,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             // If the index is not the write index and has origination date set, we get the origination date even if it has not been
             // rolled over
             IndexMetadata.Builder writeIndexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .creationDate(now - 3000L);
             long originTimeMillis = creationTimeMillis - 3000L;
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-                .settings(settings(Version.CURRENT).put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis))
+                .settings(settings(IndexVersion.current()).put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
@@ -955,13 +960,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // If the index has already rolled over and has an origination date, we always get the origination date
             IndexMetadata.Builder writeIndexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .creationDate(now - 3000L);
             long originTimeMillis = creationTimeMillis - 3000L;
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-                .settings(settings(Version.CURRENT).put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis))
+                .settings(settings(IndexVersion.current()).put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
@@ -985,13 +990,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // for rolled indices on other targets than the data stream name we get the origin date if origin date is set
             IndexMetadata.Builder writeIndexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .creationDate(now - 3000L);
             long originTimeMillis = creationTimeMillis - 3000L;
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-                .settings(settings(Version.CURRENT).put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis))
+                .settings(settings(IndexVersion.current()).put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
@@ -1031,7 +1036,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             builder,
             dataStreamName,
             creationAndRolloverTimes,
-            settings(Version.CURRENT),
+            settings(IndexVersion.current()),
             new DataStreamLifecycle()
         );
         Metadata metadata = builder.build();
@@ -1102,7 +1107,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // no lifecycle configured so we expect an empty list
             Metadata.Builder builder = Metadata.builder();
-            DataStream dataStream = createDataStream(builder, dataStreamName, creationAndRolloverTimes, settings(Version.CURRENT), null);
+            DataStream dataStream = createDataStream(
+                builder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                settings(IndexVersion.current()),
+                null
+            );
             Metadata metadata = builder.build();
 
             assertThat(dataStream.getIndicesPastRetention(metadata::index, () -> now).isEmpty(), is(true));
@@ -1115,7 +1126,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 builder,
                 dataStreamName,
                 creationAndRolloverTimes,
-                settings(Version.CURRENT),
+                settings(IndexVersion.current()),
                 new DataStreamLifecycle()
             );
             Metadata metadata = builder.build();
@@ -1129,7 +1140,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 builder,
                 dataStreamName,
                 creationAndRolloverTimes,
-                settings(Version.CURRENT),
+                settings(IndexVersion.current()),
                 DataStreamLifecycle.newBuilder().dataRetention(2500).build()
             );
             Metadata metadata = builder.build();
@@ -1147,7 +1158,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 builder,
                 dataStreamName,
                 creationAndRolloverTimes,
-                settings(Version.CURRENT),
+                settings(IndexVersion.current()),
                 DataStreamLifecycle.newBuilder().dataRetention(0).build()
             );
             Metadata metadata = builder.build();
@@ -1168,7 +1179,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 builder,
                 dataStreamName,
                 creationAndRolloverTimes,
-                settings(Version.CURRENT),
+                settings(IndexVersion.current()),
                 DataStreamLifecycle.newBuilder().dataRetention(6000).build()
             );
             Metadata metadata = builder.build();
@@ -1215,7 +1226,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             metadataBuilder,
             dataStreamName,
             creationAndRolloverTimes,
-            settings(Version.CURRENT),
+            settings(IndexVersion.current()),
             new DataStreamLifecycle() {
                 public TimeValue getEffectiveDataRetention() {
                     return testRetentionReference.get();
@@ -1277,7 +1288,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             builder,
             dataStreamName,
             creationAndRolloverTimes,
-            settings(Version.CURRENT),
+            settings(IndexVersion.current()),
             DataStreamLifecycle.newBuilder().dataRetention(0).build()
         );
         Metadata metadata = builder.build();
@@ -1299,7 +1310,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 newBuilder,
                 dataStreamName,
                 creationAndRolloverTimes,
-                settings(Version.CURRENT),
+                settings(IndexVersion.current()),
                 null
             );
             Metadata newMetadata = newBuilder.build();
@@ -1375,7 +1386,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             builder,
             dataStreamName,
             creationAndRolloverTimes,
-            settings(Version.CURRENT),
+            settings(IndexVersion.current()),
             new DataStreamLifecycle()
         );
         Metadata metadata = builder.build();

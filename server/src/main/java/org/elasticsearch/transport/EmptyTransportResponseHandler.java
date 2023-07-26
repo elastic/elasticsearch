@@ -8,32 +8,29 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.threadpool.ThreadPool;
 
 public class EmptyTransportResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
 
-    public static final EmptyTransportResponseHandler INSTANCE_SAME = new EmptyTransportResponseHandler(ThreadPool.Names.SAME);
+    private final ActionListener<Void> listener;
 
-    private final String executor;
-
-    public EmptyTransportResponseHandler(String executor) {
-        this.executor = executor;
+    public EmptyTransportResponseHandler(ActionListener<Void> listener) {
+        this.listener = listener;
     }
 
     @Override
-    public TransportResponse.Empty read(StreamInput in) {
+    public final void handleResponse(TransportResponse.Empty response) {
+        listener.onResponse(null);
+    }
+
+    @Override
+    public final void handleException(TransportException exp) {
+        listener.onFailure(exp);
+    }
+
+    @Override
+    public final TransportResponse.Empty read(StreamInput in) {
         return TransportResponse.Empty.INSTANCE;
-    }
-
-    @Override
-    public void handleResponse(TransportResponse.Empty response) {}
-
-    @Override
-    public void handleException(TransportException exp) {}
-
-    @Override
-    public String executor() {
-        return executor;
     }
 }

@@ -15,6 +15,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -25,6 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Unregisters a repository
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestDeleteRepositoryAction extends BaseRestHandler {
 
     @Override

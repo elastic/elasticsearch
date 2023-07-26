@@ -149,10 +149,6 @@ public class ListSearchApplicationAction extends ActionType<ListSearchApplicatio
             return queryPage.toXContent(builder, params);
         }
 
-        public static Response parse(XContentParser parser) {
-            return new Response(QueryPage.fromXContent(parser, SearchApplicationListItem::fromXContent));
-        }
-
         @Override
         public RestStatus status() {
             return RestStatus.OK;

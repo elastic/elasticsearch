@@ -47,6 +47,6 @@ public class ListSearchApplicationActionRequestBWCSerializingTests extends Abstr
         ListSearchApplicationAction.Request instance,
         TransportVersion version
     ) {
-        return new ListSearchApplicationAction.Request(instance.query(), instance.pageParams());
+        return instance;
     }
 }

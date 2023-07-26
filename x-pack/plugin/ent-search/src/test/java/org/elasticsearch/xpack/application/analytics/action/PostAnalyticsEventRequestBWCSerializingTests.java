@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.application.analytics.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,7 +26,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomInetAddress;
 import static org.mockito.Mockito.mock;
 
-public class PostAnalyticsEventRequestSerializingTests extends AbstractWireSerializingTestCase<PostAnalyticsEventAction.Request> {
+public class PostAnalyticsEventRequestBWCSerializingTests extends AbstractBWCWireSerializationTestCase<PostAnalyticsEventAction.Request> {
 
     public void testValidate() {
         assertNull(createTestInstance().validate());
@@ -82,5 +83,13 @@ public class PostAnalyticsEventRequestSerializingTests extends AbstractWireSeria
             randomFrom(XContentType.values()),
             new BytesArray(randomByteArrayOfLength(20))
         ).eventTime(randomLong()).debug(randomBoolean()).headers(randomHeaders()).clientAddress(randomInetAddress()).request();
+    }
+
+    @Override
+    protected PostAnalyticsEventAction.Request mutateInstanceForVersion(
+        PostAnalyticsEventAction.Request instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 }

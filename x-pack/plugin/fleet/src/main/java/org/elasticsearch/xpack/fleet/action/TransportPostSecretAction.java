@@ -18,6 +18,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
+import static org.elasticsearch.xpack.fleet.Fleet.FLEET_SECRETS_INDEX_NAME;
 
 public class TransportPostSecretAction extends HandledTransportAction<PostSecretRequest, PostSecretResponse> {
 
@@ -30,7 +31,7 @@ public class TransportPostSecretAction extends HandledTransportAction<PostSecret
     }
 
     protected void doExecute(Task task, PostSecretRequest request, ActionListener<PostSecretResponse> listener) {
-        client.prepareIndex(".fleet-secrets")
+        client.prepareIndex(FLEET_SECRETS_INDEX_NAME)
             .setSource(request.source(), request.xContentType())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute(

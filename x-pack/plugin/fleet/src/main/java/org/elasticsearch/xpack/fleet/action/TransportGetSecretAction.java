@@ -18,6 +18,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
+import static org.elasticsearch.xpack.fleet.Fleet.FLEET_SECRETS_INDEX_NAME;
 
 public class TransportGetSecretAction extends HandledTransportAction<GetSecretRequest, GetSecretResponse> {
     private final Client client;
@@ -29,7 +30,7 @@ public class TransportGetSecretAction extends HandledTransportAction<GetSecretRe
     }
 
     protected void doExecute(Task task, GetSecretRequest request, ActionListener<GetSecretResponse> listener) {
-        client.prepareGet(".fleet-secrets", request.id()).execute(ActionListener.wrap(getResponse -> {
+        client.prepareGet(FLEET_SECRETS_INDEX_NAME, request.id()).execute(ActionListener.wrap(getResponse -> {
             if (getResponse.isSourceEmpty()) {
                 listener.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
                 return;

@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class FleetSecretsSystemIndexIT extends ESRestTestCase {
@@ -45,22 +44,23 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
         postRequest.setJsonEntity(secretJson);
         Response postResponse = client().performRequest(postRequest);
         assertThat(postResponse.getStatusLine().getStatusCode(), is(200));
-        Map<String, Object> responseMap = XContentHelper.convertToMap(
-            XContentType.JSON.xContent(),
-            EntityUtils.toString(postResponse.getEntity()),
-            false
-        );
+        Map<String, Object> responseMap = getResponseMap(postResponse);
+        assertThat(responseMap.size(), is(1));
         assertTrue(responseMap.containsKey("id"));
         final String id = responseMap.get("id").toString();
 
         // get secret
-        Request getRequest = new Request("GET", "/fleet/secrets/" + id);
+        Request getRequest = new Request("GET", "/_fleet/secrets/" + id);
         Response getResponse = client().performRequest(getRequest);
         assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
-        assertThat(EntityUtils.toString(getResponse.getEntity()), containsString(secretJson));
+        responseMap = getResponseMap(getResponse);
+        assertThat(responseMap.size(), is(2));
+        assertTrue(responseMap.containsKey("id"));
+        assertTrue(responseMap.containsKey("value"));
+        assertThat(responseMap.get("value"), is("test secret"));
 
         // delete secret
-        Request deleteRequest = new Request("DELETE", "/fleet/secrets/" + id);
+        Request deleteRequest = new Request("DELETE", "/_fleet/secrets/" + id);
         Response deleteResponse = client().performRequest(deleteRequest);
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
     }
@@ -88,5 +88,9 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
             builder.endObject();
             return BytesReference.bytes(builder).utf8ToString();
         }
+    }
+
+    private Map<String, Object> getResponseMap(Response response) throws IOException {
+        return XContentHelper.convertToMap(XContentType.JSON.xContent(), EntityUtils.toString(response.getEntity()), false);
     }
 }

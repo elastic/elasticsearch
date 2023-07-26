@@ -21,6 +21,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
+import static org.elasticsearch.xpack.fleet.Fleet.FLEET_SECRETS_INDEX_NAME;
 
 public class TransportDeleteSecretAction extends HandledTransportAction<DeleteSecretRequest, DeleteSecretResponse> {
 
@@ -34,7 +35,7 @@ public class TransportDeleteSecretAction extends HandledTransportAction<DeleteSe
 
     @Override
     protected void doExecute(Task task, DeleteSecretRequest request, ActionListener<DeleteSecretResponse> listener) {
-        client.prepareDelete(".fleet-secrets", request.id())
+        client.prepareDelete(FLEET_SECRETS_INDEX_NAME, request.id())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute(
                 ActionListener.wrap(

@@ -25,7 +25,7 @@ public class DeleteSecretRequest extends ActionRequest {
 
     public DeleteSecretRequest(StreamInput in) throws IOException {
         super(in);
-        id = in.readString();
+        this.id = in.readString();
     }
 
     public String id() {

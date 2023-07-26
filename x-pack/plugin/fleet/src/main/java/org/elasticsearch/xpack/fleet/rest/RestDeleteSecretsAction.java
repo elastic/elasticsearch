@@ -26,7 +26,7 @@ public class RestDeleteSecretsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "fleet_delete_secrets";
+        return "fleet_delete_secret";
     }
 
     @Override
@@ -36,15 +36,13 @@ public class RestDeleteSecretsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        // TODO: does not throw IOException
         final String id = request.param("id");
         return restChannel -> client.execute(
             DeleteSecretAction.INSTANCE,
             new DeleteSecretRequest(id),
             new RestActionListener<>(restChannel) {
                 @Override
-                protected void processResponse(DeleteSecretResponse response) throws Exception {
-                    // TODO: does not throw Exception
+                protected void processResponse(DeleteSecretResponse response) {
                     final RestStatus status = response.isDeleted() ? RestStatus.OK : RestStatus.NOT_FOUND;
                     channel.sendResponse(new RestResponse(status, XContentType.JSON.mediaType(), BytesArray.EMPTY));
                 }

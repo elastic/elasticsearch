@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.fleet.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 public class PostSecretResponseTests extends AbstractWireSerializingTestCase<PostSecretResponse> {
@@ -20,14 +19,11 @@ public class PostSecretResponseTests extends AbstractWireSerializingTestCase<Pos
 
     @Override
     protected PostSecretResponse createTestInstance() {
-        return new PostSecretResponse(randomFrom(RestStatus.OK, RestStatus.CREATED), randomAlphaOfLengthBetween(2, 10));
+        return new PostSecretResponse(randomAlphaOfLengthBetween(2, 10));
     }
 
     @Override
     protected PostSecretResponse mutateInstance(PostSecretResponse instance) {
-        if (instance.status() == RestStatus.OK) {
-            return new PostSecretResponse(RestStatus.CREATED, randomAlphaOfLengthBetween(2, 10));
-        }
-        return new PostSecretResponse(RestStatus.OK, randomAlphaOfLengthBetween(2, 10));
+        return new PostSecretResponse(randomAlphaOfLengthBetween(2, 10));
     }
 }

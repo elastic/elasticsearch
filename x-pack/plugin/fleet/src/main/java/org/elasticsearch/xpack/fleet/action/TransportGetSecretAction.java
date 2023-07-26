@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.fleet.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -29,7 +30,11 @@ public class TransportGetSecretAction extends HandledTransportAction<GetSecretRe
 
     protected void doExecute(Task task, GetSecretRequest request, ActionListener<GetSecretResponse> listener) {
         client.prepareGet(".fleet-secrets", request.id()).execute(ActionListener.wrap(getResponse -> {
-            listener.onResponse(new GetSecretResponse(getResponse.getId(), getResponse.getSourceAsString()));
-        }, listener::onFailure));
+            if (getResponse.isSourceEmpty()) {
+                listener.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
+                return;
+            }
+            listener.onResponse(new GetSecretResponse(getResponse.getId(), getResponse.getSource().get("value").toString()));
+        }, listener::onFailure)); // TODO: check impl and failure handling
     }
 }

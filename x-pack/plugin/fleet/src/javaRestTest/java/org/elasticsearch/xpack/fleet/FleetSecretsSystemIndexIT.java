@@ -14,12 +14,15 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -41,26 +44,28 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
         Request postRequest = new Request("POST", "/_fleet/secrets/");
         postRequest.setJsonEntity(secretJson);
         Response postResponse = client().performRequest(postRequest);
-        assertThat(postResponse.getStatusLine().getStatusCode(), is(201));
-        // FIXME: responseBody is emptu
-        String responseBody = EntityUtils.toString(postResponse.getEntity());
-        assertThat(responseBody, containsString("value"));
-        // final String id = responseBody...
+        assertThat(postResponse.getStatusLine().getStatusCode(), is(200));
+        Map<String, Object> responseMap = XContentHelper.convertToMap(
+            XContentType.JSON.xContent(),
+            EntityUtils.toString(postResponse.getEntity()),
+            false
+        );
+        assertTrue(responseMap.containsKey("id"));
+        final String id = responseMap.get("id").toString();
 
         // get secret
-        // Request getRequest = new Request("GET", "/fleet/secrets/" + id);
-        // Response getResponse = client().performRequest(getRequest);
-        // assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
-        // assertThat(EntityUtils.toString(getResponse.getEntity()), containsString(secretJson));
+        Request getRequest = new Request("GET", "/fleet/secrets/" + id);
+        Response getResponse = client().performRequest(getRequest);
+        assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
+        assertThat(EntityUtils.toString(getResponse.getEntity()), containsString(secretJson));
 
         // delete secret
-        // Request deleteRequest = new Request("DELETE", "/fleet/secrets/" + id);
-        // Response deleteResponse = client().performRequest(deleteRequest);
-        // assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
+        Request deleteRequest = new Request("DELETE", "/fleet/secrets/" + id);
+        Response deleteResponse = client().performRequest(deleteRequest);
+        assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testGetNonExistingSecret() throws Exception {
-        // FIXME: this currently fails with 400 Bad Request
         Request getRequest = new Request("GET", "/_fleet/secrets/123");
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(getRequest));
         Response getResponse = re.getResponse();
@@ -68,7 +73,6 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
     }
 
     public void testDeleteNonExistingSecret() {
-        // FIXME: this currently passes but it's likely index not found
         Request deleteRequest = new Request("DELETE", "/_fleet/secrets/123");
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(deleteRequest));
         Response getResponse = re.getResponse();

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.fleet.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
@@ -31,11 +32,12 @@ public class TransportPostSecretAction extends HandledTransportAction<PostSecret
     protected void doExecute(Task task, PostSecretRequest request, ActionListener<PostSecretResponse> listener) {
         client.prepareIndex(".fleet-secrets")
             .setSource(request.source(), request.xContentType())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute(
                 ActionListener.wrap(
-                    indexResponse -> listener.onResponse(new PostSecretResponse(indexResponse.status(), indexResponse.getId())),
+                    indexResponse -> listener.onResponse(new PostSecretResponse(indexResponse.getId())),
                     listener::onFailure
                 )
-            ); // TODO: check impl and failure handling
+            );
     }
 }

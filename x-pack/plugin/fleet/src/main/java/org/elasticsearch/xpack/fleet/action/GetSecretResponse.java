@@ -20,17 +20,17 @@ import java.util.Objects;
 public class GetSecretResponse extends ActionResponse implements ToXContentObject {
 
     private String id;
-    private final String secretValue;
+    private final String value;
 
     public GetSecretResponse(StreamInput in) throws IOException {
         super(in);
         id = in.readString();
-        secretValue = in.readString();
+        value = in.readString();
     }
 
-    public GetSecretResponse(String id, String secretValue) {
+    public GetSecretResponse(String id, String value) {
         this.id = id;
-        this.secretValue = secretValue;
+        this.value = value;
     }
 
     public String id() {
@@ -40,14 +40,14 @@ public class GetSecretResponse extends ActionResponse implements ToXContentObjec
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        out.writeString(secretValue);
+        out.writeString(value);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field("id", id);
-        builder.field("value", secretValue);
+        builder.field("value", value);
         return builder.endObject();
     }
 
@@ -56,11 +56,11 @@ public class GetSecretResponse extends ActionResponse implements ToXContentObjec
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSecretResponse that = (GetSecretResponse) o;
-        return Objects.equals(id, that.id) && Objects.equals(secretValue, that.secretValue);
+        return Objects.equals(id, that.id) && Objects.equals(value, that.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, secretValue);
+        return Objects.hash(id, value);
     }
 }

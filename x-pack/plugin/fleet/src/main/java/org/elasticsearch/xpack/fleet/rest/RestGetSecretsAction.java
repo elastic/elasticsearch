@@ -21,7 +21,7 @@ public class RestGetSecretsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "fleet_get_secrets";
+        return "fleet_get_secret";
     }
 
     @Override
@@ -31,11 +31,7 @@ public class RestGetSecretsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        // TODO: does not throw IOException
-        return restChannel -> client.execute(
-            GetSecretAction.INSTANCE,
-            new GetSecretRequest(request.param("id")),
-            new RestToXContentListener<>(restChannel)
-        );
+        final String id = request.param("id");
+        return restChannel -> client.execute(GetSecretAction.INSTANCE, new GetSecretRequest(id), new RestToXContentListener<>(restChannel));
     }
 }

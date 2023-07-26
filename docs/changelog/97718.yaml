@@ -1,0 +1,6 @@
+pr: 97718
+summary: Fix async missing events
+area: EQL
+type: bug
+issues:
+ - 97644

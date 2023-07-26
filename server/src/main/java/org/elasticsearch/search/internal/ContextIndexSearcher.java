@@ -71,9 +71,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
-    // don't create slices with less than 50k docs
-    private static final int MINIMUM_DOCS_PER_SLICE = 50_000;
-
     // make sure each slice has at least 10% of the documents as a way to limit memory usage and
     // to keep the error margin of terms aggregation low
     private static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
@@ -84,6 +81,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private final QueueSizeBasedExecutor queueSizeBasedExecutor;
     private final LeafSlice[] leafSlices;
+    // don't create slices with less than this number of docs
+    private final int minimumDocsPerSlice;
 
     /** constructor for non-concurrent search */
     public ContextIndexSearcher(
@@ -93,7 +92,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader
     ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, null);
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            Integer.MAX_VALUE,
+            wrapWithExitableDirectoryReader,
+            null
+        );
     }
 
     /** constructor for concurrent search */
@@ -102,10 +110,20 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         Similarity similarity,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
+        int minimumDocsPerSlice,
         boolean wrapWithExitableDirectoryReader,
         ThreadPoolExecutor executor
     ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, executor);
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            minimumDocsPerSlice,
+            wrapWithExitableDirectoryReader,
+            executor
+        );
     }
 
     private ContextIndexSearcher(
@@ -114,6 +132,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
         MutableQueryTimeout cancellable,
+        int minimumDocsPerSlice,
         boolean wrapWithExitableDirectoryReader,
         ThreadPoolExecutor executor
     ) throws IOException {
@@ -124,7 +143,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
         this.queueSizeBasedExecutor = executor != null ? new QueueSizeBasedExecutor(executor) : null;
+        this.minimumDocsPerSlice = minimumDocsPerSlice;
         this.leafSlices = executor == null ? null : slices(leafContexts);
+    }
+
+    // package private for testing
+    int getMinimumDocsPerSlice() {
+        return minimumDocsPerSlice;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -203,7 +228,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return computeSlices(leaves, queueSizeBasedExecutor.threadPoolExecutor.getPoolSize(), MINIMUM_DOCS_PER_SLICE);
+        return computeSlices(leaves, queueSizeBasedExecutor.threadPoolExecutor.getMaximumPoolSize(), minimumDocsPerSlice);
     }
 
     /**

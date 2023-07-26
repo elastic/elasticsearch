@@ -213,7 +213,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                             );
                         }
                     }
-                }), TransportShardMultiGetFomTranslogAction.Response::new, getExecutor(request, shardId))
+                }), TransportShardMultiGetFomTranslogAction.Response::new, threadPool.executor(getExecutor(request, shardId)))
             );
         } else {
             // A non-real-time mget with no explicit refresh requested.

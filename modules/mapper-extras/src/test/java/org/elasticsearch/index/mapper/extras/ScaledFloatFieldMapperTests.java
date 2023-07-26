@@ -156,6 +156,22 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertEquals(1230, pointField.numericValue().longValue());
     }
 
+    public void testDocValuesSearchable() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0)));
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertTrue(fieldType.isSearchable());
+    }
+
+    public void testDocValuesUnsearchable() throws Exception {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "scaled_float").field("index", false).field("doc_values", false).field("scaling_factor", 10.0)
+            )
+        );
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertFalse(fieldType.isSearchable());
+    }
+
     public void testStore() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("store", true).field("scaling_factor", 10.0))

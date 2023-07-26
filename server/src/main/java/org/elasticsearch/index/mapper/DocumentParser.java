@@ -524,12 +524,12 @@ public final class DocumentParser {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context, lastFieldName);
             } else if (token == XContentParser.Token.VALUE_NULL) {
-                parseNullValue(context, lastFieldName);
+                parseNullValue(context, context.path().dottedFieldName(lastFieldName));
             } else if (token == null) {
                 throwEOFOnParseArray(arrayFieldName, context);
             } else {
                 assert token.isValue();
-                parseValue(context, lastFieldName);
+                parseValue(context, context.path().dottedFieldName(lastFieldName));
             }
         }
     }

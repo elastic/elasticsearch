@@ -181,7 +181,6 @@ import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.metering.DocumentReporter;
 import org.elasticsearch.plugins.internal.metering.DocumentReporterPlugin;
-import org.elasticsearch.plugins.internal.metering.serverless.ServerlessDocumentReporterPlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -1211,8 +1210,7 @@ public class Node implements Closeable {
         if (plugins.size() == 1) {
             return plugins.get(0).getDocumentReporter();
         } else if (plugins.size() == 0) {
-            return new ServerlessDocumentReporterPlugin().getDocumentReporter();
-            // return EmptyMeteringCallback.INSTANCE;
+            return DocumentReporter.EMPTY_INSTANCE;
         }
         throw new IllegalStateException("too many metering plugins");
     }

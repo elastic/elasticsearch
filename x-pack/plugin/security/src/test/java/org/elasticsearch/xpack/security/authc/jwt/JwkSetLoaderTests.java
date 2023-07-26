@@ -86,4 +86,5 @@ public class JwkSetLoaderTests extends ESTestCase {
         futures.subList(1, nThreads).forEach(future -> assertThat(future.actionGet(), sameInstance(tuple)));
         verify(jwkSetLoader, never()).loadInternal(anyActionListener());
     }
+
 }

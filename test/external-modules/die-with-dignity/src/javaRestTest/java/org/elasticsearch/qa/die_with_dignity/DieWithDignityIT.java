@@ -45,6 +45,7 @@ public class DieWithDignityIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97789")
     public void testDieWithDignity() throws Exception {
         final long pid = cluster.getPid(0);
         assertJvmArgs(pid, containsString("-Ddie.with.dignity.test=true"));

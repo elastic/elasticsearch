@@ -9,7 +9,6 @@
 package org.elasticsearch.rest.root;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
@@ -26,7 +24,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Date;
+import java.util.Map;
+
+import static org.elasticsearch.test.BuildUtils.newBuild;
 
 public class MainResponseTests extends AbstractXContentSerializingTestCase<MainResponse> {
 
@@ -35,12 +35,22 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
-        final String date = new Date(randomNonNegativeLong()).toString();
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         IndexVersion indexVersion = IndexVersionUtils.randomVersion();
-        TransportVersion transportVersion = TransportVersionUtils.randomVersion();
-        Build build = new Build(Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(), version.toString());
-        return new MainResponse(nodeName, version, indexVersion.luceneVersion().toString(), clusterName, clusterUuid, build);
+        Build build = newBuild(
+            Build.current(),
+            Map.of(
+                "version",
+                version.toString(),
+                "minWireCompatVersion",
+                version.minimumCompatibilityVersion().toString(),
+                "minIndexCompatVersion",
+                version.minimumIndexCompatibilityVersion().toString(),
+                "displayString",
+                Build.defaultDisplayString(Build.current().type(), Build.current().hash(), Build.current().date(), version.toString())
+            )
+        );
+        return new MainResponse(nodeName, indexVersion.luceneVersion().toString(), clusterName, clusterUuid, build);
     }
 
     @Override
@@ -55,13 +65,11 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
 
     public void testToXContent() throws IOException {
         String clusterUUID = randomAlphaOfLengthBetween(10, 20);
-        final Build current = Build.current();
-        Build build = new Build(current.type(), current.hash(), current.date(), current.isSnapshot(), current.qualifiedVersion());
+        final Build build = Build.current();
         Version version = Version.CURRENT;
         IndexVersion indexVersion = IndexVersion.current();
         MainResponse response = new MainResponse(
             "nodeName",
-            version,
             indexVersion.luceneVersion().toString(),
             new ClusterName("clusterName"),
             clusterUUID,
@@ -79,7 +87,7 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
                             "cluster_uuid": "%s",
                             "version": {
                                 "number": "%s",
-                                "build_flavor": "default",
+                                "build_flavor": "%s",
                                 "build_type": "%s",
                                 "build_hash": "%s",
                                 "build_date": "%s",
@@ -93,10 +101,11 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
                         """,
                     clusterUUID,
                     build.qualifiedVersion(),
-                    current.type().displayName(),
-                    current.hash(),
-                    current.date(),
-                    current.isSnapshot(),
+                    build.flavor(),
+                    build.type().displayName(),
+                    build.hash(),
+                    build.date(),
+                    build.isSnapshot(),
                     indexVersion.luceneVersion().toString(),
                     version.minimumCompatibilityVersion().toString(),
                     version.minimumIndexCompatibilityVersion().toString()
@@ -110,23 +119,21 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
     protected MainResponse mutateInstance(MainResponse mutateInstance) {
         String clusterUuid = mutateInstance.getClusterUuid();
         Build build = mutateInstance.getBuild();
-        Version version = mutateInstance.getVersion();
         String luceneVersion = mutateInstance.getLuceneVersion();
         String nodeName = mutateInstance.getNodeName();
         ClusterName clusterName = mutateInstance.getClusterName();
-        switch (randomIntBetween(0, 5)) {
+        switch (randomIntBetween(0, 4)) {
             case 0 -> clusterUuid = clusterUuid + randomAlphaOfLength(5);
             case 1 -> nodeName = nodeName + randomAlphaOfLength(5);
             case 2 ->
                 // toggle the snapshot flag of the original Build parameter
-                build = new Build(Build.Type.UNKNOWN, build.hash(), build.date(), build.isSnapshot() == false, build.qualifiedVersion());
-            case 3 -> version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
-            case 4 -> clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
-            case 5 -> luceneVersion = randomValueOtherThan(
+                build = newBuild(build, Map.of("isSnapshot", build.isSnapshot() == false));
+            case 3 -> clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
+            case 4 -> luceneVersion = randomValueOtherThan(
                 luceneVersion,
                 () -> IndexVersionUtils.randomVersion(random()).luceneVersion().toString()
             );
         }
-        return new MainResponse(nodeName, version, luceneVersion, clusterName, clusterUuid, build);
+        return new MainResponse(nodeName, luceneVersion, clusterName, clusterUuid, build);
     }
 }

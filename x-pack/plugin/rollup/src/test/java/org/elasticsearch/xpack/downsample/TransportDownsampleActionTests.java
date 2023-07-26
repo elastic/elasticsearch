@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.util.List;
 import java.util.UUID;
@@ -61,6 +62,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
         assertTargetSettings(target, indexMetadata);
         assertSourceSettings(source, indexMetadata);
         assertEquals(IndexMetadata.INDEX_UUID_NA_VALUE, indexMetadata.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY));
+        assertFalse(LifecycleSettings.LIFECYCLE_NAME_SETTING.exists(indexMetadata));
     }
 
     private static void assertSourceSettings(final IndexMetadata indexMetadata, final Settings settings) {
@@ -98,6 +100,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
             indexMetadata.getSettings().get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()),
             settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey())
         );
+        assertEquals(indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME), settings.get(LifecycleSettings.LIFECYCLE_NAME));
         // NOTE: setting both in source and target (not forbidden, not to override): expect target setting is used
         assertEquals(
             indexMetadata.getSettings().get(IndexMetadata.SETTING_CREATION_DATE),

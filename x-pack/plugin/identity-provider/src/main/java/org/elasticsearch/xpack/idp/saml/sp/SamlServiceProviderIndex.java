@@ -77,7 +77,7 @@ public class SamlServiceProviderIndex implements Closeable {
     public static final String INDEX_NAME = "saml-service-provider-v1";
     static final String TEMPLATE_NAME = ALIAS_NAME;
 
-    private static final String TEMPLATE_RESOURCE = "/org/elasticsearch/xpack/idp/saml-service-provider-template.json";
+    private static final String TEMPLATE_RESOURCE = "/idp/saml-service-provider-template.json";
     private static final String TEMPLATE_META_VERSION_KEY = "idp-version";
     private static final String TEMPLATE_VERSION_SUBSTITUTE = "idp.template.version";
 

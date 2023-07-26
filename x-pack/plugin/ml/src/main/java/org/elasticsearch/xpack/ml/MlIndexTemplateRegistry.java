@@ -30,7 +30,7 @@ import java.util.Map;
 
 public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
-    private static final String ROOT_RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/";
+    private static final String ROOT_RESOURCE_PATH = "/ml/";
     private static final String ANOMALY_DETECTION_PATH = ROOT_RESOURCE_PATH + "anomalydetection/";
     private static final String VERSION_PATTERN = "xpack.ml.version";
     private static final String VERSION_ID_PATTERN = "xpack.ml.version.id";

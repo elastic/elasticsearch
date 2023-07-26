@@ -22,7 +22,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -170,7 +170,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         SearchExecutionContext context = SearchExecutionContextHelper.createSimple(
             new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
             parserConfig(),
@@ -205,7 +205,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() throws IOException {
-        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         SearchExecutionContext context = new SearchExecutionContext(
             0,
             0,
@@ -281,7 +281,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQueryWithIndexSort() {
-        Settings settings = indexSettings(Version.CURRENT, 1, 1).put("index.sort.field", "field").build();
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put("index.sort.field", "field").build();
 
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);

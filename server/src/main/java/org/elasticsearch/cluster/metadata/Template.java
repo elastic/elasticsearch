@@ -137,7 +137,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.aliases = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
             this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
         } else if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             boolean isExplicitNull = in.readBoolean();
@@ -191,7 +191,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(true);
             out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetadata) -> aliasMetadata.writeTo(stream));
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
             out.writeOptionalWriteable(lifecycle);
         } else if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             boolean isExplicitNull = lifecycle != null && lifecycle.isEnabled() == false;

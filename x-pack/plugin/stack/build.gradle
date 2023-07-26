@@ -1,5 +1,5 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   name 'x-pack-stack'
@@ -16,13 +16,10 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   implementation(testArtifact(project(xpackModule('core'))))
-  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  implementation project(':modules:mapper-extras')
-  implementation project(xpackModule('wildcard'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(path: ':x-pack:plugin:stack')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(xpackModule('wildcard'))
 }
 
 addQaCheckDependencies(project)

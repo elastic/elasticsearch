@@ -1,0 +1,89 @@
+setup:
+  - skip:
+      features: headers
+      version: " - 8.9.99"
+      reason: Introduced in 8.10.0
+
+  - do:
+      security.put_user:
+        username: "synonyms-user"
+        body:
+          password: "synonyms-user-password"
+          roles : [ "synonyms-role" ]
+
+  - do:
+      security.put_role:
+        name: "synonyms-role"
+        body:
+          cluster: ["manage_search_synonyms"]
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "synonyms-user"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "synonyms-role"
+        ignore: 404
+
+---
+"Check synonyms set operations - with manage_search_synonyms privilege":
+  - do:
+      headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
+      synonyms.put:
+        synonyms_set: test-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "test-id"
+
+  - match: { result: "created" }
+
+  - do:
+      headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
+      synonyms.get:
+        synonyms_set: test-synonyms
+
+  - match:
+      count: 1
+
+  - do:
+      headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
+      synonyms_sets.get: { }
+
+  - match:
+      count: 1
+
+  - do:
+      headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
+      synonym_rule.put:
+        synonyms_set: "test-synonyms"
+        synonym_rule: "test-id-0"
+        body:
+          synonyms: "i-phone, iphone"
+
+  - match: { result: "created" }
+
+  - do:
+      headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
+      synonym_rule.get:
+        synonyms_set: "test-synonyms"
+        synonym_rule: "test-id-0"
+
+  - match: {id: "test-id-0"}
+
+  - do:
+      headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
+      synonym_rule.delete:
+        synonyms_set: test-synonyms
+        synonym_rule: test-id-0
+
+  - do:
+      headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
+      synonyms.delete:
+        synonyms_set: test-synonyms
+
+  - match:
+      acknowledged: true

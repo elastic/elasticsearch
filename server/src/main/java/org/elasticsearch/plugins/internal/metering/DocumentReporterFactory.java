@@ -8,8 +8,16 @@
 
 package org.elasticsearch.plugins.internal.metering;
 
+/**
+ * An interface of a factory to return a DocumentReporter.
+ * A default implementation is returning a noop DocumentReporter
+ */
 public interface DocumentReporterFactory {
     DocumentReporterFactory EMPTY_INSTANCE = () -> DocumentReporter.EMPTY_INSTANCE;
 
+    /**
+     * creates an instance of a DocumentReporter which will be used to report upon xcontent parsing
+     * @return a new instance of DocumentReporter
+     */
     DocumentReporter createDocumentReporter();
 }

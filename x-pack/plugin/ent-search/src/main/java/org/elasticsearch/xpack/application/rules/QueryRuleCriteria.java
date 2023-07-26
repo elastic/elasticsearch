@@ -179,4 +179,8 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     public String toString() {
         return Strings.toString(this);
     }
+
+    public boolean isMatch(String matchString) {
+        return criteriaType == CriteriaType.EXACT && criteriaValue.equals(matchString);
+    }
 }

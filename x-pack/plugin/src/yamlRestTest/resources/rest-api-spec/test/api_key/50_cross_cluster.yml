@@ -154,6 +154,34 @@ teardown:
     }
   }
   }
+  - match: { "api_keys.0.access": {
+    "search": [
+      {
+        "names": [
+          "logs*"
+        ],
+        "field_security": {
+          "grant": [
+            "*"
+          ],
+          "except": [
+            "private"
+          ]
+        },
+        "query": "{\"term\":{\"category\":\"shared\"}}",
+        "allow_restricted_indices": false
+      }
+    ],
+    "replication": [
+      {
+        "names": [
+          "archive"
+        ],
+        "allow_restricted_indices": false
+      }
+    ]
+  }
+  }
   - is_false: api_keys.0.limited_by
 
 ---
@@ -233,6 +261,17 @@ teardown:
         "enabled": true
       }
     }
+  }
+  }
+  - match: { "api_keys.0.access": {
+    "replication": [
+      {
+        "names": [
+          "archive"
+        ],
+        "allow_restricted_indices": false
+      }
+    ]
   }
   }
   - is_false: api_keys.0.limited_by
@@ -315,6 +354,17 @@ teardown:
         "enabled": true
       }
     }
+  }
+  }
+  - match: { "api_keys.0.access": {
+    "search": [
+      {
+        "names": [
+          "*"
+        ],
+        "allow_restricted_indices": true
+      }
+    ]
   }
   }
   - is_false: api_keys.0.limited_by

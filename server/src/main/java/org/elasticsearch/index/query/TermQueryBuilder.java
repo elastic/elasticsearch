@@ -171,7 +171,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(this.fieldName);
         if (fieldType == null) {
-            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
         } else if (fieldType instanceof ConstantFieldType constantFieldType) {
             // This logic is correct for all field types, but by only applying it to constant
             // fields we also have the guarantee that it doesn't perform I/O, which is important

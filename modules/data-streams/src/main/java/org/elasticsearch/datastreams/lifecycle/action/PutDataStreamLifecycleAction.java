@@ -84,7 +84,7 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
 
         public Request(String[] names, @Nullable TimeValue dataRetention) {
             this.names = names;
-            this.lifecycle = new DataStreamLifecycle(dataRetention);
+            this.lifecycle = DataStreamLifecycle.newBuilder().dataRetention(dataRetention).build();
         }
 
         public String[] getNames() {

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,6 +49,12 @@ import java.util.Set;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_CLUSTER_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_CLUSTER_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.ROLE_DESCRIPTOR_NAME;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1234,6 +1241,11 @@ public class RoleDescriptorTests extends ESTestCase {
             .privileges(randomSubsetOf(randomIntBetween(1, 4), candidatePrivilegesNames))
             .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
             .allowRestrictedIndices(randomBoolean());
+        randomDlsFls(builder);
+        return builder;
+    }
+
+    private static void randomDlsFls(RoleDescriptor.IndicesPrivileges.Builder builder) {
         if (randomBoolean()) {
             builder.query(
                 randomBoolean()
@@ -1249,10 +1261,49 @@ public class RoleDescriptorTests extends ESTestCase {
                 builder.grantedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
             }
         }
-        return builder;
     }
 
     private static void resetFieldPermssionsCache() {
         RoleDescriptor.setFieldPermissionsCache(new FieldPermissionsCache(Settings.EMPTY));
     }
+
+    public static RoleDescriptor randomCrossClusterAccessRoleDescriptor() {
+        final int searchSize = randomIntBetween(0, 3);
+        final int replicationSize = randomIntBetween(searchSize == 0 ? 1 : 0, 3);
+        assert searchSize + replicationSize > 0;
+
+        final String[] clusterPrivileges;
+        if (searchSize > 0 && replicationSize > 0) {
+            clusterPrivileges = CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
+        } else if (searchSize > 0) {
+            clusterPrivileges = CCS_CLUSTER_PRIVILEGE_NAMES;
+        } else {
+            clusterPrivileges = CCR_CLUSTER_PRIVILEGE_NAMES;
+        }
+
+        final List<RoleDescriptor.IndicesPrivileges> indexPrivileges = new ArrayList<>();
+        for (int i = 0; i < searchSize; i++) {
+            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+                .privileges(CCS_INDICES_PRIVILEGE_NAMES)
+                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
+                .allowRestrictedIndices(randomBoolean());
+            randomDlsFls(builder);
+            indexPrivileges.add(builder.build());
+        }
+        for (int i = 0; i < replicationSize; i++) {
+            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+                .privileges(CCR_INDICES_PRIVILEGE_NAMES)
+                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
+                .allowRestrictedIndices(randomBoolean());
+            indexPrivileges.add(builder.build());
+        }
+
+        return new RoleDescriptor(
+            ROLE_DESCRIPTOR_NAME,
+            clusterPrivileges,
+            indexPrivileges.toArray(RoleDescriptor.IndicesPrivileges[]::new),
+            null
+        );
+    }
+
 }

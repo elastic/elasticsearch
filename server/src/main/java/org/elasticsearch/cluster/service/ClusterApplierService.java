@@ -368,10 +368,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 final String className = element.getClassName();
                 final String methodName = element.getMethodName();
                 if (className.equals(ClusterStateObserver.class.getName())) {
-                    // people may start an observer from an applier
+                    // it's legitimate to start a ClusterStateObserver on the applier thread, since this class handles lost updates
                     return true;
                 } else if (className.equals(ClusterApplierService.class.getName()) && methodName.equals("callClusterStateAppliers")) {
-                    throw new AssertionError("should not be called by a cluster state applier: the applied state is not yet available");
+                    throw new AssertionError("""
+                        On the cluster applier thread you must use ClusterChangedEvent#state() and ClusterChangedEvent#previousState() \
+                        instead of ClusterApplierService#state(). It is almost certainly a bug to read the latest-applied state from \
+                        within a cluster applier since the new state has been committed at this point but is not yet applied.""");
                 }
             }
         }

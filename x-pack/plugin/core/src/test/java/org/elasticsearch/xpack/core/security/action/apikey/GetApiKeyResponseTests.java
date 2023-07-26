@@ -29,6 +29,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.ROLE_DESCRIPTOR_NAME;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomCrossClusterAccessRoleDescriptor;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,7 +53,9 @@ public class GetApiKeyResponseTests extends ESTestCase {
             randomAlphaOfLength(4),
             randomAlphaOfLength(5),
             randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
-            randomBoolean() ? null : randomUniquelyNamedRoleDescriptors(0, 3),
+            type == ApiKey.Type.CROSS_CLUSTER
+                ? List.of(randomCrossClusterAccessRoleDescriptor())
+                : randomFrom(randomUniquelyNamedRoleDescriptors(0, 3), null),
             type == ApiKey.Type.CROSS_CLUSTER ? null : randomUniquelyNamedRoleDescriptors(1, 3)
         );
         GetApiKeyResponse response = new GetApiKeyResponse(Collections.singletonList(apiKeyInfo));
@@ -136,6 +143,16 @@ public class GetApiKeyResponseTests extends ESTestCase {
             roleDescriptors,
             limitedByRoleDescriptors
         );
+        final List<RoleDescriptor> crossClusterAccessRoleDescriptors = List.of(
+            new RoleDescriptor(
+                ROLE_DESCRIPTOR_NAME,
+                CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES,
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("logs").privileges(CCS_INDICES_PRIVILEGE_NAMES).build(),
+                    RoleDescriptor.IndicesPrivileges.builder().indices("archive").privileges(CCR_INDICES_PRIVILEGE_NAMES).build(), },
+                null
+            )
+        );
         ApiKey apiKeyInfo4 = createApiKeyInfo(
             "name4",
             "id-4",
@@ -146,7 +163,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "user-c",
             "realm-z",
             Map.of("foo", "bar"),
-            roleDescriptors,
+            crossClusterAccessRoleDescriptors,
             null
         );
         GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2, apiKeyInfo3, apiKeyInfo4));
@@ -287,30 +304,55 @@ public class GetApiKeyResponseTests extends ESTestCase {
                     "foo": "bar"
                   },
                   "role_descriptors": {
-                    "rd_42": {
+                    "cross_cluster": {
                       "cluster": [
-                        "monitor"
+                        "cross_cluster_search", "cross_cluster_replication"
                       ],
                       "indices": [
                         {
                           "names": [
-                            "index"
+                            "logs"
                           ],
                           "privileges": [
-                            "read"
+                            "read", "read_cross_cluster", "view_index_metadata"
+                          ],
+                          "allow_restricted_indices": false
+                        },
+                        {
+                          "names": [
+                            "archive"
+                          ],
+                          "privileges": [
+                            "cross_cluster_replication", "cross_cluster_replication_internal"
                           ],
                           "allow_restricted_indices": false
                         }
                       ],
                       "applications": [],
-                      "run_as": [
-                        "foo"
-                      ],
+                      "run_as": [],
                       "metadata": {},
                       "transient_metadata": {
                         "enabled": true
                       }
                     }
+                  },
+                  "access": {
+                    "search": [
+                      {
+                        "names": [
+                          "logs"
+                        ],
+                        "allow_restricted_indices": false
+                      }
+                    ],
+                    "replication": [
+                      {
+                        "names": [
+                          "archive"
+                        ],
+                        "allow_restricted_indices": false
+                      }
+                    ]
                   }
                 }
               ]

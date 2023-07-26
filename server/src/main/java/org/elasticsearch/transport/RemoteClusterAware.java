@@ -123,7 +123,7 @@ public abstract class RemoteClusterAware {
             );
             throw new IllegalArgumentException(warning);
         }
-        if (requestIndices.length > 0 && perClusterIndices.size() == 0) {
+        if (clustersToRemove.size() > 0 && perClusterIndices.size() == 0) {
             throw new IllegalArgumentException(
                 "The '-' exclusions in the index expression list excludes all indexes. Nothing to search. Input: ["
                     + String.join(",", requestIndices)

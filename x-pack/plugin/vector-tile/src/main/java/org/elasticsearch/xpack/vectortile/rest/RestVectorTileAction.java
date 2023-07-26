@@ -28,6 +28,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.SearchHit;
@@ -62,6 +64,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexNam
 /**
  * Main class handling a call to the _mvt API.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestVectorTileAction extends BaseRestHandler {
 
     private static final String META_LAYER = "meta";

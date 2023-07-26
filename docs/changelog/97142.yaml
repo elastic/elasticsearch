@@ -1,0 +1,5 @@
+pr: 97142
+summary: The model loading service should not notify listeners in a sync block
+area: Machine Learning
+type: bug
+issues: []

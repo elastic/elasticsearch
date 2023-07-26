@@ -209,7 +209,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         Set<RollupJobCaps> validatedCaps = new HashSet<>();
         sourceAgg.getAggregatorFactories()
             .forEach(agg -> validatedCaps.addAll(RollupJobIdentifierUtils.findBestJobs(agg, context.getJobCaps())));
-        List<String> jobIds = validatedCaps.stream().map(RollupJobCaps::getJobID).collect(Collectors.toList());
+        List<String> jobIds = validatedCaps.stream().map(RollupJobCaps::getJobID).toList();
 
         for (AggregationBuilder agg : sourceAgg.getAggregatorFactories()) {
 

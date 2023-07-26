@@ -180,13 +180,12 @@ public final class InternalTestCluster extends TestCluster {
         nodeAndClient.node.settings()
     );
 
-    private static final Predicate<NodeAndClient> NO_DATA_NO_MASTER_PREDICATE = nodeAndClient -> DiscoveryNode.isMasterNode(
-        nodeAndClient.node.settings()
-    ) == false && DiscoveryNode.canContainData(nodeAndClient.node.settings()) == false;
-
     private static final Predicate<NodeAndClient> MASTER_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.isMasterNode(
         nodeAndClient.node.settings()
     );
+
+    private static final Predicate<NodeAndClient> NO_DATA_NO_MASTER_PREDICATE = DATA_NODE_PREDICATE.negate()
+        .and(MASTER_NODE_PREDICATE.negate());
 
     public static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
     public static final int DEFAULT_HIGH_NUM_MASTER_NODES = 3;
@@ -1585,10 +1584,17 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns a reference to the given nodes instances of the given class &gt;T&lt;
+     * @return the instance of the given class from the node with provided {@code nodeName}
      */
-    public <T> T getInstance(Class<T> clazz, final String node) {
-        return getInstance(clazz, nc -> node == null || node.equals(nc.name));
+    public <T> T getInstance(Class<T> clazz, final String nodeName) {
+        return getInstance(clazz, nc -> nodeName == null || nodeName.equals(nc.name));
+    }
+
+    /**
+     * @return the instance of the given class from a random node with provided {@code role}
+     */
+    public <T> T getInstance(Class<T> clazz, DiscoveryNodeRole role) {
+        return getInstance(clazz, nc -> DiscoveryNode.getRolesFromSettings(nc.node.settings()).contains(role));
     }
 
     public <T> T getDataNodeInstance(Class<T> clazz) {

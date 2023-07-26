@@ -168,11 +168,6 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
     }
 
     @Override
-    public boolean isFragment() {
-        return false;
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(eventCollectionName, eventTime, xContentType, payloadAsMap());
     }

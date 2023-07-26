@@ -159,8 +159,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         return ModuleFinder.of(filePath.toPath())
             .findAll()
             .stream()
-            .sorted(Comparator.comparing(ModuleReference::descriptor))
-            .findFirst()
+            .min(Comparator.comparing(ModuleReference::descriptor))
             .orElseThrow(() -> new GradleException("module not found in " + filePath));
     }
 }

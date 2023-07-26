@@ -237,6 +237,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> SHARED_CACHE_MMAP = Setting.boolSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "mmap",
+        false,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(SharedBlobCacheService.class);
 
     private final ConcurrentHashMap<RegionKey<KeyType>, Entry<CacheFileRegion>> keyMapping;
@@ -300,7 +306,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this.minTimeDelta = SHARED_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
         freqs = new Entry[maxFreq];
         try {
-            sharedBytes = new SharedBytes(numRegions, regionSize, environment, writeBytes::add, readBytes::add);
+            sharedBytes = new SharedBytes(
+                numRegions,
+                regionSize,
+                environment,
+                writeBytes::add,
+                readBytes::add,
+                SHARED_CACHE_MMAP.get(settings)
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

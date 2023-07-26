@@ -53,7 +53,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
     ) {
         boolean pluginEnabled = XPackSettings.PROFILING_ENABLED.get(state.getMetadata().settings());
         boolean resourceManagementEnabled = ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.get(state.getMetadata().settings());
-        boolean resourcesCreated = ProfilingIndexTemplateRegistry.areAllTemplatesCreated(state);
+        boolean resourcesCreated = ProfilingIndexTemplateRegistry.isAllResourcesCreated(state);
         listener.onResponse(new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated));
     }
 

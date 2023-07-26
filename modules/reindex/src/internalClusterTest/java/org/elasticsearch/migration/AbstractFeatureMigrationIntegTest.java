@@ -190,7 +190,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             docs.add(ESIntegTestCase.client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
         }
         indexRandom(true, docs);
-        IndicesStatsResponse indexStats = ESIntegTestCase.client().admin().indices().prepareStats(indexName).setDocs(true).get();
+        IndicesStatsResponse indexStats = ESIntegTestCase.indicesAdmin().prepareStats(indexName).setDocs(true).get();
         Assert.assertThat(indexStats.getIndex(indexName).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
@@ -246,7 +246,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         Set<String> actualAliasNames = imd.getAliases().keySet();
         assertThat(actualAliasNames, containsInAnyOrder(aliasNames.toArray()));
 
-        IndicesStatsResponse indexStats = client().admin().indices().prepareStats(imd.getIndex().getName()).setDocs(true).get();
+        IndicesStatsResponse indexStats = indicesAdmin().prepareStats(imd.getIndex().getName()).setDocs(true).get();
         assertNotNull(indexStats);
         final IndexStats thisIndexStats = indexStats.getIndex(imd.getIndex().getName());
         assertNotNull(thisIndexStats);

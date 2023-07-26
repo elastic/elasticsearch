@@ -35,7 +35,7 @@ public class WorkflowServiceTests extends ESTestCase {
 
         final Workflow actualWorkflow = workflowService.resolveWorkflowAndStoreInThreadContext(restHandler, threadContext);
         assertThat(actualWorkflow, equalTo(expectedWorkflow));
-        assertThat(workflowService.readWorkflowFromThreadContext(threadContext), equalTo(expectedWorkflow));
+        assertThat(workflowService.readWorkflowFromThreadContext(threadContext), equalTo(expectedWorkflow.name()));
     }
 
     public void testResolveWorkflowAndStoreInThreadContextWithUnknownRestHandler() {

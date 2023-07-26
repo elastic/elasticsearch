@@ -105,7 +105,7 @@ public class CancellationIT extends ProfilingTestCase {
 
     private static Map<String, String> readNodesInfo() {
         Map<String, String> nodeIdToName = new HashMap<>();
-        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        NodesInfoResponse nodesInfoResponse = clusterAdmin().prepareNodesInfo().get();
         assertFalse(nodesInfoResponse.hasFailures());
         for (NodeInfo node : nodesInfoResponse.getNodes()) {
             nodeIdToName.put(node.getNode().getId(), node.getNode().getName());
@@ -116,7 +116,7 @@ public class CancellationIT extends ProfilingTestCase {
     private static Collection<TaskId> collectProfilingRelatedTasks(String transportAction) {
         SetOnce<TaskInfo> profilingTask = new SetOnce<>();
         Map<TaskId, Set<TaskId>> taskToParent = new HashMap<>();
-        ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks().get();
+        ListTasksResponse listTasksResponse = clusterAdmin().prepareListTasks().get();
         for (TaskInfo task : listTasksResponse.getTasks()) {
             TaskId parentTaskId = task.parentTaskId();
             if (parentTaskId != null) {

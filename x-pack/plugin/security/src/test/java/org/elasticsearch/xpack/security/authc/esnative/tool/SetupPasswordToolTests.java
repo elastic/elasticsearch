@@ -672,19 +672,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     private Command getSetupPasswordCommandWithKeyStore(KeyStoreWrapper keyStore) {
-        return new SetupPasswordTool(env -> httpClient, (e) -> keyStore) {
-
-            @Override
-            protected AutoSetup newAutoSetup() {
-                return new AutoSetup();
-            }
-
-            @Override
-            protected InteractiveSetup newInteractiveSetup() {
-                return new InteractiveSetup();
-            }
-
-        };
+        return new SetupPasswordTool(env -> httpClient, (e) -> keyStore);
 
     }
 

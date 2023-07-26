@@ -10,6 +10,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -149,7 +150,7 @@ public class JobManagerTests extends ESTestCase {
             filter,
             Collections.emptySet(),
             Collections.emptySet(),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
@@ -207,7 +208,7 @@ public class JobManagerTests extends ESTestCase {
             filter,
             new TreeSet<>(Arrays.asList("item 1", "item 2")),
             new TreeSet<>(Collections.singletonList("item 3")),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
@@ -265,7 +266,7 @@ public class JobManagerTests extends ESTestCase {
             filter,
             new TreeSet<>(Arrays.asList("a", "b")),
             Collections.emptySet(),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         verify(auditor).info(jobReferencingFilter.getId(), "Filter [foo_filter] has been modified; added items: ['a', 'b']");
@@ -302,7 +303,7 @@ public class JobManagerTests extends ESTestCase {
             filter,
             Collections.emptySet(),
             new TreeSet<>(Arrays.asList("a", "b")),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         verify(auditor).info(jobReferencingFilter.getId(), "Filter [foo_filter] has been modified; removed items: ['a', 'b']");
@@ -329,7 +330,7 @@ public class JobManagerTests extends ESTestCase {
 
         jobManager.updateProcessOnCalendarChanged(
             Arrays.asList("job-1", "job-3", "job-4"),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
@@ -374,10 +375,7 @@ public class JobManagerTests extends ESTestCase {
         mockClientBuilder.prepareSearchFields(MlConfigIndex.indexName(), fieldHits);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
-        jobManager.updateProcessOnCalendarChanged(
-            Collections.singletonList("group-1"),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
-        );
+        jobManager.updateProcessOnCalendarChanged(Collections.singletonList("group-1"), ActionTestUtils.assertNoFailureListener(r -> {}));
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
         verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any());

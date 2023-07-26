@@ -22,6 +22,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -463,7 +465,7 @@ public class TransportSearchActionTests extends ESTestCase {
             MockTransportService remoteSeedTransport = RemoteClusterConnectionTests.startTransport(
                 "node_remote" + i,
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool
             );
@@ -503,7 +505,7 @@ public class TransportSearchActionTests extends ESTestCase {
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool,
                 null
@@ -568,7 +570,7 @@ public class TransportSearchActionTests extends ESTestCase {
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool,
                 null
@@ -583,7 +585,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
-                    ActionListener.wrap(response::set, e -> fail("no failures expected")),
+                    ActionTestUtils.assertNoFailureListener(response::set),
                     latch
                 );
                 TransportSearchAction.ccsRemoteReduce(
@@ -721,7 +723,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
-                    ActionListener.wrap(response::set, e -> fail("no failures expected")),
+                    ActionTestUtils.assertNoFailureListener(response::set),
                     latch
                 );
                 TransportSearchAction.ccsRemoteReduce(
@@ -774,7 +776,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
-                    ActionListener.wrap(response::set, e -> fail("no failures expected")),
+                    ActionTestUtils.assertNoFailureListener(response::set),
                     latch
                 );
                 TransportSearchAction.ccsRemoteReduce(
@@ -823,7 +825,7 @@ public class TransportSearchActionTests extends ESTestCase {
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool,
                 null
@@ -847,7 +849,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     skippedClusters,
                     remoteIndicesByCluster,
                     service,
-                    new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch)
+                    new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(0, skippedClusters.get());
@@ -951,7 +953,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     skippedClusters,
                     remoteIndicesByCluster,
                     service,
-                    new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch)
+                    new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(response.get());
@@ -996,7 +998,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     skippedClusters,
                     remoteIndicesByCluster,
                     service,
-                    new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch)
+                    new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(0, skippedClusters.get());
@@ -1477,7 +1479,7 @@ public class TransportSearchActionTests extends ESTestCase {
         try {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool
             );

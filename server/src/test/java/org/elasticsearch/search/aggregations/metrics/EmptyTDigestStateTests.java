@@ -10,8 +10,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-
 public class EmptyTDigestStateTests extends ESTestCase {
 
     private static final TDigestState singleton = new EmptyTDigestState();
@@ -30,9 +28,5 @@ public class EmptyTDigestStateTests extends ESTestCase {
 
     public void testTestAddList() {
         expectThrows(UnsupportedOperationException.class, () -> singleton.add(randomDouble(), randomInt(10)));
-    }
-
-    public void testTestAddListTDigest() {
-        expectThrows(UnsupportedOperationException.class, () -> singleton.add(List.of(new EmptyTDigestState(), new EmptyTDigestState())));
     }
 }

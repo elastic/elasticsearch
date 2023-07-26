@@ -139,7 +139,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
                 assertThat(action, instanceOf(PutLifecycleAction.class));
                 assertThat(request, instanceOf(PutLifecycleAction.Request.class));
                 final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
-                assertThat(putRequest.getPolicy().getName(), equalTo("profiling"));
+                assertThat(putRequest.getPolicy().getName(), equalTo("profiling-60-days"));
                 assertNotNull(listener);
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComponentTemplateAction) {
@@ -273,7 +273,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
                 assertThat(action, instanceOf(PutLifecycleAction.class));
                 assertThat(request, instanceOf(PutLifecycleAction.Request.class));
                 final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
-                assertThat(putRequest.getPolicy().getName(), equalTo("profiling"));
+                assertThat(putRequest.getPolicy().getName(), equalTo("profiling-60-days"));
                 assertNotNull(listener);
                 return AcknowledgedResponse.TRUE;
 

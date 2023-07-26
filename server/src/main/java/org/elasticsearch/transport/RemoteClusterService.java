@@ -542,7 +542,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 channel.sendResponse(
                     new TransportService.HandshakeResponse(
                         transportService.getLocalNode().getVersion(),
-                        Build.CURRENT.hash(),
+                        Build.current().hash(),
                         transportService.getLocalNode().withTransportAddress(transportService.boundRemoteAccessAddress().publishAddress()),
                         transportService.clusterName
                     )

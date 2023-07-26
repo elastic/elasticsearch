@@ -1,4 +1,8 @@
 
+setup:
+  - skip:
+      version: " - 8.9.99"
+      reason: Introduced in 8.10.0
 
 ---
 'Create Query Ruleset':
@@ -6,7 +10,6 @@
       query_ruleset.put:
         ruleset_id: test-ruleset
         body:
-          ruleset_id: test-ruleset
           rules:
             - rule_id: query-rule-id1
               type: pinned
@@ -33,13 +36,41 @@
 
   - match: { result: 'created' }
 
+  - do:
+      query_ruleset.get:
+        ruleset_id: test-ruleset
+  - match: { ruleset_id: test-ruleset }
+  - match:
+      rules:
+        - rule_id: query-rule-id1
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              value: elastic
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+        - rule_id: query-rule-id2
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              value: kibana
+          actions:
+            docs:
+              - '_index': 'test-index1'
+                '_id': 'id3'
+              - '_index': 'test-index2'
+                '_id': 'id4'
+
 ---
 'Create Query Ruleset - Resource already exists':
   - do:
       query_ruleset.put:
         ruleset_id: test-query-ruleset-recreating
         body:
-          ruleset_id: 'test-query-ruleset-recreating'
           rules:
             rule_id: 'test-rule-1'
             type: 'pinned'
@@ -57,7 +88,6 @@
       query_ruleset.put:
         ruleset_id: test-query-ruleset-recreating
         body:
-          ruleset_id: 'test-query-ruleset-recreating'
           rules:
             rule_id: 'test-rule-1'
             type: 'pinned'
@@ -82,7 +112,6 @@
       query_ruleset.put:
         ruleset_id: forbidden-query-ruleset
         body:
-          ruleset_id: 'forbidden-query-ruleset'
           rules:
             rule_id: 'test-rule-1'
             type: 'pinned'

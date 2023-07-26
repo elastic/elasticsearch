@@ -21,14 +21,21 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.DOCS_FIELD;
+import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.IDS_FIELD;
+import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item.INDEX_FIELD;
+import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX_NUM_PINNED_HITS;
 
 /**
  * A query rule consists of:
@@ -56,6 +63,11 @@ public class QueryRule implements Writeable, ToXContentObject {
                 }
             }
             throw new IllegalArgumentException("Unknown QueryRuleType: " + type);
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 
@@ -102,11 +114,28 @@ public class QueryRule implements Writeable, ToXContentObject {
 
     private void validate() {
         if (type == QueryRuleType.PINNED) {
-            if (actions.containsKey("ids") == false && actions.containsKey("docs") == false) {
-                throw new ElasticsearchParseException("Pinned Query rule actions must contain either ids or docs");
+            boolean ruleContainsPinnedIds = actions.containsKey(IDS_FIELD.getPreferredName());
+            boolean ruleContainsPinnedDocs = actions.containsKey(DOCS_FIELD.getPreferredName());
+            if (ruleContainsPinnedIds ^ ruleContainsPinnedDocs) {
+                validatePinnedAction(actions.get(IDS_FIELD.getPreferredName()));
+                validatePinnedAction(actions.get(DOCS_FIELD.getPreferredName()));
+            } else {
+                throw new ElasticsearchParseException("pinned query rule actions must contain only one of either ids or docs");
             }
         } else {
             throw new IllegalArgumentException("Unsupported QueryRuleType: " + type);
+        }
+    }
+
+    private void validatePinnedAction(Object action) {
+        if (action != null) {
+            if (action instanceof List == false) {
+                throw new ElasticsearchParseException("pinned query rule actions must be a list");
+            } else if (((List<?>) action).isEmpty()) {
+                throw new ElasticsearchParseException("pinned query rule actions cannot be empty");
+            } else if (((List<?>) action).size() > MAX_NUM_PINNED_HITS) {
+                throw new ElasticsearchParseException("pinned hits cannot exceed " + MAX_NUM_PINNED_HITS);
+            }
         }
     }
 
@@ -244,5 +273,43 @@ public class QueryRule implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    @SuppressWarnings("unchecked")
+    public AppliedQueryRules applyRule(AppliedQueryRules appliedRules, Map<String, Object> matchCriteria) {
+        if (type != QueryRule.QueryRuleType.PINNED) {
+            throw new UnsupportedOperationException("Only pinned query rules are supported");
+        }
+
+        List<String> matchingPinnedIds = new ArrayList<>();
+        List<PinnedQueryBuilder.Item> matchingPinnedDocs = new ArrayList<>();
+
+        for (QueryRuleCriteria criterion : criteria) {
+            for (String match : matchCriteria.keySet()) {
+                final String matchValue = matchCriteria.get(match).toString();
+                if (criterion.criteriaMetadata().equals(match) && criterion.isMatch(matchValue)) {
+                    if (actions.containsKey(IDS_FIELD.getPreferredName())) {
+                        matchingPinnedIds.addAll((List<String>) actions.get(IDS_FIELD.getPreferredName()));
+                    } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
+                        List<Map<String, String>> docsToPin = (List<Map<String, String>>) actions.get(DOCS_FIELD.getPreferredName());
+                        List<PinnedQueryBuilder.Item> items = docsToPin.stream()
+                            .map(
+                                map -> new PinnedQueryBuilder.Item(
+                                    map.get(INDEX_FIELD.getPreferredName()),
+                                    map.get(PinnedQueryBuilder.Item.ID_FIELD.getPreferredName())
+                                )
+                            )
+                            .toList();
+                        matchingPinnedDocs.addAll(items);
+                    }
+                }
+            }
+        }
+
+        List<String> pinnedIds = appliedRules.pinnedIds();
+        List<PinnedQueryBuilder.Item> pinnedDocs = appliedRules.pinnedDocs();
+        pinnedIds.addAll(matchingPinnedIds);
+        pinnedDocs.addAll(matchingPinnedDocs);
+        return new AppliedQueryRules(pinnedIds, pinnedDocs);
     }
 }

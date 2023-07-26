@@ -195,7 +195,6 @@ public final class TokenService {
     );
 
     static final String TOKEN_DOC_TYPE = "token";
-    private static final int HASHED_TOKEN_LENGTH = 43;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_LENGTH = 22;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
@@ -297,7 +296,7 @@ public final class TokenService {
     // public for testing
     public void createOAuth2Tokens(
         String accessToken,
-        String refreshToken,
+        @Nullable String refreshToken,
         Authentication authentication,
         Authentication originatingClientAuth,
         Map<String, Object> metadata,
@@ -341,7 +340,7 @@ public final class TokenService {
      */
     private void createOAuth2Tokens(
         String accessToken,
-        String refreshToken,
+        @Nullable String refreshToken,
         TransportVersion tokenVersion,
         SecurityIndexManager tokensIndex,
         Authentication authentication,
@@ -363,12 +362,14 @@ public final class TokenService {
             final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
             final String storedAccessToken;
             final String storedRefreshToken;
+            final String returnedRefreshToken;
             if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
                 storedAccessToken = hashTokenString(accessToken);
                 storedRefreshToken = (null == refreshToken) ? null : hashTokenString(refreshToken);
+                returnedRefreshToken = (null == refreshToken) ? null : prependVersionAndEncodeRefreshToken(tokenVersion, refreshToken);
             } else {
                 storedAccessToken = accessToken;
-                storedRefreshToken = refreshToken;
+                returnedRefreshToken = storedRefreshToken = refreshToken;
             }
             final UserToken userToken = new UserToken(storedAccessToken, tokenVersion, tokenAuth, getExpirationTime(), metadata);
             final BytesReference tokenDocument = createTokenDocument(userToken, storedRefreshToken, originatingClientAuth);
@@ -389,18 +390,8 @@ public final class TokenService {
                     indexTokenRequest,
                     ActionListener.wrap(indexResponse -> {
                         if (indexResponse.getResult() == Result.CREATED) {
-                            final String versionedAccessToken = prependVersionAndEncodeAccessToken(tokenVersion, accessToken);
-                            if (tokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
-                                final String versionedRefreshToken = refreshToken != null
-                                    ? prependVersionAndEncodeRefreshToken(tokenVersion, refreshToken)
-                                    : null;
-                                listener.onResponse(new CreateTokenResult(versionedAccessToken, versionedRefreshToken, authentication));
-                            } else {
-                                // prior versions of the refresh token are not version-prepended, as nodes on those
-                                // versions don't expect it.
-                                // Such nodes might exist in a mixed cluster during a rolling upgrade.
-                                listener.onResponse(new CreateTokenResult(versionedAccessToken, refreshToken, authentication));
-                            }
+                            String returnedAccessToken = prependVersionAndEncodeAccessToken(tokenVersion, accessToken);
+                            listener.onResponse(new CreateTokenResult(returnedAccessToken, returnedRefreshToken, authentication));
                         } else {
                             listener.onFailure(
                                 traceLog("create token", new ElasticsearchException("failed to create token document [{}]", indexResponse))
@@ -543,13 +534,8 @@ public final class TokenService {
                     return;
                 }
                 final String accessToken = in.readString();
-                // TODO Remove this conditional after backporting to 7.x
-                if (version.onOrAfter(VERSION_HASHED_TOKENS)) {
-                    final String userTokenId = hashTokenString(accessToken);
-                    getUserTokenFromId(userTokenId, version, listener);
-                } else {
-                    getUserTokenFromId(accessToken, version, listener);
-                }
+                final String userTokenId = hashTokenString(accessToken);
+                getUserTokenFromId(userTokenId, version, listener);
             } else {
                 // The token was created in a < VERSION_ACCESS_TOKENS_UUIDS cluster so we need to decrypt it to get the tokenId
                 if (in.available() < LEGACY_MINIMUM_BYTES) {
@@ -579,7 +565,6 @@ public final class TokenService {
                         } else {
                             // could happen with a token that is not ours
                             listener.onResponse(null);
-                            return;
                         }
                     }, listener::onFailure));
                 } else {
@@ -622,21 +607,6 @@ public final class TokenService {
                     listener.onFailure(unableToPerformAction(e));
                 }
             }));
-        }
-    }
-
-    /**
-     * This method performs the steps necessary to invalidate a token so that it may no longer be used.
-     */
-    public void invalidateAccessToken(UserToken userToken, ActionListener<TokensInvalidationResult> listener) {
-        ensureEnabled();
-        if (userToken == null) {
-            logger.trace("No access token provided");
-            listener.onFailure(new IllegalArgumentException("access token must be provided"));
-        } else {
-            maybeStartTokenRemover();
-            final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-            indexInvalidation(Collections.singleton(userToken), backoff, "access_token", null, listener);
         }
     }
 
@@ -734,7 +704,8 @@ public final class TokenService {
      * @param tokenTuples The user token tuples for which access and refresh tokens (if exist) should be invalidated
      * @param listener  the listener to notify upon completion
      */
-    private void invalidateAllTokens(Collection<Tuple<UserToken, String>> tokenTuples, ActionListener<TokensInvalidationResult> listener) {
+    public void invalidateAllTokens(Collection<Tuple<UserToken, String>> tokenTuples, ActionListener<TokensInvalidationResult> listener) {
+        ensureEnabled();
         maybeStartTokenRemover();
 
         // Invalidate the refresh tokens first so that they cannot be used to get new
@@ -992,35 +963,26 @@ public final class TokenService {
             );
             findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
         } else {
-            if (refreshToken.length() == HASHED_TOKEN_LENGTH) {
-                logger.debug("Assuming a hashed refresh token [{}] retrieved from the tokens index", refreshToken);
-                findTokenFromRefreshToken(refreshToken, securityTokensIndex, backoff, listener);
+            logger.debug("Assuming a refresh token [{}] provided from a client", refreshToken);
+            final TransportVersion refreshTokenVersion;
+            final String unencodedRefreshToken;
+            final Tuple<TransportVersion, String> versionAndRefreshTokenTuple;
+            try {
+                versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
+                refreshTokenVersion = versionAndRefreshTokenTuple.v1();
+                unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
+            } catch (IOException e) {
+                logger.debug(() -> "Could not decode refresh token [" + refreshToken + "].", e);
+                listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+                return;
+            }
+            if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
+                logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
+                listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
             } else {
-                logger.debug("Assuming a refresh token [{}] provided from a client", refreshToken);
-                final TransportVersion refreshTokenVersion;
-                final String unencodedRefreshToken;
-                final Tuple<TransportVersion, String> versionAndRefreshTokenTuple;
-                try {
-                    versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
-                    refreshTokenVersion = versionAndRefreshTokenTuple.v1();
-                    unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
-                } catch (IOException e) {
-                    logger.debug(() -> "Could not decode refresh token [" + refreshToken + "].", e);
-                    listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
-                    return;
-                }
-                if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
-                    logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
-                    listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
-                } else {
-                    // TODO Remove this conditional after backporting to 7.x
-                    if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
-                        final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
-                        findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
-                    } else {
-                        findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
-                    }
-                }
+                assert refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS);
+                final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
+                findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
             }
         }
     }
@@ -2057,7 +2019,6 @@ public final class TokenService {
             TransportVersion.writeVersion(version, out);
             out.writeString(payload);
             return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
-
         } catch (IOException e) {
             throw new RuntimeException("Unexpected exception when working with small in-memory streams", e);
         }

@@ -60,7 +60,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 public class MockRepository extends FsRepository {
     private static final Logger logger = LogManager.getLogger(MockRepository.class);
@@ -517,7 +516,7 @@ public class MockRepository extends FsRepository {
                 final Map<String, BlobMetadata> blobs = listBlobs();
                 long deleteBlobCount = blobs.size();
                 long deleteByteCount = 0L;
-                for (String blob : blobs.values().stream().map(BlobMetadata::name).collect(Collectors.toList())) {
+                for (String blob : blobs.values().stream().map(BlobMetadata::name).toList()) {
                     maybeIOExceptionOrBlock(blob);
                     deleteBlobsIgnoringIfNotExists(Iterators.single(blob));
                     deleteByteCount += blobs.get(blob).length();

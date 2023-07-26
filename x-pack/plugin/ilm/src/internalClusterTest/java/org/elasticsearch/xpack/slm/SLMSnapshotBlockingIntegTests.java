@@ -148,7 +148,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
         // Cancel/delete the snapshot
         try {
-            client().admin().cluster().prepareDeleteSnapshot(REPO, snapshotName).get();
+            clusterAdmin().prepareDeleteSnapshot(REPO, snapshotName).get();
         } catch (SnapshotMissingException e) {
             // ignore
         }
@@ -246,7 +246,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             // Check that the snapshot created by the policy has been removed by retention
             assertBusy(() -> {
                 // Trigger a cluster state update so that it re-checks for a snapshot in progress
-                client().admin().cluster().prepareReroute().get();
+                clusterAdmin().prepareReroute().get();
                 logger.info("--> waiting for snapshot to be deleted");
                 try {
                     SnapshotsStatusResponse s = getSnapshotStatus(completedSnapshotName);
@@ -260,7 +260,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             assertBusy(() -> {
                 try {
                     logger.info("--> cancelling snapshot {}", secondSnapName);
-                    client().admin().cluster().prepareDeleteSnapshot(REPO, secondSnapName).get();
+                    clusterAdmin().prepareDeleteSnapshot(REPO, secondSnapName).get();
                 } catch (ConcurrentSnapshotExecutionException e) {
                     logger.info("--> attempted to stop second snapshot", e);
                     // just wait and retry
@@ -347,7 +347,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 logger.info("-->  stopping random data node, which should cause shards to go missing");
                 internalCluster().stopRandomDataNode();
                 assertBusy(
-                    () -> assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
+                    () -> assertEquals(ClusterHealthStatus.RED, clusterAdmin().prepareHealth().get().getStatus()),
                     30,
                     TimeUnit.SECONDS
                 );
@@ -377,9 +377,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             logger.info("-->  verify that snapshot [{}] is {}", failedSnapshotName.get(), expectedUnsuccessfulState);
             assertBusy(() -> {
                 try {
-                    GetSnapshotsResponse snapshotsStatusResponse = client().admin()
-                        .cluster()
-                        .prepareGetSnapshots(REPO)
+                    GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO)
                         .setSnapshots(failedSnapshotName.get())
                         .get();
                     SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
@@ -401,7 +399,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         AtomicReference<String> successfulSnapshotName = new AtomicReference<>();
         {
             logger.info("--> deleting old index [{}], as it is now missing shards", indexName);
-            assertAcked(client().admin().indices().prepareDelete(indexName).get());
+            assertAcked(indicesAdmin().prepareDelete(indexName).get());
             createAndPopulateIndex(indexName);
 
             logger.info("--> unblocking snapshots");
@@ -421,9 +419,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             assertBusy(() -> {
                 final SnapshotInfo snapshotInfo;
                 try {
-                    GetSnapshotsResponse snapshotsStatusResponse = client().admin()
-                        .cluster()
-                        .prepareGetSnapshots(REPO)
+                    GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO)
                         .setSnapshots(successfulSnapshotName.get())
                         .execute()
                         .actionGet();
@@ -438,9 +434,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         // Check that the failed snapshot from before still exists, now that retention has run
         {
             logger.info("-->  verify that snapshot [{}] still exists", failedSnapshotName.get());
-            GetSnapshotsResponse snapshotsStatusResponse = client().admin()
-                .cluster()
-                .prepareGetSnapshots(REPO)
+            GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO)
                 .setSnapshots(failedSnapshotName.get())
                 .get();
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
@@ -454,9 +448,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             logger.info("--> waiting for {} snapshot [{}] to be deleted", expectedUnsuccessfulState, failedSnapshotName.get());
             assertBusy(() -> {
                 try {
-                    GetSnapshotsResponse snapshotsStatusResponse = client().admin()
-                        .cluster()
-                        .prepareGetSnapshots(REPO)
+                    GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO)
                         .setSnapshots(failedSnapshotName.get())
                         .get();
                     assertThat(snapshotsStatusResponse.getSnapshots(), empty());
@@ -469,9 +461,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                     failedSnapshotName.get(),
                     successfulSnapshotName.get()
                 );
-                GetSnapshotsResponse snapshotsStatusResponse = client().admin()
-                    .cluster()
-                    .prepareGetSnapshots(REPO)
+                GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO)
                     .setSnapshots(successfulSnapshotName.get())
                     .get();
                 SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
@@ -530,11 +520,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         logger.info("--> waiting for {} snapshot to be deleted", snapshotName);
         assertBusy(() -> {
             try {
-                GetSnapshotsResponse snapshotsStatusResponse = client().admin()
-                    .cluster()
-                    .prepareGetSnapshots(REPO)
-                    .setSnapshots(snapshotName)
-                    .get();
+                GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO).setSnapshots(snapshotName).get();
                 assertThat(snapshotsStatusResponse.getSnapshots(), empty());
             } catch (SnapshotMissingException e) {
                 // This is what we want to happen
@@ -544,7 +530,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
     }
 
     private SnapshotsStatusResponse getSnapshotStatus(String snapshotName) {
-        return client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(snapshotName).get();
+        return clusterAdmin().prepareSnapshotStatus(REPO).setSnapshots(snapshotName).get();
     }
 
     private void createAndPopulateIndex(String indexName) throws InterruptedException {

@@ -1,6 +1,0 @@
-pr: 96540
-summary: Fix translation of queries involving Version vals
-area: SQL
-type: bug
-issues:
- - 96509

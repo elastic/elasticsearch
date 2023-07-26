@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -136,7 +137,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
         }).when(jobResultsProvider).getEstablishedMemoryUsage(anyString(), any(), any(), any(), any());
 
         if (isMaster) {
-            memoryTracker.refresh(persistentTasks, ActionListener.wrap(aVoid -> {}, ESTestCase::assertNull));
+            memoryTracker.refresh(persistentTasks, ActionTestUtils.assertNoFailureListener(aVoid -> {}));
         } else {
             AtomicReference<Exception> exception = new AtomicReference<>();
             memoryTracker.refresh(persistentTasks, ActionListener.wrap(e -> fail("Expected failure response"), exception::set));
@@ -209,7 +210,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
         }).when(jobResultsProvider).getEstablishedMemoryUsage(anyString(), any(), any(), any(), any());
 
         if (isMaster) {
-            memoryTracker.refresh(persistentTasks, toSkip, ActionListener.wrap(aVoid -> {}, ESTestCase::assertNull));
+            memoryTracker.refresh(persistentTasks, toSkip, ActionTestUtils.assertNoFailureListener(aVoid -> {}));
         } else {
             AtomicReference<Exception> exception = new AtomicReference<>();
             memoryTracker.refresh(persistentTasks, toSkip, ActionListener.wrap(e -> fail("Expected failure response"), exception::set));
@@ -335,10 +336,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
 
         if (isMaster) {
             AtomicReference<Long> refreshedMemoryRequirement = new AtomicReference<>();
-            memoryTracker.refreshAnomalyDetectorJobMemory(
-                jobId,
-                ActionListener.wrap(refreshedMemoryRequirement::set, ESTestCase::assertNull)
-            );
+            memoryTracker.refreshAnomalyDetectorJobMemory(jobId, ActionTestUtils.assertNoFailureListener(refreshedMemoryRequirement::set));
             if (haveEstablishedModelMemory) {
                 assertEquals(
                     Long.valueOf(modelBytes + Job.PROCESS_MEMORY_OVERHEAD.getBytes()),

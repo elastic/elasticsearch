@@ -114,3 +114,69 @@ teardown:
       search_application.get:
         name: test-nonexistent-search-application
 
+---
+"Get Search Application - Warning returned when indices and aliases are inconsistent":
+  - skip:
+      features: warnings
+
+  - do:
+      indices.create:
+        index: test-index3
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test-index1
+                alias: test-search-application-1
+            - add:
+                index: test-index2
+                alias: test-search-application-1
+            - add:
+                index: test-index3
+                alias: test-search-application-1
+
+  - do:
+      indices.delete:
+        index: test-index2
+        ignore: 404
+
+  - do:
+      warnings:
+        - "test-index2 index is in search application but not in associated alias"
+        - "test-index3 index is in alias but not associcated with search application"
+      search_application.get:
+        name: test-search-application-1
+
+  - match: { name: "test-search-application-1" }
+  - match: { indices: [ "test-index1", "test-index2" ] }
+  - match: { analytics_collection_name: "test-analytics" }
+  - match: {
+    template: {
+      script: {
+        source: {
+          query: {
+            query_string: {
+              query: "{{query_string}}"
+            }
+          }
+        },
+        lang: "mustache",
+        options: {
+          content_type: "application/json;charset=utf-8"
+        }
+      },
+      dictionary: {
+        query_string: {
+          type: string
+        }
+      }
+    }
+  }
+  - gte: { updated_at_millis: 0 }

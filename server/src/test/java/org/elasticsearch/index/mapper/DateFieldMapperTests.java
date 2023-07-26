@@ -747,7 +747,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             null,
             mock(ScriptService.class),
             true,
-            IndexVersion.CURRENT
+            IndexVersion.current()
         );
 
         @SuppressWarnings("unchecked")

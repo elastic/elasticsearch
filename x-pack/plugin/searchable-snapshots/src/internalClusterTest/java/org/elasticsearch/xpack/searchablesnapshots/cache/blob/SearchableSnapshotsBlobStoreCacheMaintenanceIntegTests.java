@@ -90,7 +90,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         assertThat(numberOfEntriesInCache, equalTo(mountedIndices.values().stream().mapToLong(Tuple::v2).sum()));
 
         final List<String> indicesToDelete = randomSubsetOf(randomIntBetween(1, mountedIndices.size()), mountedIndices.keySet());
-        assertAcked(client().admin().indices().prepareDelete(indicesToDelete.toArray(String[]::new)));
+        assertAcked(indicesAdmin().prepareDelete(indicesToDelete.toArray(String[]::new)));
 
         final long expectedDeletedEntriesInCache = mountedIndices.entrySet()
             .stream()
@@ -159,7 +159,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                 snapshotIndexName,
                 remainingMountedIndex
             );
-            assertAcked(client().admin().indices().prepareDelete(moreIndicesToDelete.toArray(String[]::new)));
+            assertAcked(indicesAdmin().prepareDelete(moreIndicesToDelete.toArray(String[]::new)));
 
             assertBusy(() -> {
                 refreshSystemIndex(true);
@@ -194,7 +194,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         }
 
         logger.info("--> deleting indices, maintenance service should clean up snapshot blob cache index");
-        assertAcked(client().admin().indices().prepareDelete("mounted-*"));
+        assertAcked(indicesAdmin().prepareDelete("mounted-*"));
         assertBusy(() -> {
             refreshSystemIndex(true);
             assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get(), 0L);
@@ -239,8 +239,8 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         indicesToDelete.add(randomFrom(otherMountedIndices.keySet()));
 
         assertAcked(systemClient().admin().indices().prepareDelete(SNAPSHOT_BLOB_CACHE_INDEX));
-        assertAcked(client().admin().indices().prepareDelete(indicesToDelete.toArray(String[]::new)));
-        assertAcked(client().admin().cluster().prepareDeleteRepository("repo"));
+        assertAcked(indicesAdmin().prepareDelete(indicesToDelete.toArray(String[]::new)));
+        assertAcked(clusterAdmin().prepareDeleteRepository("repo"));
         ensureClusterStateConsistency();
 
         assertThat(numberOfEntriesInCache(), equalTo(0L));
@@ -251,9 +251,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         );
         try {
             // restores the .snapshot-blob-cache index with - now obsolete - documents
-            final RestoreSnapshotResponse restoreResponse = client().admin()
-                .cluster()
-                .prepareRestoreSnapshot("backup", "backup")
+            final RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot("backup", "backup")
                 // We only want to restore the blob cache index. Since we can't do that by name, specify an index that doesn't exist and
                 // allow no indices - this way, only the indices resolved from the feature state will be resolved.
                 .setIndices("this-index-doesnt-exist-i-know-because-#-is-illegal-in-index-names")
@@ -343,7 +341,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
     }
 
     private Settings getIndexSettings(String indexName) {
-        return client().admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName);
+        return indicesAdmin().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName);
     }
 
     private Map<String, Tuple<Settings, Long>> mountRandomIndicesWithCache(String repositoryName, int min, int max) throws Exception {
@@ -395,11 +393,11 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
 
                 } else {
                     logger.info("--> mounted index [{}] did not generate any entry in cache", mountedIndex);
-                    assertAcked(client().admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot).get());
-                    assertAcked(client().admin().indices().prepareDelete(mountedIndex));
+                    assertAcked(clusterAdmin().prepareDeleteSnapshot(repositoryName, snapshot).get());
+                    assertAcked(indicesAdmin().prepareDelete(mountedIndex));
                 }
             }
-            assertAcked(client().admin().indices().prepareDelete(indexName));
+            assertAcked(indicesAdmin().prepareDelete(indexName));
             i += 1;
         }
         return Collections.unmodifiableMap(mountedIndices);

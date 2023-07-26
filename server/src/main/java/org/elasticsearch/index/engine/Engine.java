@@ -756,6 +756,13 @@ public abstract class Engine implements Closeable {
     public abstract boolean isTranslogSyncNeeded();
 
     /**
+     * Whether search idleness may be allowed to be considered for skipping a scheduled refresh.
+     */
+    public boolean allowSearchIdleOptimization() {
+        return true;
+    }
+
+    /**
      * Ensures that the location has been written to the underlying storage.
      */
     public abstract void asyncEnsureTranslogSynced(Translog.Location location, Consumer<Exception> listener);

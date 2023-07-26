@@ -11,6 +11,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -24,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -40,7 +43,10 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        this.queryRulesIndexService = new QueryRulesIndexService(client());
+        Set<Setting<?>> settingsSet = ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+        settingsSet.addAll(QueryRulesConfig.getSettings());
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
+        this.queryRulesIndexService = new QueryRulesIndexService(client(), clusterSettings);
     }
 
     @Override
@@ -121,27 +127,27 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
         {
             QueryRulesIndexService.QueryRulesetResult searchResponse = awaitListQueryRulesets(0, 10);
-            final List<String> rulesetIds = searchResponse.rulesetIds();
-            assertNotNull(rulesetIds);
-            assertThat(rulesetIds.size(), equalTo(10));
+            final List<QueryRulesetListItem> rulesets = searchResponse.rulesets();
+            assertNotNull(rulesets);
+            assertThat(rulesets.size(), equalTo(10));
             assertThat(searchResponse.totalResults(), equalTo(10L));
 
             for (int i = 0; i < numRulesets; i++) {
-                String rulesetId = rulesetIds.get(i);
+                String rulesetId = rulesets.get(i).rulesetId();
                 assertThat(rulesetId, equalTo("my_ruleset_" + i));
             }
         }
 
         {
             QueryRulesIndexService.QueryRulesetResult searchResponse = awaitListQueryRulesets(5, 10);
-            final List<String> rulesetIds = searchResponse.rulesetIds();
-            assertNotNull(rulesetIds);
-            assertThat(rulesetIds.size(), equalTo(5));
+            final List<QueryRulesetListItem> rulesets = searchResponse.rulesets();
+            assertNotNull(rulesets);
+            assertThat(rulesets.size(), equalTo(5));
             assertThat(searchResponse.totalResults(), equalTo(10L));
 
             for (int i = 0; i < 5; i++) {
                 int index = i + 5;
-                String rulesetId = rulesetIds.get(i);
+                String rulesetId = rulesets.get(i).rulesetId();
                 assertThat(rulesetId, equalTo("my_ruleset_" + index));
             }
         }

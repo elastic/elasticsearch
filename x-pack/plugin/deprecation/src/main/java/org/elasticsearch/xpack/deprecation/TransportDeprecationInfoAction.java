@@ -151,9 +151,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         DeprecationChecker.Components components,
         ActionListener<Map<String, List<DeprecationIssue>>> listener
     ) {
-        List<DeprecationChecker> enabledCheckers = checkers.stream()
-            .filter(c -> c.enabled(components.settings()))
-            .collect(Collectors.toList());
+        List<DeprecationChecker> enabledCheckers = checkers.stream().filter(c -> c.enabled(components.settings())).toList();
         if (enabledCheckers.isEmpty()) {
             listener.onResponse(Collections.emptyMap());
             return;

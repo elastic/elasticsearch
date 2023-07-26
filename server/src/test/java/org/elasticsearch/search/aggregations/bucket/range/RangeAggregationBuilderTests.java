@@ -82,7 +82,7 @@ public class RangeAggregationBuilderTests extends AbstractXContentSerializingTes
             default -> fail();
         }
         RangeAggregationBuilder mutant = new RangeAggregationBuilder(name).keyed(keyed).field(field);
-        ranges.stream().forEach(mutant::addRange);
+        ranges.forEach(mutant::addRange);
         return mutant;
     }
 

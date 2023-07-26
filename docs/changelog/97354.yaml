@@ -1,0 +1,6 @@
+pr: 97354
+summary: Fix `WordPiece` tokenization where stripping accents results in an empty
+  string
+area: Machine Learning
+type: bug
+issues: []

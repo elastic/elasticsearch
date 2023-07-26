@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -64,11 +65,11 @@ public class ClientHelperTests extends ESTestCase {
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
         final String origin = randomAlphaOfLengthBetween(4, 16);
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<ClusterHealthResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<ClusterHealthResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
             assertEquals(headerValue, threadContext.getHeader(headerName));
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         final ClusterHealthRequest request = new ClusterHealthRequest();
         threadContext.putHeader(headerName, headerValue);
@@ -95,11 +96,11 @@ public class ClientHelperTests extends ESTestCase {
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
         final String origin = randomAlphaOfLengthBetween(4, 16);
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<ClusterHealthResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<ClusterHealthResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
             assertEquals(headerValue, threadContext.getHeader(headerName));
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertEquals(origin, threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
@@ -127,11 +128,11 @@ public class ClientHelperTests extends ESTestCase {
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
         final String origin = randomAlphaOfLengthBetween(4, 16);
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<ClusterHealthResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<ClusterHealthResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
             assertEquals(headerValue, threadContext.getHeader(headerName));
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertEquals(origin, threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
@@ -155,10 +156,10 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<SearchResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<SearchResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertTrue(threadContext.getHeaders().isEmpty());
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertTrue(threadContext.getHeaders().isEmpty());
@@ -183,10 +184,10 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<SearchResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<SearchResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertTrue(threadContext.getHeaders().isEmpty());
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertTrue(threadContext.getHeaders().isEmpty());
@@ -214,10 +215,10 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<SearchResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<SearchResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertTrue(threadContext.getHeaders().isEmpty());
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertThat(threadContext.getHeaders().size(), equalTo(2));

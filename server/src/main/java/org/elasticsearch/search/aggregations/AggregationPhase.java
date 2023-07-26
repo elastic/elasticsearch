@@ -44,6 +44,7 @@ public class AggregationPhase {
         if (context.aggregations().factories().context() != null
             && context.aggregations().factories().context().isInSortOrderExecutionRequired()) {
             TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
+            searcher.setMinimumScore(context.minimumScore());
             searcher.setProfiler(context);
             try {
                 searcher.search(context.rewrittenQuery(), bucketCollector);

@@ -285,7 +285,11 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
         public void onResponse(MultiGetResponse multiGetItemResponses) {
             for (MultiGetItemResponse trace : multiGetItemResponses) {
-                if (trace.isFailed() == false && trace.getResponse().isExists()) {
+                if (trace.isFailed()) {
+                    submitListener.onFailure(trace.getFailure().getFailure());
+                    return;
+                }
+                if (trace.getResponse().isExists()) {
                     String id = trace.getId();
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (stackTracePerId.containsKey(id) == false) {
@@ -445,7 +449,11 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
         public void onStackFramesResponse(MultiGetResponse multiGetItemResponses) {
             for (MultiGetItemResponse frame : multiGetItemResponses) {
-                if (frame.isFailed() == false && frame.getResponse().isExists()) {
+                if (frame.isFailed()) {
+                    submitListener.onFailure(frame.getFailure().getFailure());
+                    return;
+                }
+                if (frame.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (stackFrames.containsKey(frame.getId()) == false) {
                         stackFrames.putIfAbsent(frame.getId(), StackFrame.fromSource(frame.getResponse().getSource()));
@@ -457,7 +465,11 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
         public void onExecutableDetailsResponse(MultiGetResponse multiGetItemResponses) {
             for (MultiGetItemResponse executable : multiGetItemResponses) {
-                if (executable.isFailed() == false && executable.getResponse().isExists()) {
+                if (executable.isFailed()) {
+                    submitListener.onFailure(executable.getFailure().getFailure());
+                    return;
+                }
+                if (executable.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (executables.containsKey(executable.getId()) == false) {
                         executables.put(executable.getId(), ObjectPath.eval("Executable.file.name", executable.getResponse().getSource()));

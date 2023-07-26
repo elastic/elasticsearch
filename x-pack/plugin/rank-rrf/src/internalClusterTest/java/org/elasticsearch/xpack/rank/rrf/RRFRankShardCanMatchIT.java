@@ -107,11 +107,6 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
     }
 
     @Override
-    protected int minimumNumberOfReplicas() {
-        return 0;
-    }
-
-    @Override
     protected int maximumNumberOfReplicas() {
         return 0;
     }
@@ -146,7 +141,7 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
             shardB = b;
         }
 
-        client().admin().indices().prepareRefresh("value_index").get();
+        indicesAdmin().prepareRefresh("value_index").get();
 
         // match 2 separate shard with no overlap in queries
         SearchResponse response = client().prepareSearch("value_index")

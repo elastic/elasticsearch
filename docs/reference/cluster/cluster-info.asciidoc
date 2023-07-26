@@ -1,5 +1,8 @@
 [[cluster-info]]
 === Cluster Info API
+
+experimental::[]
+
 ++++
 <titleabbrev>Cluster Info</titleabbrev>
 ++++

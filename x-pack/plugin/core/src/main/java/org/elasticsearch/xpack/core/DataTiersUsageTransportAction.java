@@ -79,7 +79,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             .prepareNodesStats()
             .all()
             .setIndices(CommonStatsFlags.ALL)
-            .execute(ActionListener.wrap(nodesStatsResponse -> {
+            .execute(listener.delegateFailureAndWrap((delegate, nodesStatsResponse) -> {
                 final RoutingNodes routingNodes = state.getRoutingNodes();
                 final Map<String, IndexMetadata> indices = state.getMetadata().getIndices();
 
@@ -93,8 +93,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                     routingNodes
                 );
 
-                listener.onResponse(new XPackUsageFeatureResponse(new DataTiersFeatureSetUsage(tierSpecificStats)));
-            }, listener::onFailure));
+                delegate.onResponse(new XPackUsageFeatureResponse(new DataTiersFeatureSetUsage(tierSpecificStats)));
+            }));
     }
 
     // Visible for testing

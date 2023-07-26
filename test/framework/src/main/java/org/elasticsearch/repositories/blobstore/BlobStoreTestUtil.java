@@ -187,11 +187,7 @@ public final class BlobStoreTestUtil {
     }
 
     private static void assertIndexUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
-        final List<String> expectedIndexUUIDs = repositoryData.getIndices()
-            .values()
-            .stream()
-            .map(IndexId::getId)
-            .collect(Collectors.toList());
+        final List<String> expectedIndexUUIDs = repositoryData.getIndices().values().stream().map(IndexId::getId).toList();
         final BlobContainer indicesContainer = repository.blobContainer().children().get("indices");
         final List<String> foundIndexUUIDs;
         if (indicesContainer == null) {
@@ -231,7 +227,7 @@ public final class BlobStoreTestUtil {
     ) throws IOException {
         final BlobContainer repoRoot = repository.blobContainer();
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-        final List<String> expectedSnapshotUUIDs = snapshotIds.stream().map(SnapshotId::getUUID).collect(Collectors.toList());
+        final List<String> expectedSnapshotUUIDs = snapshotIds.stream().map(SnapshotId::getUUID).toList();
         for (String prefix : new String[] { BlobStoreRepository.SNAPSHOT_PREFIX, BlobStoreRepository.METADATA_PREFIX }) {
             final Collection<String> foundSnapshotUUIDs = repoRoot.listBlobs()
                 .keySet()

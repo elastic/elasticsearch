@@ -134,10 +134,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         Map<DeprecationIssue, List<String>> issueToListOfNodesMap = new HashMap<>();
         for (List<Tuple<DeprecationIssue, String>> similarIssues : issuesToMerge) {
             DeprecationIssue leastCommonDenominator = DeprecationIssue.getIntersectionOfRemovableSettings(
-                similarIssues.stream().map(Tuple::v1).collect(Collectors.toList())
+                similarIssues.stream().map(Tuple::v1).toList()
             );
             issueToListOfNodesMap.computeIfAbsent(leastCommonDenominator, (key) -> new ArrayList<>())
-                .addAll(similarIssues.stream().map(Tuple::v2).collect(Collectors.toList()));
+                .addAll(similarIssues.stream().map(Tuple::v2).toList());
         }
         return issueToListOfNodesMap;
     }

@@ -115,10 +115,10 @@
   - match: {component_templates.0.name: baz}
 
 ---
-"Add data lifecycle":
+"Add data stream lifecycle":
   - skip:
       version: " - 8.8.99"
-      reason: "Data Lifecycle template was added after 8.8"
+      reason: "Data stream lifecycle template was added after 8.8"
 
   - do:
       cluster.put_component_template:
@@ -142,10 +142,10 @@
   - match: {component_templates.0.component_template.template.lifecycle: {data_retention: "10d"}}
 
 ---
-"Get data lifecycle with default rollover":
+"Get data stream lifecycle with default rollover":
   - skip:
       version: " - 8.8.99"
-      reason: "Data Lifecycle template was added after 8.8"
+      reason: "Data stream lifecycle template was added after 8.8"
 
   - do:
       cluster.put_component_template:

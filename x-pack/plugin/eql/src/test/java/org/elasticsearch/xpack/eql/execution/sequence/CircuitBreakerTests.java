@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -24,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -144,7 +144,7 @@ public class CircuitBreakerTests extends ESTestCase {
             CIRCUIT_BREAKER
         );
         TumblingWindow window = new TumblingWindow(client, criteria, null, matcher, Collections.emptyList());
-        window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
+        window.execute(ActionTestUtils.assertNoFailureListener(p -> {}));
 
         CIRCUIT_BREAKER.startBreaking();
 
@@ -155,7 +155,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
         CIRCUIT_BREAKER.stopBreaking();
 
-        window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
+        window.execute(ActionTestUtils.assertNoFailureListener(p -> {}));
     }
 
     public void testCircuitBreakerSequenceMatcher() {
@@ -223,7 +223,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 eqlCircuitBreaker
             );
             TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
-            window.execute(wrap(p -> {}, ex -> {}));
+            window.execute(ActionListener.noop());
 
             assertTrue(esClient.searchRequestsRemainingCount() == 0); // ensure all the search requests have been asked for
             assertEquals(0, eqlCircuitBreaker.getTrippedCount()); // the circuit breaker shouldn't trip

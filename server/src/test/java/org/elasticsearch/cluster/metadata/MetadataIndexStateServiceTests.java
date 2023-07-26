@@ -37,7 +37,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -376,7 +376,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             shardsBuilder,
             null,
             SnapshotInfoTestUtils.randomUserMetadata(),
-            VersionUtils.randomVersion(random())
+            IndexVersionUtils.randomVersion(random())
         );
         return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(entry)).build();
     }

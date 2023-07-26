@@ -41,7 +41,6 @@ Cluster Coordination::
 * Avoid `getStateForMasterService` where possible {es-pull}97304[#97304]
 * Become candidate on publication failure {es-pull}96490[#96490] (issue: {es-issue}96273[#96273])
 * Fix cluster settings update task acknowledgment {es-pull}97111[#97111]
-* Improve exception handling in Coordinator#publish {es-pull}97840[#97840] (issue: {es-issue}97798[#97798])
 
 Data streams::
 * Accept timestamp as object at root level {es-pull}97401[#97401]
@@ -143,7 +142,6 @@ Application::
 
 Authentication::
 * Header validator with Security {es-pull}95112[#95112]
-* Upgrade xmlsec to 2.1.8 {es-pull}97741[#97741]
 
 Authorization::
 * Add Search ALC filter index prefix to the enterprise search user {es-pull}96885[#96885]
@@ -166,9 +164,6 @@ Data streams::
 * Change default of `ignore_malformed` to `true` in `logs-*-*` data streams {es-pull}95329[#95329] (issue: {es-issue}95224[#95224])
 * Set `@timestamp` for documents in logs data streams if missing and add support for custom pipeline {es-pull}95971[#95971] (issues: {es-issue}95537[#95537], {es-issue}95551[#95551])
 * Update data streams implicit timestamp `ignore_malformed` settings {es-pull}96051[#96051]
-
-EQL::
-* Sequence - add support for missing events {es-pull}92348[#92348]
 
 Engine::
 * Cache modification time of translog writer file {es-pull}95107[#95107]

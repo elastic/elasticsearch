@@ -102,6 +102,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -568,6 +569,31 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                         store.decRef();
                     }
                     return null;
+                });
+            }
+
+            @Override
+            public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+                ActionListener.run(listener, l -> {
+                    if (indexShard.routingEntry().isPromotableToPrimary()) {
+                        Engine engineOrNull = indexShard.getEngineOrNull();
+                        if (engineOrNull instanceof IndexEngine engine) {
+                            long currentGeneration = engine.getCurrentGeneration();
+                            if (currentGeneration > statelessCommitService.getRecoveredGeneration(indexShard.shardId())) {
+                                ShardId shardId = indexShard.shardId();
+                                statelessCommitService.addListenerForUploadedGeneration(shardId, engine.getCurrentGeneration(), l);
+                            } else {
+                                engine.flush(true, true, l.map(f -> null));
+                            }
+                        } else if (engineOrNull == null) {
+                            throw new IllegalStateException("Engine is null");
+                        } else {
+                            assert engineOrNull instanceof NoOpEngine;
+                            l.onResponse(null);
+                        }
+                    } else {
+                        l.onResponse(null);
+                    }
                 });
             }
         });

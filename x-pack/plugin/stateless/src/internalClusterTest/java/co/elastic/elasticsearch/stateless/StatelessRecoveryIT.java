@@ -796,6 +796,39 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
     }
 
+    public void testRecoveryMarksNewNodeInCommit() throws Exception {
+        String initialNode = startIndexNodes(1).get(0);
+        startSearchNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.MINUTES)).build()
+        );
+        ensureGreen(indexName);
+
+        int numDocsRound1 = randomIntBetween(1, 100);
+        indexDocs(indexName, numDocsRound1);
+        refresh(indexName);
+
+        assertHitCount(client().prepareSearch(indexName).get(), numDocsRound1);
+
+        internalCluster().stopNode(initialNode);
+        // second replacement node. we are checking here that green state == flush occurred so that the third node recovers from the correct
+        // commit which will reference the buffered translog operations written on the second node
+        String secondNode = startIndexNode();
+
+        ensureGreen(indexName);
+
+        int numDocsRound2 = randomIntBetween(1, 100);
+        indexDocs(indexName, numDocsRound2);
+
+        internalCluster().stopNode(secondNode);
+        startIndexNode(); // third replacement node
+        ensureGreen(indexName);
+
+        assertHitCount(client().prepareSearch(indexName).get(), numDocsRound1 + numDocsRound2);
+    }
+
     private List<RecoveryState> findRecoveriesForTargetNode(String nodeName, List<RecoveryState> recoveryStates) {
         List<RecoveryState> nodeResponses = new ArrayList<>();
         for (RecoveryState recoveryState : recoveryStates) {

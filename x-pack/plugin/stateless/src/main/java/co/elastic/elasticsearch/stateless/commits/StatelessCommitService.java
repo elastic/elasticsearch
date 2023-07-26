@@ -108,6 +108,10 @@ public class StatelessCommitService {
         commitState.markRecoveredCommit(commit);
     }
 
+    public long getRecoveredGeneration(ShardId shardId) {
+        return getSafe(fileToBlobFile, shardId).recoveredGeneration;
+    }
+
     public void markCommitDeleted(ShardId shardId, Collection<String> commitFiles) {
         ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
         commitState.markCommitDeleted(commitFiles);

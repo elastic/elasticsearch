@@ -548,8 +548,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         });
 
         // at this point, the write index of the data stream is managed by data stream lifecycle and not by ILM anymore so we can just index
-        // one document
-        // to trigger the rollover
+        // one document to trigger the rollover
         indexDocs(dataStreamName, 1);
 
         // data stream was rolled over and has 4 indices, 2 managed by ILM, and 2 managed by the data stream lifecycle
@@ -598,6 +597,50 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             for (ExplainIndexDataStreamLifecycle index : dataStreamLifecycleExplainResponse.getIndices()) {
                 assertThat(index.isManagedByLifecycle(), is(true));
             }
+        });
+
+        // Then we opt out the data stream lifecycle
+        // let's migrate this data stream to use the data stream lifecycle starting with the next generation
+        client().execute(
+            PutDataStreamLifecycleAction.INSTANCE,
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90), false)
+        );
+
+        // At this point the data stream is not managed by the data stream lifecycle and all the indices fallback to ILM.
+        assertBusy(() -> {
+            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
+            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
+            String thirdGenerationIndex = getDefaultBackingIndexName(dataStreamName, 3);
+            String writeIndex = getDefaultBackingIndexName(dataStreamName, 4);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
+                firstGenerationIndex,
+                secondGenerationIndex,
+                thirdGenerationIndex,
+                writeIndex
+            );
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
+
+            IndexLifecycleExplainResponse firstGenerationExplain = explainResponse.getIndexResponses().get(firstGenerationIndex);
+            assertThat(firstGenerationExplain.managedByILM(), is(true));
+            assertThat(firstGenerationExplain.getPhase(), is("hot"));
+            assertThat(firstGenerationExplain.getStep(), is(PhaseCompleteStep.NAME));
+
+            IndexLifecycleExplainResponse secondGenerationExplain = explainResponse.getIndexResponses().get(secondGenerationIndex);
+            assertThat(secondGenerationExplain.managedByILM(), is(true));
+            assertThat(secondGenerationExplain.getPhase(), is("hot"));
+            assertThat(secondGenerationExplain.getStep(), is(PhaseCompleteStep.NAME));
+
+            // ILM is not managing this index again
+            IndexLifecycleExplainResponse thirdGenerationExplain = explainResponse.getIndexResponses().get(thirdGenerationIndex);
+            assertThat(thirdGenerationExplain.managedByILM(), is(true));
+            assertThat(thirdGenerationExplain.getPhase(), is("hot"));
+            assertThat(thirdGenerationExplain.getStep(), is(PhaseCompleteStep.NAME));
+
+            // the write index is managed by the ILM as well
+            IndexLifecycleExplainResponse writeIndexExplain = explainResponse.getIndexResponses().get(writeIndex);
+            assertThat(writeIndexExplain.managedByILM(), is(true));
+            assertThat(writeIndexExplain.getPhase(), is("hot"));
+            assertThat(writeIndexExplain.getStep(), is(WaitForRolloverReadyStep.NAME));
         });
     }
 

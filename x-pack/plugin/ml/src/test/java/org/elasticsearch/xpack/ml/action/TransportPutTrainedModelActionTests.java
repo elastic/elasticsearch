@@ -10,12 +10,9 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -56,6 +53,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.mockListTasksClient;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -128,8 +126,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCheckForExistingTaskCallsOnFailureForAnError() {
-        var client = mock(Client.class);
-        setupClusterClient(client);
+        var client = mockListTasksClient();
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -148,8 +145,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCheckForExistingTaskCallsStoreModelListenerWhenNoTasksExist() {
-        var client = mock(Client.class);
-        prepareTasksResponse(client, Collections.emptyList());
+        var client = prepareTasksResponse(Collections.emptyList());
 
         var storeListener = new PlainActionFuture<Void>();
 
@@ -159,8 +155,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCheckForExistingTaskThrowsNoModelFoundError() {
-        var client = mock(Client.class);
-        prepareTasksResponse(client, List.of(getTaskInfo()));
+        var client = prepareTasksResponse(List.of(getTaskInfo()));
         prepareGetTrainedModelResponse(client, Collections.emptyList());
 
         var respListener = new PlainActionFuture<PutTrainedModelAction.Response>();
@@ -171,8 +166,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCheckForExistingTaskReturnsTask() {
-        var client = mock(Client.class);
-        prepareTasksResponse(client, List.of(getTaskInfo()));
+        var client = prepareTasksResponse(List.of(getTaskInfo()));
 
         TrainedModelConfig trainedModel = TrainedModelConfigTests.createTestInstance("modelId")
             .setTags(Collections.singletonList("prepackaged"))
@@ -188,8 +182,8 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         assertThat(returnedModel.getResponse().getModelId(), is(trainedModel.getModelId()));
     }
 
-    private static void prepareTasksResponse(Client client, List<TaskInfo> taskInfo) {
-        setupClusterClient(client);
+    private static Client prepareTasksResponse(List<TaskInfo> taskInfo) {
+        var client = mockListTasksClient();
 
         var listTasksResponse = mock(ListTasksResponse.class);
         when(listTasksResponse.getTasks()).thenReturn(taskInfo);
@@ -201,15 +195,8 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
 
             return Void.TYPE;
         }).when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
-    }
 
-    private static void setupClusterClient(Client client) {
-        var cluster = mock(ClusterAdminClient.class);
-        var admin = mock(AdminClient.class);
-
-        when(client.admin()).thenReturn(admin);
-        when(admin.cluster()).thenReturn(cluster);
-        when(cluster.prepareListTasks()).thenReturn(new ListTasksRequestBuilder(client, ListTasksAction.INSTANCE));
+        return client;
     }
 
     private static void prepareGetTrainedModelResponse(Client client, List<TrainedModelConfig> trainedModels) {

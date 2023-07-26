@@ -40,7 +40,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -52,7 +51,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Request;
@@ -70,6 +68,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+import org.elasticsearch.xpack.ml.utils.TaskRetriever;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -80,7 +79,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.MlTasks.downloadModelTaskDescription;
 
 public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -347,7 +345,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         ActionListener<Response> sendResponseListener,
         ActionListener<Void> storeModelListener
     ) {
-        getExistingTaskInfo(client, modelId, isWaitForCompletion, ActionListener.wrap(taskInfo -> {
+        TaskRetriever.getExistingTaskInfo(client, modelId, isWaitForCompletion, ActionListener.wrap(taskInfo -> {
             if (taskInfo != null) {
                 getModelInformation(client, modelId, sendResponseListener);
             } else {
@@ -355,35 +353,6 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                 storeModelListener.onResponse(null);
             }
         }, sendResponseListener::onFailure));
-    }
-
-    private static void getExistingTaskInfo(Client client, String modelId, boolean waitForCompletion, ActionListener<TaskInfo> listener) {
-        client.admin()
-            .cluster()
-            .prepareListTasks()
-            .setActions(MlTasks.MODEL_IMPORT_TASK_ACTION)
-            .setDetailed(true)
-            .setWaitForCompletion(waitForCompletion)
-            .setDescriptions(downloadModelTaskDescription(modelId))
-            .execute(ActionListener.wrap((response) -> {
-                var tasks = response.getTasks();
-
-                if (tasks.size() > 0) {
-                    // there really shouldn't be more than a single task but if there is we'll just use the first one
-                    listener.onResponse(tasks.get(0));
-                } else {
-                    listener.onResponse(null);
-                }
-            }, e -> {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Unable to retrieve task information for model id [{}]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        e,
-                        modelId
-                    )
-                );
-            }));
     }
 
     private static void getModelInformation(Client client, String modelId, ActionListener<Response> listener) {

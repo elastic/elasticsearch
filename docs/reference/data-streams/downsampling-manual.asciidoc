@@ -16,7 +16,7 @@ DELETE _ingest/pipeline/my-timestamp-pipeline
 
 The recommended way to downsample a time series data stream (TSDS) is
 <<downsampling-ilm,through index lifecycle management (ILM)>>. However, if
-you're not using ILM, you can downsample a TSDS manually. This guide show you
+you're not using ILM, you can downsample a TSDS manually. This guide shows you
 how, using typical Kubernetes cluster monitoring data. 
 
 To test out manual downsampling, follow these steps:

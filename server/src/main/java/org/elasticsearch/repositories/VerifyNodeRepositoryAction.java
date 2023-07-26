@@ -16,12 +16,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
@@ -91,22 +89,22 @@ public class VerifyNodeRepositoryAction {
                     node,
                     ACTION_NAME,
                     new VerifyNodeRepositoryRequest(repository, verificationToken),
-                    new EmptyTransportResponseHandler(EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+                    new EmptyTransportResponseHandler(new ActionListener<>() {
                         @Override
-                        public void handleResponse(TransportResponse.Empty response) {
+                        public void onResponse(Void unused) {
                             if (counter.decrementAndGet() == 0) {
                                 finishVerification(repository, listener, nodes, errors);
                             }
                         }
 
                         @Override
-                        public void handleException(TransportException exp) {
+                        public void onFailure(Exception exp) {
                             errors.add(new VerificationFailure(node.getId(), exp));
                             if (counter.decrementAndGet() == 0) {
                                 finishVerification(repository, listener, nodes, errors);
                             }
                         }
-                    }
+                    })
                 );
             }
         }

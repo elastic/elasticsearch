@@ -83,7 +83,7 @@ import static org.mockito.Mockito.when;
 public final class DataStreamTestHelper {
 
     private static final Version DATE_IN_BACKING_INDEX_VERSION = Version.V_7_11_0;
-    private static final Settings.Builder SETTINGS = ESTestCase.settings(Version.CURRENT).put("index.hidden", true);
+    private static final Settings.Builder SETTINGS = ESTestCase.settings(IndexVersion.current()).put("index.hidden", true);
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
 

@@ -122,7 +122,9 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         final long position = getAbsolutePosition();
         final int length = b.remaining();
 
-        logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
+        if (logger.isTraceEnabled()) {
+            logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
+        }
 
         try {
             final ByteRange blobCacheByteRange = rangeToReadFromBlobCache(position, length);

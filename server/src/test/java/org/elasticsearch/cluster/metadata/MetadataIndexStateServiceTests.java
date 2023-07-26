@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.elasticsearch.cluster.ClusterName;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -274,7 +274,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
                 .state(IndexMetadata.State.CLOSE)
                 .creationDate(randomNonNegativeLong())
-                .settings(indexSettings(Version.CURRENT, randomIntBetween(1, 3), randomIntBetween(0, 3)))
+                .settings(indexSettings(IndexVersion.current(), randomIntBetween(1, 3), randomIntBetween(0, 3)))
                 .build();
             assertFalse(MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata));
         }
@@ -390,7 +390,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         @Nullable final ClusterBlock block
     ) {
 
-        final Settings.Builder settings = indexSettings(Version.CURRENT, numShards, numReplicas);
+        final Settings.Builder settings = indexSettings(IndexVersion.current(), numShards, numReplicas);
         if (state == IndexMetadata.State.CLOSE) {
             settings.put(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true);
         }

@@ -68,7 +68,6 @@ import org.elasticsearch.transport.Transports;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -182,13 +181,13 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the file sizes for the current commit
      */
-    public List<SegmentFileSize> getLastCommittedSegmentFileSizes() {
+    public Map<String, Long> getLastCommittedSegmentFileSizes() {
         SegmentInfos segmentInfos = getLastCommittedSegmentInfos();
-        List<SegmentFileSize> segmentFileSizes = new ArrayList<>(segmentInfos.size());
+        Map<String, Long> segmentFileSizes = new HashMap<>();
         for (final SegmentCommitInfo commitInfo : segmentInfos) {
             String commitId = StringHelper.idToString(commitInfo.getId());
             try {
-                segmentFileSizes.add(new SegmentFileSize(commitId, commitInfo.sizeInBytes()));
+                segmentFileSizes.put(commitId, commitInfo.sizeInBytes());
             } catch (IOException err) {
                 logger.warn("Failed to read file size for shard: [{}], id: [{}], err: [{}]", shardId, commitId, err);
             }

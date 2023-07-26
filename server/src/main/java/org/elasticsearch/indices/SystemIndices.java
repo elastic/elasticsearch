@@ -36,7 +36,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.synonyms.SynonymsAPI;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,6 +53,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_DESCRIPTOR;
@@ -118,17 +118,10 @@ public class SystemIndices {
     /**
      * This is the source for non-plugin system features.
      */
-    private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS;
-
-    static {
-        Collection<Feature> indicesFeatures = new ArrayList<>();
-        indicesFeatures.add(new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR)));
-        if (SynonymsAPI.isEnabled()) {
-            indicesFeatures.add(new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR)));
-        }
-        SERVER_SYSTEM_FEATURE_DESCRIPTORS = indicesFeatures.stream()
-            .collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
-    }
+    private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS = Stream.of(
+        new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR)),
+        new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR))
+    ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
 
     /**
      * The node's full list of system features is stored here. The map is keyed

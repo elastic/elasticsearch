@@ -18,23 +18,31 @@
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
+import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.Arrays;
+import java.io.IOException;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD_NAME;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
 
-    public void testShardSizeWithoutTimestampField() throws InterruptedException {
+    private static final TimeValue DEFAULT_BOOST_WINDOW = TimeValue.timeValueDays(7);
+
+    public void testShardSizeWithoutTimestampField() throws Exception {
         startMasterOnlyNode();
         startIndexNode();
         startSearchNode();
@@ -45,13 +53,15 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
 
         var shardId = resolveShardId(index);
         var shard = findSearchShard(shardId.getIndex(), shardId.id());
-        var size = getShardSize(shard, randomNonNegativeLong());
-        // shards with no timestamp are considered interactive
-        assertThat(size.interactiveSizeInBytes(), greaterThan(0L));
-        assertThat(size.nonInteractiveSizeInBytes(), equalTo(0L));
+        assertBusy(() -> {
+            var size = getShardSize(shard, randomNonNegativeLong());
+            // shards with no timestamp are considered interactive
+            assertThat(size.interactiveSizeInBytes(), equalTo(getShardSizeFromObjectStore(shard)));
+            assertThat(size.nonInteractiveSizeInBytes(), equalTo(0L));
+        });
     }
 
-    public void testShardSizeWithNewDataStreamEntries() throws InterruptedException {
+    public void testShardSizeWithNewDataStreamEntries() throws Exception {
         startMasterOnlyNode();
         startIndexNode();
         startSearchNode();
@@ -60,17 +70,22 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
 
         var index = randomIdentifier();
         createIndex(index, indexSettings(1, 1).build());
-        indexRandom(index, builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(now - INTERACTIVE_AGE.millis() + 1, now)));
+        indexRandom(
+            index,
+            builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(now - DEFAULT_BOOST_WINDOW.millis() + 1, now))
+        );
 
         var shardId = resolveShardId(index);
         var shard = findSearchShard(shardId.getIndex(), shardId.id());
-        var size = getShardSize(shard, now);
-        // shards with no timestamp are considered interactive
-        assertThat(size.interactiveSizeInBytes(), greaterThan(0L));
-        assertThat(size.nonInteractiveSizeInBytes(), equalTo(0L));
+        assertBusy(() -> {
+            var size = getShardSize(shard, now);
+            // shards with no timestamp are considered interactive
+            assertThat(size.interactiveSizeInBytes(), equalTo(getShardSizeFromObjectStore(shard)));
+            assertThat(size.nonInteractiveSizeInBytes(), equalTo(0L));
+        });
     }
 
-    public void testShardSizeWithOldDataStreamEntries() throws InterruptedException {
+    public void testShardSizeWithOldDataStreamEntries() throws Exception {
         startMasterOnlyNode();
         startIndexNode();
         startSearchNode();
@@ -79,23 +94,31 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
 
         var index = randomIdentifier();
         createIndex(index, indexSettings(1, 1).build());
-        indexRandom(index, builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(0, now - INTERACTIVE_AGE.millis() - 1)));
+        indexRandom(
+            index,
+            builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(0, now - DEFAULT_BOOST_WINDOW.millis() - 1))
+        );
 
         var shardId = resolveShardId(index);
         var shard = findSearchShard(shardId.getIndex(), shardId.id());
-        var size = getShardSize(shard, now);
-        // shards with no timestamp are considered interactive
-        assertThat(size.interactiveSizeInBytes(), equalTo(0L));
-        assertThat(size.nonInteractiveSizeInBytes(), greaterThan(0L));
+        assertBusy(() -> {
+            var size = getShardSize(shard, now);
+            // shards with no timestamp are considered interactive
+            assertThat(size.interactiveSizeInBytes(), equalTo(0L));
+            assertThat(size.nonInteractiveSizeInBytes(), equalTo(getShardSizeFromObjectStore(shard)));
+        });
     }
 
-    private void indexRandom(String index, Consumer<IndexRequestBuilder> requestBuilder) throws InterruptedException {
+    private void indexRandom(String index, Consumer<IndexRequestBuilder> requestConfigurer) {
+        var bulkRequest = client().prepareBulk();
         int count = randomIntBetween(1, 100);
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[count];
         for (int i = 0; i < count; i++) {
-            requestBuilder.accept(builders[i] = client().prepareIndex(index));
+            var indexRequestBuilder = client().prepareIndex(index);
+            requestConfigurer.accept(indexRequestBuilder);
+            bulkRequest.add(indexRequestBuilder);
         }
-        indexRandom(true, Arrays.asList(builders));
+        assertNoFailures(bulkRequest.get());
+        refresh(index);
     }
 
     private static ShardId resolveShardId(String index) {
@@ -103,8 +126,22 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
     }
 
     private static ShardSize getShardSize(IndexShard shard, long currentTimeMillis) {
-        return new ShardSizeStatsReader(() -> currentTimeMillis, null).getShardSize(shard, INTERACTIVE_AGE);
+        return new ShardSizeStatsReader(() -> currentTimeMillis, null).getShardSize(shard, DEFAULT_BOOST_WINDOW);
     }
 
-    private static final TimeValue INTERACTIVE_AGE = TimeValue.timeValueDays(7);
+    private long getShardSizeFromObjectStore(IndexShard shard) throws IOException {
+        ObjectStoreService objectStoreService = internalCluster().getAnyMasterNodeInstance(ObjectStoreService.class);
+        BlobContainer blobContainerForCommit = objectStoreService.getBlobContainer(shard.shardId(), shard.getOperationPrimaryTerm());
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(shard.store().directory());
+        String commitFile = StatelessCompoundCommit.NAME + segmentInfos.getGeneration();
+        StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
+            new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
+            blobContainerForCommit.listBlobs().get(commitFile).length()
+        );
+        long size = 0L;
+        for (String localFile : segmentInfos.files(false)) {
+            size += commit.commitFiles().get(localFile).fileLength();
+        }
+        return size;
+    }
 }

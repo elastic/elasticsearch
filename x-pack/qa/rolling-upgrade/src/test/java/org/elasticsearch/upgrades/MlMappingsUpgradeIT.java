@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -133,8 +132,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             assertNotNull(indexLevel);
 
             assertEquals(SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION, extractValue("mappings._meta.version", indexLevel));
-            assertEquals(InferenceIndexConstants.INFERENCE_INDEX_MAPPINGS_VERSION, extractValue("mappings._meta.system-index-mappings-version",
-                indexLevel));
+            assertEquals(
+                InferenceIndexConstants.INFERENCE_INDEX_MAPPINGS_VERSION,
+                extractValue("mappings._meta.system-index-mappings-version", indexLevel)
+            );
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"
@@ -168,8 +169,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             assertNotNull(indexLevel);
 
             assertEquals(SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION, extractValue("mappings._meta.version", indexLevel));
-            assertEquals(AnnotationIndex.ANNOTATION_INDEX_MAPPINGS_VERSION, extractValue("mappings._meta.system-index-mappings-version",
-                indexLevel));
+            assertEquals(
+                AnnotationIndex.ANNOTATION_INDEX_MAPPINGS_VERSION,
+                extractValue("mappings._meta.system-index-mappings-version", indexLevel)
+            );
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that would be incorrectly mapped by dynamic
@@ -224,8 +227,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             assertNotNull(indexLevel);
 
             assertEquals(SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION, extractValue("mappings._meta.version", indexLevel));
-            assertEquals(MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION, extractValue("mappings._meta.system-index-mappings-version",
-                indexLevel));
+            assertEquals(
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION,
+                extractValue("mappings._meta.system-index-mappings-version", indexLevel)
+            );
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"

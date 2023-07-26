@@ -2014,8 +2014,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
             """));
         Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
         assertNotNull(mappingsUpdate);
-        assertNotNull(mappingsUpdate.getRoot().getMapper("metrics")); // TODO-MP should this be: metrics.service.time.max instead?
-
+        Mapper metricsMapper = mappingsUpdate.getRoot().getMapper("metrics");
+        assertNotNull(metricsMapper);
+        Mapper serviceMapper = ((ObjectMapper) metricsMapper).getMapper("service");
+        assertNotNull(serviceMapper);
+        assertNotNull(((ObjectMapper) serviceMapper).getMapper("time.max"));
         assertNotNull(doc.rootDoc().getField("metrics.service.time.max"));
     }
 
@@ -2037,7 +2040,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
         Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
 
         assertNotNull(mappingsUpdate);
-        assertNotNull(mappingsUpdate.getRoot().getMapper("metrics")); // TODO-MP should this be: metrics.service.test.with.dots.max instead?
+        Mapper metricsMapper = mappingsUpdate.getRoot().getMapper("metrics");
+        assertNotNull(metricsMapper);
+        Mapper serviceMapper = ((ObjectMapper) metricsMapper).getMapper("service");
+        assertNotNull(serviceMapper);
+        assertNotNull(((ObjectMapper) serviceMapper).getMapper("test.with.dots.max"));
         assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots.max"));
     }
 

@@ -457,15 +457,15 @@ public final class DocumentParser {
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
             }
+            context.path().add(currentFieldName);
             if (dynamicObjectMapper instanceof ObjectMapper objectMapper) {
                 if (objectMapper.subobjects() == false) {
                     context.path().setWithinLeafObject(true);
                 }
             }
-            context.path().add(currentFieldName);
             parseObjectOrField(context, dynamicObjectMapper);
-            context.path().remove();
             context.path().setWithinLeafObject(false);
+            context.path().remove();
         }
     }
 

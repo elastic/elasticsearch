@@ -71,7 +71,7 @@ public class PutTrainedModelDefinitionPartActionRequestTests extends AbstractBWC
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_500_041)) {
+        if (version.before(TransportVersion.V_8_500_043)) {
             return new Request(
                 instance.getModelId(),
                 instance.getDefinition(),

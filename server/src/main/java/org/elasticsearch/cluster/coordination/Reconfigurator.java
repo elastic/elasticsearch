@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -146,6 +147,24 @@ public class Reconfigurator {
 
     public ClusterState maybeReconfigureAfterNewMasterIsElected(ClusterState clusterState) {
         return clusterState;
+    }
+
+    public ClusterState addVotingExclusion(
+        ClusterState clusterState,
+        Set<CoordinationMetadata.VotingConfigExclusion> exclusions,
+        int maxVotingConfigExclusions
+    ) {
+        final CoordinationMetadata.Builder builder = CoordinationMetadata.builder(clusterState.coordinationMetadata());
+        exclusions.forEach(builder::addVotingConfigExclusion);
+        final Metadata newMetadata = Metadata.builder(clusterState.metadata()).coordinationMetadata(builder.build()).build();
+        final ClusterState newState = ClusterState.builder(clusterState).metadata(newMetadata).build();
+        assert newState.getVotingConfigExclusions().size() <= maxVotingConfigExclusions;
+        return newState;
+    }
+
+    public boolean allNodesExcludedFromVotingConfiguration(ClusterState clusterState, Set<String> excludedNodeIds) {
+        final Set<String> votingConfigNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
+        return excludedNodeIds.stream().noneMatch(votingConfigNodeIds::contains);
     }
 
     record VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig)

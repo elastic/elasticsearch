@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -124,7 +125,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             clusterService,
             threadPool,
             new ActionFilters(emptySet()),
-            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext())
+            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+            new Reconfigurator(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         ); // registers action
 
         transportService.start();

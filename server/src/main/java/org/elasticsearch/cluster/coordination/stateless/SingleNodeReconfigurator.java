@@ -49,4 +49,18 @@ public class SingleNodeReconfigurator extends Reconfigurator {
             )
             .build();
     }
+
+    @Override
+    public ClusterState addVotingExclusion(
+        ClusterState clusterState,
+        Set<CoordinationMetadata.VotingConfigExclusion> exclusions,
+        int maxVotingConfigExclusions
+    ) {
+        return clusterState;
+    }
+
+    @Override
+    public boolean allNodesExcludedFromVotingConfiguration(ClusterState clusterState, Set<String> excludedNodeIds) {
+        return true;
+    }
 }

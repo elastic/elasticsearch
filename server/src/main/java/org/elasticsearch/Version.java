@@ -141,8 +141,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_8_0 = new Version(8_08_00_99);
     public static final Version V_8_8_1 = new Version(8_08_01_99);
     public static final Version V_8_8_2 = new Version(8_08_02_99);
-    public static final Version V_8_8_3 = new Version(8_08_03_99);
     public static final Version V_8_9_0 = new Version(8_09_00_99);
+    public static final Version V_8_9_1 = new Version(8_09_01_99);
     public static final Version V_8_10_0 = new Version(8_10_00_99);
     public static final Version CURRENT = V_8_10_0;
 

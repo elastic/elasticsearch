@@ -40,7 +40,12 @@ public class DocumentMapper {
         );
     }
 
-    DocumentMapper(DocumentParser documentParser, Mapping mapping, CompressedXContent source, DocumentReporterFactory documentReporterFactory) {
+    DocumentMapper(
+        DocumentParser documentParser,
+        Mapping mapping,
+        CompressedXContent source,
+        DocumentReporterFactory documentReporterFactory
+    ) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
         this.mappingLookup = MappingLookup.fromMapping(mapping);

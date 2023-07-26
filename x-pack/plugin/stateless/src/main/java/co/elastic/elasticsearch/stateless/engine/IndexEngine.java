@@ -26,7 +26,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -38,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -55,7 +53,6 @@ public class IndexEngine extends InternalEngine {
     private final StatelessCommitService statelessCommitService;
     private final Function<String, BlobContainer> translogBlobContainer;
     private final boolean fastRefresh;
-    private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
     private final RefreshThrottler refreshThrottler;
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
@@ -88,16 +85,6 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
-        try (ReleasableLock locked = waitIfOngoing ? flushLock.acquire() : flushLock.tryAcquire()) {
-            if (locked == null) {
-                listener.onResponse(FlushResult.NO_FLUSH);
-            }
-            super.flush(force, waitIfOngoing, listener);
-        }
-    }
-
-    @Override
     protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
         // We must fetch the max uploaded translog file BEFORE performing the commit. Since all of those operations were written to
         // Lucene at this point, it is safe to start with the next file. The flush thread synchronously kicks of the commit upload
@@ -120,9 +107,9 @@ public class IndexEngine extends InternalEngine {
         // TODO: could we avoid this refresh if we have flushed above?
         return super.refreshInternalSearcher(source, block);
     }
-
     // visible for testing
-    long getCurrentGeneration() {
+
+    public long getCurrentGeneration() {
         return getLastCommittedSegmentInfos().getGeneration();
     }
 
@@ -301,8 +288,8 @@ public class IndexEngine extends InternalEngine {
             statelessCommitService.addListenerForUploadedGeneration(shardId, generation, listener);
         }
     }
-
     // package private for testing
+
     RefreshThrottler getRefreshThrottler() {
         return refreshThrottler;
     }

@@ -55,7 +55,7 @@ public class AnnotationIndex {
     public static final List<String> OLD_INDEX_NAMES = List.of(".ml-annotations-6");
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
-    private static final int ANNOTATION_INDEX_MAPPINGS_VERSION = 1;
+    public static final int ANNOTATION_INDEX_MAPPINGS_VERSION = 3;
 
     /**
      * Create the .ml-annotations-6 index with correct mappings if it does not already exist. This index is read and written by the UI

@@ -316,7 +316,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             settings,
             clusterService
         );
-        var ingestMetricService = new IngestMetricsService(settings, threadPool::relativeTimeInNanos, memoryMetricsService);
+        var ingestMetricService = new IngestMetricsService(
+            clusterService.getClusterSettings(),
+            threadPool::relativeTimeInNanos,
+            memoryMetricsService
+        );
         clusterService.addListener(ingestMetricService);
         // search
         var shardSizeStatsReader = new ShardSizeStatsReader(threadPool, indicesService);

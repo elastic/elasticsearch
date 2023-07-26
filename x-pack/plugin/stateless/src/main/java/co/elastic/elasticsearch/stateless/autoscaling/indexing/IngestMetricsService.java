@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -40,27 +40,33 @@ public class IngestMetricsService implements ClusterStateListener {
     public static final Setting<TimeValue> ACCURATE_LOAD_WINDOW = Setting.timeSetting(
         "serverless.autoscaling.ingest_metrics.accurate_load_window",
         TimeValue.timeValueSeconds(25),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // Ingest load samples older than this value will be removed from the list of ingest loads.
     public static final Setting<TimeValue> STALE_LOAD_WINDOW = Setting.timeSetting(
         "serverless.autoscaling.ingest_metrics.stale_load_window",
         TimeValue.timeValueMinutes(10),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
-    private final TimeValue accurateLoadWindow;
-    private final TimeValue staleLoadWindow;
+    private volatile TimeValue accurateLoadWindow;
+    private volatile TimeValue staleLoadWindow;
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
     private final Map<String, NodeIngestLoad> nodesIngestLoad = ConcurrentCollections.newConcurrentMap();
 
-    public IngestMetricsService(Settings settings, LongSupplier relativeTimeInNanosSupplier, MemoryMetricsService memoryMetricsService) {
-        this.accurateLoadWindow = ACCURATE_LOAD_WINDOW.get(settings);
-        this.staleLoadWindow = STALE_LOAD_WINDOW.get(settings);
+    public IngestMetricsService(
+        ClusterSettings clusterSettings,
+        LongSupplier relativeTimeInNanosSupplier,
+        MemoryMetricsService memoryMetricsService
+    ) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.memoryMetricsService = memoryMetricsService;
+        clusterSettings.initializeAndWatch(ACCURATE_LOAD_WINDOW, value -> this.accurateLoadWindow = value);
+        clusterSettings.initializeAndWatch(STALE_LOAD_WINDOW, value -> this.staleLoadWindow = value);
     }
 
     @Override

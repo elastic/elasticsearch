@@ -180,14 +180,14 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     /**
-     * This method returns the settings that need to be ignored when we mount the searchable snapshot. Currently, is returns:
+     * This method returns the settings that need to be ignored when we mount the searchable snapshot. Currently, it returns:
      * - index.lifecycle.name: The index likely had the ILM execution state in the metadata. If we were to restore the lifecycle.name
      * setting, the restored index would be captured by the ILM runner and, depending on what ILM execution state was captured at snapshot
      * time, make it's way forward from _that_ step forward in the ILM policy. We'll re-set this setting on the restored index at a later
      * step once we restored a deterministic execution state
      * - index.routing.allocation.total_shards_per_node: It is  likely that frozen tier has fewer nodes than the hot tier.
-     * Keeping this setting as it was set in the hot tier has the risk that we will not have enough nodes to allocate all the shards in the
-     * frozen tier and the user does not have any way of overriding this. For this reason, we ignore this setting when moving to frozen.
+     * Keeping this setting runs the risk that we will not have enough nodes to allocate all the shards in the
+     * frozen tier and the user does not have any way of fixing this. For this reason, we ignore this setting when moving to frozen.
      */
     static String[] ignoredIndexSettings(String phase) {
         // if we are mounting a searchable snapshot in the hot phase, then we should not change the total_shards_per_node setting

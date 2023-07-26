@@ -514,6 +514,8 @@ public class MetadataCreateIndexService {
             );
             if (request.performReroute()) {
                 updated = allocationService.reroute(updated, "index [" + indexMetadata.getIndex().getName() + "] created", rerouteListener);
+            } else {
+                rerouteListener.onResponse(null);
             }
             return updated;
         });

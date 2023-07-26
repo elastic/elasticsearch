@@ -395,9 +395,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
         final MemoryUsage memoryUsed = memoryUsed(newBytesReserved);
         long parentLimit = this.parentSettings.getLimit();
+        String parentName = this.parentSettings.getName();
         if (memoryUsed.totalUsage > parentLimit && overLimitStrategy.overLimit(memoryUsed).totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
             final String messageString = buildParentTripMessage(
+                parentName,
                 newBytesReserved,
                 label,
                 memoryUsed,
@@ -417,6 +419,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     // exposed for tests
     static String buildParentTripMessage(
+        String parentName,
         long newBytesReserved,
         String label,
         MemoryUsage memoryUsed,
@@ -425,7 +428,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         Map<String, CircuitBreaker> breakers
     ) {
         final var message = new StringBuilder();
-        message.append("[parent] Data too large, data for [");
+        message.append("[");
+        message.append(parentName);
+        message.append("] Data too large, data for [");
         message.append(label);
         message.append("] would be [");
         appendBytesSafe(message, memoryUsed.totalUsage);

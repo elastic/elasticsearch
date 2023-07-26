@@ -123,12 +123,12 @@ public class NativeMethods
 $guid = [guid]::NewGuid().Guid
 Write-Output "Creating job object with name $guid"
 $job = [NativeMethods]::CreateJobObjectW($guid)
-$process = Start-Process -PassThru powershell -ArgumentList @args
+$process = Start-Process -PassThru -NoNewWindow powershell -ArgumentList "$args"
 [NativeMethods]::AssignProcessToJobObject($job, $process.SafeHandle)
 
 try {
   Write-Output "Waiting for process $($process.Id) to complete..."
-  Wait-Process -Id $process.Id
+  $process | Wait-Process
   Write-Output "Process finished with exit code $($process.ExitCode), terminating job and exiting..."
 } finally {
   [NativeMethods]::CloseHandle($job)

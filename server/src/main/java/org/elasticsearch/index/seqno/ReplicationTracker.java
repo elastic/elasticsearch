@@ -1482,9 +1482,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized void createMissingPeerRecoveryRetentionLeases(ActionListener<Void> listener) {
         if (hasAllPeerRecoveryRetentionLeases == false) {
-            try (var listeners = new RefCountingListener(listener.delegateFailure((l, ignored) -> {
+            try (var listeners = new RefCountingListener(listener.safeMap(ignored -> {
                 setHasAllPeerRecoveryRetentionLeases();
-                l.onResponse(null);
+                return null;
             }))) {
                 for (ShardRouting shardRouting : routingTable.assignedShards()) {
                     if (shardRouting.isPromotableToPrimary() == false) {

@@ -37,7 +37,7 @@ public class TransportDeleteRoleAction extends HandledTransportAction<DeleteRole
         }
 
         try {
-            rolesStore.deleteRole(request, listener.delegateFailure((l, found) -> l.onResponse(new DeleteRoleResponse(found))));
+            rolesStore.deleteRole(request, listener.safeMap(DeleteRoleResponse::new));
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> "failed to delete role [" + request.name() + "]", e);
             listener.onFailure(e);

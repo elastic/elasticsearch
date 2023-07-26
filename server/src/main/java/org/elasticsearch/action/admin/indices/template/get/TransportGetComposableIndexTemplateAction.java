@@ -89,7 +89,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
                 throw new ResourceNotFoundException("index template matching [" + request.name() + "] not found");
             }
         }
-        if (request.includeDefaults() && DataStreamLifecycle.isEnabled()) {
+        if (request.includeDefaults() && DataStreamLifecycle.isFeatureEnabled()) {
             listener.onResponse(
                 new GetComposableIndexTemplateAction.Response(
                     results,

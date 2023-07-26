@@ -287,7 +287,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             relativeStartNanos,
             System::nanoTime
         );
-        ActionListener<SearchRequest> rewriteListener = ActionListener.wrap(rewritten -> {
+        ActionListener<SearchRequest> rewriteListener = listener.delegateFailureAndWrap((delegate, rewritten) -> {
             final SearchContextId searchContext;
             final Map<String, OriginalIndices> remoteClusterIndices;
             if (ccsCheckCompatibility) {
@@ -312,7 +312,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     clusterState,
                     SearchResponse.Clusters.EMPTY,
                     searchContext,
-                    searchPhaseProvider.apply(listener)
+                    searchPhaseProvider.apply(delegate)
                 );
             } else {
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
@@ -336,7 +336,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         aggregationReduceContextBuilder,
                         remoteClusterService,
                         threadPool,
-                        listener,
+                        delegate,
                         (r, l) -> executeLocalSearch(
                             task,
                             timeProvider,
@@ -361,7 +361,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         skippedClusters,
                         remoteClusterIndices,
                         transportService,
-                        ActionListener.wrap(searchShardsResponses -> {
+                        delegate.delegateFailureAndWrap((finalDelegate, searchShardsResponses) -> {
                             final BiFunction<String, String, DiscoveryNode> clusterNodeLookup = getRemoteClusterNodeLookup(
                                 searchShardsResponses
                             );
@@ -400,13 +400,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 remoteAliasFilters,
                                 new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get()),
                                 searchContext,
-                                searchPhaseProvider.apply(listener)
+                                searchPhaseProvider.apply(finalDelegate)
                             );
-                        }, listener::onFailure)
+                        })
                     );
                 }
             }
-        }, listener::onFailure);
+        });
         Rewriteable.rewriteAndFetch(original, searchService.getRewriteContext(timeProvider::absoluteStartMillis), rewriteListener);
     }
 
@@ -650,7 +650,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ActionListener.wrap(connection -> {
                     final String[] indices = entry.getValue().indices();
                     // TODO: support point-in-time
-                    if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_500_000)) {
+                    if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
                         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                             indices,
                             indicesOptions,

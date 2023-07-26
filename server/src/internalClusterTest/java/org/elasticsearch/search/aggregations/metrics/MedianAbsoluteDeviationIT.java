@@ -131,7 +131,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
     private static MedianAbsoluteDeviationAggregationBuilder randomBuilder() {
         final MedianAbsoluteDeviationAggregationBuilder builder = new MedianAbsoluteDeviationAggregationBuilder("mad");
         if (randomBoolean()) {
-            builder.compression(randomDoubleBetween(20, 1000, false));
+            builder.compression(randomDoubleBetween(25, 1000, false));
         }
         return builder;
     }

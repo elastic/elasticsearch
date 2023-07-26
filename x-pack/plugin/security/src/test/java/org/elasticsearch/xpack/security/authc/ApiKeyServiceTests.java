@@ -2408,7 +2408,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_9_0)
+            TransportVersionUtils.getPreviousVersion(ApiKey.CROSS_CLUSTER_KEY_VERSION)
         );
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
 
@@ -2428,7 +2428,11 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString("all nodes must have transport version [8090099] or higher to support creating cross cluster API keys")
+            containsString(
+                "all nodes must have transport version ["
+                    + ApiKey.CROSS_CLUSTER_KEY_VERSION
+                    + "] or higher to support creating cross cluster API keys"
+            )
         );
     }
 
@@ -2568,7 +2572,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
         assertThat(
             e1.getMessage(),
-            containsString("all nodes must have transport version [8500005] or higher to support restrictions for API keys")
+            containsString(
+                "all nodes must have transport version ["
+                    + WORKFLOWS_RESTRICTION_VERSION
+                    + "] or higher to support restrictions for API keys"
+            )
         );
 
         final BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
@@ -2581,7 +2589,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
         assertThat(
             e2.getMessage(),
-            containsString("all nodes must have transport version [8500005] or higher to support restrictions for API keys")
+            containsString(
+                "all nodes must have transport version ["
+                    + WORKFLOWS_RESTRICTION_VERSION
+                    + "] or higher to support restrictions for API keys"
+            )
         );
     }
 

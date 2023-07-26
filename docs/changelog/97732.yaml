@@ -1,0 +1,5 @@
+pr: 97732
+summary: "[Fleet] Allow `kibana_system` to put datastream lifecycle"
+area: Authorization
+type: enhancement
+issues: []

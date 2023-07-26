@@ -54,6 +54,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -76,6 +77,7 @@ import java.util.stream.Collectors;
 public class CoordinationDiagnosticsService implements ClusterStateListener {
     private final ClusterService clusterService;
     private final TransportService transportService;
+    private final Executor clusterCoordinationExecutor;
     private final Coordinator coordinator;
     private final MasterHistoryService masterHistoryService;
     /**
@@ -171,6 +173,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     ) {
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.clusterCoordinationExecutor = transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION);
         this.coordinator = coordinator;
         this.masterHistoryService = masterHistoryService;
         this.nodeHasMasterLookupTimeframe = NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.get(clusterService.getSettings());
@@ -1112,7 +1115,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     new ActionListenerResponseHandler<>(
                         ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
                         transportActionType.getResponseReader(),
-                        ThreadPool.Names.CLUSTER_COORDINATION
+                        clusterCoordinationExecutor
                     )
                 );
             }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.utils;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 
@@ -24,7 +25,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
         "Bertram",
         TransportVersion.V_7_0_1,
         "Charles",
-        TransportVersion.V_8_500_003,
+        TransportVersion.V_8_500_010,
         "Dominic",
         TransportVersion.V_8_0_0
     );
@@ -37,7 +38,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
         null,
         null,
         transportVersions,
-        null,
+        ClusterBlocks.EMPTY_CLUSTER_BLOCK,
         null,
         false,
         null
@@ -60,7 +61,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
             null,
             null,
             transportVersions1,
-            null,
+            ClusterBlocks.EMPTY_CLUSTER_BLOCK,
             null,
             false,
             null
@@ -71,6 +72,6 @@ public class TransportVersionUtilsTests extends ESTestCase {
 
     public void testIsMinTransportVersionOnOrAfter() {
         assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersion.V_7_0_0), equalTo(true));
-        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersion.V_8_9_0), equalTo(false));
+        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersion.V_8_500_010), equalTo(false));
     }
 }

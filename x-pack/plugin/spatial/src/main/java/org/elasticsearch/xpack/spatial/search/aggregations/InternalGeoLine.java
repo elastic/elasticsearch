@@ -116,6 +116,8 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         int mergedSize = 0;
         boolean reducedComplete = true;
         boolean reducedIncludeSorts = true;
+        boolean reducedNonOverlapping = this.nonOverlapping;
+        boolean reducedSimplified = this.simplified;
         List<InternalGeoLine> internalGeoLines = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoLine geoLine = (InternalGeoLine) aggregation;
@@ -123,13 +125,16 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
             mergedSize += geoLine.line.length;
             reducedComplete &= geoLine.complete;
             reducedIncludeSorts &= geoLine.includeSorts;
+            reducedNonOverlapping &= geoLine.nonOverlapping;
+            reducedSimplified |= geoLine.simplified;
         }
         reducedComplete &= mergedSize <= size;
         int finalSize = Math.min(mergedSize, size);
 
-        MergedGeoLines mergedGeoLines = nonOverlapping
-            ? new MergedGeoLines.NonOverlapping(internalGeoLines, finalSize, sortOrder, simplified)
-            : new MergedGeoLines.Overlapping(internalGeoLines, finalSize, sortOrder, simplified);
+        // If all geo_lines are marked as non-overlapping, then we can optimize the merge-sort
+        MergedGeoLines mergedGeoLines = reducedNonOverlapping
+            ? new MergedGeoLines.NonOverlapping(internalGeoLines, finalSize, sortOrder, reducedSimplified)
+            : new MergedGeoLines.Overlapping(internalGeoLines, finalSize, sortOrder, reducedSimplified);
         mergedGeoLines.merge();
         return new InternalGeoLine(
             name,

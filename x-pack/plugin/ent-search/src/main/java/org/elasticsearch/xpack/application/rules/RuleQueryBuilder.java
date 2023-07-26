@@ -22,6 +22,8 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -36,7 +38,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -55,13 +56,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     public static final String NAME = "rule_query";
 
     private static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
-    private static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
+    static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
-
-    /**
-     * Defines the set of allowed match criteria, so that we can validate that rule query requests are sending in allowed/supported data.
-     */
-    static final Set<String> ALLOWED_MATCH_CRITERIA = Set.of("query_string");
 
     private final String rulesetId;
     private final Map<String, Object> matchCriteria;
@@ -110,16 +106,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         if (matchCriteria == null || matchCriteria.isEmpty()) {
             throw new IllegalArgumentException("matchCriteria must not be null or empty");
         }
-        for (String matchCriteriaKey : matchCriteria.keySet()) {
-            if (ALLOWED_MATCH_CRITERIA.contains(matchCriteriaKey) == false) {
-                throw new IllegalArgumentException("matchCriteria key [" + matchCriteriaKey + "] is not allowed");
-            }
-        }
         if (Strings.isNullOrEmpty(rulesetId)) {
             throw new IllegalArgumentException("rulesetId must not be null or empty");
         }
 
-        // PinnedQueryBuilder will return an error if we attmept to return more than the maximum number of
+        // PinnedQueryBuilder will return an error if we attempt to return more than the maximum number of
         // pinned hits. Here, we truncate matching rules rather than return an error.
         if (pinnedIds != null && pinnedIds.size() > MAX_NUM_PINNED_HITS) {
             HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
@@ -281,7 +272,10 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         declareStandardFields(PARSER);
     }
 
-    public static RuleQueryBuilder fromXContent(XContentParser parser) {
+    public static RuleQueryBuilder fromXContent(XContentParser parser, XPackLicenseState licenseState) {
+        if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(licenseState) == false) {
+            throw LicenseUtils.newComplianceException(NAME);
+        }
         try {
             return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {

@@ -9,7 +9,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +34,7 @@ public class IdFieldTypeTests extends ESTestCase {
     public void testTermsQuery() {
         SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
 
-        Settings.Builder indexSettings = indexSettings(Version.CURRENT, 1, 0).put(
+        Settings.Builder indexSettings = indexSettings(IndexVersion.current(), 1, 0).put(
             IndexMetadata.SETTING_INDEX_UUID,
             UUIDs.randomBase64UUID()
         );

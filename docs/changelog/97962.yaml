@@ -1,0 +1,5 @@
+pr: 97962
+summary: Remove synonyms feature flag and related classes
+area: Analysis
+type: feature
+issues: []

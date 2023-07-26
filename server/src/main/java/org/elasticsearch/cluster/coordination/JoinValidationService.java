@@ -49,6 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -102,6 +103,7 @@ public class JoinValidationService {
     private final Queue<AbstractRunnable> queue = new ConcurrentLinkedQueue<>();
     private final Map<TransportVersion, ReleasableBytesReference> statesByVersion = new HashMap<>();
     private final RefCounted executeRefs;
+    private final Executor responseExecutor;
 
     public JoinValidationService(
         Settings settings,
@@ -114,6 +116,7 @@ public class JoinValidationService {
         this.transportService = transportService;
         this.clusterStateSupplier = clusterStateSupplier;
         this.executeRefs = AbstractRefCounted.of(() -> execute(cacheClearer));
+        this.responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION);
 
         final var dataPaths = Environment.PATH_DATA_SETTING.get(settings);
         transportService.registerRequestHandler(
@@ -169,7 +172,7 @@ public class JoinValidationService {
                         e
                     )
                 );
-            }), i -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.CLUSTER_COORDINATION);
+            }), i -> TransportResponse.Empty.INSTANCE, responseExecutor);
             final var clusterState = clusterStateSupplier.get();
             if (clusterState != null) {
                 assert clusterState.nodes().isLocalNodeElectedMaster();
@@ -342,11 +345,7 @@ public class JoinValidationService {
                     JoinHelper.JOIN_PING_ACTION_NAME,
                     TransportRequest.Empty.INSTANCE,
                     REQUEST_OPTIONS,
-                    new ActionListenerResponseHandler<>(
-                        listener,
-                        in -> TransportResponse.Empty.INSTANCE,
-                        ThreadPool.Names.CLUSTER_COORDINATION
-                    )
+                    new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, responseExecutor)
                 );
                 return;
             }
@@ -357,12 +356,7 @@ public class JoinValidationService {
                 JOIN_VALIDATE_ACTION_NAME,
                 new BytesTransportRequest(bytes, version),
                 REQUEST_OPTIONS,
-                new CleanableResponseHandler<>(
-                    listener,
-                    in -> TransportResponse.Empty.INSTANCE,
-                    ThreadPool.Names.CLUSTER_COORDINATION,
-                    bytes::decRef
-                )
+                new CleanableResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, responseExecutor, bytes::decRef)
             );
             try {
                 if (cachedBytes == null) {

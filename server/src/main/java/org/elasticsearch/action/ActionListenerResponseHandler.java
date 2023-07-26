@@ -10,6 +10,7 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
@@ -17,6 +18,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 /**
  * A simple base class for action response listeners, defaulting to using the SAME executor (as its
@@ -26,16 +28,16 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
 
     protected final ActionListener<? super Response> listener;
     private final Writeable.Reader<Response> reader;
-    private final String executor;
+    private final Executor executor;
 
-    public ActionListenerResponseHandler(ActionListener<? super Response> listener, Writeable.Reader<Response> reader, String executor) {
+    public ActionListenerResponseHandler(ActionListener<? super Response> listener, Writeable.Reader<Response> reader, Executor executor) {
         this.listener = Objects.requireNonNull(listener);
         this.reader = Objects.requireNonNull(reader);
         this.executor = Objects.requireNonNull(executor);
     }
 
     public ActionListenerResponseHandler(ActionListener<? super Response> listener, Writeable.Reader<Response> reader) {
-        this(listener, reader, ThreadPool.Names.SAME);
+        this(listener, reader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override
@@ -49,7 +51,7 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
     }
 
     @Override
-    public String executor() {
+    public Executor executor(ThreadPool threadPool) {
         return executor;
     }
 

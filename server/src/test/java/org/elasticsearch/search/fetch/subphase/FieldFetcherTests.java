@@ -1056,6 +1056,30 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
     }
 
+    public void testNestedIOOB() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+              "nested_field" : {
+                "type" : "nested",
+                "properties" : {
+                  "file" : { "type" : "keyword" }
+                }
+              }
+            }}}
+            """);
+        String source = """
+            { "nested_field" : { "file" : "somefile.txt" } }
+            """;
+        var results = fetchFields(mapperService, source, List.of(
+            new FieldAndFormat("file", null, true),
+            new FieldAndFormat("*", null, true)
+        ));
+        assertThat(results.keySet(), hasSize(1));
+
+        results = fetchFields(mapperService, source, fieldAndFormatList("nested_field.file", null, true));
+        assertThat(results.keySet(), hasSize(1));
+    }
+
     @SuppressWarnings("unchecked")
     public void testFlattenedField() throws IOException {
         XContentBuilder mapping = mapping(b -> b.startObject("flat").field("type", "flattened").endObject());

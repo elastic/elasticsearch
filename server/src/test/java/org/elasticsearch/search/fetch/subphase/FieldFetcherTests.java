@@ -886,57 +886,6 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                                  "age": {
                                    "type": "integer"
                                  },
-                                 "balance": {
-                                   "type": "text",
-                                   "fields": {
-                                     "keyword": {
-                                       "type": "keyword",
-                                       "ignore_above": 256
-                                     }
-                                   }
-                                 },
-                                 "campaign": {
-                                   "type": "integer"
-                                 },
-                                 "cons_conf_idx": {
-                                   "type": "float"
-                                 },
-                                 "contact": {
-                                   "type": "keyword"
-                                 },
-                                 "day": {
-                                   "type": "text",
-                                   "fields": {
-                                     "keyword": {
-                                       "type": "keyword",
-                                       "ignore_above": 256
-                                     }
-                                   }
-                                 },
-                                 "day_of_week": {
-                                   "type": "keyword"
-                                 },
-                                 "default": {
-                                   "type": "keyword"
-                                 },
-                                 "duration": {
-                                   "type": "integer"
-                                 },
-                                 "education": {
-                                   "type": "keyword"
-                                 },
-                                 "emp_var_rate": {
-                                   "type": "float"
-                                 },
-                                 "euribor3m": {
-                                   "type": "float"
-                                 },
-                                 "housing": {
-                                   "type": "keyword"
-                                 },
-                                 "job": {
-                                   "type": "keyword"
-                                 },
                                  "loan": {
                                    "type": "keyword"
                                  },

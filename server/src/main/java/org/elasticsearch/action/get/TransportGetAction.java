@@ -218,7 +218,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                             );
                         }
                     }
-                }), TransportGetFromTranslogAction.Response::new, getExecutor(request, shardId))
+                }), TransportGetFromTranslogAction.Response::new, threadPool.executor(getExecutor(request, shardId)))
             );
         } else {
             // A non-real-time get with no explicit refresh requested.

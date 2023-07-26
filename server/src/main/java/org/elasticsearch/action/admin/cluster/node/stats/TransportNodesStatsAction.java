@@ -23,6 +23,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.List;
@@ -70,6 +71,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
     @Override
     protected NodeStats newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        assert Transports.assertNotTransportThread("deserializing node stats is too expensive for a transport thread");
         return new NodeStats(in);
     }
 

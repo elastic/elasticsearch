@@ -89,6 +89,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -136,6 +137,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final boolean singleNodeDiscovery;
     private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
+    private final Executor clusterCoordinationExecutor;
     private final MasterService masterService;
     private final AllocationService allocationService;
     private final JoinHelper joinHelper;
@@ -210,6 +212,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     ) {
         this.settings = settings;
         this.transportService = transportService;
+        this.clusterCoordinationExecutor = transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION);
         this.masterService = masterService;
         this.allocationService = allocationService;
         this.onJoinValidators = NodeJoinExecutor.addBuiltInJoinValidators(onJoinValidators);
@@ -760,7 +763,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         e
                     )
                 );
-            }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
+            }), i -> Empty.INSTANCE, clusterCoordinationExecutor)
         );
     }
 
@@ -2132,7 +2135,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     new ActionListenerResponseHandler<>(
                         wrapWithMutex(responseActionListener),
                         in -> Empty.INSTANCE,
-                        Names.CLUSTER_COORDINATION
+                        clusterCoordinationExecutor
                     )
                 );
             } catch (Exception e) {

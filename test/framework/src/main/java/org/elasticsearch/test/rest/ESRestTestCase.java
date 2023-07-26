@@ -1854,6 +1854,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "data-streams-mappings":
             case "ecs@dynamic_templates":
             case "search-acl-filter":
+            case ".kibana-reporting":
                 return true;
             default:
                 return false;

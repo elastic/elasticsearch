@@ -99,9 +99,15 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         final long position = getAbsolutePosition();
         final int length = b.remaining();
         if (cacheFile.tryRead(b, position)) {
+            // fast-path succeeded, increment stats and return
             stats.addCachedBytesRead(length);
             return;
         }
+        readWithoutBlobCacheSlow(b, position, length);
+    }
+
+    // slow path for readWithoutBlobCache, extracted to a separate method to make the fast-path inline better
+    private void readWithoutBlobCacheSlow(ByteBuffer b, long position, int length) throws Exception {
         // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
         // accessing the byte buffer anymore that was passed to readWithoutBlobCache
         // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.fleet;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -20,6 +21,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class FleetSecretsSystemIndexIT extends ESRestTestCase {
@@ -38,13 +40,12 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
         final String secretJson = getPostSecretJson();
         Request postRequest = new Request("POST", "/_fleet/secrets/");
         postRequest.setJsonEntity(secretJson);
-        // System.out.println("----> request");
-        // System.out.println(postRequest);
         Response postResponse = client().performRequest(postRequest);
-        // System.out.println("----> response");
-        // System.out.println(postResponse.toString());
         assertThat(postResponse.getStatusLine().getStatusCode(), is(201));
-        // final String id =
+        // FIXME: responseBody is emptu
+        String responseBody = EntityUtils.toString(postResponse.getEntity());
+        assertThat(responseBody, containsString("value"));
+        // final String id = responseBody...
 
         // get secret
         // Request getRequest = new Request("GET", "/fleet/secrets/" + id);
@@ -59,7 +60,7 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
     }
 
     public void testGetNonExistingSecret() throws Exception {
-        // TODO: this currently fails with 400 Bad Request
+        // FIXME: this currently fails with 400 Bad Request
         Request getRequest = new Request("GET", "/_fleet/secrets/123");
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(getRequest));
         Response getResponse = re.getResponse();
@@ -67,7 +68,7 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
     }
 
     public void testDeleteNonExistingSecret() {
-        // TODO: this currently passes but it's likely index not found
+        // FIXME: this currently passes but it's likely index not found
         Request deleteRequest = new Request("DELETE", "/_fleet/secrets/123");
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(deleteRequest));
         Response getResponse = re.getResponse();

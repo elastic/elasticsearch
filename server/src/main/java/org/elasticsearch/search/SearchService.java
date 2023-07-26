@@ -69,7 +69,6 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -1093,23 +1092,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private static boolean concurrentSearchEnabled(ResultsType resultsType, SearchSourceBuilder source) {
         // TODO enable concurrency for other phases as well. Currently blocked by e.g. SingleThreadCollectorManager still
         // in use in QueryPhase
-        return resultsType == ResultsType.DFS && supportsConcurrentExecution(source);
-    }
-
-    // We don't have the SearchContext with the parsed Aggregation source available yet to call
-    // {@link AggregationBuilder#supportsConcurrentExecution()}, so simulate the same here
-    // TODO can we move {@link AggregationBuilder#supportsConcurrentExecution()} elsewhere?
-    private static boolean supportsConcurrentExecution(SearchSourceBuilder source) {
-        if (source == null || source.aggregations() == null) {
-            return true;
-        }
-        AggregatorFactories.Builder factoriesBuilder = source.aggregations();
-        for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
-            if (builder.supportsConcurrentExecution() == false || builder.isInSortOrderExecutionRequired()) {
-                return false;
-            }
-        }
-        return true;
+        return resultsType == ResultsType.DFS
+            && (source != null && source.aggregations() != null && source.aggregations().supportsConcurrentExecution());
     }
 
     private void freeAllContextForIndex(Index index) {

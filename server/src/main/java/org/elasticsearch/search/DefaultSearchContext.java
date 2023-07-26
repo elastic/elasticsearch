@@ -159,7 +159,7 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCachingPolicy(),
             minimumDocsPerSlice,
             lowLevelCancellation,
-            // use the search threadpool for now, TODO this will change to a separate one
+            // TODO using the autocomplete threadpool for now as a stand-in, this will change to a separate threadpool
             parallelize ? (EsThreadPoolExecutor) this.indexService.getThreadPool().executor(ThreadPool.Names.AUTO_COMPLETE) : null
         );
         releasables.addAll(List.of(engineSearcher, searcher));

@@ -381,7 +381,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
         assertRollupIndexSettings(sourceIndex, rollupIndex, indexSettingsResp);
         for (String key : settings.keySet()) {
-            assertEquals(settings.get(key), indexSettingsResp.getSetting(rollupIndex, key));
+            if (LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey().equals(key)) {
+                assertNull(indexSettingsResp.getSetting(rollupIndex, key));
+            } else {
+                assertEquals(settings.get(key), indexSettingsResp.getSetting(rollupIndex, key));
+            }
         }
     }
 
@@ -1083,6 +1087,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             rollupSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS)
         );
 
+        assertNull(rollupSettings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
         assertEquals("true", rollupSettings.get(IndexMetadata.SETTING_BLOCKS_WRITE));
         assertEquals(sourceSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN), rollupSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN));
 

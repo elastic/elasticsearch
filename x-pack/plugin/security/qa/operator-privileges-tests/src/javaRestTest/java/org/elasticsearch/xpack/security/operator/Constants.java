@@ -487,7 +487,7 @@ public class Constants {
         "indices:data/read/mtv",
         "indices:data/read/mtv[shard]",
         "indices:data/read/open_point_in_time",
-        "indices:data/read/profiling",
+        "indices:data/read/profiling/stack_traces",
         "indices:data/read/rank_eval",
         "indices:data/read/scroll",
         "indices:data/read/scroll/clear",

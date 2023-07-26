@@ -303,17 +303,19 @@ public class DiskThresholdDecider extends AllocationDecider {
         assert shardSize >= 0 : shardSize;
         long freeBytesAfterShard = freeBytes - shardSize;
         if (freeBytesAfterShard < diskThresholdSettings.getFreeBytesThresholdHighStage(total).getBytes()) {
-            logger.warn(
-                "after allocating [{}] node [{}] would be above the high watermark setting [{}], having less than the minimum "
-                    + "required {} of free space (actual free: {}, actual used: {}, estimated shard size: {}), preventing allocation",
-                shardRouting,
-                node.nodeId(),
-                diskThresholdSettings.describeHighThreshold(total, false),
-                diskThresholdSettings.getFreeBytesThresholdHighStage(total),
-                freeBytesValue,
-                Strings.format1Decimals(usedDiskPercentage, "%"),
-                ByteSizeValue.ofBytes(shardSize)
-            );
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "after allocating [{}] node [{}] would be above the high watermark setting [{}], having less than the minimum "
+                        + "required {} of free space (actual free: {}, actual used: {}, estimated shard size: {}), preventing allocation",
+                    shardRouting,
+                    node.nodeId(),
+                    diskThresholdSettings.describeHighThreshold(total, false),
+                    diskThresholdSettings.getFreeBytesThresholdHighStage(total),
+                    freeBytesValue,
+                    Strings.format1Decimals(usedDiskPercentage, "%"),
+                    ByteSizeValue.ofBytes(shardSize)
+                );
+            }
             return allocation.decision(
                 Decision.NO,
                 NAME,

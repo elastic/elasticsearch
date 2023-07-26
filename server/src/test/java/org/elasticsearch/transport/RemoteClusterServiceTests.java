@@ -48,6 +48,7 @@ import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -294,17 +295,31 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             )
                         );
                     }
-                    IllegalArgumentException e = expectThrows(
-                        IllegalArgumentException.class,
-                        () -> service.groupClusterIndices(service.getRemoteClusterNames(), new String[] { "-*:*" })
-                    );
-                    assertThat(
-                        e.getMessage(),
-                        equalTo(
-                            "Attempt to exclude clusters [cluster_1, cluster_2] failed as they are not included in the list of "
-                                + "clusters to be included: []. Input: [-*:*]"
-                        )
-                    );
+                    {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.groupClusterIndices(service.getRemoteClusterNames(), new String[] { "-*:*" })
+                        );
+                        assertThat(
+                            e.getMessage(),
+                            equalTo(
+                                "Attempt to exclude clusters [cluster_1, cluster_2] failed as they are not included in the list of "
+                                    + "clusters to be included: []. Input: [-*:*]"
+                            )
+                        );
+                    }
+                    {
+                        String[] indices = shuffledList(List.of("cluster*:*", "*:foo", "-*:*")).toArray(new String[0]);
+
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.groupClusterIndices(service.getRemoteClusterNames(), indices)
+                        );
+                        assertThat(
+                            e.getMessage(),
+                            containsString("The '-' exclusions in the index expression list excludes all indexes. Nothing to search.")
+                        );
+                    }
                 }
             }
         }

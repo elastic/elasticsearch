@@ -9,7 +9,6 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -1064,7 +1064,7 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
-        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 0).put(indexSettings)).build();
+        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0).put(indexSettings)).build();
     }
 
     public void testKeyPattern() {

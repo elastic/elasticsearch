@@ -3,15 +3,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / packaging-tests-windows"
         command: |
-          .buildkite/generated-scripts/a6f81b402379cfd241ba9e32a55a3d92.bat
-          $$exitCode = $$LASTEXITCODE
-          $$exitCode2 = $$?
-          echo "Calling end-job..."
-          echo "exitCode = $$exitCode"
-          echo "exitCode2 = $$exitCode2"
-          bash -c "powershell .buildkite/scripts/windows-end-job.ps1 &"
-          echo "Exiting with $$exitCode"
-          exit $$exitCode
+          .\.buildkite\scripts\run-script.ps1 .buildkite/generated-scripts/a6f81b402379cfd241ba9e32a55a3d92.bat
         timeout_in_minutes: 180
         matrix:
           setup:
@@ -31,15 +23,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-windows"
         command: |
-          bash -ec '.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK'
-          $$exitCode = $$LASTEXITCODE
-          $$exitCode2 = $$?
-          echo "Calling end-job..."
-          echo "exitCode = $$exitCode"
-          echo "exitCode2 = $$exitCode2"
-          bash -c "powershell .buildkite/scripts/windows-end-job.ps1 &"
-          echo "Exiting with $$exitCode"
-          exit $$exitCode
+          .\.buildkite\scripts\run-script.ps1 "bash -ec '.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK'"
         timeout_in_minutes: 360
         matrix:
           setup:

@@ -11,7 +11,6 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 
 import java.io.IOException;
 
@@ -32,7 +31,7 @@ public class RepositoryException extends ElasticsearchException {
      * @param args       the arguments for the message
      */
     public RepositoryException(String repository, String msg, Object... args) {
-        this(repository, msg, (Throwable)null, args);
+        this(repository, msg, (Throwable) null, args);
     }
 
     /**

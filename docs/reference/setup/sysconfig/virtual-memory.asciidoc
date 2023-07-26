@@ -24,4 +24,3 @@ You can find out the current mmap count of a running Elasticsearch process using
 ----------------------------
 wc -l /proc/$PID/maps
 ----------------------------
-Where `$PID` is the process ID of the running Elasticsearch process.

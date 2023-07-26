@@ -127,6 +127,7 @@ import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.internal.metering.DocumentReporter;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -230,6 +231,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final MapperRegistry mapperRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final DocumentReporter documentReporter;
     private final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers;
     private final IndexingMemoryController indexingMemoryController;
     private final TimeValue cleanInterval;
@@ -287,7 +289,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners,
         Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
-        CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator
+        CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator,
+        DocumentReporter documentReporter
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -303,6 +306,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.documentReporter = documentReporter;
         indexingMemoryController = new IndexingMemoryController(
             settings,
             threadPool,
@@ -756,7 +760,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            documentReporter
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -832,7 +837,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            documentReporter
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);

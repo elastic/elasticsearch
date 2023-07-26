@@ -188,7 +188,8 @@ public class QueryParserHelperBenchmark {
                 public <T> T compile(Script script, ScriptContext<T> scriptContext) {
                     throw new UnsupportedOperationException();
                 }
-            }
+            },
+            null
         );
 
         try {

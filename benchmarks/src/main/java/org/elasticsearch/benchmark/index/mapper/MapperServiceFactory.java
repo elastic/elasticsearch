@@ -71,7 +71,8 @@ public class MapperServiceFactory {
                 public <T> T compile(Script script, ScriptContext<T> scriptContext) {
                     throw new UnsupportedOperationException();
                 }
-            }
+            },
+            /*EmptyMeteringCallback.INSTANCE*/null
         );
 
         try {

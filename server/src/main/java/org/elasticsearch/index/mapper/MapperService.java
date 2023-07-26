@@ -27,6 +27,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.internal.metering.DocumentReporter;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -123,6 +124,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexVersion indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
+    private final DocumentReporter documentReporter;
+
     private volatile DocumentMapper mapper;
 
     public MapperService(
@@ -134,7 +137,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        DocumentReporter documentReporter
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
@@ -145,7 +149,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry,
             searchExecutionContextSupplier,
             idFieldMapper,
-            scriptCompiler
+            scriptCompiler,
+            documentReporter
         );
     }
 
@@ -158,7 +163,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        DocumentReporter documentReporter
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -176,7 +182,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper
         );
-        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
+        this.documentReporter = documentReporter;
+        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get(), documentReporter);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
@@ -374,7 +381,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, DocumentReporter.EMPTY_INSTANCE);
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
@@ -550,4 +557,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return documentMapper().mapping().getRoot().dynamicTemplates();
     }
 
+    public DocumentReporter getDocumentReporter() {
+        return documentReporter;
+    }
 }

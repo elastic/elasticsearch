@@ -614,3 +614,23 @@ epsilon/Gateway instances     | null
 epsilon/Gateway instances     | null
 null                          | null
 ;
+
+
+grok
+from hosts | where host == "epsilon" | grok host_group "%{WORD:l1} %{WORD:l2}"| sort l1 |  keep l1, l2;
+
+l1:keyword  | l2:keyword  
+Gateway     | instances   
+Gateway     | instances   
+null        | null
+;
+
+
+dissect
+from hosts | where host == "epsilon" | dissect host_group "%{l1} %{l2}"| sort l1 |  keep l1, l2;
+
+l1:keyword  | l2:keyword  
+Gateway     | instances   
+Gateway     | instances   
+null        | null
+;

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -151,11 +152,11 @@ public class Verifier {
             if (p instanceof RegexExtract re) {
                 Expression expr = re.input();
                 DataType type = expr.dataType();
-                if (type != DataTypes.KEYWORD) {
+                if (EsqlDataTypes.isString(type) == false) {
                     failures.add(
                         fail(
                             expr,
-                            "{} only supports KEYWORD values, found expression [{}] type [{}]",
+                            "{} only supports KEYWORD or TEXT values, found expression [{}] type [{}]",
                             re.getClass().getSimpleName(),
                             expr.sourceText(),
                             type

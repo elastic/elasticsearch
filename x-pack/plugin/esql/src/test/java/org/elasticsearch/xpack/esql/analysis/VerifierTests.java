@@ -112,14 +112,14 @@ public class VerifierTests extends ESTestCase {
 
     public void testNonStringFieldsInDissect() {
         assertEquals(
-            "1:21: Dissect only supports KEYWORD values, found expression [emp_no] type [INTEGER]",
+            "1:21: Dissect only supports KEYWORD or TEXT values, found expression [emp_no] type [INTEGER]",
             error("from test | dissect emp_no \"%{foo}\"")
         );
     }
 
     public void testNonStringFieldsInGrok() {
         assertEquals(
-            "1:18: Grok only supports KEYWORD values, found expression [emp_no] type [INTEGER]",
+            "1:18: Grok only supports KEYWORD or TEXT values, found expression [emp_no] type [INTEGER]",
             error("from test | grok emp_no \"%{WORD:foo}\"")
         );
     }

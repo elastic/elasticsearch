@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationState;
@@ -26,15 +27,17 @@ import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.StartJoinRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.function.Supplier;
 
@@ -93,21 +96,24 @@ public class StatelessElectionStrategy extends ElectionStrategy {
 
     @Override
     public void onNewElection(DiscoveryNode candidateMasterNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
-        getCurrentLeaseTerm(listener.delegateFailure((delegate, currentLeaseTermOpt) -> {
-            final long currentLeaseTerm = currentLeaseTermOpt.orElse(0L);
-            final long electionTerm = Math.max(proposedTerm, currentLeaseTerm + 1);
+        readLease(listener.delegateFailure((delegate, currentLeaseTermOpt) -> {
+            final Lease currentLeaseTerm = currentLeaseTermOpt.orElse(Lease.ZERO);
+            final Lease electionTerm = new Lease(
+                Math.max(proposedTerm, currentLeaseTerm.currentTerm + 1),
+                currentLeaseTerm.nodeLeftGeneration
+            );
 
             blobContainer().compareAndSetRegister(
                 LEASE_BLOB,
-                bytesFromLong(currentLeaseTerm),
-                bytesFromLong(electionTerm),
+                currentLeaseTerm.asBytes(),
+                electionTerm.asBytes(),
                 delegate.delegateFailure((delegate2, termGranted) -> {
                     if (termGranted) {
-                        listener.onResponse(new StartJoinRequest(candidateMasterNode, electionTerm));
+                        delegate2.onResponse(new StartJoinRequest(candidateMasterNode, electionTerm.currentTerm));
                     } else {
-                        listener.onFailure(
+                        delegate2.onFailure(
                             new CoordinationStateRejectedException(
-                                Strings.format("term [%d] already claimed by a different node", electionTerm)
+                                Strings.format("term [%d] already claimed by a different node", electionTerm.currentTerm)
                             )
                         );
                     }
@@ -116,13 +122,48 @@ public class StatelessElectionStrategy extends ElectionStrategy {
         }));
     }
 
+    public void onNodeLeft(long expectedTerm, long nodeLeftGeneration) {
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        readLease(future.delegateFailureAndWrap((delegate, currentLeaseTermOpt) -> {
+            final Lease currentLeaseTerm = currentLeaseTermOpt.orElse(Lease.ZERO);
+            if (currentLeaseTerm.currentTerm != expectedTerm) {
+                delegate.onFailure(
+                    new CoordinationStateRejectedException(
+                        "expected term [" + expectedTerm + "] but saw [" + currentLeaseTerm.currentTerm + "]"
+                    )
+                );
+                return;
+            }
+            final Lease electionTerm = new Lease(currentLeaseTerm.currentTerm, nodeLeftGeneration);
+            if (nodeLeftGeneration <= currentLeaseTerm.nodeLeftGeneration) {
+                assert nodeLeftGeneration == currentLeaseTerm.nodeLeftGeneration
+                    : "tried to set [" + electionTerm + "] after [" + currentLeaseTerm + "]";
+                delegate.onResponse(null);
+                return;
+            }
+            blobContainer().compareAndSetRegister(
+                LEASE_BLOB,
+                currentLeaseTerm.asBytes(),
+                electionTerm.asBytes(),
+                delegate.delegateFailure((delegate2, updated) -> {
+                    if (updated) {
+                        delegate2.onResponse(null);
+                    } else {
+                        delegate2.onFailure(new CoordinationStateRejectedException("unexpected concurrent modification of lease"));
+                    }
+                })
+            );
+        }));
+        FutureUtils.get(future);
+    }
+
     @Override
     public void beforeCommit(long term, long version, ActionListener<Void> listener) {
         doBeforeCommit(term, version, 0, listener);
     }
 
     private void doBeforeCommit(long term, long version, int retryCount, ActionListener<Void> listener) {
-        getCurrentLeaseTerm(listener.delegateFailure((delegate, currentTerm) -> {
+        readLease(listener.delegateFailure((delegate, currentTerm) -> {
             if (currentTerm.isEmpty()) {
                 if (retryCount < MAX_READ_CURRENT_LEASE_TERM_RETRIES) {
                     threadPool.schedule(
@@ -138,17 +179,18 @@ public class StatelessElectionStrategy extends ElectionStrategy {
                 return;
             }
 
-            if (currentTerm.getAsLong() == term) {
+            final long foundTerm = currentTerm.get().currentTerm;
+            if (foundTerm == term) {
                 delegate.onResponse(null);
             } else {
-                assert term < currentTerm.getAsLong() : term + " vs " + currentTerm;
+                assert term < foundTerm : term + " vs " + currentTerm;
                 delegate.onFailure(
                     new CoordinationStateRejectedException(
                         Strings.format(
                             "failing commit of cluster state version [%d] in term [%d] since current term is now [%d]",
                             version,
                             term,
-                            currentTerm.getAsLong()
+                            foundTerm
                         )
                     )
                 );
@@ -166,12 +208,30 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     }
 
     public void getCurrentLeaseTerm(ActionListener<OptionalLong> listener) {
+        readLease(listener.map(terms -> terms.map(value -> OptionalLong.of(value.currentTerm)).orElseGet(OptionalLong::empty)));
+    }
+
+    public void readLease(ActionListener<Optional<Lease>> listener) {
         threadPool.executor(getExecutorName())
             .execute(ActionRunnable.wrap(listener, l -> blobContainer().getRegister(LEASE_BLOB, l.map(optionalBytesReference -> {
                 if (optionalBytesReference.isPresent()) {
-                    return OptionalLong.of(longFromBytes(optionalBytesReference.bytesReference()));
+                    Lease result;
+                    BytesReference bytesReference = optionalBytesReference.bytesReference();
+                    if (bytesReference.length() == 0) {
+                        result = Lease.ZERO;
+                    } else if (bytesReference.length() == Long.BYTES) {
+                        result = new Lease(Long.reverseBytes(bytesReference.getLongLE(0)), Lease.UNSUPPORTED);
+                    } else if (bytesReference.length() == 2 * Long.BYTES) {
+                        result = new Lease(
+                            Long.reverseBytes(bytesReference.getLongLE(0)),
+                            Long.reverseBytes(bytesReference.getLongLE(Long.BYTES))
+                        );
+                    } else {
+                        throw new IllegalArgumentException("cannot read terms from BytesReference of length " + bytesReference.length());
+                    }
+                    return Optional.of(result);
                 } else {
-                    return OptionalLong.empty();
+                    return Optional.empty();
                 }
             }))));
     }
@@ -184,17 +244,29 @@ public class StatelessElectionStrategy extends ElectionStrategy {
         return Objects.requireNonNull(blobContainerSupplier.get());
     }
 
-    static long longFromBytes(BytesReference bytesReference) {
-        if (bytesReference.length() == 0) {
-            return 0L;
-        } else if (bytesReference.length() == Long.BYTES) {
-            return Long.reverseBytes(bytesReference.getLongLE(0));
-        } else {
-            throw new IllegalArgumentException("cannot read long from BytesReference of length " + bytesReference.length());
-        }
-    }
+    public record Lease(long currentTerm, long nodeLeftGeneration) {
+        private static final long UNSUPPORTED = -1L;
 
-    static BytesReference bytesFromLong(long value) {
-        return value == 0L ? BytesArray.EMPTY : new BytesArray(Numbers.longToBytes(value));
+        private static final Lease ZERO = new Lease(0, 0);
+
+        BytesReference asBytes() {
+            if (currentTerm == 0) {
+                return BytesArray.EMPTY;
+            }
+            final byte[] bytes;
+            // If node left generation is unsupported, this lease was written by a cluster with a node whose version is prior to the time
+            // when node left generation was introduced. Do not introduce the value until the entire cluster is upgraded and a node-left
+            // event occurs.
+            if (nodeLeftGeneration == UNSUPPORTED) {
+                bytes = new byte[Long.BYTES];
+                ByteUtils.writeLongBE(currentTerm, bytes, 0);
+            } else {
+                bytes = new byte[Long.BYTES * 2];
+                ByteUtils.writeLongBE(currentTerm, bytes, 0);
+                ByteUtils.writeLongBE(nodeLeftGeneration, bytes, Long.BYTES);
+            }
+            return new BytesArray(bytes);
+        }
+
     }
 }

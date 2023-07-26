@@ -708,6 +708,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 xContentRegistry,
                 clusterSettings,
                 threadPool::relativeTimeInMillis,
+                electionStrategy::get,
                 objectStoreService::get,
                 threadPool
             )

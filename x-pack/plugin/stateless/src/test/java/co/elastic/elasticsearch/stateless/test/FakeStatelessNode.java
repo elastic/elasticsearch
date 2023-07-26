@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.test;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
@@ -100,6 +101,8 @@ public class FakeStatelessNode implements Closeable {
     public final StatelessCommitService commitService;
     public final NodeEnvironment nodeEnvironment;
     public final ThreadPool threadPool;
+
+    public final StatelessElectionStrategy electionStrategy;
 
     private final Closeable closeables;
 
@@ -220,6 +223,8 @@ public class FakeStatelessNode implements Closeable {
             commitService.register(shardId);
             indexingDirectory.getSearchDirectory()
                 .setBlobContainer(primaryTerm -> objectStoreService.getBlobContainer(shardId, primaryTerm));
+
+            electionStrategy = new StatelessElectionStrategy(objectStoreService::getTermLeaseBlobContainer, threadPool);
 
             closeables = localCloseables.transfer();
         }

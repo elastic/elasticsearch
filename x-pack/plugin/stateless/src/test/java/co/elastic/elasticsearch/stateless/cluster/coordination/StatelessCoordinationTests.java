@@ -201,6 +201,7 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                     xContentRegistry(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     threadPool::relativeTimeInMillis,
+                    () -> statelessNode.electionStrategy,
                     () -> statelessNode.objectStoreService,
                     threadPool
                 ) {

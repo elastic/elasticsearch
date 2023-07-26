@@ -29,6 +29,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -65,18 +66,21 @@ import java.util.function.LongFunction;
 
 class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
     private final Logger logger = LogManager.getLogger(StatelessPersistedState.class);
+    public static final TransportVersion VERSION_WITH_NODE_LEFT_TERM = TransportVersion.V_8_500_042;
     private final LongFunction<BlobContainer> blobContainerSupplier;
     private final PersistedClusterStateService persistedClusterStateService;
     private final ThrottledTaskRunner throttledTaskRunner;
     private final ExecutorService executorService;
     private final Path clusterStateReadStagingPath;
+    private final StatelessElectionStrategy statelessElectionStrategy;
 
     StatelessPersistedState(
         PersistedClusterStateService persistedClusterStateService,
         LongFunction<BlobContainer> blobContainerSupplier,
         ExecutorService executorService,
         Path clusterStateReadStagingPath,
-        ClusterState lastAcceptedState
+        ClusterState lastAcceptedState,
+        StatelessElectionStrategy statelessElectionStrategy
     ) throws IOException {
         super(persistedClusterStateService, lastAcceptedState.term(), lastAcceptedState);
         this.blobContainerSupplier = blobContainerSupplier;
@@ -85,6 +89,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         this.throttledTaskRunner = new ThrottledTaskRunner("cluster_state_downloader", 5, executorService);
         this.executorService = executorService;
         this.clusterStateReadStagingPath = clusterStateReadStagingPath;
+        this.statelessElectionStrategy = statelessElectionStrategy;
     }
 
     @Override
@@ -99,8 +104,14 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
 
     @Override
     protected void writeClusterStateToDisk(ClusterState clusterState) {
-        if (clusterState.nodes().isLocalNodeElectedMaster()) {
+        final var newNodes = clusterState.nodes();
+        if (newNodes.isLocalNodeElectedMaster()) {
             super.writeClusterStateToDisk(clusterState);
+
+            if (clusterState.getMinTransportVersion().onOrAfter(VERSION_WITH_NODE_LEFT_TERM)
+                && newNodes.getNodeLeftGeneration() != getLastAcceptedState().nodes().getNodeLeftGeneration()) {
+                statelessElectionStrategy.onNodeLeft(clusterState.term(), newNodes.getNodeLeftGeneration());
+            }
         }
     }
 

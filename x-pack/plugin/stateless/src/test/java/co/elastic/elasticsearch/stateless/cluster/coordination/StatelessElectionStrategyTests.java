@@ -49,7 +49,6 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -68,6 +67,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessElectionStrategyTests extends ESTestCase {
+
     public void testTermIsClaimedOnNewElections() throws Exception {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
             var electionStrategy = new StatelessElectionStrategy(
@@ -226,7 +226,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
     }
 
     public void testBeforeCommitRetriesCurrentTermReads() throws Exception {
-        var registerValueRef = new AtomicReference<OptionalLong>();
+        var registerValueRef = new AtomicReference<OptionalBytesReference>();
         var capturingThreadPool = new CapturingThreadPool(getTestName());
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
             @Override
@@ -239,14 +239,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
 
                     @Override
                     public void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
-                        ActionListener.completeWith(listener, () -> {
-                            final var registerValue = registerValueRef.get();
-                            if (registerValue.isEmpty()) {
-                                return OptionalBytesReference.MISSING;
-                            } else {
-                                return OptionalBytesReference.of(StatelessElectionStrategy.bytesFromLong(registerValue.getAsLong()));
-                            }
-                        });
+                        ActionListener.completeWith(listener, registerValueRef::get);
                     }
                 };
             }
@@ -255,7 +248,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                 fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
                 capturingThreadPool
             );
-            registerValueRef.set(OptionalLong.empty());
+            registerValueRef.set(OptionalBytesReference.MISSING);
 
             PlainActionFuture<Void> beforeCommitListener = PlainActionFuture.newFuture();
             electionStrategy.beforeCommit(1, 2, beforeCommitListener);
@@ -276,7 +269,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                 assertThat(beforeCommitListener.isDone(), is(false));
 
                 if (retry == StatelessElectionStrategy.MAX_READ_CURRENT_LEASE_TERM_RETRIES - 1 && failAllReads == false) {
-                    registerValueRef.set(OptionalLong.of(1));
+                    registerValueRef.set(OptionalBytesReference.of(new StatelessElectionStrategy.Lease(1, 0).asBytes()));
                 }
 
                 retryTask.v2().run();

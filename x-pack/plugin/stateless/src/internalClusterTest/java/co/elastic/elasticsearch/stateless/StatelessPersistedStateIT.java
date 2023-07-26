@@ -1,0 +1,106 @@
+/*
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
+ */
+
+package co.elastic.elasticsearch.stateless;
+
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.ByteUtils;
+
+import java.io.InputStream;
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+
+public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
+
+    public void testNodeLeftIsWrittenInRootBlob() throws Exception {
+        startMasterOnlyNode();
+        String indexNode1 = startIndexNode();
+        String indexNode2 = startIndexNode();
+
+        ensureStableCluster(3);
+
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode2);
+        var blobContainerForTermLease = objectStoreService.getTermLeaseBlobContainer();
+        final long nodeLeftGenerationBeforeNodeLeft;
+        try (InputStream inputStream = blobContainerForTermLease.readBlob("lease")) {
+            BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
+            StreamInput input = rootBlob.streamInput();
+            input.readLong();
+            nodeLeftGenerationBeforeNodeLeft = input.readLong();
+        }
+
+        internalCluster().stopNode(indexNode1);
+
+        ensureStableCluster(2);
+
+        try (InputStream inputStream = blobContainerForTermLease.readBlob("lease")) {
+            BytesArray newRootBlob = new BytesArray(inputStream.readAllBytes());
+            assertThat(newRootBlob.length(), equalTo(16));
+            StreamInput input = newRootBlob.streamInput();
+            input.readLong();
+            assertEquals(nodeLeftGenerationBeforeNodeLeft + 1, input.readLong());
+        }
+    }
+
+    public void testEncounter8ByteRootBlobUpgradesTo16ByteWithNodeLeft() throws Exception {
+        startMasterOnlyNode();
+        String indexNode1 = startIndexNode();
+
+        ensureStableCluster(2);
+
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode1);
+        var blobContainerForTermLease = objectStoreService.getTermLeaseBlobContainer();
+        final long termBeforeRootDeleted;
+        try (InputStream inputStream = blobContainerForTermLease.readBlob("lease")) {
+            BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
+            StreamInput input = rootBlob.streamInput();
+            termBeforeRootDeleted = input.readLong();
+            input.readLong();
+        }
+
+        byte[] bytes = new byte[Long.BYTES];
+        ByteUtils.writeLongBE(termBeforeRootDeleted + 1, bytes, 0);
+        blobContainerForTermLease.writeBlob("lease", new BytesArray(bytes), false);
+        blobContainerForTermLease.deleteBlobsIgnoringIfNotExists(List.of("heartbeat").iterator());
+
+        // Add a node to force a cluster state update
+
+        String indexNode2 = startIndexNode();
+        ensureStableCluster(3);
+
+        final long nodeLeftGenerationBeforeNodeLeft;
+        try (InputStream inputStream = blobContainerForTermLease.readBlob("lease")) {
+            BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
+            StreamInput input = rootBlob.streamInput();
+            assertThat(input.readLong(), greaterThan(termBeforeRootDeleted + 1));
+            nodeLeftGenerationBeforeNodeLeft = input.readLong();
+        }
+
+        internalCluster().stopNode(indexNode2);
+        ensureStableCluster(2);
+
+        try (InputStream inputStream = blobContainerForTermLease.readBlob("lease")) {
+            BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
+            StreamInput input = rootBlob.streamInput();
+            input.readLong();
+            assertEquals(nodeLeftGenerationBeforeNodeLeft + 1, input.readLong());
+        }
+    }
+}

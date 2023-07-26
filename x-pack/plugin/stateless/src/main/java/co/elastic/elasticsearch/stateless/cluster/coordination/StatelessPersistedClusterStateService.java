@@ -52,11 +52,14 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
     private final SetOnce<LongSupplier> currentTermSupplier = new SetOnce<>();
     private final Supplier<ObjectStoreService> objectStoreServiceSupplier;
 
+    private final Supplier<StatelessElectionStrategy> electionStrategySupplier;
+
     public StatelessPersistedClusterStateService(
         NodeEnvironment nodeEnvironment,
         NamedXContentRegistry namedXContentRegistry,
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeMillisSupplier,
+        Supplier<StatelessElectionStrategy> electionStrategySupplier,
         Supplier<ObjectStoreService> objectStoreServiceSupplier,
         ThreadPool threadPool
     ) {
@@ -65,6 +68,7 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
         this.threadPool = threadPool;
         this.nodeEnvironment = nodeEnvironment;
         this.clusterSettings = clusterSettings;
+        this.electionStrategySupplier = electionStrategySupplier;
     }
 
     @Override
@@ -95,7 +99,8 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
             objectStoreService()::getClusterStateBlobContainerForTerm,
             threadPool.executor(getDownloadsThreadPool()),
             getStateStagingPath(),
-            getInitialState(settings, localNode, clusterSettings)
+            getInitialState(settings, localNode, clusterSettings),
+            Objects.requireNonNull(electionStrategySupplier.get())
         );
         currentTermSupplier.set(persistedState::getCurrentTerm);
         return persistedState;

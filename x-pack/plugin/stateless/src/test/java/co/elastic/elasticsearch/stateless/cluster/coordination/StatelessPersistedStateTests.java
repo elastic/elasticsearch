@@ -458,6 +458,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
             xContentRegistry(),
             fakeStatelessNode.clusterSettings,
             () -> 0L,
+            () -> fakeStatelessNode.electionStrategy,
             () -> fakeStatelessNode.objectStoreService,
             fakeStatelessNode.threadPool
         );
@@ -477,6 +478,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
             xContentRegistry(),
             fakeStatelessNode.clusterSettings,
             () -> 0L,
+            () -> fakeStatelessNode.electionStrategy,
             () -> objectStoreService,
             fakeStatelessNode.threadPool
         );

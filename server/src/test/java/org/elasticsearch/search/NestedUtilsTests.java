@@ -23,6 +23,7 @@ public class NestedUtilsTests extends ESTestCase {
             "child1.grandchild",
             "child1.grandchild2",
             "child11",
+            "child12",
             "child2.grandchild",
             "frog"
         );
@@ -30,7 +31,7 @@ public class NestedUtilsTests extends ESTestCase {
         assertEquals(
             org.elasticsearch.core.Map.of(
                 "",
-                org.elasticsearch.core.List.of("a", "b", "child11", "frog"),
+                org.elasticsearch.core.List.of("a", "b", "child11", "child12", "frog"),
                 "child1",
                 org.elasticsearch.core.List.of("child1.grandchild", "child1.grandchild2"),
                 "child2",

@@ -163,6 +163,12 @@ allprojects {
   // e.g. see https://github.com/elastic/elasticsearch/issues/72169
   // apply plugin:'elasticsearch.internal-test-rerun'
 
+  repositories {
+    flatDir {
+      dirs 'localRepo'
+    }
+  }
+
   plugins.withType(BaseInternalPluginBuildPlugin).whenPluginAdded {
     project.dependencies {
       compileOnly project(":server")

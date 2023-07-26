@@ -50,6 +50,7 @@ final class SystemJvmOptions {
             "-Dlog4j.shutdownHookEnabled=false",
             "-Dlog4j2.disable.jmx=true",
             "-Dlog4j2.formatMsgNoLookups=true",
+            "-Dopensaml.config.ecdh.defaultKDF=PBKDF2",
             /*
              * Due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise time/date
              * parsing will break in an incompatible way for some date patterns and locales.

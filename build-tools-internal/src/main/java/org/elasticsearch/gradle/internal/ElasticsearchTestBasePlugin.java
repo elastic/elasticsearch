@@ -168,6 +168,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.systemProperty("io.netty.noUnsafe", "true");
             test.systemProperty("io.netty.noKeySetOptimization", "true");
             test.systemProperty("io.netty.recycler.maxCapacityPerThread", "0");
+            test.systemProperty("opensaml.config.ecdh.defaultKDF","PBKDF2");
 
             test.testLogging(logging -> {
                 logging.setShowExceptions(true);

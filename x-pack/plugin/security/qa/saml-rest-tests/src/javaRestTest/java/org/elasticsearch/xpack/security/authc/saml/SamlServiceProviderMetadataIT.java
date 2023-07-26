@@ -93,6 +93,7 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
         return ElasticsearchCluster.local()
             .nodes(1)
             .module("analysis-common")
+//            .systemProperty("opensaml.config.ecdh.defaultKDF","PBKDF2")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "true")
             .setting("xpack.security.authc.token.enabled", "true")

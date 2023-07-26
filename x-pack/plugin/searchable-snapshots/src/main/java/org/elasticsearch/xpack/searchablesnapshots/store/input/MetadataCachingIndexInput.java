@@ -19,7 +19,6 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.Releasable;
@@ -94,7 +93,6 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
 
     private final Logger logger;
     private final boolean isCfs;
-    private final BlobContainer blobContainer;
     protected final BlobStoreIndexShardSnapshot.FileInfo fileInfo;
     protected final IOContext context;
     protected final IndexInputStats stats;
@@ -124,7 +122,6 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
         super(name, context);
         this.isCfs = IndexFileNames.matchesExtension(name, "cfs");
         this.logger = Objects.requireNonNull(logger);
-        this.blobContainer = Objects.requireNonNull(directory.blobContainer());
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
         assert fileInfo.metadata().hashEqualsContents() == false
@@ -460,7 +457,7 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
             assert position + readLength <= fileInfo.length()
                 : "cannot read [" + position + "-" + (position + readLength) + "] from [" + fileInfo + "]";
             stats.addBlobStoreBytesRequested(readLength);
-            return blobContainer.readBlob(fileInfo.name(), position, readLength);
+            return directory.blobContainer().readBlob(fileInfo.name(), position, readLength);
         } else {
             final int startPart = getPartNumberForPosition(position);
             final int endPart = getPartNumberForPosition(position + readLength - 1);
@@ -483,7 +480,7 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
                     endInPart = currentPart == endPart
                         ? getRelativePositionInPart(position + readLength - 1) + 1
                         : fileInfo.partBytes(currentPart);
-                    return blobContainer.readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
+                    return directory.blobContainer().readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
                 }
             };
         }

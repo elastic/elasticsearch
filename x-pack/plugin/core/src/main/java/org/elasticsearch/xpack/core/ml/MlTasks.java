@@ -51,7 +51,7 @@ public final class MlTasks {
     public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
     public static final String DATA_FRAME_ANALYTICS_TASK_ID_PREFIX = "data_frame_analytics-";
     public static final String JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX = "job-snapshot-upgrade-";
-    private static final String DOWNLOAD_MODEL_TASK_DESCRIPTION_PREFIX = "modelId=";
+    private static final String DOWNLOAD_MODEL_TASK_DESCRIPTION_PREFIX = "model_id-";
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE = new PersistentTasksCustomMetadata.Assignment(
         null,
@@ -485,7 +485,7 @@ public final class MlTasks {
      * @param modelId a string that identifies the model
      * @return a string representing the task description
      */
-    public static String createTaskDescription(String modelId) {
+    public static String downloadModelTaskDescription(String modelId) {
         return DOWNLOAD_MODEL_TASK_DESCRIPTION_PREFIX + modelId;
     }
 }

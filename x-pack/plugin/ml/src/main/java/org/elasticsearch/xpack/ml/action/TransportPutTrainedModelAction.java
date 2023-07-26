@@ -80,7 +80,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.MlTasks.createTaskDescription;
+import static org.elasticsearch.xpack.core.ml.MlTasks.downloadModelTaskDescription;
 
 public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -364,7 +364,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             .setActions(MlTasks.MODEL_IMPORT_TASK_ACTION)
             .setDetailed(true)
             .setWaitForCompletion(waitForCompletion)
-            .setDescriptions(createTaskDescription(modelId))
+            .setDescriptions(downloadModelTaskDescription(modelId))
             .execute(ActionListener.wrap((response) -> {
                 var tasks = response.getTasks();
 

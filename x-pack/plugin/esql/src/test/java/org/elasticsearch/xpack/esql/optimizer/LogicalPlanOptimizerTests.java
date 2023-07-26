@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -1021,22 +1020,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | where first_name in (null, null)
             """);
         assertThat(plan, instanceOf(LocalRelation.class));
-    }
-
-    public void testStripNullFromInList() {
-        LogicalPlan plan = optimizedPlan("""
-            from test
-            | where first_name in (last_name, null)
-            """);
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        assertThat(filter.condition(), instanceOf(In.class));
-        In in = (In) filter.condition();
-        assertThat(in.list(), hasSize(1));
-        assertThat(in.list().get(0), instanceOf(FieldAttribute.class));
-        FieldAttribute fa = (FieldAttribute) in.list().get(0);
-        assertThat(fa.field().getName(), is("last_name"));
-        as(filter.child(), EsRelation.class);
     }
 
     public void testFoldInKeyword() {

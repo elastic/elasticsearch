@@ -62,7 +62,6 @@ import java.util.function.Predicate;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
-import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
@@ -88,7 +87,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
             new FoldNull(),
-            new FoldNullInIn(),
             new ConstantFolding(),
             // boolean
             new BooleanSimplification(),
@@ -291,28 +289,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         private static Expression trimAliases(Expression e) {
             return e.transformDown(Alias.class, Alias::child);
-        }
-    }
-
-    static class FoldNullInIn extends OptimizerRules.OptimizerExpressionRule<In> {
-
-        FoldNullInIn() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected Expression rule(In in) {
-            List<Expression> newList = new ArrayList<>(in.list());
-            // In folds itself if value() is `null`
-            newList.removeIf(Expressions::isNull);
-            if (in.list().size() != newList.size()) {
-                if (newList.size() == 0) {
-                    return FALSE;
-                }
-                newList.add(in.value());
-                return in.replaceChildren(newList);
-            }
-            return in;
         }
     }
 

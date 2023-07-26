@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanArrayBlock;
+import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -44,36 +47,66 @@ class InMapper extends EvalMapper.ExpressionMapper<In> {
         @Override
         public Block eval(Page page) {
             int positionCount = page.getPositionCount();
-            BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-            for (int p = 0; p < positionCount; p++) {
-                result.appendBoolean(evalPosition(p, page));
-            }
-            return result.build().asBlock();
-        }
+            boolean[] values = new boolean[positionCount];
+            BitSet nulls = new BitSet(positionCount); // at least one evaluation resulted in NULL on a row
+            boolean nullInValues = false; // set when NULL's added in the values list: `field IN (valueA, null, valueB)`
 
-        private boolean evalPosition(int pos, Page page) {
-            for (EvalOperator.ExpressionEvaluator evaluator : listEvaluators) {
-                Block block = evaluator.eval(page); // TODO this evaluates the whole page once per position
+            for (int i = 0; i < listEvaluators().size(); i++) {
+                var evaluator = listEvaluators.get(i);
+                Block block = evaluator.eval(page);
+
                 Vector vector = block.asVector();
                 if (vector != null) {
-                    BooleanVector booleanVector = (BooleanVector) vector;
-                    if (booleanVector.getBoolean(pos)) {
-                        return true;
-                    }
+                    updateValues((BooleanVector) vector, values);
                 } else {
-                    BooleanBlock boolBlock = (BooleanBlock) block;
-                    if (boolBlock.isNull(pos) == false) {  // TODO null should be viral here
-                        int start = block.getFirstValueIndex(pos);
-                        int end = start + block.getValueCount(pos);
-                        for (int i = start; i < end; i++) {
-                            if (((BooleanBlock) block).getBoolean(i)) {
-                                return true;
-                            }
+                    if (block.areAllValuesNull()) {
+                        nullInValues = true;
+                    } else {
+                        updateValues((BooleanBlock) block, values, nulls);
+                    }
+                }
+            }
+
+            return evalWithNulls(values, nulls, nullInValues);
+        }
+
+        private static void updateValues(BooleanVector vector, boolean[] values) {
+            for (int p = 0; p < values.length; p++) {
+                values[p] |= vector.getBoolean(p);
+            }
+        }
+
+        private static void updateValues(BooleanBlock block, boolean[] values, BitSet nulls) {
+            for (int p = 0; p < values.length; p++) {
+                if (block.isNull(p)) {
+                    nulls.set(p);
+                } else {
+                    int start = block.getFirstValueIndex(p);
+                    int end = start + block.getValueCount(p);
+                    for (int i = start; i < end; i++) { // if MV_ANY is true, evaluation is true
+                        if (block.getBoolean(i)) {
+                            values[p] = true;
+                            break;
                         }
                     }
                 }
             }
-            return false;
+        }
+
+        private static Block evalWithNulls(boolean[] values, BitSet nulls, boolean nullInValues) {
+            if (nulls.isEmpty() && nullInValues == false) {
+                return new BooleanArrayVector(values, values.length).asBlock();
+            } else {
+                // 3VL: true trumps null; null trumps false.
+                for (int i = 0; i < values.length; i++) {
+                    if (values[i]) {
+                        nulls.clear(i);
+                    } else if (nullInValues) {
+                        nulls.set(i);
+                    } // else: leave nulls as is
+                }
+                return new BooleanArrayBlock(values, values.length, null, nulls, Block.MvOrdering.UNORDERED);
+            }
         }
     }
 }

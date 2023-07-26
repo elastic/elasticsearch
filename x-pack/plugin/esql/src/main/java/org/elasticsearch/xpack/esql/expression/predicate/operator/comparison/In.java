@@ -47,6 +47,9 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
 
     @Override
     public Boolean fold() {
+        if (Expressions.isNull(value()) || list().stream().allMatch(Expressions::isNull)) {
+            return null;
+        }
         // QL's `In` fold() doesn't handle BytesRef and can't know if this is Keyword/Text, Version or IP anyway.
         // `In` allows comparisons of same type only (safe for numerics), so it's safe to apply InProcessor directly with no implicit
         // (non-numerical) conversions.

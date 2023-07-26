@@ -227,7 +227,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
     // ensure happens-before relation between addRefreshListener() and postRecovery()
-    private final SetOnce<SubscribableListener<Void>> postRecoveryComplete = new SetOnce<>();
+    private volatile SubscribableListener<Void> postRecoveryComplete;
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
     private final Object engineMutex = new Object(); // lock ordering: engineMutex -> mutex
     private final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
@@ -1679,8 +1679,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void postRecovery(String reason, ActionListener<Void> listener) throws IndexShardStartedException, IndexShardRelocatedException,
         IndexShardClosedException {
+        assert postRecoveryComplete == null;
         SubscribableListener<Void> subscribableListener = new SubscribableListener<>();
-        postRecoveryComplete.set(subscribableListener);
+        postRecoveryComplete = subscribableListener;
         final ActionListener<Void> finalListener = ActionListener.runBefore(listener, () -> subscribableListener.onResponse(null));
         try {
             getEngine().refresh("post_recovery");
@@ -3912,8 +3913,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *        false otherwise.
      */
     public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
-        SubscribableListener<Void> subscribableListener = postRecoveryComplete.get();
-        if (subscribableListener != null) {
+        SubscribableListener<Void> subscribableListener = postRecoveryComplete;
+        if (postRecoveryComplete != null) {
             subscribableListener.addListener(new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
@@ -3943,7 +3944,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param listener for the refresh.
      */
     public void addRefreshListener(long checkpoint, boolean allowUnIssuedSequenceNumber, ActionListener<Void> listener) {
-        SubscribableListener<Void> subscribableListener = postRecoveryComplete.get();
+        SubscribableListener<Void> subscribableListener = postRecoveryComplete;
         if (subscribableListener != null) {
             subscribableListener.addListener(new ActionListener<>() {
                 @Override

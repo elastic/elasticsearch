@@ -19,8 +19,8 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
 import org.elasticsearch.plugins.internal.metering.DocumentReporter;
-import org.elasticsearch.plugins.internal.metering.DocumentReporterExtension;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,17 +46,17 @@ import java.util.function.Consumer;
 public final class DocumentParser {
 
     private final XContentParserConfiguration parserConfiguration;
-    private final DocumentReporter documentReporter;
+    private final DocumentReporterFactory documentReporterFactory;
     private final MappingParserContext mappingParserContext;
 
     DocumentParser(
         XContentParserConfiguration parserConfiguration,
         MappingParserContext mappingParserContext,
-        DocumentReporter documentReporter
+        DocumentReporterFactory documentReporterFactory
     ) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
-        this.documentReporter = documentReporter;
+        this.documentReporterFactory = documentReporterFactory;
     }
 
     /**
@@ -73,9 +73,9 @@ public final class DocumentParser {
         }
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
-        DocumentReporterExtension documentReporterExtension = documentReporter.createExtension();
+        DocumentReporter documentReporter = documentReporterFactory.createDocumentReporter();
         try (
-            XContentParser parser = documentReporterExtension.wrapParser(
+            XContentParser parser = documentReporter.wrapParser(
                 XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
             )
         ) {
@@ -96,7 +96,7 @@ public final class DocumentParser {
         if (source.isAlreadyReported() == false // metering was done in ingestService
             && dynamicUpdate == null// if a mappingUpdate is required, the parsing will be triggered again
         ) {
-            documentReporterExtension.reportDocumentParsed(mappingParserContext.getIndexSettings().getIndex().getName());
+            documentReporter.reportDocumentParsed(mappingParserContext.getIndexSettings().getIndex().getName());
         }
         return new ParsedDocument(
             context.version(),

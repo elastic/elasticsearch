@@ -10,14 +10,14 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.plugins.internal.metering.DocumentReporter;
+import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
 
 import java.util.List;
 
 public class DocumentMapper {
     private final String type;
     private final CompressedXContent mappingSource;
-    private DocumentReporter documentReporter;
+    private DocumentReporterFactory documentReporterFactory;
     private final MappingLookup mappingLookup;
     private final DocumentParser documentParser;
 
@@ -40,12 +40,12 @@ public class DocumentMapper {
         );
     }
 
-    DocumentMapper(DocumentParser documentParser, Mapping mapping, CompressedXContent source, DocumentReporter documentReporter) {
+    DocumentMapper(DocumentParser documentParser, Mapping mapping, CompressedXContent source, DocumentReporterFactory documentReporterFactory) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
         this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = source;
-        this.documentReporter = documentReporter;// perhaps not needed
+        this.documentReporterFactory = documentReporterFactory;// perhaps not needed
         assert mapping.toCompressedXContent().equals(source)
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }

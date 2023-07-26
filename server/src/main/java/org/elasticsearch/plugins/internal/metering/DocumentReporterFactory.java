@@ -8,18 +8,8 @@
 
 package org.elasticsearch.plugins.internal.metering;
 
-import org.elasticsearch.xcontent.XContentParser;
+public interface DocumentReporterFactory {
+    DocumentReporterFactory EMPTY_INSTANCE = () -> DocumentReporter.EMPTY_INSTANCE;
 
-public interface DocumentReporterExtension {
-
-    DocumentReporterExtension EMPTY_INSTANCE = new DocumentReporterExtension() {
-    };
-
-    default XContentParser wrapParser(XContentParser context) {
-        return context;
-    }
-
-    default void reportDocumentParsed(String indexName) {
-
-    }
+    DocumentReporter createDocumentReporter();
 }

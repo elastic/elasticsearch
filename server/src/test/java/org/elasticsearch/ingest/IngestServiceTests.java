@@ -52,7 +52,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.metering.DocumentReporter;
+import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -150,7 +150,7 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            DocumentReporter.EMPTY_INSTANCE
+            DocumentReporterFactory.EMPTY_INSTANCE
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -170,7 +170,7 @@ public class IngestServiceTests extends ESTestCase {
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
                 null,
-                DocumentReporter.EMPTY_INSTANCE
+                DocumentReporterFactory.EMPTY_INSTANCE
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -187,7 +187,7 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            DocumentReporter.EMPTY_INSTANCE
+            DocumentReporterFactory.EMPTY_INSTANCE
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -1907,7 +1907,7 @@ public class IngestServiceTests extends ESTestCase {
             List.of(testPlugin),
             client,
             null,
-            DocumentReporter.EMPTY_INSTANCE
+            DocumentReporterFactory.EMPTY_INSTANCE
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -2244,7 +2244,7 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            DocumentReporter.EMPTY_INSTANCE
+            DocumentReporterFactory.EMPTY_INSTANCE
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
@@ -2527,7 +2527,7 @@ public class IngestServiceTests extends ESTestCase {
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }), client, null, DocumentReporter.EMPTY_INSTANCE);
+        }), client, null, DocumentReporterFactory.EMPTY_INSTANCE);
     }
 
     private CompoundProcessor mockCompoundProcessor() {

@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.plugins.internal.metering.DocumentReporterExtension;
+import org.elasticsearch.plugins.internal.metering.DocumentReporter;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -143,7 +143,7 @@ public class XContentHelper {
         BytesReference bytes,
         boolean ordered,
         XContentType xContentType,
-        DocumentReporterExtension convertToMapAndMeter
+        DocumentReporter convertToMapAndMeter
     ) {
         return parseToType(
             ordered ? XContentParser::mapOrdered : XContentParser::map,
@@ -198,7 +198,7 @@ public class XContentHelper {
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config
     ) throws ElasticsearchParseException {
-        return parseToType(extractor, bytes, xContentType, config, DocumentReporterExtension.EMPTY_INSTANCE);
+        return parseToType(extractor, bytes, xContentType, config, DocumentReporter.EMPTY_INSTANCE);
     }
 
     public static <T> Tuple<XContentType, T> parseToType(
@@ -206,11 +206,11 @@ public class XContentHelper {
         BytesReference bytes,
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config,
-        DocumentReporterExtension documentReporterExtension
+        DocumentReporter documentReporter
     ) throws ElasticsearchParseException {
         config = config != null ? config : XContentParserConfiguration.EMPTY;
         try (
-            XContentParser parser = documentReporterExtension.wrapParser(
+            XContentParser parser = documentReporter.wrapParser(
                 xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)
             )
         ) {

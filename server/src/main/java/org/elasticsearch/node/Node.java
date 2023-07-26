@@ -179,7 +179,7 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
-import org.elasticsearch.plugins.internal.metering.DocumentReporter;
+import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
 import org.elasticsearch.plugins.internal.metering.DocumentReporterPlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -521,7 +521,7 @@ public class Node implements Closeable {
                 );
             }
 
-            DocumentReporter documentReporter = getDocumentReporter();
+            DocumentReporterFactory documentReporterFactory = getDocumentReporter();
 
             final IngestService ingestService = new IngestService(
                 clusterService,
@@ -532,7 +532,7 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(IngestPlugin.class),
                 client,
                 IngestService.createGrokThreadWatchdog(this.environment, threadPool),
-                documentReporter
+                documentReporterFactory
             );
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
@@ -692,7 +692,7 @@ public class Node implements Closeable {
                 indexFoldersDeletionListeners,
                 snapshotCommitSuppliers,
                 searchModule.getRequestCacheKeyDifferentiator(),
-                documentReporter
+                documentReporterFactory
             );
 
             final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
@@ -1147,7 +1147,7 @@ public class Node implements Closeable {
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
                 b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
-                b.bind(DocumentReporter.class).toInstance(documentReporter);
+                b.bind(DocumentReporterFactory.class).toInstance(documentReporterFactory);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1205,12 +1205,12 @@ public class Node implements Closeable {
         }
     }
 
-    private DocumentReporter getDocumentReporter() {
+    private DocumentReporterFactory getDocumentReporter() {
         List<DocumentReporterPlugin> plugins = pluginsService.filterPlugins(DocumentReporterPlugin.class);
         if (plugins.size() == 1) {
             return plugins.get(0).getDocumentReporter();
         } else if (plugins.size() == 0) {
-            return DocumentReporter.EMPTY_INSTANCE;
+            return DocumentReporterFactory.EMPTY_INSTANCE;
         }
         throw new IllegalStateException("too many metering plugins");
     }

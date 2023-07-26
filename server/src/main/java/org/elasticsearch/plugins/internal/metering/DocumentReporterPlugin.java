@@ -10,5 +10,5 @@ package org.elasticsearch.plugins.internal.metering;
 
 public interface DocumentReporterPlugin {
 
-    DocumentReporter getDocumentReporter();
+    DocumentReporterFactory getDocumentReporter();
 }

@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.internal.metering.DocumentReporter;
+import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -96,7 +96,7 @@ public class CodecTests extends ESTestCase {
             () -> null,
             settings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE,
-            DocumentReporter.EMPTY_INSTANCE
+            DocumentReporterFactory.EMPTY_INSTANCE
         );
         return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
     }

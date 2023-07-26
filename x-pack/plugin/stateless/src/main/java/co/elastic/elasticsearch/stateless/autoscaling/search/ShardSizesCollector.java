@@ -51,7 +51,7 @@ import java.util.concurrent.ConcurrentMap;
 public class ShardSizesCollector implements ClusterStateListener {
 
     public static final Setting<TimeValue> BOOST_WINDOW_SETTING = Setting.timeSetting(
-        "serverless.autoscaling.search_metrics.boost_window",
+        "serverless.search.boost_window",
         TimeValue.timeValueDays(7),
         TimeValue.timeValueDays(1),
         TimeValue.timeValueDays(365),

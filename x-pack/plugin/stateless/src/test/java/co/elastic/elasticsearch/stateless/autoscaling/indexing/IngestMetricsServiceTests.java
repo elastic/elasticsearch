@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +52,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         var remoteNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID());
         var nodes = DiscoveryNodes.builder().add(localNode).add(remoteNode).localNodeId(localNode.getId()).build();
 
-        var service = new IngestMetricsService(Settings.EMPTY, () -> 0, new MemoryMetricsService());
+        var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, new MemoryMetricsService());
         var indexTierMetrics = service.getIndexTierMetrics();
         // If the node is not elected as master (i.e. we haven't got any cluster state notification) it shouldn't return any info
         assertThat(indexTierMetrics.nodesLoad(), is(empty()));
@@ -78,7 +79,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             .localNodeId(localNode.getId())
             .build();
 
-        var service = new IngestMetricsService(Settings.EMPTY, () -> 0, new MemoryMetricsService());
+        var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, new MemoryMetricsService());
 
         service.clusterChanged(
             new ClusterChangedEvent(
@@ -109,10 +110,12 @@ public class IngestMetricsServiceTests extends ESTestCase {
         var inaccurateMetricTime = TimeValue.timeValueSeconds(25);
         var staleLoadWindow = TimeValue.timeValueMinutes(10);
         var service = new IngestMetricsService(
-            Settings.builder()
-                .put(ACCURATE_LOAD_WINDOW.getKey(), inaccurateMetricTime)
-                .put(STALE_LOAD_WINDOW.getKey(), staleLoadWindow)
-                .build(),
+            clusterSettings(
+                Settings.builder()
+                    .put(ACCURATE_LOAD_WINDOW.getKey(), inaccurateMetricTime)
+                    .put(STALE_LOAD_WINDOW.getKey(), staleLoadWindow)
+                    .build()
+            ),
             fakeClock::get,
             new MemoryMetricsService()
         );
@@ -187,7 +190,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
         final var nodesWithElectedMaster = DiscoveryNodes.builder(nodes).masterNodeId(masterNode.getId()).build();
 
-        var service = new IngestMetricsService(Settings.EMPTY, () -> 1, new MemoryMetricsService());
+        var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 1, new MemoryMetricsService());
 
         service.clusterChanged(new ClusterChangedEvent("master node elected", clusterState(nodesWithElectedMaster), clusterState(nodes)));
 
@@ -221,7 +224,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             .localNodeId(localNode.getId())
             .build();
 
-        var service = new IngestMetricsService(Settings.EMPTY, () -> 0, new MemoryMetricsService());
+        var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, new MemoryMetricsService());
 
         service.clusterChanged(
             new ClusterChangedEvent(
@@ -257,5 +260,9 @@ public class IngestMetricsServiceTests extends ESTestCase {
     private static ClusterState clusterState(DiscoveryNodes nodes) {
         assert nodes != null;
         return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
+    }
+
+    private static ClusterSettings clusterSettings(Settings settings) {
+        return new ClusterSettings(settings, Set.of(ACCURATE_LOAD_WINDOW, STALE_LOAD_WINDOW));
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -46,17 +47,20 @@ public class IngestLoadSampler implements ClusterStateListener {
         0.1,
         0,
         0.4,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
     public static final Setting<TimeValue> SAMPLING_FREQUENCY_SETTING = Setting.timeSetting(
         "serverless.autoscaling.indexing.sampler.frequency",
         TimeValue.timeValueSeconds(1),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
     public static final Setting<TimeValue> MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING = Setting.timeSetting(
         "serverless.autoscaling.indexing.sampler.max_time_between_publications",
         TimeValue.timeValueSeconds(30),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // Minimum transport version required for master to be able to handle the metric publications
@@ -67,12 +71,12 @@ public class IngestLoadSampler implements ClusterStateListener {
     private final AverageWriteLoadSampler writeLoadSampler;
     private final IngestLoadPublisher ingestionLoadPublisher;
     private final DoubleSupplier currentIndexLoadSupplier;
-    private final double minSensitivityRatio;
-    private final TimeValue samplingFrequency;
-    private final TimeValue maxTimeBetweenPublications;
     private final double numProcessors;
     private final boolean isIndexNode;
 
+    private volatile double minSensitivityRatio;
+    private volatile TimeValue samplingFrequency;
+    private volatile TimeValue maxTimeBetweenPublications;
     private volatile double ingestionLoad;
     private volatile double latestPublishedIngestionLoad;
     private volatile SamplingTask samplingTask;
@@ -87,39 +91,16 @@ public class IngestLoadSampler implements ClusterStateListener {
         IngestLoadPublisher ingestionLoadPublisher,
         DoubleSupplier currentIndexLoadSupplier,
         boolean isIndexNode,
-        Settings settings
-    ) {
-        this(
-            threadPool,
-            writeLoadSampler,
-            ingestionLoadPublisher,
-            currentIndexLoadSupplier,
-            isIndexNode,
-            MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING.get(settings),
-            SAMPLING_FREQUENCY_SETTING.get(settings),
-            MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.get(settings),
-            EsExecutors.nodeProcessors(settings).count()
-        );
-    }
-
-    IngestLoadSampler(
-        ThreadPool threadPool,
-        AverageWriteLoadSampler writeLoadSampler,
-        IngestLoadPublisher ingestionLoadPublisher,
-        DoubleSupplier currentIndexLoadSupplier,
-        boolean isIndexNode,
-        double minSensitivityRatio,
-        TimeValue samplingFrequency,
-        TimeValue maxTimeBetweenPublications,
-        double numProcessors
+        double numProcessors,
+        ClusterSettings clusterSettings
     ) {
         if (numProcessors <= 0) {
             throw new IllegalArgumentException("Processors must be positive but was " + numProcessors);
         }
 
-        this.minSensitivityRatio = minSensitivityRatio;
-        this.samplingFrequency = samplingFrequency;
-        this.maxTimeBetweenPublications = maxTimeBetweenPublications;
+        clusterSettings.initializeAndWatch(MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING, value -> this.minSensitivityRatio = value);
+        clusterSettings.initializeAndWatch(SAMPLING_FREQUENCY_SETTING, value -> this.samplingFrequency = value);
+        clusterSettings.initializeAndWatch(MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING, value -> this.maxTimeBetweenPublications = value);
         this.numProcessors = numProcessors;
         this.isIndexNode = isIndexNode;
 
@@ -146,7 +127,8 @@ public class IngestLoadSampler implements ClusterStateListener {
             ingestLoadPublisher,
             getIngestionLoad,
             hasIndexRole,
-            settings
+            EsExecutors.nodeProcessors(settings).count(),
+            clusterService.getClusterSettings()
         );
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override

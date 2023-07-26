@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -28,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.DoubleSupplier;
 import java.util.stream.IntStream;
@@ -45,6 +47,14 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var minSensitivityRatio = 0.1;
         var samplingFrequency = TimeValue.timeValueSeconds(1);
         var maxTimeBetweenMetricPublications = TimeValue.timeValueSeconds(10);
+        var clusterSettings = clusterSettings(
+            Settings.builder()
+                .put(IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING.getKey(), minSensitivityRatio)
+                .put(IngestLoadSampler.SAMPLING_FREQUENCY_SETTING.getKey(), samplingFrequency)
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), maxTimeBetweenMetricPublications)
+                .build()
+        );
+
         var numProcessors = randomIntBetween(2, 32);
         var nodeIngestLoad = randomIngestionLoad(numProcessors);
 
@@ -64,10 +74,8 @@ public class IngestLoadSamplerTests extends ESTestCase {
             ingestLoadPublisher,
             () -> nodeIngestLoad,
             true,
-            minSensitivityRatio,
-            samplingFrequency,
-            maxTimeBetweenMetricPublications,
-            numProcessors
+            numProcessors,
+            clusterSettings
         );
         sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
@@ -88,6 +96,14 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var minSensitivityRatio = 0;
         var samplingFrequency = TimeValue.timeValueSeconds(1);
         var maxTimeBetweenMetricPublications = TimeValue.timeValueSeconds(10);
+        var clusterSettings = clusterSettings(
+            Settings.builder()
+                .put(IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING.getKey(), minSensitivityRatio)
+                .put(IngestLoadSampler.SAMPLING_FREQUENCY_SETTING.getKey(), samplingFrequency)
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), maxTimeBetweenMetricPublications)
+                .build()
+        );
+
         var numProcessors = randomIntBetween(2, 32);
 
         // Increasing load
@@ -110,10 +126,8 @@ public class IngestLoadSamplerTests extends ESTestCase {
             ingestLoadPublisher,
             currentIndexLoadSupplier::next,
             true,
-            minSensitivityRatio,
-            samplingFrequency,
-            maxTimeBetweenMetricPublications,
-            numProcessors
+            numProcessors,
+            clusterSettings
         );
         sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
@@ -134,6 +148,13 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var minSensitivityRatio = 0.1;
         var samplingFrequency = TimeValue.timeValueSeconds(1);
         var maxTimeBetweenMetricPublications = TimeValue.timeValueSeconds(30);
+        var clusterSettings = clusterSettings(
+            Settings.builder()
+                .put(IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING.getKey(), minSensitivityRatio)
+                .put(IngestLoadSampler.SAMPLING_FREQUENCY_SETTING.getKey(), samplingFrequency)
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), maxTimeBetweenMetricPublications)
+                .build()
+        );
         int numProcessors = 32;
 
         var changesAboveMinSensitivity = new AtomicInteger();
@@ -174,10 +195,8 @@ public class IngestLoadSamplerTests extends ESTestCase {
             ingestLoadPublisher,
             ingestLoadProbe,
             true,
-            minSensitivityRatio,
-            samplingFrequency,
-            maxTimeBetweenMetricPublications,
-            numProcessors
+            numProcessors,
+            clusterSettings
         );
         sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
@@ -198,6 +217,13 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var minSensitivityRatio = 0.1;
         var samplingFrequency = TimeValue.timeValueSeconds(1);
         var maxTimeBetweenMetricPublications = TimeValue.timeValueSeconds(10);
+        var clusterSettings = clusterSettings(
+            Settings.builder()
+                .put(IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING.getKey(), minSensitivityRatio)
+                .put(IngestLoadSampler.SAMPLING_FREQUENCY_SETTING.getKey(), samplingFrequency)
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), maxTimeBetweenMetricPublications)
+                .build()
+        );
         int numProcessors = 32;
 
         var ingestLoadsOverTime = IntStream.range(0, 15).mapToObj(n -> n * numProcessors * (minSensitivityRatio - 0.01)).toList();
@@ -219,10 +245,8 @@ public class IngestLoadSamplerTests extends ESTestCase {
             ingestLoadPublisher,
             readingIter::next,
             true,
-            minSensitivityRatio,
-            samplingFrequency,
-            maxTimeBetweenMetricPublications,
-            numProcessors
+            numProcessors,
+            clusterSettings
         );
         sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
@@ -252,6 +276,13 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var minSensitivityRatio = 0.1;
         var samplingFrequency = TimeValue.timeValueSeconds(1);
         var maxTimeBetweenMetricPublications = TimeValue.timeValueSeconds(10);
+        var clusterSettings = clusterSettings(
+            Settings.builder()
+                .put(IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING.getKey(), minSensitivityRatio)
+                .put(IngestLoadSampler.SAMPLING_FREQUENCY_SETTING.getKey(), samplingFrequency)
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), maxTimeBetweenMetricPublications)
+                .build()
+        );
         int numProcessors = 32;
 
         var publishedMetrics = new ArrayList<Double>();
@@ -292,10 +323,8 @@ public class IngestLoadSamplerTests extends ESTestCase {
             ingestLoadPublisher,
             currentIndexLoadSupplier,
             true,
-            minSensitivityRatio,
-            samplingFrequency,
-            maxTimeBetweenMetricPublications,
-            numProcessors
+            numProcessors,
+            clusterSettings
         );
         sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
@@ -322,7 +351,8 @@ public class IngestLoadSamplerTests extends ESTestCase {
         };
         var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
-        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, true, Settings.EMPTY);
+        var clusterSettings = clusterSettings(Settings.EMPTY);
+        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, true, 8, clusterSettings);
         sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
 
@@ -361,7 +391,8 @@ public class IngestLoadSamplerTests extends ESTestCase {
         };
         var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
-        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, false, Settings.EMPTY);
+        var clusterSettings = clusterSettings(Settings.EMPTY);
+        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, false, 8, clusterSettings);
         sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
 
@@ -410,5 +441,16 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 randomIntBetween(0, 100)
             );
         }
+    }
+
+    private static ClusterSettings clusterSettings(Settings settings) {
+        return new ClusterSettings(
+            settings,
+            Set.of(
+                IngestLoadSampler.SAMPLING_FREQUENCY_SETTING,
+                IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
+                IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING
+            )
+        );
     }
 }

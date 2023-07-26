@@ -34,6 +34,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSearcher.LeafSlice;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -192,6 +193,15 @@ public class ContextIndexSearcherTests extends ESTestCase {
         AtomicInteger missingDocs = new AtomicInteger();
         AtomicInteger visitDocs = new AtomicInteger(0);
 
+        // determine how many docs are in the first slice for correct, this is how much we are missing by
+        // throwing the exception in the first collector
+        LeafSlice[] leafSlices = ContextIndexSearcher.computeSlices(
+            directoryReader.getContext().leaves(),
+            executor.getMaximumPoolSize(),
+            1
+        );
+        LeafSlice leafSlice = leafSlices[0];
+        int docsFirstSlice = Arrays.stream(leafSlice.leaves).map(LeafReaderContext::reader).mapToInt(LeafReader::maxDoc).sum();
         CollectorManager<Collector, Void> collectorManager = new CollectorManager<>() {
             boolean first = true;
 
@@ -202,7 +212,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     return new Collector() {
                         @Override
                         public LeafCollector getLeafCollector(LeafReaderContext context) {
-                            missingDocs.set(context.reader().numDocs());
+                            missingDocs.set(docsFirstSlice);
                             throw new IllegalArgumentException("fake exception");
                         }
 
@@ -250,12 +260,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
             1,
             randomBoolean(),
             executor
-        ) {
-            @Override
-            protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-                return slices(leaves, 1, 1);
-            }
-        };
+        );
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -393,7 +398,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         int iter = randomIntBetween(16, 64);
         for (int i = 0; i < iter; i++) {
             int numThreads = randomIntBetween(1, 16);
-            IndexSearcher.LeafSlice[] slices = ContextIndexSearcher.computeSlices(contexts, numThreads, 1);
+            LeafSlice[] slices = ContextIndexSearcher.computeSlices(contexts, numThreads, 1);
             assertSlices(slices, numDocs, numThreads);
         }
         // expect exception for numThreads < 1
@@ -406,12 +411,12 @@ public class ContextIndexSearcherTests extends ESTestCase {
         IOUtils.close(reader, w, dir);
     }
 
-    private void assertSlices(IndexSearcher.LeafSlice[] slices, int numDocs, int numThreads) {
+    private void assertSlices(LeafSlice[] slices, int numDocs, int numThreads) {
         // checks that the number of slices is not bigger than the number of available threads
         // and each slice contains at least 10% of the data (which means the max number of slices is 10)
         int sumDocs = 0;
         assertThat(slices.length, lessThanOrEqualTo(numThreads));
-        for (IndexSearcher.LeafSlice slice : slices) {
+        for (LeafSlice slice : slices) {
             int sliceDocs = Arrays.stream(slice.leaves).mapToInt(l -> l.reader().maxDoc()).sum();
             assertThat(sliceDocs, greaterThanOrEqualTo((int) (0.1 * numDocs)));
             sumDocs += sliceDocs;

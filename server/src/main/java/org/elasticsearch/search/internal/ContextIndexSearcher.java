@@ -159,7 +159,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else {
             this.leafSlices = null;
         }
-
     }
 
     // package private for testing

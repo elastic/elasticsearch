@@ -81,8 +81,7 @@ public final class NestedUtils {
                 currentInput = inputIterator.next();
                 currentInputName = pathFunction.apply(currentInput);
                 assert currentInputName.startsWith(scope);
-            }
-            else if (currentInputName.startsWith(currentChild + ".")) {
+            } else if (currentInputName.startsWith(currentChild + ".")) {
                 // If this input sits under the current child, add it to that child scope
                 // and then get the next input
                 output.get(currentChild).add(currentInput);

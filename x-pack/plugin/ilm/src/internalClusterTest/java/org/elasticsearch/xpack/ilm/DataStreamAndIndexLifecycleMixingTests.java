@@ -501,7 +501,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List.of(dataStreamName + "*"),
             Settings.builder().put(IndexSettings.PREFER_ILM, false).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
             null,
-                DataStreamLifecycle.DEFAULT
+            DataStreamLifecycle.DEFAULT
         );
 
         indexDocs(dataStreamName, 2);
@@ -538,8 +538,8 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
             // the write index is managed by the data stream lifecycle
             ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
-                    ExplainDataStreamLifecycleAction.INSTANCE,
-                    new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex })
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex })
             ).actionGet();
             assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(1));
             ExplainIndexDataStreamLifecycle dataStreamLifecycleExplain = dataStreamLifecycleExplainResponse.getIndices().get(0);

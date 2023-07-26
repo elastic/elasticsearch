@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.sql.analysis.analyzer;
+package org.elasticsearch.xpack.ql.analyzer;
 
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
@@ -25,7 +25,7 @@ public class PreAnalyzer {
 
         public final List<TableInfo> indices;
 
-        PreAnalysis(List<TableInfo> indices) {
+        public PreAnalysis(List<TableInfo> indices) {
             this.indices = indices;
         }
     }
@@ -38,7 +38,7 @@ public class PreAnalyzer {
         return doPreAnalyze(plan);
     }
 
-    private PreAnalysis doPreAnalyze(LogicalPlan plan) {
+    protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         List<TableInfo> indices = new ArrayList<>();
 
         plan.forEachUp(UnresolvedRelation.class, p -> indices.add(new TableInfo(p.table(), p.frozen())));

@@ -97,6 +97,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         null
                     )
                 ),
+                memory / 2,
                 listener
             ),
             stats -> {
@@ -131,6 +132,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         null
                     )
                 ),
+                memory / 2,
                 listener
             ),
             stats -> {
@@ -240,31 +242,31 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         );
     }
 
-    public void testTryRemoveNodeMemory() {
+    public void testTryRemoveOneNode() {
         assertEquals(
-            600L,
-            MlAutoscalingResourceTracker.tryRemoveNodeMemory(
+            true,
+            MlAutoscalingResourceTracker.tryRemoveOneNode(
                 Map.of("node_a", List.of(100L, 200L, 300L), "node_b", List.of(200L, 300L), "node_c", List.of(10L, 10L, 10L, 10L, 10L)),
                 600L
             )
         );
 
         assertEquals(
-            0L,
-            MlAutoscalingResourceTracker.tryRemoveNodeMemory(
+            false,
+            MlAutoscalingResourceTracker.tryRemoveOneNode(
                 Map.of("node_a", List.of(100L, 200L, 300L), "node_b", List.of(280L, 300L), "node_c", List.of(10L, 10L, 10L, 10L, 10L)),
                 600L
             )
         );
 
-        assertEquals(0L, MlAutoscalingResourceTracker.tryRemoveNodeMemory(Map.of("node_a", List.of(10L, 10L, 10L, 10L, 10L)), 600L));
+        assertEquals(false, MlAutoscalingResourceTracker.tryRemoveOneNode(Map.of("node_a", List.of(10L, 10L, 10L, 10L, 10L)), 600L));
 
-        assertEquals(0L, MlAutoscalingResourceTracker.tryRemoveNodeMemory(Collections.emptyMap(), 999L));
+        assertEquals(false, MlAutoscalingResourceTracker.tryRemoveOneNode(Collections.emptyMap(), 999L));
 
         // solvable case with optimal packing, but not possible if badly packed
         assertEquals(
-            0L,
-            MlAutoscalingResourceTracker.tryRemoveNodeMemory(
+            false,
+            MlAutoscalingResourceTracker.tryRemoveOneNode(
                 Map.of(
                     "node_a",
                     List.of(100L, 200L, 300L),
@@ -279,8 +281,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
         // same with smaller jobs, that can be re-arranged
         assertEquals(
-            1000L,
-            MlAutoscalingResourceTracker.tryRemoveNodeMemory(
+            true,
+            MlAutoscalingResourceTracker.tryRemoveOneNode(
                 Map.of(
                     "node_a",
                     List.of(100L, 200L, 300L),
@@ -294,8 +296,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         );
 
         assertEquals(
-            1000L,
-            MlAutoscalingResourceTracker.tryRemoveNodeMemory(
+            true,
+            MlAutoscalingResourceTracker.tryRemoveOneNode(
                 Map.of(
                     "node_a",
                     List.of(100L, 200L, 300L),
@@ -309,8 +311,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         );
 
         assertEquals(
-            1000L,
-            MlAutoscalingResourceTracker.tryRemoveNodeMemory(
+            true,
+            MlAutoscalingResourceTracker.tryRemoveOneNode(
                 Map.of(
                     "node_a",
                     List.of(100L, 200L, 300L),

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -139,6 +140,187 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(0, stats.extraSingleNodeProcessors());
                 assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
             }
+        );
+    }
+
+    public void testTryMoveJobsByMemory() {
+        assertEquals(0L, MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(List.of(10L), Map.of("node_a", 100L), 1000L));
+        assertEquals(10L, MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(List.of(10L), Map.of("node_a", 995L), 1000L));
+
+        // equal sizes fit on all nodes
+        assertEquals(
+            0L,
+            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
+                List.of(10L, 10L, 10L, 10L, 10L),
+                Map.of("node_a", 976L, "node_b", 986L, "node_c", 967L),
+                1000L
+            )
+        );
+
+        assertEquals(
+            0L,
+            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
+                List.of(10L, 10L, 10L, 10L, 10L),
+                Map.of("node_a", 980L, "node_b", 990L, "node_c", 970L),
+                1000L
+            )
+        );
+
+        // doesn't fit
+        assertEquals(
+            10L,
+            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
+                List.of(10L, 10L, 10L, 10L, 10L, 10L, 10L),
+                Map.of("node_a", 976L, "node_b", 986L, "node_c", 967L),
+                1000L
+            )
+        );
+        assertEquals(
+            40L,
+            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
+                List.of(10L, 10L, 10L, 10L, 10L, 10L, 40L),
+                Map.of("node_a", 976L, "node_b", 946L, "node_c", 967L),
+                1000L
+            )
+        );
+
+        assertEquals(
+            130L,
+            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
+                List.of(10L, 20L, 30L, 40L, 50L, 60L, 70L), // 280, with better packing this could return 20 + 50
+                Map.of("node_a", 886L, "node_b", 926L, "node_c", 967L),
+                1000L
+            )
+        );
+
+        assertEquals(
+            70L,
+            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
+                List.of(10L, 20L, 30L, 40L, 50L, 60L, 70L), // 280, solvable with optimal packing
+                Map.of("node_a", 886L, "node_b", 906L, "node_c", 917L),
+                1000L
+            )
+        );
+
+        assertEquals(
+            70L,
+            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
+                List.of(10L, 20L, 30L, 40L, 50L, 60L, 70L), // 280, solvable with optimal packing
+                Map.of("node_a", 866L, "node_b", 886L, "node_c", 917L),
+                1000L
+            )
+        );
+
+        assertEquals(
+            500L,
+            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
+                List.of(500L, 200L),
+                Map.of("node_a", 1400L, "node_b", 1700L),
+                2000L
+            )
+        );
+
+        assertEquals(
+            700L,
+            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(List.of(500L, 200L), Collections.emptyMap(), 2000L)
+        );
+
+        assertEquals(
+            0L,
+            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(Collections.emptyList(), Collections.emptyMap(), 2000L)
+        );
+
+        assertEquals(
+            0L,
+            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
+                Collections.emptyList(),
+                Map.of("node_a", 1400L, "node_b", 1700L),
+                2000L
+            )
+        );
+    }
+
+    public void testTryRemoveNodeMemory() {
+        assertEquals(
+            600L,
+            MlAutoscalingResourceTracker.tryRemoveNodeMemory(
+                Map.of("node_a", List.of(100L, 200L, 300L), "node_b", List.of(200L, 300L), "node_c", List.of(10L, 10L, 10L, 10L, 10L)),
+                600L
+            )
+        );
+
+        assertEquals(
+            0L,
+            MlAutoscalingResourceTracker.tryRemoveNodeMemory(
+                Map.of("node_a", List.of(100L, 200L, 300L), "node_b", List.of(280L, 300L), "node_c", List.of(10L, 10L, 10L, 10L, 10L)),
+                600L
+            )
+        );
+
+        assertEquals(0L, MlAutoscalingResourceTracker.tryRemoveNodeMemory(Map.of("node_a", List.of(10L, 10L, 10L, 10L, 10L)), 600L));
+
+        assertEquals(0L, MlAutoscalingResourceTracker.tryRemoveNodeMemory(Collections.emptyMap(), 999L));
+
+        // solvable case with optimal packing, but not possible if badly packed
+        assertEquals(
+            0L,
+            MlAutoscalingResourceTracker.tryRemoveNodeMemory(
+                Map.of(
+                    "node_a",
+                    List.of(100L, 200L, 300L),
+                    "node_b",
+                    List.of(280L, 300L),
+                    "node_c",
+                    List.of(500L, 10L, 10L, 10L, 10L, 10L)
+                ),
+                1000L
+            )
+        );
+
+        // same with smaller jobs, that can be re-arranged
+        assertEquals(
+            1000L,
+            MlAutoscalingResourceTracker.tryRemoveNodeMemory(
+                Map.of(
+                    "node_a",
+                    List.of(100L, 200L, 300L),
+                    "node_b",
+                    List.of(280L, 300L),
+                    "node_c",
+                    List.of(100L, 100L, 100L, 100L, 100L, 10L, 10L, 10L, 10L, 10L)
+                ),
+                1000L
+            )
+        );
+
+        assertEquals(
+            1000L,
+            MlAutoscalingResourceTracker.tryRemoveNodeMemory(
+                Map.of(
+                    "node_a",
+                    List.of(100L, 200L, 300L),
+                    "node_b",
+                    List.of(280L, 300L),
+                    "node_c",
+                    List.of(100L, 100L, 100L, 100L, 100L, 50L, 10L, 10L, 10L, 10L)
+                ),
+                1000L
+            )
+        );
+
+        assertEquals(
+            1000L,
+            MlAutoscalingResourceTracker.tryRemoveNodeMemory(
+                Map.of(
+                    "node_a",
+                    List.of(100L, 200L, 300L),
+                    "node_b",
+                    List.of(280L, 325L),
+                    "node_c",
+                    List.of(100L, 100L, 100L, 100L, 100L, 50L, 10L, 10L, 10L, 10L)
+                ),
+                1000L
+            )
         );
     }
 

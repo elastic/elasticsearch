@@ -319,6 +319,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             @Override
             protected void onItemResponse(Map.Entry<String, List<ShardRouting>> entry, NodeResponse nodeResponse) {
+                assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
                 final var node = nodes.get(entry.getKey());
                 synchronized (this) {
                     shardResponses.addAll(nodeResponse.getResults());
@@ -345,6 +346,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             @Override
             protected void onItemFailure(Map.Entry<String, List<ShardRouting>> entry, Exception e) {
+                assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
                 final var node = nodes.get(entry.getKey());
                 final var shards = entry.getValue();
                 logger.debug(() -> format("failed to execute [%s] on node [%s]", actionName, node), e);
@@ -361,6 +363,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             @Override
             protected Response onCompletion() {
+                assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
                 // ref releases all happen-before here so no need to be synchronized
                 return responseFactory.newResponse(
                     totalShards.get(),
@@ -401,6 +404,7 @@ public abstract class TransportBroadcastByNodeAction<
         String nodeId,
         ActionListener<NodeResponse> listener
     ) {
+        assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         logger.trace("[{}] executing operation on [{}] shards", actionName, shards.size());
 
         new CancellableFanOut<ShardRouting, ShardOperationResult, NodeResponse>() {
@@ -416,6 +420,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             @Override
             protected void onItemResponse(ShardRouting shardRouting, ShardOperationResult shardOperationResult) {
+                assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
                 synchronized (results) {
                     results.add(shardOperationResult);
                 }
@@ -423,6 +428,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             @Override
             protected void onItemFailure(ShardRouting shardRouting, Exception e) {
+                assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
                 logger.log(
                     TransportActions.isShardNotAvailableException(e) ? Level.TRACE : Level.DEBUG,
                     () -> format("[%s] failed to execute operation for shard [%s]", actionName, shardRouting.shortSummary()),

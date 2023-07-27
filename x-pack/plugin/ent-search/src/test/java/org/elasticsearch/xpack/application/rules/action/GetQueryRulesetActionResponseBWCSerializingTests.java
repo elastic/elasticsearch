@@ -47,7 +47,7 @@ public class GetQueryRulesetActionResponseBWCSerializingTests extends AbstractBW
 
     @Override
     protected GetQueryRulesetAction.Response mutateInstanceForVersion(GetQueryRulesetAction.Response instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_500_041)) {
+        if (version.before(TransportVersion.V_8_500_044)) {
             List<QueryRule> rules = new ArrayList<>();
             for (QueryRule rule : instance.queryRuleset().rules()) {
                 List<QueryRuleCriteria> newCriteria = new ArrayList<>();

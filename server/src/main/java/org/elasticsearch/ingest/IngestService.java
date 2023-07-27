@@ -59,8 +59,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.document_reporting.DocumentReporter;
-import org.elasticsearch.plugins.internal.document_reporting.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserverFactory;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -105,7 +105,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
     private final ScriptService scriptService;
-    private DocumentReporterFactory documentReporterFactory;
+    private final DocumentParsingObserverFactory documentParsingObserverFactory;
     private final Map<String, Processor.Factory> processorFactories;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -181,11 +181,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
-        DocumentReporterFactory documentReporterFactory
+        DocumentParsingObserverFactory documentParsingObserverFactory
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
-        this.documentReporterFactory = documentReporterFactory;
+        this.documentParsingObserverFactory = documentParsingObserverFactory;
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -714,13 +714,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             totalMetrics.postIngest(ingestTimeInNanos);
                             ref.close();
                         });
-                        DocumentReporter documentReporter = documentReporterFactory.createDocumentReporter();
+                        DocumentParsingObserver documentParsingObserver = documentParsingObserverFactory.createDocumentParsingObserver();
 
-                        IngestDocument ingestDocument = newIngestDocument(indexRequest, documentReporter);
+                        IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
 
                         executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
                         indexRequest.setPipelinesHaveRun();
-                        documentReporter.reportDocumentParsed(indexRequest.index());
+                        documentParsingObserver.parsingFinished(indexRequest.index());
 
                         i++;
                     }
@@ -1009,14 +1009,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Builds a new ingest document from the passed-in index request.
      */
-    private static IngestDocument newIngestDocument(final IndexRequest request, DocumentReporter documentReporter) {
+    private static IngestDocument newIngestDocument(final IndexRequest request, DocumentParsingObserver documentParsingObserver) {
         return new IngestDocument(
             request.index(),
             request.id(),
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap(documentReporter)
+            request.sourceAsMap(documentParsingObserver)
         );
     }
 

@@ -72,7 +72,7 @@ public class MapperServiceFactory {
                     throw new UnsupportedOperationException();
                 }
             },
-            /*DocumentReporterFactory.EMPTY_INSTANCE*/null // we don't want to export this package every
+            /*documentParsingObserverFactory.EMPTY_INSTANCE*/null // we don't want to export this package every
         );
 
         try {

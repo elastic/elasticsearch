@@ -6,15 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.internal.document_reporting;
+package org.elasticsearch.plugins.internal.document_parsing_observer;
 
 /**
- * An internal plugin that will return a DocumentReporterFactory. This allows to implement a reporting upon document parsing
+ * An internal plugin that will return a DocumentParsingObserverFactory.
  */
-public interface DocumentReporterPlugin {
+public interface DocumentParsingObserverPlugin {
 
     /**
-     * @return a documentReporterFactory which will report upon parsing
+     * @return a documentParsingObserverFactory to allow observing parsing events
      */
-    DocumentReporterFactory getDocumentReporter();
+    DocumentParsingObserverFactory getDocumentParsingObserverFactory();
 }

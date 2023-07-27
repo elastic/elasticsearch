@@ -14,7 +14,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.plugins.internal.document_reporting.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserverFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -68,7 +68,7 @@ public class WatcherPluginTests extends ESTestCase {
             () -> true,
             TestIndexNameExpressionResolver.newInstance(),
             Collections.emptyMap(),
-            DocumentReporterFactory.EMPTY_INSTANCE
+            DocumentParsingObserverFactory.EMPTY_INSTANCE
         );
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);

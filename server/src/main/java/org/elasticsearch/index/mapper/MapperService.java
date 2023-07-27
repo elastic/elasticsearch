@@ -27,7 +27,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.internal.document_reporting.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserverFactory;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -124,7 +124,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexVersion indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
-    private final DocumentReporterFactory documentReporterFactory;
+    private final DocumentParsingObserverFactory documentParsingObserverFactory;
 
     private volatile DocumentMapper mapper;
 
@@ -138,7 +138,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
-        DocumentReporterFactory documentReporterFactory
+        DocumentParsingObserverFactory documentParsingObserverFactory
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
@@ -150,7 +150,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             searchExecutionContextSupplier,
             idFieldMapper,
             scriptCompiler,
-            documentReporterFactory
+            documentParsingObserverFactory
         );
     }
 
@@ -164,7 +164,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
-        DocumentReporterFactory documentReporterFactory
+        DocumentParsingObserverFactory documentParsingObserverFactory
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -182,8 +182,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper
         );
-        this.documentReporterFactory = documentReporterFactory;
-        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get(), documentReporterFactory);
+        this.documentParsingObserverFactory = documentParsingObserverFactory;
+        this.documentParser = new DocumentParser(
+            parserConfiguration,
+            this.mappingParserContextSupplier.get(),
+            documentParsingObserverFactory
+        );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );

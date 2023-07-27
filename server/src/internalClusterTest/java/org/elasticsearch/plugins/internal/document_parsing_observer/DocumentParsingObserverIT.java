@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.internal.document_reporting;
+package org.elasticsearch.plugins.internal.document_parsing_observer;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -25,7 +25,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class DocumentReporterIT extends ESIntegTestCase {
+public class DocumentParsingObserverIT extends ESIntegTestCase {
 
     private static String TEST_INDEX_NAME = "test-index-name";
 
@@ -48,25 +48,25 @@ public class DocumentReporterIT extends ESIntegTestCase {
             }
             """, XContentType.JSON)).actionGet();
 
-        // assertion in a TestDocumentReporter
+        // assertion in a TestDocumentParsingObserver
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDocumentReporterPlugin.class);
+        return List.of(TestDocumentParsingObserverPlugin.class);
     }
 
-    public static class TestDocumentReporterPlugin extends Plugin implements DocumentReporterPlugin, IngestPlugin {
+    public static class TestDocumentParsingObserverPlugin extends Plugin implements DocumentParsingObserverPlugin, IngestPlugin {
 
-        public TestDocumentReporterPlugin() {}
+        public TestDocumentParsingObserverPlugin() {}
 
         @Override
-        public DocumentReporterFactory getDocumentReporter() {
-            return () -> new TestDocumentReporter();
+        public DocumentParsingObserverFactory getDocumentParsingObserverFactory() {
+            return () -> new TestDocumentParsingObserver();
         }
     }
 
-    public static class TestDocumentReporter implements DocumentReporter {
+    public static class TestDocumentParsingObserver implements DocumentParsingObserver {
         public long counter = 0;
 
         @Override
@@ -81,7 +81,7 @@ public class DocumentReporterIT extends ESIntegTestCase {
         }
 
         @Override
-        public void reportDocumentParsed(String indexName) {
+        public void parsingFinished(String indexName) {
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
             assertThat(counter, equalTo(5L));
         }

@@ -19,8 +19,8 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.internal.document_reporting.DocumentReporter;
-import org.elasticsearch.plugins.internal.document_reporting.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserverFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,17 +46,17 @@ import java.util.function.Consumer;
 public final class DocumentParser {
 
     private final XContentParserConfiguration parserConfiguration;
-    private final DocumentReporterFactory documentReporterFactory;
+    private final DocumentParsingObserverFactory documentParsingObserverFactory;
     private final MappingParserContext mappingParserContext;
 
     DocumentParser(
         XContentParserConfiguration parserConfiguration,
         MappingParserContext mappingParserContext,
-        DocumentReporterFactory documentReporterFactory
+        DocumentParsingObserverFactory documentParsingObserverFactory
     ) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
-        this.documentReporterFactory = documentReporterFactory;
+        this.documentParsingObserverFactory = documentParsingObserverFactory;
     }
 
     /**
@@ -74,12 +74,12 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
-        // only report a document if it was not already reported (done in IngestService)
-        DocumentReporter documentReporter = source.isToBeReported()
-            ? documentReporterFactory.createDocumentReporter()
-            : DocumentReporter.EMPTY_INSTANCE;
+        // only observe a document if it was not already reported (done in IngestService)
+        DocumentParsingObserver documentParsingObserver = source.wasParsedAlready()
+            ? DocumentParsingObserver.EMPTY_INSTANCE
+            : documentParsingObserverFactory.createDocumentParsingObserver();
         try (
-            XContentParser parser = documentReporter.wrapParser(
+            XContentParser parser = documentParsingObserver.wrapParser(
                 XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
             )
         ) {
@@ -100,7 +100,7 @@ public final class DocumentParser {
 
         // if a mappingUpdate is required, the parsing will be triggered again
         if (dynamicUpdate == null) {
-            documentReporter.reportDocumentParsed(mappingParserContext.getIndexSettings().getIndex().getName());
+            documentParsingObserver.parsingFinished(mappingParserContext.getIndexSettings().getIndex().getName());
         }
         return new ParsedDocument(
             context.version(),

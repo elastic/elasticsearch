@@ -163,7 +163,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.internal.document_reporting.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserverFactory;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -1799,7 +1799,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     List.of(),
                     emptyMap(),
                     null,
-                    DocumentReporterFactory.EMPTY_INSTANCE
+                    DocumentParsingObserverFactory.EMPTY_INSTANCE
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -1940,7 +1940,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(),
                             client,
                             null,
-                            DocumentReporterFactory.EMPTY_INSTANCE
+                            DocumentParsingObserverFactory.EMPTY_INSTANCE
                         ),
                         client,
                         actionFilters,

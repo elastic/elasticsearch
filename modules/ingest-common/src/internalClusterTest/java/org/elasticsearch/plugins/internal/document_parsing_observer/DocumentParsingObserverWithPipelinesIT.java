@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.internal.document_reporting;
+package org.elasticsearch.plugins.internal.document_parsing_observer;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -29,7 +29,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class DocumentReporterWithPipelinesIT extends ESIntegTestCase {
+public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
 
     private static String TEST_INDEX_NAME = "test-index-name";
 
@@ -61,29 +61,29 @@ public class DocumentReporterWithPipelinesIT extends ESIntegTestCase {
                 .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
 
-        // assertion in a TestDocumentReporter
+        // assertion in a TestDocumentParsingObserver
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDocumentReporterPlugin.class, IngestCommonPlugin.class);
+        return List.of(TestDocumentParsingObserverPlugin.class, IngestCommonPlugin.class);
     }
 
-    public static class TestDocumentReporterPlugin extends Plugin implements DocumentReporterPlugin, IngestPlugin {
+    public static class TestDocumentParsingObserverPlugin extends Plugin implements DocumentParsingObserverPlugin, IngestPlugin {
 
-        private static final TestDocumentReporter documentReporter = new TestDocumentReporter();
+        private static final TestDocumentParsingObserver DOCUMENT_PARSING_OBSERVER = new TestDocumentParsingObserver();
 
-        public TestDocumentReporterPlugin() {}
+        public TestDocumentParsingObserverPlugin() {}
 
         @Override
-        public DocumentReporterFactory getDocumentReporter() {
+        public DocumentParsingObserverFactory getDocumentParsingObserverFactory() {
             // returns a static instance, because we want to assert that the wrapping is called only once
-            return () -> documentReporter;
+            return () -> DOCUMENT_PARSING_OBSERVER;
         }
 
     }
 
-    public static class TestDocumentReporter implements DocumentReporter {
+    public static class TestDocumentParsingObserver implements DocumentParsingObserver {
         long mapCounter = 0;
         long wrapperCounter = 0;
 
@@ -101,7 +101,7 @@ public class DocumentReporterWithPipelinesIT extends ESIntegTestCase {
         }
 
         @Override
-        public void reportDocumentParsed(String indexName) {
+        public void parsingFinished(String indexName) {
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
             assertThat(mapCounter, equalTo(1L));
 

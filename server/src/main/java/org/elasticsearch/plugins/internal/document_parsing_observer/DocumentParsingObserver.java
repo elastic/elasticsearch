@@ -6,26 +6,26 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.internal.document_reporting;
+package org.elasticsearch.plugins.internal.document_parsing_observer;
 
 import org.elasticsearch.xcontent.XContentParser;
 
 /**
- * An interface to allow wrapping an XContentParser and report that a document was parsed
- * A default implementation returns a noop DocumentReporter - does not wrap a XContentParser and
- * does not do anything upon reporting.
+ * An interface to allow wrapping an XContentParser and observe the events emitted while parsing
+ * A default implementation returns a noop DocumentParsingObserver - does not wrap a XContentParser and
+ * does not do anything upon finishing parsing.
  */
-public interface DocumentReporter {
+public interface DocumentParsingObserver {
     /**
      * a default noop implementation
      */
-    DocumentReporter EMPTY_INSTANCE = new DocumentReporter() {
+    DocumentParsingObserver EMPTY_INSTANCE = new DocumentParsingObserver() {
     };
 
     /**
      * Decorates a provided xContentParser with additional logic (gather some state).
-     * The Decorator parser should use a state from DocumentReporter
-     * in order to allow a reportDocumentParsed method to use that state
+     * The Decorator parser should use a state from DocumentParsingObserver
+     * in order to allow a parsingFinished method to use that state
      * @param xContentParser to be decorated
      * @return a decorator xContentParser
      */
@@ -35,7 +35,7 @@ public interface DocumentReporter {
 
     /**
      * Reports (perhaps to some external components) the state that was gathered by a decorated wrap
-     * @param indexName an index name to be reported along with the state
+     * @param indexName an index name that is associated with the parsed document
      */
-    default void reportDocumentParsed(String indexName) {}
+    default void parsingFinished(String indexName) {}
 }

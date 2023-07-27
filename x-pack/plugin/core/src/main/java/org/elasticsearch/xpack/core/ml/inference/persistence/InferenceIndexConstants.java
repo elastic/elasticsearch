@@ -46,7 +46,7 @@ public final class InferenceIndexConstants {
     private static final String NATIVE_LATEST_INDEX = NATIVE_INDEX_PREFIX + NATIVE_INDEX_VERSION;
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
-    public static final int INFERENCE_INDEX_MAPPINGS_VERSION = 4;
+    public static final int INFERENCE_INDEX_MAPPINGS_VERSION = 1;
 
     public static String mapping() {
         return TemplateUtils.loadTemplate(
